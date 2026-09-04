@@ -1,0 +1,28 @@
+{% extends "portal/base.html" %}
+{% block heading %}{{ ticket.code }} · {{ ticket.category }}{% endblock %}
+{% block content %}
+<div class="text-sm text-slate-500 mb-4">Sahə: {{ ticket.space.short_label|default:"—" }} · Açılıb: {{ ticket.created_at|date:"d.m.Y" }}</div>
+<div class="flex gap-2 mb-8 text-xs">
+  {% for key, label in ticket.Status.choices %}{% endfor %}
+  <span class="px-3 py-1 rounded-full {% if ticket.status == 'sent' %}bg-cp-navy text-white{% else %}bg-white border{% endif %}">Göndərildi</span>
+  <span class="px-3 py-1 rounded-full {% if ticket.status == 'accepted' %}bg-cp-navy text-white{% else %}bg-white border{% endif %}">Qəbul edildi</span>
+  <span class="px-3 py-1 rounded-full {% if ticket.status == 'in_progress' %}bg-cp-navy text-white{% else %}bg-white border{% endif %}">İcra olunur</span>
+  <span class="px-3 py-1 rounded-full {% if ticket.status == 'resolved' %}bg-emerald-600 text-white{% else %}bg-white border{% endif %}">Həll edildi</span>
+</div>
+<div class="bg-white rounded-xl border p-5 mb-6">
+  <h2 class="font-semibold mb-3">Kommunikasiya</h2>
+  <div class="space-y-3">
+    {% for m in ticket.messages.all %}
+      <div class="text-sm">
+        <span class="font-medium">{{ m.author_label }}:</span> {{ m.body }}
+        <div class="text-xs text-slate-400">{{ m.created_at|date:"d.m.Y H:i" }}</div>
+      </div>
+    {% endfor %}
+  </div>
+  <form method="post" class="mt-4 flex gap-2">
+    {% csrf_token %}
+    <input name="body" class="flex-1 rounded-lg border px-3 py-2 text-sm" placeholder="Mesaj yazın...">
+    <button class="bg-cp-navy text-white rounded-lg px-4 text-sm">Göndər</button>
+  </form>
+</div>
+{% endblock %}

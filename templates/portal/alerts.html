@@ -1,0 +1,22 @@
+{% extends "portal/base.html" %}
+{% block heading %}Bildirişlər və tarixçə{% endblock %}
+{% block content %}
+<div class="grid md:grid-cols-2 gap-6">
+  <div class="bg-white rounded-xl border p-5">
+    <h2 class="font-semibold mb-3">Bildirişlər</h2>
+    <ul class="space-y-2 text-sm">
+      {% for n in notifications %}
+        <li>{{ n.message }} <span class="text-xs text-slate-400">{{ n.created_at|date:"d.m H:i" }}</span></li>
+      {% empty %}<li class="text-slate-500">Bildiriş yoxdur.</li>{% endfor %}
+    </ul>
+  </div>
+  <div class="bg-white rounded-xl border p-5">
+    <h2 class="font-semibold mb-3">Request History</h2>
+    <ul class="space-y-2 text-sm">
+      {% for t in history %}
+        <li><a class="text-cp-navy" href="{% url 'portal:request_detail' t.code %}">{{ t.code }} {{ t.category }} — {{ t.get_status_display }}</a></li>
+      {% empty %}<li class="text-slate-500">Tarixçə boşdur.</li>{% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends "erp/base.html" %}
+{% block heading %}Sahə kartı · {{ space.code }}{% endblock %}
+{% block content %}
+<div class="grid md:grid-cols-3 gap-4 mb-6">
+  <div class="bg-white border rounded-xl p-5 md:col-span-2">
+    <div class="text-sm text-slate-500">Rezident: {{ space.resident.name|default:"—" }}</div>
+    <div class="text-3xl font-semibold text-cp-navy">{{ space.short_label }}</div>
+    <div class="text-sm mt-2">{{ space.area_m2 }} m² · Access Zone {{ space.access_zone }} · Plan {{ space.plan_revision }}</div>
+    <div class="text-sm">Occupancy: {{ space.get_occupancy_display }} · Cost center {{ space.cost_center }}</div>
+  </div>
+  <div class="bg-white border rounded-xl p-5 text-sm space-y-1">
+    <div>Açıq ticket: {{ open_tickets.count }}</div>
+    <div>Tarixçə: {{ ticket_history.count }}</div>
+    <div>Assets: {{ assets.count }} avadanlıq</div>
+    <div class="text-slate-400 mt-3">DWG viewer V1-də yoxdur — fayl sənədlərdədir.</div>
+  </div>
+</div>
+<div class="grid md:grid-cols-2 gap-6">
+  <div class="bg-white border rounded-xl p-5">
+    <h2 class="font-semibold mb-2">Tickets</h2>
+    {% for t in open_tickets %}<div class="text-sm"><a class="text-cp-blue" href="{% url 'erp:ticket_detail' t.code %}">{{ t.code }}</a> {{ t.get_status_display }}</div>{% empty %}<div class="text-sm text-slate-500">Açıq ticket yoxdur.</div>{% endfor %}
+  </div>
+  <div class="bg-white border rounded-xl p-5">
+    <h2 class="font-semibold mb-2">Assets</h2>
+    <ul class="text-sm space-y-1">{% for a in assets %}<li>{{ a.asset_code }} · {{ a.name }}</li>{% endfor %}</ul>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "erp/base.html" %}
+{% block heading %}Property — sahələr{% endblock %}
+{% block content %}
+<div class="bg-white border rounded-xl divide-y">
+  {% for s in spaces %}
+  <a class="flex justify-between px-4 py-3 text-sm hover:bg-slate-50" href="{% url 'erp:space_detail' s.code %}">
+    <span class="font-medium text-cp-navy">{{ s.code }}</span>
+    <span>{{ s.resident.name|default:"Boş" }}</span>
+    <span>{{ s.area_m2 }} m²</span>
+    <span>{{ s.get_occupancy_display }}</span>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

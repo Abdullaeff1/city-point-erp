@@ -1,0 +1,12 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+.venv
+venv
+media
+staticfiles
+*.sqlite3
+.idea
+.vscode
+bin/prod

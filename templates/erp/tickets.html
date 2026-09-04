@@ -1,0 +1,24 @@
+{% extends "erp/base.html" %}
+{% block heading %}Service Desk — ticket idarəetməsi{% endblock %}
+{% block content %}
+<div class="flex gap-2 mb-4 text-sm">
+  <a class="px-3 py-1 rounded-full border {% if tab == 'all' %}bg-cp-navy text-white{% endif %}" href="?tab=all">Hamısı</a>
+  <a class="px-3 py-1 rounded-full border {% if tab == 'open' %}bg-cp-navy text-white{% endif %}" href="?tab=open">Açıq</a>
+  <a class="px-3 py-1 rounded-full border {% if tab == 'sla' %}bg-cp-navy text-white{% endif %}" href="?tab=sla">SLA risk</a>
+  <a class="px-3 py-1 rounded-full border {% if tab == 'mine' %}bg-cp-navy text-white{% endif %}" href="?tab=mine">Mənim</a>
+</div>
+<div class="bg-white border rounded-xl divide-y">
+  {% for t in tickets %}
+  <a class="grid grid-cols-6 gap-2 px-4 py-3 text-sm hover:bg-slate-50" href="{% url 'erp:ticket_detail' t.code %}">
+    <span class="font-medium text-cp-navy">{{ t.code }}</span>
+    <span>{{ t.category }}</span>
+    <span>{{ t.space.short_label|default:"—" }} / {{ t.company.name }}</span>
+    <span>{{ t.get_priority_display }}</span>
+    <span>{{ t.get_status_display }}</span>
+    <span>{% if t.sla_risk %}<span class="text-amber-600">SLA</span>{% endif %}</span>
+  </a>
+  {% empty %}
+  <div class="p-6 text-sm text-slate-500">Ticket yoxdur.</div>
+  {% endfor %}
+</div>
+{% endblock %}

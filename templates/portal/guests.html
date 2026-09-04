@@ -1,0 +1,22 @@
+{% extends "portal/base.html" %}
+{% block heading %}Qonaq izləmə{% endblock %}
+{% block content %}
+<table class="w-full bg-white rounded-xl border text-sm">
+  <thead class="text-left text-slate-500 border-b">
+    <tr><th class="p-3">Qonaq</th><th>Host</th><th>Mərtəbə</th><th>Giriş</th><th>Status</th></tr>
+  </thead>
+  <tbody>
+    {% for v in visits %}
+    <tr class="border-t">
+      <td class="p-3">{{ v.guest.full_name }}</td>
+      <td>{{ v.host.full_name|default:"—" }}</td>
+      <td>{% if v.space %}{{ v.floor.code }} / {{ v.space.short_label }}{% elif v.location_note %}{{ v.location_note }}{% else %}{{ v.floor.code|default:"—" }}{% endif %}</td>
+      <td>{% if v.check_in_at %}{{ v.check_in_at|time:"H:i" }}{% else %}—{% endif %}</td>
+      <td>{{ v.get_status_display }}</td>
+    </tr>
+    {% empty %}
+    <tr><td class="p-6 text-slate-500" colspan="5">Bu gün qonaq yoxdur.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

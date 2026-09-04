@@ -1,0 +1,39 @@
+name: citypoint-dev
+
+services:
+  db:
+    image: postgres:16-alpine
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-citypoint}
+      POSTGRES_USER: ${POSTGRES_USER:-citypoint}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-citypoint}
+    volumes:
+      - citypoint_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-citypoint} -d ${POSTGRES_DB:-citypoint}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  web:
+    build:
+      context: ../..
+      dockerfile: bin/dev/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../..:/app
+      - citypoint_media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  citypoint_pgdata:
+  citypoint_media:

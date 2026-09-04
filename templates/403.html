@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}İcazə yoxdur{% endblock %}
+{% block body %}
+<div class="min-h-screen flex items-center justify-center">
+  <div class="bg-white border rounded-xl p-8 max-w-md text-center">
+    <h1 class="text-xl font-semibold text-cp-navy">Bu bölməyə giriş yoxdur</h1>
+    <p class="text-sm text-slate-500 mt-2">Rolunuz bu əməliyyat üçün kifayət etmir.</p>
+    <a class="inline-block mt-4 text-cp-blue" href="{% url 'post_login' %}">Geri</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "erp/base.html" %}
+{% block heading %}Reception — qonaq idarəetməsi{% endblock %}
+{% block content %}
+<div class="grid lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2 bg-white border rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b font-medium">Bugünkü qonaqlar</div>
+    <table class="w-full text-sm">
+      <thead class="text-left text-slate-500 border-b"><tr><th class="p-3">Qonaq</th><th>Rezident</th><th>Host</th><th>Mərtəbə</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for v in visits %}
+        <tr class="border-t">
+          <td class="p-3">{{ v.guest.full_name }}</td>
+          <td>{{ v.company.name }}</td>
+          <td>{{ v.host.full_name|default:"—" }}</td>
+          <td>{{ v.floor.code|default:v.location_note|default:"—" }}</td>
+          <td>{{ v.get_status_display }}</td>
+          <td class="p-2">
+            <form method="post" action="{% url 'erp:reception_status' v.pk %}" class="flex gap-1">
+              {% csrf_token %}
+              {% if v.status == 'waiting' %}<button name="action" value="checkin" class="text-xs bg-cp-navy text-white rounded px-2 py-1">Giriş</button>{% endif %}
+              {% if v.status == 'inside' %}<button name="action" value="checkout" class="text-xs border rounded px-2 py-1">Çıxış</button>{% endif %}
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="bg-white border rounded-xl p-5">
+    <h2 class="font-semibold mb-3">+ Yeni qonaq</h2>
+    <form method="post" class="space-y-3">
+      {% csrf_token %}
+      {% for field in form %}
+        <div><label class="text-xs font-medium">{{ field.label }}</label><div class="mt-1">{{ field }}</div></div>
+      {% endfor %}
+      <button class="w-full bg-cp-navy text-white rounded-lg py-2 text-sm">Qeyd et</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

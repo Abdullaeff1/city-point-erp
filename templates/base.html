@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}City Point{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cp: { navy: "#1F497D", blue: "#4F81BD", ink: "#0f172a", mist: "#f4f7fb" }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-screen bg-cp-mist text-slate-800 antialiased">
+  {% block body %}{% endblock %}
+</body>
+</html>

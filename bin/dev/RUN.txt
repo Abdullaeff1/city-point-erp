@@ -1,0 +1,6 @@
+# Local Docker (from repo root or this folder)
+#   docker compose -f bin/dev/docker-compose.yml --env-file bin/dev/.env up --build
+#
+# App: http://localhost:8000/login/
+# Portal: office@asbc.az / asbc123
+# ERP:    admin@citypoint.az / admin123

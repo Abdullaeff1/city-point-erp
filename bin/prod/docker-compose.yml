@@ -1,0 +1,32 @@
+name: citypoint-prod
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-citypoint}
+      POSTGRES_USER: ${POSTGRES_USER:-citypoint}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-citypoint}
+    volumes:
+      - citypoint_prod_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../..
+      dockerfile: bin/prod/Dockerfile
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - citypoint_prod_media:/app/media
+      - citypoint_prod_static:/app/staticfiles
+    depends_on:
+      - db
+    restart: unless-stopped
+
+volumes:
+  citypoint_prod_pgdata:
+  citypoint_prod_media:
+  citypoint_prod_static:

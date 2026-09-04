@@ -1,0 +1,17 @@
+{% extends "portal/base.html" %}
+{% block heading %}Yeni xidmət müraciəti{% endblock %}
+{% block content %}
+<div class="max-w-xl bg-white rounded-xl border p-6">
+  <form method="post" enctype="multipart/form-data" class="space-y-4">
+    {% csrf_token %}
+    {% for field in form %}
+      <div>
+        <label class="text-sm font-medium">{{ field.label }}</label>
+        <div class="mt-1">{{ field }}</div>
+        {{ field.errors }}
+      </div>
+    {% endfor %}
+    <button class="bg-cp-navy text-white rounded-lg px-4 py-2 text-sm">Göndər</button>
+  </form>
+</div>
+{% endblock %}

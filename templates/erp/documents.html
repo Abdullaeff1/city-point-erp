@@ -1,0 +1,15 @@
+{% extends "erp/base.html" %}
+{% block heading %}Sənədlər{% endblock %}
+{% block content %}
+<div class="bg-white border rounded-xl divide-y">
+  {% for d in documents %}
+  <div class="flex justify-between px-4 py-3 text-sm">
+    <div>
+      <div class="font-medium">{{ d.title }}</div>
+      <div class="text-xs text-slate-500">{{ d.file_type }} · {{ d.company.name|default:"Ümumi" }} · {{ d.published_at|date:"d.m.Y" }}</div>
+    </div>
+    {% if d.file %}<a class="text-cp-blue" href="{{ d.file.url }}">Aç</a>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Giriş · City Point{% endblock %}
+{% block body %}
+<div class="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-cp-navy to-slate-900">
+  <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
+    <p class="text-xs tracking-[0.2em] uppercase text-cp-blue font-semibold">City Point Business Center</p>
+    <h1 class="mt-2 text-2xl font-semibold text-cp-navy">Xoş gəlmisiniz</h1>
+    <p class="text-sm text-slate-500 mt-1">Resident Portal / Web ERP</p>
+    {% if error %}
+      <div class="mt-4 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{{ error }}</div>
+    {% endif %}
+    <form method="post" class="mt-6 space-y-4">
+      {% csrf_token %}
+      <div>
+        <label class="text-sm font-medium">E-poçt / istifadəçi adı</label>
+        <input type="email" name="email" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder="office@asbc.az">
+      </div>
+      <div>
+        <label class="text-sm font-medium">Şifrə</label>
+        <input type="password" name="password" required class="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+      </div>
+      <button class="w-full bg-cp-navy text-white rounded-lg py-2.5 text-sm font-medium hover:bg-slate-800">Daxil ol</button>
+    </form>
+    <p class="mt-6 text-xs text-slate-400">portal.citypoint.az / erp.citypoint.az</p>
+  </div>
+</div>
+{% endblock %}

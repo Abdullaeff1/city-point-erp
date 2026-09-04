@@ -1,0 +1,37 @@
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied
+
+from apps.accounts.models import Role, STAFF_ROLES
+
+
+class StaffRequiredMixin(LoginRequiredMixin):
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if not request.user.can_access_erp():
+            raise PermissionDenied("ERP yalnız əməkdaşlar üçündür.")
+        return super().dispatch(request, *args, **kwargs)
+
+
+class ResidentPortalMixin(LoginRequiredMixin):
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if request.user.role == Role.RESIDENT_USER and not request.user.resident_company_id:
+            raise PermissionDenied("Rezident şirkəti təyin olunmayıb.")
+        if not request.user.can_access_portal():
+            raise PermissionDenied("Portal girişinə icazə yoxdur.")
+        return super().dispatch(request, *args, **kwargs)
+
+
+class RoleRequiredMixin(StaffRequiredMixin):
+    allowed_roles: tuple[str, ...] = tuple(STAFF_ROLES)
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if not request.user.can_access_erp():
+            raise PermissionDenied("ERP yalnız əməkdaşlar üçündür.")
+        if request.user.role not in {Role.ADMIN, Role.MANAGEMENT, *self.allowed_roles}:
+            raise PermissionDenied("Bu bölməyə giriş icazəniz yoxdur.")
+        return super(StaffRequiredMixin, self).dispatch(request, *args, **kwargs)

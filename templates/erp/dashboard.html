@@ -1,0 +1,24 @@
+{% extends "erp/base.html" %}
+{% block heading %}Bu gün — əməliyyat icmalı{% endblock %}
+{% block content %}
+<div class="grid md:grid-cols-4 gap-4 mb-8">
+  <div class="bg-white border rounded-xl p-4"><div class="text-xs text-slate-400">Qonaqlar</div><div class="text-2xl font-semibold">{{ guest_count }}</div><div class="text-xs">bu gün</div></div>
+  <div class="bg-white border rounded-xl p-4"><div class="text-xs text-slate-400">Açıq ticket</div><div class="text-2xl font-semibold">{{ open_count }}</div><div class="text-xs">aktiv</div></div>
+  <div class="bg-white border rounded-xl p-4"><div class="text-xs text-slate-400">SLA risk</div><div class="text-2xl font-semibold text-amber-600">{{ sla_risk_count }}</div><div class="text-xs">diqqət</div></div>
+  <div class="bg-white border rounded-xl p-4"><div class="text-xs text-slate-400">Rezidentlər</div><div class="text-2xl font-semibold">{{ new_residents }}</div><div class="text-xs">aktiv</div></div>
+</div>
+<div class="bg-white border rounded-xl p-5">
+  <h2 class="font-semibold mb-3">Növbəti işlər</h2>
+  <ul class="text-sm space-y-2">
+    {% for g in waiting_guests %}
+      <li>Reception: {{ g.guest.full_name }} gözləyir</li>
+    {% endfor %}
+    {% for t in unassigned %}
+      <li>Ticket {{ t.code }} — texnikə təyin et</li>
+    {% endfor %}
+    {% for s in spaces_pending %}
+      <li>DWG {{ s.plan_revision }} — {{ s.floor.code }} təsdiq gözləyə bilər</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

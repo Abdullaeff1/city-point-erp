@@ -1,0 +1,2 @@
+# Production (copy .env.example to .env first)
+#   docker compose -f bin/prod/docker-compose.yml --env-file bin/prod/.env up --build

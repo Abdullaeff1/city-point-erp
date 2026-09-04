@@ -1,0 +1,30 @@
+{% extends "portal/base.html" %}
+{% block heading %}Home · My Spaces{% endblock %}
+{% block content %}
+<div class="grid md:grid-cols-3 gap-4 mb-8">
+  {% for space in spaces %}
+  <div class="bg-white rounded-xl border p-5">
+    <div class="text-xs text-slate-400">Sahə</div>
+    <div class="text-2xl font-semibold text-cp-navy">{{ space.short_label }}</div>
+    <div class="text-sm text-slate-500">{{ space.area_m2 }} m² · {{ space.floor.code }}</div>
+  </div>
+  {% endfor %}
+  <div class="bg-white rounded-xl border p-5">
+    <div class="text-xs text-slate-400">Aktiv ticket</div>
+    <div class="text-2xl font-semibold">{{ open_tickets.count }} açıq müraciət</div>
+    {% with last=recent_tickets.0 %}{% if last %}<div class="text-sm text-slate-500 mt-1">Son status {{ last.code }} {{ last.get_status_display }}</div>{% endif %}{% endwith %}
+  </div>
+</div>
+<h2 class="font-semibold mb-3">Son müraciətlər</h2>
+<div class="bg-white rounded-xl border divide-y">
+  {% for t in recent_tickets %}
+  <a class="flex items-center justify-between px-4 py-3 hover:bg-slate-50" href="{% url 'portal:request_detail' t.code %}">
+    <span class="font-medium text-cp-navy">{{ t.code }}</span>
+    <span class="text-sm">{{ t.category }}</span>
+    <span class="text-sm text-slate-500">{{ t.get_status_display }}</span>
+  </a>
+  {% empty %}
+  <div class="px-4 py-6 text-sm text-slate-500">Müraciət yoxdur.</div>
+  {% endfor %}
+</div>
+{% endblock %}

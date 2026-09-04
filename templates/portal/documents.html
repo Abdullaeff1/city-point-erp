@@ -1,0 +1,16 @@
+{% extends "portal/base.html" %}
+{% block heading %}Sənəd paneli{% endblock %}
+{% block content %}
+<div class="bg-white rounded-xl border divide-y">
+  {% for d in documents %}
+  <div class="flex items-center justify-between px-4 py-3">
+    <div>
+      <div class="text-xs text-slate-400">{{ d.file_type }}</div>
+      <div class="font-medium">{{ d.title }}</div>
+      <div class="text-xs text-slate-500">{{ d.published_at|date:"d.m.Y" }} · {{ d.size_label }}</div>
+    </div>
+    {% if d.file %}<a class="text-sm text-cp-blue" href="{{ d.file.url }}">Aç</a>{% else %}<span class="text-xs text-slate-400">Fayl yoxdur</span>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "portal/base.html" %}
+{% block heading %}My Spaces{% endblock %}
+{% block content %}
+<div class="grid md:grid-cols-2 gap-4">
+  {% for space in spaces %}
+  <div class="bg-white rounded-xl border p-6">
+    <div class="text-sm text-slate-400">{{ space.code }}</div>
+    <div class="text-2xl font-semibold text-cp-navy">{{ space.short_label }}</div>
+    <dl class="mt-4 grid grid-cols-2 gap-2 text-sm">
+      <dt class="text-slate-500">Sahə</dt><dd>{{ space.area_m2 }} m²</dd>
+      <dt class="text-slate-500">Mərtəbə</dt><dd>{{ space.floor.code }}</dd>
+      <dt class="text-slate-500">Access Zone</dt><dd>{{ space.access_zone }}</dd>
+      <dt class="text-slate-500">Plan</dt><dd>{{ space.plan_revision|default:"—" }}</dd>
+    </dl>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{% block page_title %}ERP{% endblock %} · CityPoint{% endblock %}
+{% block body %}
+<div class="min-h-screen flex">
+  <aside class="w-60 bg-slate-900 text-white flex flex-col">
+    <div class="px-5 py-6 border-b border-white/10">
+      <div class="text-xs uppercase tracking-widest text-blue-200">CITYPOINT ERP</div>
+      <div class="font-semibold text-sm mt-1">{{ user.get_role_display }}</div>
+    </div>
+    <nav class="flex-1 px-3 py-4 text-sm space-y-1">
+      <a class="block rounded-lg px-3 py-2 hover:bg-white/10" href="{% url 'erp:dashboard' %}">Dashboard</a>
+      {% if nav_reception %}<a class="block rounded-lg px-3 py-2 hover:bg-white/10" href="{% url 'erp:reception' %}">Reception</a>{% endif %}
+      {% if nav_tickets %}<a class="block rounded-lg px-3 py-2 hover:bg-white/10" href="{% url 'erp:tickets' %}">Tickets</a>{% endif %}
+      {% if nav_property %}<a class="block rounded-lg px-3 py-2 hover:bg-white/10" href="{% url 'erp:spaces' %}">Property</a>{% endif %}
+      {% if nav_residents %}<a class="block rounded-lg px-3 py-2 hover:bg-white/10" href="{% url 'erp:residents' %}">Residents</a>{% endif %}
+      {% if nav_docs %}<a class="block rounded-lg px-3 py-2 hover:bg-white/10" href="{% url 'erp:documents' %}">Documents</a>{% endif %}
+      {% if nav_reports %}<a class="block rounded-lg px-3 py-2 hover:bg-white/10" href="{% url 'erp:reports' %}">Reports</a>{% endif %}
+    </nav>
+    <form method="post" action="{% url 'logout' %}" class="p-4">{% csrf_token %}<button class="text-sm text-slate-300 hover:text-white">Çıxış</button></form>
+  </aside>
+  <main class="flex-1">
+    <header class="bg-white border-b px-8 py-4">
+      <div class="text-xs text-slate-400">erp.citypoint.az / workspace</div>
+      <h1 class="text-xl font-semibold text-cp-navy">{% block heading %}{% endblock %}</h1>
+    </header>
+    <div class="p-8 max-w-6xl">
+      {% if messages %}
+        {% for message in messages %}
+          <div class="mb-4 text-sm bg-emerald-50 text-emerald-800 border border-emerald-100 rounded-lg px-3 py-2">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+{% endblock %}

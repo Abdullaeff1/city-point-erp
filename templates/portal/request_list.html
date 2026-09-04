@@ -1,0 +1,17 @@
+{% extends "portal/base.html" %}
+{% block heading %}Müraciətlər{% endblock %}
+{% block content %}
+<div class="bg-white rounded-xl border divide-y">
+  {% for t in tickets %}
+  <a class="flex items-center justify-between px-4 py-3 hover:bg-slate-50" href="{% url 'portal:request_detail' t.code %}">
+    <div>
+      <div class="font-medium text-cp-navy">{{ t.code }} · {{ t.category }}</div>
+      <div class="text-xs text-slate-500">{{ t.space|default:"—" }}</div>
+    </div>
+    <span class="text-sm">{{ t.get_status_display }}</span>
+  </a>
+  {% empty %}
+  <div class="px-4 py-8 text-sm text-slate-500">Siyahı boşdur.</div>
+  {% endfor %}
+</div>
+{% endblock %}
