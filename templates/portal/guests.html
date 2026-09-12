@@ -1,22 +1,23 @@
 {% extends "portal/base.html" %}
-{% block heading %}Qonaq izləmə{% endblock %}
+{% load i18n cp_ui %}
+{% block heading %}{% translate "Qonaqlar" %}{% endblock %}
 {% block content %}
-<table class="w-full bg-white rounded-xl border text-sm">
-  <thead class="text-left text-slate-500 border-b">
-    <tr><th class="p-3">Qonaq</th><th>Host</th><th>Mərtəbə</th><th>Giriş</th><th>Status</th></tr>
-  </thead>
-  <tbody>
-    {% for v in visits %}
-    <tr class="border-t">
-      <td class="p-3">{{ v.guest.full_name }}</td>
-      <td>{{ v.host.full_name|default:"—" }}</td>
-      <td>{% if v.space %}{{ v.floor.code }} / {{ v.space.short_label }}{% elif v.location_note %}{{ v.location_note }}{% else %}{{ v.floor.code|default:"—" }}{% endif %}</td>
-      <td>{% if v.check_in_at %}{{ v.check_in_at|time:"H:i" }}{% else %}—{% endif %}</td>
-      <td>{{ v.get_status_display }}</td>
-    </tr>
-    {% empty %}
-    <tr><td class="p-6 text-slate-500" colspan="5">Bu gün qonaq yoxdur.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Qonaq" %}</th><th>Host</th><th>{% translate "Mərtəbə" %}</th><th>{% translate "Giriş" %}</th><th>{% translate "Status" %}</th></tr></thead>
+    <tbody>
+      {% for v in visits %}
+      <tr>
+        <td>{{ v.guest.full_name }}</td>
+        <td>{{ v.host.full_name|default:"—" }}</td>
+        <td>{% if v.space %}{{ v.floor.code }} / {{ v.space.short_label }}{% elif v.location_note %}{{ v.location_note }}{% else %}{{ v.floor.code|default:"—" }}{% endif %}</td>
+        <td>{% if v.check_in_at %}{{ v.check_in_at|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Bu gün qonaq yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

@@ -1,6 +1,7 @@
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
+from django.utils.translation import gettext as _
 from django.views.decorators.http import require_http_methods
 
 from apps.accounts.models import Role
@@ -16,7 +17,7 @@ def login_view(request):
         password = request.POST.get("password", "")
         user = authenticate(request, username=email, password=password)
         if user is None:
-            error = "E-poçt və ya şifrə yanlışdır."
+            error = _("E-poçt və ya şifrə yanlışdır.")
         else:
             login(request, user)
             return redirect("post_login")

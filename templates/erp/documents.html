@@ -1,15 +1,33 @@
 {% extends "erp/base.html" %}
-{% block heading %}Sənədlər{% endblock %}
+{% load i18n %}
+{% block heading %}{% translate "Sənədlər" %}{% endblock %}
 {% block content %}
-<div class="bg-white border rounded-xl divide-y">
-  {% for d in documents %}
-  <div class="flex justify-between px-4 py-3 text-sm">
-    <div>
-      <div class="font-medium">{{ d.title }}</div>
-      <div class="text-xs text-slate-500">{{ d.file_type }} · {{ d.company.name|default:"Ümumi" }} · {{ d.published_at|date:"d.m.Y" }}</div>
-    </div>
-    {% if d.file %}<a class="text-cp-blue" href="{{ d.file.url }}">Aç</a>{% endif %}
-  </div>
-  {% endfor %}
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Sənəd" %}</th>
+        <th>{% translate "Tip" %}</th>
+        <th>{% translate "Rezident" %} / {% translate "Sahə" %}</th>
+        <th>{% translate "Versiya" %}</th>
+        <th>{% translate "Tarix" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in documents %}
+      <tr>
+        <td style="font-weight:600;">{{ d.title }}</td>
+        <td>{{ d.file_type }}</td>
+        <td class="cp-meta">{% if d.company %}{{ d.company.name }}{% else %}{% translate "Ümumi" %}{% endif %}{% if d.space %} · {{ d.space.code }}{% endif %}</td>
+        <td>{{ d.version|default:"—" }}</td>
+        <td class="cp-meta">{{ d.published_at|date:"d.m.Y" }}</td>
+        <td>{% if d.file %}<a href="{{ d.file.url }}">{% translate "Aç" %}</a>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="cp-meta empty-pad">{% translate "Sənəd yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}

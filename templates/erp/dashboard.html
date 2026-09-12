@@ -1,23 +1,62 @@
 {% extends "erp/base.html" %}
-{% block heading %}Bu gün — əməliyyat icmalı{% endblock %}
+{% load i18n cp_ui %}
+{% block heading %}{% translate "İdarə paneli" %}{% endblock %}
 {% block content %}
-<div class="grid md:grid-cols-4 gap-4 mb-8">
-  <div class="bg-white border rounded-xl p-4"><div class="text-xs text-slate-400">Qonaqlar</div><div class="text-2xl font-semibold">{{ guest_count }}</div><div class="text-xs">bu gün</div></div>
-  <div class="bg-white border rounded-xl p-4"><div class="text-xs text-slate-400">Açıq ticket</div><div class="text-2xl font-semibold">{{ open_count }}</div><div class="text-xs">aktiv</div></div>
-  <div class="bg-white border rounded-xl p-4"><div class="text-xs text-slate-400">SLA risk</div><div class="text-2xl font-semibold text-amber-600">{{ sla_risk_count }}</div><div class="text-xs">diqqət</div></div>
-  <div class="bg-white border rounded-xl p-4"><div class="text-xs text-slate-400">Rezidentlər</div><div class="text-2xl font-semibold">{{ new_residents }}</div><div class="text-xs">aktiv</div></div>
+<div class="grid-4 mb-5">
+  <div class="cp-card p-card-sm">
+    <div class="cp-meta">{% translate "QONAQLAR" %}</div>
+    <div class="cp-metric mt-2">{% if guest_count < 10 %}0{% endif %}{{ guest_count }}</div>
+    <div class="cp-meta mt-2">{% translate "bu gün" %}</div>
+  </div>
+  <div class="cp-card p-card-sm">
+    <div class="cp-meta">{% translate "AÇIQ TICKET" %}</div>
+    <div class="cp-metric mt-2">{% if open_count < 10 %}0{% endif %}{{ open_count }}</div>
+    <div class="cp-meta mt-2">{% translate "aktiv" %}</div>
+  </div>
+  <div class="cp-card p-card-sm">
+    <div class="cp-meta">{% translate "SLA RİSKİ" %}</div>
+    <div class="cp-metric mt-2 {% if sla_breach_count %}metric-danger{% else %}metric-warn{% endif %}">{% if sla_risk_count < 10 %}0{% endif %}{{ sla_risk_count }}</div>
+    {% if sla_ticket %}
+      <p class="cp-meta mt-2">{{ sla_ticket.code }} · {{ sla_ticket.sla_percent_used }}%</p>
+      <div class="cp-progress mt-2 {% if sla_ticket.sla_breached %}is-danger{% else %}is-warn{% endif %}"><span style="width:{{ sla_ticket.sla_percent_used }}%;"></span></div>
+    {% else %}
+      <p class="cp-meta mt-2">{% translate "Kritik həddə ticket yoxdur" %}</p>
+    {% endif %}
+    <a class="cp-meta mt-3" href="{% url 'erp:tickets' %}?tab=sla" style="display:inline-block;">{% translate "Bax" %} →</a>
+  </div>
+  <div class="cp-card p-card-sm">
+    <div class="cp-meta">{% translate "REZİDENTLƏR" %}</div>
+    <div class="cp-metric mt-2">{{ new_residents }}</div>
+    <div class="cp-meta mt-2">{% translate "aktiv" %}</div>
+  </div>
 </div>
-<div class="bg-white border rounded-xl p-5">
-  <h2 class="font-semibold mb-3">Növbəti işlər</h2>
-  <ul class="text-sm space-y-2">
-    {% for g in waiting_guests %}
-      <li>Reception: {{ g.guest.full_name }} gözləyir</li>
-    {% endfor %}
-    {% for t in unassigned %}
-      <li>Ticket {{ t.code }} — texnikə təyin et</li>
-    {% endfor %}
-    {% for s in spaces_pending %}
-      <li>DWG {{ s.plan_revision }} — {{ s.floor.code }} təsdiq gözləyə bilər</li>
+<div class="grid-dash mb-4">
+  <div class="cp-card" style="padding:8px 0;">
+    <div class="cp-section section-pad">{% translate "Ticketlər" %}</div>
+    {% for t in recent_open %}
+      <a href="{% url 'erp:ticket_detail' t.code %}" class="cp-list-row">
+        <span><strong>{{ t.code }}</strong> · {{ t.category }}</span>
+        {% include "partials/status_badge.html" with value=t.status label=t.get_status_display %}
+      </a>
+    {% empty %}<p class="cp-meta empty-pad">{% translate "Açıq ticket yoxdur." %}</p>{% endfor %}
+  </div>
+  <div class="cp-card" style="padding:8px 0;">
+    <div class="cp-section section-pad">{% translate "Bugünkü qonaqlar" %}</div>
+    {% for v in today_visits %}
+      <div class="empty-pad" style="padding:10px 20px;">
+        <strong>{{ v.guest.full_name }}</strong>
+        <div class="cp-meta">{{ v.company.name }}{% if v.check_in_at %} · {{ v.check_in_at|time:"H:i" }}{% endif %}</div>
+      </div>
+    {% empty %}<p class="cp-meta empty-pad">{% translate "Qonaq yoxdur." %}</p>{% endfor %}
+  </div>
+</div>
+<div class="cp-card p-card">
+  <div class="cp-section">{% translate "Son fəaliyyətlər" %}</div>
+  <ul class="flex-col gap-2 mt-3" style="list-style:none;padding:0;">
+    {% for a in activities %}
+      <li><span class="cp-meta">{{ a.at|date:"H:i" }}</span> {{ a.text }}</li>
+    {% empty %}
+      <li class="cp-meta">{% translate "Fəaliyyət yoxdur." %}</li>
     {% endfor %}
   </ul>
 </div>

@@ -1,28 +1,65 @@
 {% extends "erp/base.html" %}
-{% block heading %}Sahə kartı · {{ space.code }}{% endblock %}
+{% load i18n cp_ui %}
+{% block heading %}{% blocktranslate with label=space.short_label %}Sahə {{ label }}{% endblocktranslate %}{% endblock %}
 {% block content %}
-<div class="grid md:grid-cols-3 gap-4 mb-6">
-  <div class="bg-white border rounded-xl p-5 md:col-span-2">
-    <div class="text-sm text-slate-500">Rezident: {{ space.resident.name|default:"—" }}</div>
-    <div class="text-3xl font-semibold text-cp-navy">{{ space.short_label }}</div>
-    <div class="text-sm mt-2">{{ space.area_m2 }} m² · Access Zone {{ space.access_zone }} · Plan {{ space.plan_revision }}</div>
-    <div class="text-sm">Occupancy: {{ space.get_occupancy_display }} · Cost center {{ space.cost_center }}</div>
+<p class="cp-code mb-4" style="margin-top:-8px;">{{ space.code }}</p>
+<nav class="cp-tabs">
+  <a class="cp-tab {% if tab == 'overview' %}is-active{% endif %}" href="?tab=overview">{% translate "Ümumi" %}</a>
+  <a class="cp-tab {% if tab == 'tickets' %}is-active{% endif %}" href="?tab=tickets">{% translate "Müraciətlər" %}</a>
+  <a class="cp-tab {% if tab == 'documents' %}is-active{% endif %}" href="?tab=documents">{% translate "Sənədlər" %}</a>
+  <a class="cp-tab {% if tab == 'employees' %}is-active{% endif %}" href="?tab=employees">{% translate "Əməkdaşlar" %}</a>
+  <a class="cp-tab {% if tab == 'assets' %}is-active{% endif %}" href="?tab=assets">{% translate "Aktivlər" %}</a>
+  <span class="cp-tab is-disabled">{% translate "Texniki plan" %}</span>
+  <span class="cp-tab is-disabled">DWG</span>
+  <span class="cp-tab is-disabled">Maintenance</span>
+</nav>
+
+{% if tab == 'overview' or not tab %}
+<div class="grid-main mb-5">
+  <div class="cp-card p-card-lg">
+    <div class="cp-title">{{ space.short_label }}</div>
+    <p class="mt-2">{{ space.area_m2 }} m² · {{ space.floor.name }}</p>
+    <p class="mt-2"><span class="cp-meta">{% translate "Rezident" %}:</span> {% if space.resident %}{{ space.resident.name }}{% else %}{% translate "Boş" %}{% endif %}</p>
+    <p class="cp-meta mt-2">Access {{ space.access_zone }} · {{ space.get_occupancy_display }} · {{ space.cost_center }}</p>
   </div>
-  <div class="bg-white border rounded-xl p-5 text-sm space-y-1">
-    <div>Açıq ticket: {{ open_tickets.count }}</div>
-    <div>Tarixçə: {{ ticket_history.count }}</div>
-    <div>Assets: {{ assets.count }} avadanlıq</div>
-    <div class="text-slate-400 mt-3">DWG viewer V1-də yoxdur — fayl sənədlərdədir.</div>
+  <div class="cp-card p-card">
+    <div>{% translate "Açıq ticket" %}: <strong>{{ open_tickets.count }}</strong></div>
+    <div class="mt-2">{% translate "Aktivlər" %}: <strong>{{ assets.count }}</strong></div>
+    <div class="mt-2">{% translate "Sənədlər" %}: <strong>{{ documents.count }}</strong></div>
   </div>
 </div>
-<div class="grid md:grid-cols-2 gap-6">
-  <div class="bg-white border rounded-xl p-5">
-    <h2 class="font-semibold mb-2">Tickets</h2>
-    {% for t in open_tickets %}<div class="text-sm"><a class="text-cp-blue" href="{% url 'erp:ticket_detail' t.code %}">{{ t.code }}</a> {{ t.get_status_display }}</div>{% empty %}<div class="text-sm text-slate-500">Açıq ticket yoxdur.</div>{% endfor %}
-  </div>
-  <div class="bg-white border rounded-xl p-5">
-    <h2 class="font-semibold mb-2">Assets</h2>
-    <ul class="text-sm space-y-1">{% for a in assets %}<li>{{ a.asset_code }} · {{ a.name }}</li>{% endfor %}</ul>
-  </div>
+{% elif tab == 'tickets' %}
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Kod" %}</th><th>{% translate "Kateqoriya" %}</th><th>{% translate "Status" %}</th></tr></thead>
+    <tbody>
+      {% for t in all_tickets %}
+      <tr>
+        <td><a href="{% url 'erp:ticket_detail' t.code %}">{{ t.code }}</a></td>
+        <td>{{ t.category }}</td>
+        <td>{% include "partials/status_badge.html" with value=t.status label=t.get_status_display %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="cp-meta empty-pad">{% translate "Ticket yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
+{% elif tab == 'documents' %}
+<div class="cp-card p-card">
+  {% for d in documents %}
+    <div class="flex justify-between mb-3"><span>{{ d.title }}</span><span class="cp-meta">{{ d.published_at|date:"d.m.Y" }}</span></div>
+  {% empty %}<p class="cp-meta">{% translate "Sənəd yoxdur." %}</p>{% endfor %}
+</div>
+{% elif tab == 'employees' %}
+<div class="cp-card p-card">
+  {% for e in employees %}
+    <div class="mb-2">{{ e.full_name }} <span class="cp-code">{{ e.card_number }}</span></div>
+  {% empty %}<p class="cp-meta">{% translate "Əməkdaş yoxdur." %}</p>{% endfor %}
+</div>
+{% elif tab == 'assets' %}
+<div class="cp-card p-card">
+  <ul style="list-style:none;padding:0;">{% for a in assets %}<li class="mb-2">{{ a.asset_code }} · {{ a.name }}</li>{% empty %}<li class="cp-meta">{% translate "Avadanlıq yoxdur." %}</li>{% endfor %}</ul>
+</div>
+{% endif %}
 {% endblock %}

@@ -1,14 +1,32 @@
 {% extends "erp/base.html" %}
-{% block heading %}Property — sahələr{% endblock %}
+{% load i18n %}
+{% block heading %}{% translate "Əmlak" %}{% endblock %}
 {% block content %}
-<div class="bg-white border rounded-xl divide-y">
-  {% for s in spaces %}
-  <a class="flex justify-between px-4 py-3 text-sm hover:bg-slate-50" href="{% url 'erp:space_detail' s.code %}">
-    <span class="font-medium text-cp-navy">{{ s.code }}</span>
-    <span>{{ s.resident.name|default:"Boş" }}</span>
-    <span>{{ s.area_m2 }} m²</span>
-    <span>{{ s.get_occupancy_display }}</span>
-  </a>
-  {% endfor %}
+<div class="cp-card p-card-lg mb-5">
+  <div class="cp-meta">CITY POINT · {% translate "Building overview" %}</div>
+  <div class="grid-4 mt-4">
+    <div><div class="cp-metric">{{ floor_count }}</div><div class="cp-meta">{% translate "mərtəbə" %}</div></div>
+    <div><div class="cp-metric">{{ space_count }}</div><div class="cp-meta">{% translate "sahə" %}</div></div>
+    <div><div class="cp-metric">{{ active_residents }}</div><div class="cp-meta">{% translate "aktiv rezident" %}</div></div>
+    <div><div class="cp-metric">{{ guest_today }}</div><div class="cp-meta">{% translate "bugünkü qonaq" %}</div></div>
+  </div>
 </div>
+<div class="cp-section mb-3">{% translate "Mərtəbələr" %}</div>
+{% for row in floor_rows %}
+  <div class="cp-card p-card-sm mb-3">
+    <div class="flex justify-between items-center">
+      <strong>{{ row.floor.code }} · {{ row.floor.name }}</strong>
+      <span class="cp-meta">{{ row.occupied }}/{{ row.total }} · {{ row.pct }}%</span>
+    </div>
+    <div class="cp-progress mt-2"><span style="width:{{ row.pct }}%;"></span></div>
+    <div class="space-chips">
+      {% for s in row.spaces %}
+        <a href="{% url 'erp:space_detail' s.code %}" class="cp-soft-tile">
+          <strong>{{ s.short_label }}</strong>
+          <span class="cp-meta">{% if s.resident %}{{ s.resident.name }}{% else %}{% translate "Boş" %}{% endif %}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+{% endfor %}
 {% endblock %}

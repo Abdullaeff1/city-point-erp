@@ -1,10 +1,10 @@
 from datetime import timedelta
 
-from django.db.models import Max
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from apps.comms.models import Notification
-from apps.tickets.models import SlaPolicy, Ticket, TicketMessage
+from apps.tickets.models import SlaPolicy, Ticket, TicketMessage, TicketStatusEvent
 
 
 def next_ticket_code():
@@ -42,4 +42,29 @@ def add_message(ticket, user, body, label=""):
         author_label=label or (user.get_full_name() or user.email),
         body=body,
     )
-    notify_company_users(ticket, f"Yeni cavab: {ticket.code}")
+    notify_company_users(ticket, _("Yeni cavab: %(code)s") % {"code": ticket.code})
+
+
+def record_status_event(ticket, to_status, actor=None, from_status="", note=""):
+    TicketStatusEvent.objects.create(
+        ticket=ticket,
+        from_status=from_status or "",
+        to_status=to_status,
+        actor=actor,
+        note=note,
+    )
+
+
+def advance_ticket_status(ticket, actor=None):
+    if not ticket.next_status:
+        return ticket
+    previous = ticket.status
+    ticket.status = ticket.next_status
+    ticket.save(update_fields=["status", "updated_at"])
+    record_status_event(ticket, ticket.status, actor=actor, from_status=previous)
+    notify_company_users(
+        ticket,
+        _("%(code)s statusu: %(status)s")
+        % {"code": ticket.code, "status": ticket.get_status_display()},
+    )
+    return ticket

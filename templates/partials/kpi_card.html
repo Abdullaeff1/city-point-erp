@@ -1,0 +1,6 @@
+<div class="cp-card p-card">
+  <div class="cp-meta">{{ label }}</div>
+  <div class="cp-metric mt-2 {% if warn %}metric-warn{% endif %}{% if danger %}metric-danger{% endif %}">{{ value }}</div>
+  {% if hint %}<div class="cp-meta mt-2">{{ hint }}</div>{% endif %}
+  {% if footer %}{{ footer }}{% endif %}
+</div>

@@ -1,13 +1,13 @@
 {% extends "portal/base.html" %}
-{% block heading %}Rəsmi elanlar{% endblock %}
+{% load i18n %}
+{% block heading %}{% translate "Elanlar" %}{% endblock %}
 {% block content %}
-<div class="space-y-4">
+<div class="flex-col gap-3">
   {% for a in announcements %}
-  <article class="bg-white rounded-xl border p-5">
-    <div class="text-xs uppercase tracking-wide text-cp-blue">{{ a.get_severity_display }}</div>
-    <h2 class="text-lg font-semibold text-cp-navy">{{ a.title }}</h2>
-    <div class="text-xs text-slate-400 mb-2">{{ a.published_at|date:"d.m.Y" }}</div>
-    <p class="text-sm">{{ a.body }}</p>
+  <article class="cp-card p-card">
+    <div class="cp-meta">{{ a.get_severity_display }} · {{ a.published_at|date:"d.m.Y" }}</div>
+    <h2 class="cp-section mt-1">{{ a.title }}</h2>
+    <p class="cp-body-text mt-2">{{ a.body }}</p>
   </article>
   {% endfor %}
 </div>

@@ -1,14 +1,15 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 
 class Role(models.TextChoices):
-    ADMIN = "admin", "Admin"
-    MANAGEMENT = "management", "Rəhbərlik"
-    RECEPTION = "reception", "Reception"
-    SERVICE_DESK = "service_desk", "Service Desk"
-    PROPERTY_FM = "property_fm", "Property / FM"
-    RESIDENT_USER = "resident_user", "Rezident"
+    ADMIN = "admin", _("Admin")
+    MANAGEMENT = "management", _("Rəhbərlik")
+    RECEPTION = "reception", _("Reception")
+    SERVICE_DESK = "service_desk", _("Service Desk")
+    PROPERTY_FM = "property_fm", _("Property / FM")
+    RESIDENT_USER = "resident_user", _("Rezident")
 
 
 STAFF_ROLES = {
@@ -46,3 +47,17 @@ class User(AbstractUser):
 
     def can_access_portal(self):
         return self.role == Role.RESIDENT_USER or self.is_staff_role()
+
+    @property
+    def initials(self):
+        name = (self.get_full_name() or "").strip()
+        if name:
+            parts = [p for p in name.split() if p]
+            if len(parts) >= 2:
+                return (parts[0][0] + parts[1][0]).upper()
+            return parts[0][:2].upper()
+        return (self.email or "?")[:2].upper()
+
+    @property
+    def display_name(self):
+        return self.get_full_name().strip() or self.email

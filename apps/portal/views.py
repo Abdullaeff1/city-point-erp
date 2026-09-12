@@ -10,7 +10,7 @@ from apps.erp.forms import PortalTicketForm
 from apps.reception.models import GuestVisit
 from apps.residents.models import AccessEventType, ResidentEmployee
 from apps.tickets.models import OPEN_STATUSES, Ticket, TicketAttachment, TicketStatus
-from apps.tickets.services import add_message, apply_sla, next_ticket_code
+from apps.tickets.services import add_message, apply_sla, next_ticket_code, record_status_event
 
 
 class HomeView(ResidentPortalMixin, TemplateView):
@@ -20,12 +20,17 @@ class HomeView(ResidentPortalMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         company = self.request.user.resident_company
         tickets = Ticket.objects.filter(company=company) if company else Ticket.objects.none()
+        spaces = list(company.spaces.select_related("floor", "resident")) if company else []
+        latest = tickets.first()
         ctx.update(
             {
                 "company": company,
-                "spaces": company.spaces.select_related("floor") if company else [],
+                "spaces": spaces,
+                "featured_space": spaces[0] if spaces else None,
                 "open_tickets": tickets.filter(status__in=OPEN_STATUSES),
-                "recent_tickets": tickets[:5],
+                "recent_tickets": tickets[:6],
+                "latest_ticket": latest,
+                "announcements": Announcement.objects.all()[:4],
             }
         )
         return ctx
@@ -58,6 +63,7 @@ class RequestCreateView(ResidentPortalMixin, FormView):
         ticket.status = TicketStatus.SENT
         ticket.save()
         apply_sla(ticket)
+        record_status_event(ticket, ticket.status, actor=self.request.user, note="created")
         add_message(ticket, self.request.user, ticket.description, "Siz")
         photo = form.cleaned_data.get("photo")
         if photo:

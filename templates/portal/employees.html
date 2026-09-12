@@ -1,25 +1,26 @@
 {% extends "portal/base.html" %}
-{% block heading %}Əməkdaş giriş / çıxış{% endblock %}
+{% load i18n %}
+{% block heading %}{% translate "Əməkdaş giriş / çıxış" %}{% endblock %}
 {% block content %}
-<div class="flex gap-6 mb-4 text-sm">
-  <div class="bg-white border rounded-xl px-4 py-3">Bu gün · {{ today|date:"d.m.Y" }}</div>
-  <div class="bg-white border rounded-xl px-4 py-3">İçəridə: <strong>{{ inside }}</strong></div>
-  <div class="bg-white border rounded-xl px-4 py-3">Çıxış: <strong>{{ left }}</strong></div>
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  <div class="cp-card p-card-sm">{{ today|date:"d.m.Y" }}</div>
+  <div class="cp-card p-card-sm">{% translate "İçəridə" %} <strong>{{ inside }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ left }}</strong></div>
 </div>
-<table class="w-full bg-white rounded-xl border text-sm">
-  <thead class="text-left text-slate-500 border-b">
-    <tr><th class="p-3">Əməkdaş</th><th>Kart</th><th>Giriş</th><th>Çıxış</th><th>Status</th></tr>
-  </thead>
-  <tbody>
-    {% for row in rows %}
-    <tr class="border-t">
-      <td class="p-3">{{ row.employee.full_name }}</td>
-      <td>{{ row.employee.card_number }}</td>
-      <td>{% if row.in_at %}{{ row.in_at|time:"H:i" }}{% else %}—{% endif %}</td>
-      <td>{% if row.out_at %}{{ row.out_at|time:"H:i" }}{% else %}—{% endif %}</td>
-      <td>{{ row.status }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Əməkdaş" %}</th><th>{% translate "Kart" %}</th><th>{% translate "Giriş" %}</th><th>{% translate "Çıxış" %}</th><th>{% translate "Status" %}</th></tr></thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.employee.full_name }}</td>
+        <td class="cp-code">{{ row.employee.card_number }}</td>
+        <td>{% if row.in_at %}{{ row.in_at|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if row.out_at %}{{ row.out_at|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{{ row.status }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

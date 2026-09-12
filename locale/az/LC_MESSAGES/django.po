@@ -1,0 +1,416 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: citypoint\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: az\n"
+
+msgid "Rezident"
+msgstr "Rezident"
+
+msgid "Əsas səhifə"
+msgstr "Əsas səhifə"
+
+msgid "Sahələrim"
+msgstr "Sahələrim"
+
+msgid "Aktiv müraciətlər"
+msgstr "Aktiv müraciətlər"
+
+msgid "Tarixçə"
+msgstr "Tarixçə"
+
+msgid "Bildirişlər"
+msgstr "Bildirişlər"
+
+msgid "BİNA"
+msgstr "BİNA"
+
+msgid "Əməkdaşlar"
+msgstr "Əməkdaşlar"
+
+msgid "Qonaqlar"
+msgstr "Qonaqlar"
+
+msgid "Elanlar"
+msgstr "Elanlar"
+
+msgid "Sənədlər"
+msgstr "Sənədlər"
+
+msgid "Yeni müraciət"
+msgstr "Yeni müraciət"
+
+msgid "Çıxış"
+msgstr "Çıxış"
+
+msgid "Business Center"
+msgstr "Business Center"
+
+msgid "İDARƏETMƏ"
+msgstr "İDARƏETMƏ"
+
+msgid "İdarə paneli"
+msgstr "İdarə paneli"
+
+msgid "ƏMƏLİYYAT"
+msgstr "ƏMƏLİYYAT"
+
+msgid "ƏMLAK"
+msgstr "ƏMLAK"
+
+msgid "Sahələr"
+msgstr "Sahələr"
+
+msgid "Rezidentlər"
+msgstr "Rezidentlər"
+
+msgid "ANALİTİKA"
+msgstr "ANALİTİKA"
+
+msgid "Hesabatlar"
+msgstr "Hesabatlar"
+
+msgid "Xoş gəlmisiniz"
+msgstr "Xoş gəlmisiniz"
+
+msgid "SAHƏLƏRİM"
+msgstr "SAHƏLƏRİM"
+
+msgid "Sahəyə bax"
+msgstr "Sahəyə bax"
+
+msgid "AÇIQ MÜRACİƏTLƏR"
+msgstr "AÇIQ MÜRACİƏTLƏR"
+
+msgid "Son yenilənən"
+msgstr "Son yenilənən"
+
+msgid "Müraciətlərə bax"
+msgstr "Müraciətlərə bax"
+
+msgid "BİLDİRİŞLƏR"
+msgstr "BİLDİRİŞLƏR"
+
+msgid "yeni"
+msgstr "yeni"
+
+msgid "Son müraciətlər"
+msgstr "Son müraciətlər"
+
+msgid "Kod"
+msgstr "Kod"
+
+msgid "Kateqoriya"
+msgstr "Kateqoriya"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Müraciət yoxdur."
+msgstr "Müraciət yoxdur."
+
+msgid "Elan yoxdur."
+msgstr "Elan yoxdur."
+
+msgid "Hamısına bax"
+msgstr "Hamısına bax"
+
+msgid "QONAQLAR"
+msgstr "QONAQLAR"
+
+msgid "bu gün"
+msgstr "bu gün"
+
+msgid "AÇIQ TICKET"
+msgstr "AÇIQ TICKET"
+
+msgid "aktiv"
+msgstr "aktiv"
+
+msgid "SLA RİSKİ"
+msgstr "SLA RİSKİ"
+
+msgid "Kritik həddə ticket yoxdur"
+msgstr "Kritik həddə ticket yoxdur"
+
+msgid "Bax"
+msgstr "Bax"
+
+msgid "REZİDENTLƏR"
+msgstr "REZİDENTLƏR"
+
+msgid "Ticketlər"
+msgstr "Ticketlər"
+
+msgid "Açıq ticket yoxdur."
+msgstr "Açıq ticket yoxdur."
+
+msgid "Bugünkü qonaqlar"
+msgstr "Bugünkü qonaqlar"
+
+msgid "Qonaq yoxdur."
+msgstr "Qonaq yoxdur."
+
+msgid "Son fəaliyyətlər"
+msgstr "Son fəaliyyətlər"
+
+msgid "Fəaliyyət yoxdur."
+msgstr "Fəaliyyət yoxdur."
+
+msgid "qalıb"
+msgstr "qalıb"
+
+msgid "Müraciət edən"
+msgstr "Müraciət edən"
+
+msgid "Təsvir"
+msgstr "Təsvir"
+
+msgid "Status tarixçəsi"
+msgstr "Status tarixçəsi"
+
+msgid "Söhbət"
+msgstr "Söhbət"
+
+msgid "Mesaj yazın..."
+msgstr "Mesaj yazın..."
+
+msgid "Göndər"
+msgstr "Göndər"
+
+msgid "Prioritet"
+msgstr "Prioritet"
+
+msgid "Təyin olunub"
+msgstr "Təyin olunub"
+
+msgid "Yaradılıb"
+msgstr "Yaradılıb"
+
+msgid "Sahə"
+msgstr "Sahə"
+
+msgid "Növbəti status"
+msgstr "Növbəti status"
+
+msgid "Cavabdeh"
+msgstr "Cavabdeh"
+
+msgid "Təyin et"
+msgstr "Təyin et"
+
+msgid "Əmlak"
+msgstr "Əmlak"
+
+msgid "Building overview"
+msgstr "Building overview"
+
+msgid "mərtəbə"
+msgstr "mərtəbə"
+
+msgid "sahə"
+msgstr "sahə"
+
+msgid "aktiv rezident"
+msgstr "aktiv rezident"
+
+msgid "bugünkü qonaq"
+msgstr "bugünkü qonaq"
+
+msgid "Mərtəbələr"
+msgstr "Mərtəbələr"
+
+msgid "Boş"
+msgstr "Boş"
+
+msgid "Ümumi"
+msgstr "Ümumi"
+
+msgid "Müraciətlər"
+msgstr "Müraciətlər"
+
+msgid "Aktivlər"
+msgstr "Aktivlər"
+
+msgid "Texniki plan"
+msgstr "Texniki plan"
+
+msgid "Rezident"
+msgstr "Rezident"
+
+msgid "Açıq ticket"
+msgstr "Açıq ticket"
+
+msgid "Ticket yoxdur."
+msgstr "Ticket yoxdur."
+
+msgid "Sənəd yoxdur."
+msgstr "Sənəd yoxdur."
+
+msgid "Əməkdaş yoxdur."
+msgstr "Əməkdaş yoxdur."
+
+msgid "Avadanlıq yoxdur."
+msgstr "Avadanlıq yoxdur."
+
+msgid "Giriş"
+msgstr "Giriş"
+
+msgid "İş masanız."
+msgstr "İş masanız."
+
+msgid "Bina ilə bağlı."
+msgstr "Bina ilə bağlı."
+
+msgid "E-poçt"
+msgstr "E-poçt"
+
+msgid "Şifrə"
+msgstr "Şifrə"
+
+msgid "Daxil ol"
+msgstr "Daxil ol"
+
+msgid "Hamısı"
+msgstr "Hamısı"
+
+msgid "Açıq"
+msgstr "Açıq"
+
+msgid "SLA risk"
+msgstr "SLA risk"
+
+msgid "Mənim"
+msgstr "Mənim"
+
+msgid "Müraciət"
+msgstr "Müraciət"
+
+msgid "Son yenilənmə"
+msgstr "Son yenilənmə"
+
+msgid "OFİS"
+msgstr "OFİS"
+
+msgid "Aktiv"
+msgstr "Aktiv"
+
+msgid "Bağlı sahə yoxdur."
+msgstr "Bağlı sahə yoxdur."
+
+msgid "Siyahı boşdur."
+msgstr "Siyahı boşdur."
+
+msgid "Qonaq"
+msgstr "Qonaq"
+
+msgid "Mərtəbə"
+msgstr "Mərtəbə"
+
+msgid "Yeni qonaq"
+msgstr "Yeni qonaq"
+
+msgid "Qeyd et"
+msgstr "Qeyd et"
+
+msgid "Portal"
+msgstr "Portal"
+
+msgid "bağlı"
+msgstr "bağlı"
+
+msgid "Son"
+msgstr "Son"
+
+msgid "Bugünkü qonaq"
+msgstr "Bugünkü qonaq"
+
+msgid "Sənəd"
+msgstr "Sənəd"
+
+msgid "Tip"
+msgstr "Tip"
+
+msgid "Versiya"
+msgstr "Versiya"
+
+msgid "Tarix"
+msgstr "Tarix"
+
+msgid "Aç"
+msgstr "Aç"
+
+msgid "Ümumi"
+msgstr "Ümumi"
+
+msgid "Bildiriş yoxdur."
+msgstr "Bildiriş yoxdur."
+
+msgid "Tarixçə boşdur."
+msgstr "Tarixçə boşdur."
+
+msgid "Əməkdaş giriş / çıxış"
+msgstr "Əməkdaş giriş / çıxış"
+
+msgid "İçəridə"
+msgstr "İçəridə"
+
+msgid "Əməkdaş"
+msgstr "Əməkdaş"
+
+msgid "Kart"
+msgstr "Kart"
+
+msgid "Bu gün qonaq yoxdur."
+msgstr "Bu gün qonaq yoxdur."
+
+msgid "Fayl yoxdur"
+msgstr "Fayl yoxdur"
+
+msgid "Göndərildi"
+msgstr "Göndərildi"
+
+msgid "Qəbul edildi"
+msgstr "Qəbul edildi"
+
+msgid "İcra olunur"
+msgstr "İcra olunur"
+
+msgid "Həll edildi"
+msgstr "Həll edildi"
+
+msgid "Aşağı"
+msgstr "Aşağı"
+
+msgid "Normal"
+msgstr "Normal"
+
+msgid "Yüksək"
+msgstr "Yüksək"
+
+msgid "Gözləyir"
+msgstr "Gözləyir"
+
+msgid "Admin"
+msgstr "Admin"
+
+msgid "Rəhbərlik"
+msgstr "Rəhbərlik"
+
+msgid "E-poçt və ya şifrə yanlışdır."
+msgstr "E-poçt və ya şifrə yanlışdır."
+
+msgid "Foto / sənəd"
+msgstr "Foto / sənəd"
+
+msgid "Problemi qısa təsvir edin..."
+msgstr "Problemi qısa təsvir edin..."
+
+msgid "Host"
+msgstr "Host"
+
+msgid "Qeyd"
+msgstr "Qeyd"
+
+msgid "Dil"
+msgstr "Dil"

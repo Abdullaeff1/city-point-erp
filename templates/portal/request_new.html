@@ -1,17 +1,18 @@
 {% extends "portal/base.html" %}
-{% block heading %}Yeni xidmət müraciəti{% endblock %}
+{% load i18n %}
+{% block heading %}{% translate "Yeni müraciət" %}{% endblock %}
 {% block content %}
-<div class="max-w-xl bg-white rounded-xl border p-6">
-  <form method="post" enctype="multipart/form-data" class="space-y-4">
+<div class="cp-card p-card-lg" style="max-width:520px;">
+  <form method="post" enctype="multipart/form-data" class="flex-col gap-3">
     {% csrf_token %}
     {% for field in form %}
-      <div>
-        <label class="text-sm font-medium">{{ field.label }}</label>
+      <label>
+        <span class="cp-meta">{{ field.label }}</span>
         <div class="mt-1">{{ field }}</div>
         {{ field.errors }}
-      </div>
+      </label>
     {% endfor %}
-    <button class="bg-cp-navy text-white rounded-lg px-4 py-2 text-sm">Göndər</button>
+    <button class="cp-btn" type="submit">{% translate "Göndər" %}</button>
   </form>
 </div>
 {% endblock %}

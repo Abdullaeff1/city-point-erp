@@ -1,0 +1,419 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: citypoint\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: ru\n"
+
+msgid "Rezident"
+msgstr "Резидент"
+
+msgid "Əsas səhifə"
+msgstr "Главная"
+
+msgid "Sahələrim"
+msgstr "Мои площади"
+
+msgid "Aktiv müraciətlər"
+msgstr "Активные заявки"
+
+msgid "Tarixçə"
+msgstr "История"
+
+msgid "Bildirişlər"
+msgstr "Уведомления"
+
+msgid "BİNA"
+msgstr "ЗДАНИЕ"
+
+msgid "Əməkdaşlar"
+msgstr "Сотрудники"
+
+msgid "Qonaqlar"
+msgstr "Гости"
+
+msgid "Elanlar"
+msgstr "Объявления"
+
+msgid "Sənədlər"
+msgstr "Документы"
+
+msgid "Yeni müraciət"
+msgstr "Новая заявка"
+
+msgid "Çıxış"
+msgstr "Выход"
+
+msgid "Business Center"
+msgstr "Бизнес-центр"
+
+msgid "İDARƏETMƏ"
+msgstr "УПРАВЛЕНИЕ"
+
+msgid "İdarə paneli"
+msgstr "Панель управления"
+
+msgid "ƏMƏLİYYAT"
+msgstr "ОПЕРАЦИИ"
+
+msgid "ƏMLAK"
+msgstr "НЕДВИЖИМОСТЬ"
+
+msgid "Sahələr"
+msgstr "Площади"
+
+msgid "Rezidentlər"
+msgstr "Резиденты"
+
+msgid "ANALİTİKA"
+msgstr "АНАЛИТИКА"
+
+msgid "Hesabatlar"
+msgstr "Отчёты"
+
+msgid "Xoş gəlmisiniz"
+msgstr "Добро пожаловать"
+
+msgid "SAHƏLƏRİM"
+msgstr "МОИ ПЛОЩАДИ"
+
+msgid "Sahəyə bax"
+msgstr "К площади"
+
+msgid "AÇIQ MÜRACİƏTLƏR"
+msgstr "ОТКРЫТЫЕ ЗАЯВКИ"
+
+msgid "Son yenilənən"
+msgstr "Последнее обновление"
+
+msgid "Müraciətlərə bax"
+msgstr "К заявкам"
+
+msgid "BİLDİRİŞLƏR"
+msgstr "УВЕДОМЛЕНИЯ"
+
+msgid "yeni"
+msgstr "новых"
+
+msgid "Son müraciətlər"
+msgstr "Последние заявки"
+
+msgid "Kod"
+msgstr "Код"
+
+msgid "Kateqoriya"
+msgstr "Категория"
+
+msgid "Status"
+msgstr "Статус"
+
+msgid "Müraciət yoxdur."
+msgstr "Заявок нет."
+
+msgid "Elan yoxdur."
+msgstr "Объявлений нет."
+
+msgid "Hamısına bax"
+msgstr "Смотреть все"
+
+msgid "QONAQLAR"
+msgstr "ГОСТИ"
+
+msgid "bu gün"
+msgstr "сегодня"
+
+msgid "AÇIQ TICKET"
+msgstr "ОТКРЫТЫЕ ТИКЕТЫ"
+
+msgid "aktiv"
+msgstr "активные"
+
+msgid "SLA RİSKİ"
+msgstr "РИСК SLA"
+
+msgid "Kritik həddə ticket yoxdur"
+msgstr "Нет тикетов у критического порога"
+
+msgid "Bax"
+msgstr "Смотреть"
+
+msgid "REZİDENTLƏR"
+msgstr "РЕЗИДЕНТЫ"
+
+msgid "Ticketlər"
+msgstr "Тикеты"
+
+msgid "Açıq ticket yoxdur."
+msgstr "Открытых тикетов нет."
+
+msgid "Bugünkü qonaqlar"
+msgstr "Гости сегодня"
+
+msgid "Qonaq yoxdur."
+msgstr "Гостей нет."
+
+msgid "Son fəaliyyətlər"
+msgstr "Последние действия"
+
+msgid "Fəaliyyət yoxdur."
+msgstr "Действий нет."
+
+msgid "qalıb"
+msgstr "осталось"
+
+msgid "Müraciət edən"
+msgstr "Заявитель"
+
+msgid "Təsvir"
+msgstr "Описание"
+
+msgid "Status tarixçəsi"
+msgstr "История статуса"
+
+msgid "Söhbət"
+msgstr "Переписка"
+
+msgid "Mesaj yazın..."
+msgstr "Напишите сообщение..."
+
+msgid "Göndər"
+msgstr "Отправить"
+
+msgid "Prioritet"
+msgstr "Приоритет"
+
+msgid "Təyin olunub"
+msgstr "Назначено"
+
+msgid "Yaradılıb"
+msgstr "Создано"
+
+msgid "Sahə"
+msgstr "Площадь"
+
+msgid "Növbəti status"
+msgstr "Следующий статус"
+
+msgid "Cavabdeh"
+msgstr "Ответственный"
+
+msgid "Təyin et"
+msgstr "Назначить"
+
+msgid "Əmlak"
+msgstr "Недвижимость"
+
+msgid "Building overview"
+msgstr "Обзор здания"
+
+msgid "mərtəbə"
+msgstr "этажи"
+
+msgid "sahə"
+msgstr "площади"
+
+msgid "aktiv rezident"
+msgstr "активные резиденты"
+
+msgid "bugünkü qonaq"
+msgstr "гости сегодня"
+
+msgid "Mərtəbələr"
+msgstr "Этажи"
+
+msgid "Boş"
+msgstr "Свободно"
+
+msgid "Ümumi"
+msgstr "Общее"
+
+msgid "Müraciətlər"
+msgstr "Заявки"
+
+msgid "Aktivlər"
+msgstr "Активы"
+
+msgid "Texniki plan"
+msgstr "Техплан"
+
+msgid "Rezident"
+msgstr "Резидент"
+
+msgid "Açıq ticket"
+msgstr "Открытые тикеты"
+
+msgid "Ticket yoxdur."
+msgstr "Тикетов нет."
+
+msgid "Sənəd yoxdur."
+msgstr "Документов нет."
+
+msgid "Əməkdaş yoxdur."
+msgstr "Сотрудников нет."
+
+msgid "Avadanlıq yoxdur."
+msgstr "Оборудования нет."
+
+msgid "Giriş"
+msgstr "Вход"
+
+msgid "İş masanız."
+msgstr "Ваше рабочее место."
+
+msgid "Bina ilə bağlı."
+msgstr "Связано со зданием."
+
+msgid "E-poçt"
+msgstr "Эл. почта"
+
+msgid "Şifrə"
+msgstr "Пароль"
+
+msgid "Daxil ol"
+msgstr "Войти"
+
+msgid "Hamısı"
+msgstr "Все"
+
+msgid "Açıq"
+msgstr "Открытые"
+
+msgid "SLA risk"
+msgstr "Риск SLA"
+
+msgid "Mənim"
+msgstr "Мои"
+
+msgid "Müraciət"
+msgstr "Заявка"
+
+msgid "Son yenilənmə"
+msgstr "Обновлено"
+
+msgid "OFİS"
+msgstr "ОФИС"
+
+msgid "Aktiv"
+msgstr "Активен"
+
+msgid "Bağlı sahə yoxdur."
+msgstr "Нет привязанных площадей."
+
+msgid "Siyahı boşdur."
+msgstr "Список пуст."
+
+msgid "Qonaq"
+msgstr "Гость"
+
+msgid "Mərtəbə"
+msgstr "Этаж"
+
+msgid "Yeni qonaq"
+msgstr "Новый гость"
+
+msgid "Qeyd et"
+msgstr "Зарегистрировать"
+
+msgid "Portal"
+msgstr "Портал"
+
+msgid "bağlı"
+msgstr "закрыт"
+
+msgid "Son"
+msgstr "Последнее"
+
+msgid "Bugünkü qonaq"
+msgstr "Гости сегодня"
+
+msgid "Sənəd"
+msgstr "Документ"
+
+msgid "Tip"
+msgstr "Тип"
+
+msgid "Versiya"
+msgstr "Версия"
+
+msgid "Tarix"
+msgstr "Дата"
+
+msgid "Aç"
+msgstr "Открыть"
+
+msgid "Bildiriş yoxdur."
+msgstr "Уведомлений нет."
+
+msgid "Tarixçə boşdur."
+msgstr "История пуста."
+
+msgid "Əməkdaş giriş / çıxış"
+msgstr "Вход / выход сотрудников"
+
+msgid "İçəridə"
+msgstr "Внутри"
+
+msgid "Əməkdaş"
+msgstr "Сотрудник"
+
+msgid "Kart"
+msgstr "Карта"
+
+msgid "Bu gün qonaq yoxdur."
+msgstr "Сегодня гостей нет."
+
+msgid "Fayl yoxdur"
+msgstr "Файла нет"
+
+msgid "Göndərildi"
+msgstr "Отправлено"
+
+msgid "Qəbul edildi"
+msgstr "Принято"
+
+msgid "İcra olunur"
+msgstr "В работе"
+
+msgid "Həll edildi"
+msgstr "Решено"
+
+msgid "Aşağı"
+msgstr "Низкий"
+
+msgid "Normal"
+msgstr "Обычный"
+
+msgid "Yüksək"
+msgstr "Высокий"
+
+msgid "Gözləyir"
+msgstr "Ожидает"
+
+msgid "Admin"
+msgstr "Админ"
+
+msgid "Rəhbərlik"
+msgstr "Руководство"
+
+msgid "E-poçt və ya şifrə yanlışdır."
+msgstr "Неверный email или пароль."
+
+msgid "Foto / sənəd"
+msgstr "Фото / файл"
+
+msgid "Problemi qısa təsvir edin..."
+msgstr "Кратко опишите проблему..."
+
+msgid "Host"
+msgstr "Хост"
+
+msgid "Qeyd"
+msgstr "Заметка"
+
+msgid "Dil"
+msgstr "Язык"
+
+msgid "Salam, %(name)s"
+msgstr "Здравствуйте, %(name)s"
+
+msgid "Sahə %(label)s"
+msgstr "Площадь %(label)s"

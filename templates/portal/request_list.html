@@ -1,17 +1,35 @@
 {% extends "portal/base.html" %}
-{% block heading %}Müraciətlər{% endblock %}
+{% load i18n cp_ui %}
+{% block heading %}{% translate "Müraciətlər" %}{% endblock %}
 {% block content %}
-<div class="bg-white rounded-xl border divide-y">
-  {% for t in tickets %}
-  <a class="flex items-center justify-between px-4 py-3 hover:bg-slate-50" href="{% url 'portal:request_detail' t.code %}">
-    <div>
-      <div class="font-medium text-cp-navy">{{ t.code }} · {{ t.category }}</div>
-      <div class="text-xs text-slate-500">{{ t.space|default:"—" }}</div>
-    </div>
-    <span class="text-sm">{{ t.get_status_display }}</span>
-  </a>
-  {% empty %}
-  <div class="px-4 py-8 text-sm text-slate-500">Siyahı boşdur.</div>
-  {% endfor %}
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Kod" %}</th>
+        <th>{% translate "Müraciət" %}</th>
+        <th>{% translate "Kateqoriya" %}</th>
+        <th>{% translate "Sahə" %}</th>
+        <th>{% translate "Prioritet" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th>{% translate "Son yenilənmə" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tickets %}
+      <tr>
+        <td><a href="{% url 'portal:request_detail' t.code %}">{{ t.code }}</a></td>
+        <td>{{ t.description|truncatechars:48 }}</td>
+        <td>{{ t.category }}</td>
+        <td>{{ t.space.short_label|default:"—" }}</td>
+        <td>{% include "partials/priority_badge.html" with value=t.priority label=t.get_priority_display %}</td>
+        <td>{% include "partials/status_badge.html" with value=t.status label=t.get_status_display %}</td>
+        <td class="cp-meta">{{ t.updated_at|date:"d.m.Y H:i" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="cp-meta empty-pad">{% translate "Siyahı boşdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}

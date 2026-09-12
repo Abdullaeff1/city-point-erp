@@ -1,11 +1,12 @@
 {% extends "erp/base.html" %}
-{% block heading %}Rezidentlər{% endblock %}
+{% load i18n %}
+{% block heading %}{% translate "Rezidentlər" %}{% endblock %}
 {% block content %}
-<div class="bg-white border rounded-xl divide-y">
+<div class="cp-card" style="padding:8px 0;">
   {% for c in companies %}
-  <a class="flex justify-between px-4 py-3 hover:bg-slate-50" href="{% url 'erp:resident_detail' c.slug %}">
-    <span class="font-medium text-cp-navy">{{ c.name }}</span>
-    <span class="text-sm">{{ c.get_status_display }}</span>
+  <a href="{% url 'erp:resident_detail' c.slug %}" class="cp-list-row">
+    <strong>{{ c.name }}</strong>
+    <span class="cp-meta">{{ c.get_status_display }}</span>
   </a>
   {% endfor %}
 </div>

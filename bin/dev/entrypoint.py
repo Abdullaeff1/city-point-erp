@@ -26,8 +26,10 @@ def wait_for_postgres():
 
 def main():
     wait_for_postgres()
-    subprocess.check_call([sys.executable, "manage.py", "makemigrations", "--noinput"])
     subprocess.check_call([sys.executable, "manage.py", "migrate", "--noinput"])
+    # Prefer Django compilemessages; fall back to pure-Python MO builder if msgfmt is missing.
+    if subprocess.call([sys.executable, "manage.py", "compilemessages"]) != 0:
+        subprocess.check_call([sys.executable, "scripts/compile_messages.py"])
     subprocess.call([sys.executable, "manage.py", "collectstatic", "--noinput"])
     if os.environ.get("SEED_DEMO", "1") == "1":
         subprocess.check_call([sys.executable, "manage.py", "seed_demo"])

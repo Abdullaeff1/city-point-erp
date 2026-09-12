@@ -1,15 +1,16 @@
 {% extends "portal/base.html" %}
-{% block heading %}Sənəd paneli{% endblock %}
+{% load i18n %}
+{% block heading %}{% translate "Sənədlər" %}{% endblock %}
 {% block content %}
-<div class="bg-white rounded-xl border divide-y">
+<div class="cp-card" style="padding:8px 0;">
   {% for d in documents %}
-  <div class="flex items-center justify-between px-4 py-3">
+  <div class="flex justify-between items-center" style="padding:14px 20px;border-bottom:1px solid var(--cp-border);">
     <div>
-      <div class="text-xs text-slate-400">{{ d.file_type }}</div>
-      <div class="font-medium">{{ d.title }}</div>
-      <div class="text-xs text-slate-500">{{ d.published_at|date:"d.m.Y" }} · {{ d.size_label }}</div>
+      <div class="cp-meta">{{ d.file_type }}</div>
+      <div style="font-weight:600;">{{ d.title }}</div>
+      <div class="cp-meta">{{ d.published_at|date:"d.m.Y" }} · {{ d.size_label }}</div>
     </div>
-    {% if d.file %}<a class="text-sm text-cp-blue" href="{{ d.file.url }}">Aç</a>{% else %}<span class="text-xs text-slate-400">Fayl yoxdur</span>{% endif %}
+    {% if d.file %}<a href="{{ d.file.url }}">{% translate "Aç" %}</a>{% else %}<span class="cp-meta">{% translate "Fayl yoxdur" %}</span>{% endif %}
   </div>
   {% endfor %}
 </div>

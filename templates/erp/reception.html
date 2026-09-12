@@ -1,24 +1,25 @@
 {% extends "erp/base.html" %}
-{% block heading %}Reception — qonaq idarəetməsi{% endblock %}
+{% load i18n cp_ui %}
+{% block heading %}Reception{% endblock %}
 {% block content %}
-<div class="grid lg:grid-cols-3 gap-6">
-  <div class="lg:col-span-2 bg-white border rounded-xl overflow-hidden">
-    <div class="px-4 py-3 border-b font-medium">Bugünkü qonaqlar</div>
-    <table class="w-full text-sm">
-      <thead class="text-left text-slate-500 border-b"><tr><th class="p-3">Qonaq</th><th>Rezident</th><th>Host</th><th>Mərtəbə</th><th>Status</th><th></th></tr></thead>
+<div class="grid-main">
+  <div class="cp-card" style="padding:8px 0;">
+    <div class="cp-section section-pad">{% translate "Bugünkü qonaqlar" %}</div>
+    <table class="cp-table">
+      <thead><tr><th>{% translate "Qonaq" %}</th><th>{% translate "Rezident" %}</th><th>Host</th><th>{% translate "Mərtəbə" %}</th><th>{% translate "Status" %}</th><th></th></tr></thead>
       <tbody>
         {% for v in visits %}
-        <tr class="border-t">
-          <td class="p-3">{{ v.guest.full_name }}</td>
+        <tr>
+          <td>{{ v.guest.full_name }}</td>
           <td>{{ v.company.name }}</td>
           <td>{{ v.host.full_name|default:"—" }}</td>
           <td>{{ v.floor.code|default:v.location_note|default:"—" }}</td>
-          <td>{{ v.get_status_display }}</td>
-          <td class="p-2">
-            <form method="post" action="{% url 'erp:reception_status' v.pk %}" class="flex gap-1">
+          <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
+          <td>
+            <form method="post" action="{% url 'erp:reception_status' v.pk %}">
               {% csrf_token %}
-              {% if v.status == 'waiting' %}<button name="action" value="checkin" class="text-xs bg-cp-navy text-white rounded px-2 py-1">Giriş</button>{% endif %}
-              {% if v.status == 'inside' %}<button name="action" value="checkout" class="text-xs border rounded px-2 py-1">Çıxış</button>{% endif %}
+              {% if v.status == 'waiting' %}<button class="cp-btn" name="action" value="checkin" style="padding:6px 10px;font-size:12px;">{% translate "Giriş" %}</button>{% endif %}
+              {% if v.status == 'inside' %}<button class="cp-btn-ghost" name="action" value="checkout">{% translate "Çıxış" %}</button>{% endif %}
             </form>
           </td>
         </tr>
@@ -26,14 +27,14 @@
       </tbody>
     </table>
   </div>
-  <div class="bg-white border rounded-xl p-5">
-    <h2 class="font-semibold mb-3">+ Yeni qonaq</h2>
-    <form method="post" class="space-y-3">
+  <div class="cp-card p-card">
+    <div class="cp-section" style="font-size:16px;">{% translate "Yeni qonaq" %}</div>
+    <form method="post" class="flex-col gap-3 mt-3">
       {% csrf_token %}
       {% for field in form %}
-        <div><label class="text-xs font-medium">{{ field.label }}</label><div class="mt-1">{{ field }}</div></div>
+        <label><span class="cp-meta">{{ field.label }}</span><div class="mt-1">{{ field }}</div></label>
       {% endfor %}
-      <button class="w-full bg-cp-navy text-white rounded-lg py-2 text-sm">Qeyd et</button>
+      <button class="cp-btn">{% translate "Qeyd et" %}</button>
     </form>
   </div>
 </div>

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from apps.tickets.models import SlaPolicy, Ticket, TicketAttachment, TicketCategory, TicketMessage
+from apps.tickets.models import SlaPolicy, Ticket, TicketAttachment, TicketCategory, TicketMessage, TicketStatusEvent
 
 
 @admin.register(TicketCategory)
@@ -28,3 +28,8 @@ class TicketAdmin(admin.ModelAdmin):
 @admin.register(TicketAttachment)
 class TicketAttachmentAdmin(admin.ModelAdmin):
     list_display = ("ticket", "file", "uploaded_at")
+
+
+@admin.register(TicketStatusEvent)
+class TicketStatusEventAdmin(admin.ModelAdmin):
+    list_display = ("ticket", "from_status", "to_status", "actor", "created_at")

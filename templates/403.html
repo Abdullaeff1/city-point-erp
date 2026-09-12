@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block title %}İcazə yoxdur{% endblock %}
 {% block body %}
-<div class="min-h-screen flex items-center justify-center">
-  <div class="bg-white border rounded-xl p-8 max-w-md text-center">
-    <h1 class="text-xl font-semibold text-cp-navy">Bu bölməyə giriş yoxdur</h1>
-    <p class="text-sm text-slate-500 mt-2">Rolunuz bu əməliyyat üçün kifayət etmir.</p>
-    <a class="inline-block mt-4 text-cp-blue" href="{% url 'post_login' %}">Geri</a>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;">
+  <div class="cp-card" style="padding:32px;max-width:400px;text-align:center;">
+    <h1 class="cp-section">Bu bölməyə giriş yoxdur</h1>
+    <p class="cp-meta" style="margin-top:8px;">Rolunuz bu əməliyyat üçün kifayət etmir.</p>
+    <a class="cp-btn" href="{% url 'post_login' %}" style="margin-top:16px;">Geri</a>
   </div>
 </div>
 {% endblock %}

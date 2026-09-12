@@ -1,24 +1,41 @@
 {% extends "erp/base.html" %}
-{% block heading %}Service Desk — ticket idarəetməsi{% endblock %}
+{% load i18n cp_ui %}
+{% block heading %}Service Desk{% endblock %}
 {% block content %}
-<div class="flex gap-2 mb-4 text-sm">
-  <a class="px-3 py-1 rounded-full border {% if tab == 'all' %}bg-cp-navy text-white{% endif %}" href="?tab=all">Hamısı</a>
-  <a class="px-3 py-1 rounded-full border {% if tab == 'open' %}bg-cp-navy text-white{% endif %}" href="?tab=open">Açıq</a>
-  <a class="px-3 py-1 rounded-full border {% if tab == 'sla' %}bg-cp-navy text-white{% endif %}" href="?tab=sla">SLA risk</a>
-  <a class="px-3 py-1 rounded-full border {% if tab == 'mine' %}bg-cp-navy text-white{% endif %}" href="?tab=mine">Mənim</a>
+<div class="flex gap-2 mb-4" style="flex-wrap:wrap;">
+  <a class="badge {% if tab == 'all' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=all">{% translate "Hamısı" %}</a>
+  <a class="badge {% if tab == 'open' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=open">{% translate "Açıq" %}</a>
+  <a class="badge {% if tab == 'sla' %}badge-progress{% else %}badge-muted{% endif %}" href="?tab=sla">{% translate "SLA risk" %}</a>
+  <a class="badge {% if tab == 'mine' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=mine">{% translate "Mənim" %}</a>
 </div>
-<div class="bg-white border rounded-xl divide-y">
-  {% for t in tickets %}
-  <a class="grid grid-cols-6 gap-2 px-4 py-3 text-sm hover:bg-slate-50" href="{% url 'erp:ticket_detail' t.code %}">
-    <span class="font-medium text-cp-navy">{{ t.code }}</span>
-    <span>{{ t.category }}</span>
-    <span>{{ t.space.short_label|default:"—" }} / {{ t.company.name }}</span>
-    <span>{{ t.get_priority_display }}</span>
-    <span>{{ t.get_status_display }}</span>
-    <span>{% if t.sla_risk %}<span class="text-amber-600">SLA</span>{% endif %}</span>
-  </a>
-  {% empty %}
-  <div class="p-6 text-sm text-slate-500">Ticket yoxdur.</div>
-  {% endfor %}
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Kod" %}</th>
+        <th>{% translate "Müraciət" %}</th>
+        <th>{% translate "Kateqoriya" %}</th>
+        <th>{% translate "Sahə" %}</th>
+        <th>{% translate "Prioritet" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th>{% translate "Son yenilənmə" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tickets %}
+      <tr>
+        <td><a href="{% url 'erp:ticket_detail' t.code %}">{{ t.code }}</a></td>
+        <td>{{ t.company.name }}</td>
+        <td>{{ t.category }}</td>
+        <td>{{ t.space.short_label|default:"—" }}</td>
+        <td>{% include "partials/priority_badge.html" with value=t.priority label=t.get_priority_display %}</td>
+        <td>{% include "partials/status_badge.html" with value=t.status label=t.get_status_display %}</td>
+        <td class="cp-meta">{{ t.updated_at|date:"d.m H:i" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="cp-meta empty-pad">{% translate "Ticket yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}

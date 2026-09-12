@@ -1,0 +1,419 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: citypoint\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: en\n"
+
+msgid "Rezident"
+msgstr "Resident"
+
+msgid "Əsas səhifə"
+msgstr "Home"
+
+msgid "Sahələrim"
+msgstr "My spaces"
+
+msgid "Aktiv müraciətlər"
+msgstr "Active requests"
+
+msgid "Tarixçə"
+msgstr "History"
+
+msgid "Bildirişlər"
+msgstr "Notifications"
+
+msgid "BİNA"
+msgstr "BUILDING"
+
+msgid "Əməkdaşlar"
+msgstr "Employees"
+
+msgid "Qonaqlar"
+msgstr "Guests"
+
+msgid "Elanlar"
+msgstr "Announcements"
+
+msgid "Sənədlər"
+msgstr "Documents"
+
+msgid "Yeni müraciət"
+msgstr "New request"
+
+msgid "Çıxış"
+msgstr "Log out"
+
+msgid "Business Center"
+msgstr "Business Center"
+
+msgid "İDARƏETMƏ"
+msgstr "MANAGEMENT"
+
+msgid "İdarə paneli"
+msgstr "Dashboard"
+
+msgid "ƏMƏLİYYAT"
+msgstr "OPERATIONS"
+
+msgid "ƏMLAK"
+msgstr "PROPERTY"
+
+msgid "Sahələr"
+msgstr "Spaces"
+
+msgid "Rezidentlər"
+msgstr "Residents"
+
+msgid "ANALİTİKA"
+msgstr "ANALYTICS"
+
+msgid "Hesabatlar"
+msgstr "Reports"
+
+msgid "Xoş gəlmisiniz"
+msgstr "Welcome"
+
+msgid "SAHƏLƏRİM"
+msgstr "MY SPACES"
+
+msgid "Sahəyə bax"
+msgstr "View space"
+
+msgid "AÇIQ MÜRACİƏTLƏR"
+msgstr "OPEN REQUESTS"
+
+msgid "Son yenilənən"
+msgstr "Last updated"
+
+msgid "Müraciətlərə bax"
+msgstr "View requests"
+
+msgid "BİLDİRİŞLƏR"
+msgstr "NOTIFICATIONS"
+
+msgid "yeni"
+msgstr "new"
+
+msgid "Son müraciətlər"
+msgstr "Recent requests"
+
+msgid "Kod"
+msgstr "Code"
+
+msgid "Kateqoriya"
+msgstr "Category"
+
+msgid "Status"
+msgstr "Status"
+
+msgid "Müraciət yoxdur."
+msgstr "No requests."
+
+msgid "Elan yoxdur."
+msgstr "No announcements."
+
+msgid "Hamısına bax"
+msgstr "View all"
+
+msgid "QONAQLAR"
+msgstr "GUESTS"
+
+msgid "bu gün"
+msgstr "today"
+
+msgid "AÇIQ TICKET"
+msgstr "OPEN TICKETS"
+
+msgid "aktiv"
+msgstr "active"
+
+msgid "SLA RİSKİ"
+msgstr "SLA RISK"
+
+msgid "Kritik həddə ticket yoxdur"
+msgstr "No tickets near critical SLA"
+
+msgid "Bax"
+msgstr "View"
+
+msgid "REZİDENTLƏR"
+msgstr "RESIDENTS"
+
+msgid "Ticketlər"
+msgstr "Tickets"
+
+msgid "Açıq ticket yoxdur."
+msgstr "No open tickets."
+
+msgid "Bugünkü qonaqlar"
+msgstr "Today's guests"
+
+msgid "Qonaq yoxdur."
+msgstr "No guests."
+
+msgid "Son fəaliyyətlər"
+msgstr "Recent activity"
+
+msgid "Fəaliyyət yoxdur."
+msgstr "No activity."
+
+msgid "qalıb"
+msgstr "remaining"
+
+msgid "Müraciət edən"
+msgstr "Requester"
+
+msgid "Təsvir"
+msgstr "Description"
+
+msgid "Status tarixçəsi"
+msgstr "Status history"
+
+msgid "Söhbət"
+msgstr "Conversation"
+
+msgid "Mesaj yazın..."
+msgstr "Write a message..."
+
+msgid "Göndər"
+msgstr "Send"
+
+msgid "Prioritet"
+msgstr "Priority"
+
+msgid "Təyin olunub"
+msgstr "Assigned to"
+
+msgid "Yaradılıb"
+msgstr "Created"
+
+msgid "Sahə"
+msgstr "Space"
+
+msgid "Növbəti status"
+msgstr "Next status"
+
+msgid "Cavabdeh"
+msgstr "Assignee"
+
+msgid "Təyin et"
+msgstr "Assign"
+
+msgid "Əmlak"
+msgstr "Property"
+
+msgid "Building overview"
+msgstr "Building overview"
+
+msgid "mərtəbə"
+msgstr "floors"
+
+msgid "sahə"
+msgstr "spaces"
+
+msgid "aktiv rezident"
+msgstr "active residents"
+
+msgid "bugünkü qonaq"
+msgstr "guests today"
+
+msgid "Mərtəbələr"
+msgstr "Floors"
+
+msgid "Boş"
+msgstr "Vacant"
+
+msgid "Ümumi"
+msgstr "Overview"
+
+msgid "Müraciətlər"
+msgstr "Requests"
+
+msgid "Aktivlər"
+msgstr "Assets"
+
+msgid "Texniki plan"
+msgstr "Technical plan"
+
+msgid "Rezident"
+msgstr "Resident"
+
+msgid "Açıq ticket"
+msgstr "Open tickets"
+
+msgid "Ticket yoxdur."
+msgstr "No tickets."
+
+msgid "Sənəd yoxdur."
+msgstr "No documents."
+
+msgid "Əməkdaş yoxdur."
+msgstr "No employees."
+
+msgid "Avadanlıq yoxdur."
+msgstr "No assets."
+
+msgid "Giriş"
+msgstr "Sign in"
+
+msgid "İş masanız."
+msgstr "Your workspace."
+
+msgid "Bina ilə bağlı."
+msgstr "Connected to the building."
+
+msgid "E-poçt"
+msgstr "Email"
+
+msgid "Şifrə"
+msgstr "Password"
+
+msgid "Daxil ol"
+msgstr "Sign in"
+
+msgid "Hamısı"
+msgstr "All"
+
+msgid "Açıq"
+msgstr "Open"
+
+msgid "SLA risk"
+msgstr "SLA risk"
+
+msgid "Mənim"
+msgstr "Mine"
+
+msgid "Müraciət"
+msgstr "Request"
+
+msgid "Son yenilənmə"
+msgstr "Last update"
+
+msgid "OFİS"
+msgstr "OFFICE"
+
+msgid "Aktiv"
+msgstr "Active"
+
+msgid "Bağlı sahə yoxdur."
+msgstr "No linked spaces."
+
+msgid "Siyahı boşdur."
+msgstr "List is empty."
+
+msgid "Qonaq"
+msgstr "Guest"
+
+msgid "Mərtəbə"
+msgstr "Floor"
+
+msgid "Yeni qonaq"
+msgstr "New guest"
+
+msgid "Qeyd et"
+msgstr "Register"
+
+msgid "Portal"
+msgstr "Portal"
+
+msgid "bağlı"
+msgstr "closed"
+
+msgid "Son"
+msgstr "Latest"
+
+msgid "Bugünkü qonaq"
+msgstr "Guests today"
+
+msgid "Sənəd"
+msgstr "Document"
+
+msgid "Tip"
+msgstr "Type"
+
+msgid "Versiya"
+msgstr "Version"
+
+msgid "Tarix"
+msgstr "Date"
+
+msgid "Aç"
+msgstr "Open"
+
+msgid "Bildiriş yoxdur."
+msgstr "No notifications."
+
+msgid "Tarixçə boşdur."
+msgstr "History is empty."
+
+msgid "Əməkdaş giriş / çıxış"
+msgstr "Employee access"
+
+msgid "İçəridə"
+msgstr "Inside"
+
+msgid "Əməkdaş"
+msgstr "Employee"
+
+msgid "Kart"
+msgstr "Card"
+
+msgid "Bu gün qonaq yoxdur."
+msgstr "No guests today."
+
+msgid "Fayl yoxdur"
+msgstr "No file"
+
+msgid "Göndərildi"
+msgstr "Submitted"
+
+msgid "Qəbul edildi"
+msgstr "Accepted"
+
+msgid "İcra olunur"
+msgstr "In progress"
+
+msgid "Həll edildi"
+msgstr "Resolved"
+
+msgid "Aşağı"
+msgstr "Low"
+
+msgid "Normal"
+msgstr "Normal"
+
+msgid "Yüksək"
+msgstr "High"
+
+msgid "Gözləyir"
+msgstr "Waiting"
+
+msgid "Admin"
+msgstr "Admin"
+
+msgid "Rəhbərlik"
+msgstr "Management"
+
+msgid "E-poçt və ya şifrə yanlışdır."
+msgstr "Invalid email or password."
+
+msgid "Foto / sənəd"
+msgstr "Photo / file"
+
+msgid "Problemi qısa təsvir edin..."
+msgstr "Briefly describe the issue..."
+
+msgid "Host"
+msgstr "Host"
+
+msgid "Qeyd"
+msgstr "Note"
+
+msgid "Dil"
+msgstr "Language"
+
+msgid "Salam, %(name)s"
+msgstr "Hello, %(name)s"
+
+msgid "Sahə %(label)s"
+msgstr "Space %(label)s"

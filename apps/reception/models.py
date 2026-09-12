@@ -1,11 +1,12 @@
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 
 class VisitStatus(models.TextChoices):
-    WAITING = "waiting", "Gözləyir"
-    INSIDE = "inside", "İçəridə"
-    LEFT = "left", "Çıxış"
+    WAITING = "waiting", _("Gözləyir")
+    INSIDE = "inside", _("İçəridə")
+    LEFT = "left", _("Çıxış")
 
 
 class Guest(models.Model):

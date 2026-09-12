@@ -9,6 +9,7 @@ handler403 = "django.views.defaults.permission_denied"
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("i18n/", include("django.conf.urls.i18n")),
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
     path("go/", post_login, name="post_login"),

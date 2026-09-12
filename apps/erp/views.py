@@ -7,11 +7,11 @@ from apps.accounts.mixins import RoleRequiredMixin, StaffRequiredMixin
 from apps.accounts.models import Role, User
 from apps.documents.models import Document
 from apps.erp.forms import GuestVisitForm
-from apps.property.models import Space
+from apps.property.models import Floor, Space
 from apps.reception.models import Guest, GuestVisit, VisitStatus
 from apps.residents.models import ResidentCompany
 from apps.tickets.models import OPEN_STATUSES, Ticket, TicketStatus
-from apps.tickets.services import add_message, notify_company_users
+from apps.tickets.services import add_message, advance_ticket_status
 
 
 class DashboardView(StaffRequiredMixin, TemplateView):
@@ -20,16 +20,32 @@ class DashboardView(StaffRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         today = timezone.localdate()
-        open_tickets = Ticket.objects.filter(status__in=OPEN_STATUSES)
+        open_qs = Ticket.objects.filter(status__in=OPEN_STATUSES).select_related("category", "company", "space")
+        open_list = list(open_qs)
+        sla_tickets = [t for t in open_list if t.sla_risk]
+        breached = [t for t in open_list if t.sla_breached]
+        sla_ticket = breached[0] if breached else (sla_tickets[0] if sla_tickets else None)
+        today_visits = GuestVisit.objects.filter(scheduled_for=today).select_related("guest", "company")
+        recent_tickets = Ticket.objects.select_related("category", "company")[:6]
+        activities = []
+        for t in Ticket.objects.order_by("-updated_at")[:5]:
+            activities.append({"at": t.updated_at, "text": f"{t.code} yeniləndi · {t.get_status_display()}"})
+        for v in today_visits.filter(check_in_at__isnull=False).order_by("-check_in_at")[:4]:
+            activities.append({"at": v.check_in_at, "text": f"Qonaq giriş etdi · {v.guest.full_name}"})
+        activities.sort(key=lambda x: x["at"] or timezone.now(), reverse=True)
         ctx.update(
             {
-                "guest_count": GuestVisit.objects.filter(scheduled_for=today).count(),
-                "open_count": open_tickets.count(),
-                "sla_risk_count": sum(1 for t in open_tickets if t.sla_risk),
+                "guest_count": today_visits.count(),
+                "open_count": len(open_list),
+                "sla_risk_count": len(sla_tickets),
+                "sla_breach_count": len(breached),
+                "sla_ticket": sla_ticket,
                 "new_residents": ResidentCompany.objects.filter(status="active").count(),
-                "waiting_guests": GuestVisit.objects.filter(scheduled_for=today, status=VisitStatus.WAITING),
+                "waiting_guests": today_visits.filter(status=VisitStatus.WAITING),
+                "today_visits": today_visits[:8],
+                "recent_open": open_list[:6],
+                "activities": activities[:8],
                 "unassigned": Ticket.objects.filter(status=TicketStatus.SENT, assignee__isnull=True)[:5],
-                "spaces_pending": Space.objects.filter(plan_revision="Rev.04")[:3],
             }
         )
         return ctx
@@ -91,7 +107,7 @@ class TicketListView(RoleRequiredMixin, ListView):
         tab = self.request.GET.get("tab", "all")
         if tab == "open":
             qs = qs.filter(status__in=OPEN_STATUSES)
-        if tab == "sla":
+        elif tab == "sla":
             ids = [t.id for t in qs.filter(status__in=OPEN_STATUSES) if t.sla_risk]
             qs = qs.filter(id__in=ids)
         elif tab == "mine":
@@ -115,15 +131,14 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         ctx["ticket"] = self.get_ticket()
         ctx["staff_users"] = User.objects.filter(role__in=[Role.SERVICE_DESK, Role.PROPERTY_FM, Role.ADMIN])
+        ctx["status_events"] = self.get_ticket().status_events.select_related("actor")
         return ctx
 
     def post(self, request, *args, **kwargs):
         ticket = self.get_ticket()
         action = request.POST.get("action")
         if action == "advance" and ticket.next_status:
-            ticket.status = ticket.next_status
-            ticket.save(update_fields=["status", "updated_at"])
-            notify_company_users(ticket, f"{ticket.code} statusu: {ticket.get_status_display()}")
+            advance_ticket_status(ticket, actor=request.user)
         elif action == "assign":
             assignee_id = request.POST.get("assignee")
             ticket.assignee_id = assignee_id or None
@@ -141,6 +156,27 @@ class SpaceListView(RoleRequiredMixin, ListView):
     context_object_name = "spaces"
     allowed_roles = (Role.PROPERTY_FM,)
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        floors = Floor.objects.prefetch_related("spaces__resident").order_by("code")
+        floor_rows = []
+        for floor in floors:
+            spaces = list(floor.spaces.all())
+            total = len(spaces)
+            occupied = sum(1 for s in spaces if s.resident_id)
+            pct = int(occupied / total * 100) if total else 0
+            floor_rows.append({"floor": floor, "total": total, "occupied": occupied, "pct": pct, "spaces": spaces})
+        ctx.update(
+            {
+                "floor_count": floors.count(),
+                "space_count": Space.objects.count(),
+                "active_residents": ResidentCompany.objects.filter(status="active").count(),
+                "guest_today": GuestVisit.objects.filter(scheduled_for=timezone.localdate()).count(),
+                "floor_rows": floor_rows,
+            }
+        )
+        return ctx
+
 
 class SpaceDetailView(RoleRequiredMixin, TemplateView):
     template_name = "erp/space_detail.html"
@@ -148,12 +184,18 @@ class SpaceDetailView(RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        space = get_object_or_404(Space, code=self.kwargs["code"])
+        space = get_object_or_404(Space.objects.select_related("floor", "resident"), code=self.kwargs["code"])
+        tab = self.request.GET.get("tab", "overview")
         ctx["space"] = space
+        ctx["tab"] = tab
         ctx["open_tickets"] = space.tickets.filter(status__in=OPEN_STATUSES)
         ctx["ticket_history"] = space.tickets.filter(status=TicketStatus.RESOLVED)
+        ctx["all_tickets"] = space.tickets.select_related("category")[:20]
         ctx["assets"] = space.assets.all()
         ctx["documents"] = space.documents.all()
+        ctx["employees"] = (
+            space.resident.employees.filter(is_active=True) if space.resident_id else []
+        )
         return ctx
 
 

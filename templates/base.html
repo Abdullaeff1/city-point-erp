@@ -1,23 +1,19 @@
+{% load static i18n %}
+{% get_current_language as LANGUAGE_CODE %}
 <!DOCTYPE html>
-<html lang="az">
+<html lang="{{ LANGUAGE_CODE }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}City Point{% endblock %}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            cp: { navy: "#1F497D", blue: "#4F81BD", ink: "#0f172a", mist: "#f4f7fb" }
-          }
-        }
-      }
-    }
-  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/cp.css' %}">
+  <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="min-h-screen bg-cp-mist text-slate-800 antialiased">
+<body class="cp-body">
   {% block body %}{% endblock %}
+  <script>lucide.createIcons();</script>
 </body>
 </html>

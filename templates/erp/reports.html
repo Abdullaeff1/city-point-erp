@@ -1,17 +1,14 @@
 {% extends "erp/base.html" %}
-{% block heading %}Hesabat · KPI{% endblock %}
+{% load i18n %}
+{% block heading %}{% translate "Hesabatlar" %}{% endblock %}
 {% block content %}
-<div class="grid md:grid-cols-3 gap-4 mb-6">
-  <div class="bg-white border rounded-xl p-5"><div class="text-xs text-slate-400">Açıq ticket</div><div class="text-3xl font-semibold">{{ open_count }}</div></div>
-  <div class="bg-white border rounded-xl p-5"><div class="text-xs text-slate-400">SLA risk</div><div class="text-3xl font-semibold">{{ sla_risk_count }}</div></div>
-  <div class="bg-white border rounded-xl p-5"><div class="text-xs text-slate-400">Qonaqlar</div><div class="text-3xl font-semibold">{{ guest_count }}</div></div>
+<div class="grid-3 mb-4">
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Açıq ticket" %}</div><div class="cp-metric">{{ open_count }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "SLA risk" %}</div><div class="cp-metric">{{ sla_risk_count }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Qonaqlar" %}</div><div class="cp-metric">{{ guest_count }}</div></div>
 </div>
-<div class="bg-white border rounded-xl p-5">
-  <h2 class="font-semibold mb-2">Rezident icmal</h2>
-  <ul class="text-sm space-y-1">
-    {% for c in companies %}
-      <li><a class="text-cp-blue" href="{% url 'erp:resident_detail' c.slug %}">{{ c.name }}</a></li>
-    {% endfor %}
-  </ul>
+<div class="cp-card p-card">
+  <div class="cp-section" style="font-size:16px;">{% translate "Rezidentlər" %}</div>
+  <ul class="mt-3" style="list-style:none;padding:0;">{% for c in companies %}<li class="mb-2"><a href="{% url 'erp:resident_detail' c.slug %}">{{ c.name }}</a></li>{% endfor %}</ul>
 </div>
 {% endblock %}
