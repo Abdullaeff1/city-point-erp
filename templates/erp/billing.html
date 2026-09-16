@@ -1,0 +1,29 @@
+{% extends "erp/base.html" %}
+{% block page_title %}Billing{% endblock %}
+{% block heading %}Billing{% endblock %}
+{% block content %}
+<div class="grid gap-4" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+  <div class="cp-card">
+    <h3 class="cp-section">Invoices</h3>
+    <table class="cp-table">
+      <thead><tr><th>Kod</th><th>Party</th><th>Status</th><th>Məbləğ</th></tr></thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr><td>{{ inv.code }}</td><td>{{ inv.party.display_name }}</td><td>{{ inv.get_status_display }}</td><td>{{ inv.total }} {{ inv.currency }}</td></tr>
+        {% empty %}<tr><td colspan="4">Boş</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="cp-card">
+    <h3 class="cp-section">Charges</h3>
+    <table class="cp-table">
+      <thead><tr><th>Party</th><th>Mənbə</th><th>Məbləğ</th></tr></thead>
+      <tbody>
+        {% for c in charges %}
+        <tr><td>{{ c.party.display_name }}</td><td>{{ c.get_source_display }}</td><td>{{ c.amount }}</td></tr>
+        {% empty %}<tr><td colspan="3">Boş</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

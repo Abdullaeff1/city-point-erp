@@ -1,0 +1,29 @@
+{% extends "erp/base.html" %}
+{% block page_title %}Accounting{% endblock %}
+{% block heading %}Accounting{% endblock %}
+{% block content %}
+<div class="grid gap-4" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+  <div class="cp-card">
+    <h3 class="cp-section">Chart of Accounts</h3>
+    <table class="cp-table">
+      <thead><tr><th>Kod</th><th>Ad</th><th>Tip</th></tr></thead>
+      <tbody>
+        {% for a in accounts %}
+        <tr><td>{{ a.code }}</td><td>{{ a.name }}</td><td>{{ a.get_account_type_display }}</td></tr>
+        {% empty %}<tr><td colspan="3">Boş</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="cp-card">
+    <h3 class="cp-section">Journal</h3>
+    <table class="cp-table">
+      <thead><tr><th>Kod</th><th>Tarix</th><th>Posted</th></tr></thead>
+      <tbody>
+        {% for j in journals %}
+        <tr><td>{{ j.code }}</td><td>{{ j.entry_date }}</td><td>{{ j.posted|yesno:"yes,no" }}</td></tr>
+        {% empty %}<tr><td colspan="3">Boş</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

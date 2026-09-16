@@ -15,6 +15,7 @@ urlpatterns = [
     path("go/", post_login, name="post_login"),
     path("portal/", include("apps.portal.urls")),
     path("erp/", include("apps.erp.urls")),
+    path("api/", include("apps.api.urls")),
     path("", post_login),
 ]
 

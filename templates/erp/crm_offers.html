@@ -1,0 +1,21 @@
+{% extends "erp/base.html" %}
+{% block page_title %}Offers{% endblock %}
+{% block heading %}CRM Offers{% endblock %}
+{% block content %}
+<div class="cp-card">
+  <table class="cp-table">
+    <thead><tr><th>Party</th><th>Sahə</th><th>Status</th><th>Kirayə</th><th>Lease</th></tr></thead>
+    <tbody>
+      {% for offer in offers %}
+      <tr>
+        <td>{{ offer.party.display_name }}</td>
+        <td>{{ offer.space.code|default:"—" }}</td>
+        <td>{{ offer.get_status_display }}</td>
+        <td>{{ offer.rent_amount }}</td>
+        <td>{% if offer.lease %}<a href="{% url 'erp:lease_detail' offer.lease.code %}">{{ offer.lease.code }}</a>{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}<tr><td colspan="5">Offer yoxdur.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

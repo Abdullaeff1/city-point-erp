@@ -1,17 +1,30 @@
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from django.views.generic import FormView, ListView, TemplateView, View
+import json
+import csv
+from io import StringIO
 
 from apps.accounts.mixins import RoleRequiredMixin, StaffRequiredMixin
 from apps.accounts.models import Role, User
+from apps.core.services import DomainError
 from apps.documents.models import Document
 from apps.erp.forms import GuestVisitForm
+from apps.parties.models import Party
 from apps.property.models import Floor, Space
-from apps.reception.models import Guest, GuestVisit, VisitStatus
-from apps.residents.models import ResidentCompany
-from apps.tickets.models import OPEN_STATUSES, Ticket, TicketStatus
-from apps.tickets.services import add_message, advance_ticket_status
+from apps.reception.models import GuestVisit, VisitStatus, mask_fin
+from apps.reception.services import (
+    ReceptionService,
+    filter_visits,
+    today_visits_queryset,
+)
+from apps.residents.models import ResidentCompany, ResidentEmployee
+from apps.rbac.services import user_has_permission
+from apps.tickets.models import OPEN_STATUSES, Ticket, TicketPriority, TicketStatus
+from apps.tickets.services import add_message, advance_ticket_status, apply_sla
 
 
 class DashboardView(StaffRequiredMixin, TemplateView):
@@ -31,7 +44,7 @@ class DashboardView(StaffRequiredMixin, TemplateView):
         for t in Ticket.objects.order_by("-updated_at")[:5]:
             activities.append({"at": t.updated_at, "text": f"{t.code} yeniləndi · {t.get_status_display()}"})
         for v in today_visits.filter(check_in_at__isnull=False).order_by("-check_in_at")[:4]:
-            activities.append({"at": v.check_in_at, "text": f"Qonaq giriş etdi · {v.guest.full_name}"})
+            activities.append({"at": v.check_in_at, "text": f"Qonaq giriş etdi · {v.guest.display_name}"})
         activities.sort(key=lambda x: x["at"] or timezone.now(), reverse=True)
         ctx.update(
             {
@@ -41,7 +54,9 @@ class DashboardView(StaffRequiredMixin, TemplateView):
                 "sla_breach_count": len(breached),
                 "sla_ticket": sla_ticket,
                 "new_residents": ResidentCompany.objects.filter(status="active").count(),
-                "waiting_guests": today_visits.filter(status=VisitStatus.WAITING),
+                "waiting_guests": today_visits.filter(
+                    status__in=[VisitStatus.WAITING, VisitStatus.PRE_REGISTERED]
+                ),
                 "today_visits": today_visits[:8],
                 "recent_open": open_list[:6],
                 "activities": activities[:8],
@@ -56,27 +71,103 @@ class ReceptionView(RoleRequiredMixin, FormView):
     form_class = GuestVisitForm
     allowed_roles = (Role.RECEPTION,)
 
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not (
+            user_has_permission(request.user, "reception.view")
+            or user_has_permission(request.user, "reception.manage")
+        ):
+            raise PermissionDenied("Reception baxış icazəsi yoxdur.")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        company_id = self.request.GET.get("company") or self.request.POST.get("company")
+        if company_id:
+            kwargs["company"] = ResidentCompany.objects.filter(pk=company_id).first()
+        return kwargs
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         today = timezone.localdate()
-        ctx["visits"] = GuestVisit.objects.filter(scheduled_for=today).select_related(
-            "guest", "company", "host", "floor", "space"
+        q = self.request.GET.get("q", "").strip()
+        status = self.request.GET.get("status", "")
+        company_id = self.request.GET.get("company") or ""
+        id_not_returned = self.request.GET.get("id_not_returned") == "1"
+        base = today_visits_queryset(today)
+        visits = filter_visits(
+            base,
+            q=q,
+            status=status,
+            company_id=company_id or None,
+            id_not_returned=id_not_returned,
+        )
+        inside = GuestVisit.objects.filter(status=VisitStatus.INSIDE).select_related(
+            "guest", "company", "host", "visit_type", "visitor_access"
+        )
+        can_sensitive = user_has_permission(self.request.user, "reception.view_sensitive_data")
+        can_override = user_has_permission(self.request.user, "reception.override_id")
+        can_export = user_has_permission(self.request.user, "reception.export")
+        stats = {
+            "inside": GuestVisit.objects.filter(status=VisitStatus.INSIDE).count(),
+            "today": base.count(),
+            "waiting": base.filter(
+                status__in=[VisitStatus.WAITING, VisitStatus.PRE_REGISTERED]
+            ).count(),
+            "checked_out": base.filter(status=VisitStatus.LEFT).count(),
+            "no_show": base.filter(status=VisitStatus.NO_SHOW).count(),
+            "id_pending": GuestVisit.objects.filter(
+                status=VisitStatus.RETURN_PENDING
+            ).count()
+            + GuestVisit.objects.filter(
+                id_document_held=True, status=VisitStatus.INSIDE
+            ).count(),
+        }
+        ctx.update(
+            {
+                "visits": visits,
+                "inside_visits": inside[:50],
+                "stats": stats,
+                "q": q,
+                "filter_status": status,
+                "filter_company": company_id,
+                "id_not_returned": id_not_returned,
+                "companies": ResidentCompany.objects.filter(status="active"),
+                "hosts_json": json.dumps(
+                    list(
+                        ResidentEmployee.objects.filter(is_active=True).values(
+                            "id", "full_name", "company_id"
+                        )
+                    )
+                ),
+                "can_sensitive": can_sensitive,
+                "can_override": can_override,
+                "can_export": can_export,
+                "mask_fin": mask_fin,
+                "invite_lookup": self.request.GET.get("invite", "").strip(),
+            }
         )
         return ctx
 
     def form_valid(self, form):
-        guest, _ = Guest.objects.get_or_create(full_name=form.cleaned_data["full_name"])
-        GuestVisit.objects.create(
-            guest=guest,
-            company=form.cleaned_data["company"],
-            host=form.cleaned_data.get("host"),
-            floor=form.cleaned_data.get("floor"),
-            space=form.cleaned_data.get("space"),
-            location_note=form.cleaned_data.get("location_note") or "",
-            status=VisitStatus.WAITING,
-            scheduled_for=timezone.localdate(),
-        )
-        messages.success(self.request, "Qonaq qeydə alındı.")
+        if not user_has_permission(self.request.user, "reception.create_visit"):
+            raise PermissionDenied("Qonaq yaratmaq icazəsi yoxdur.")
+        try:
+            ReceptionService.register_walk_in(
+                fin_code=form.cleaned_data["fin_code"],
+                first_name=form.cleaned_data["first_name"],
+                last_name=form.cleaned_data["last_name"],
+                phone=form.cleaned_data.get("phone") or "",
+                company=form.cleaned_data["company"],
+                host=form.cleaned_data.get("host"),
+                id_document_held=bool(form.cleaned_data.get("id_document_held")),
+                notes=form.cleaned_data.get("notes") or "",
+                actor=self.request.user,
+                allow_id_override=False,
+            )
+        except DomainError as exc:
+            messages.error(self.request, str(exc))
+            return self.form_invalid(form)
+        messages.success(self.request, "Giriş qeydə alındı.")
         return redirect("erp:reception")
 
 
@@ -84,17 +175,142 @@ class ReceptionStatusView(RoleRequiredMixin, View):
     allowed_roles = (Role.RECEPTION,)
 
     def post(self, request, pk):
-        visit = get_object_or_404(GuestVisit, pk=pk)
+        visit = get_object_or_404(GuestVisit.objects.select_related("guest"), pk=pk)
         action = request.POST.get("action")
-        now = timezone.now()
-        if action == "checkin":
-            visit.status = VisitStatus.INSIDE
-            visit.check_in_at = now
-        elif action == "checkout":
-            visit.status = VisitStatus.LEFT
-            visit.check_out_at = now
-        visit.save()
+        allow_override = user_has_permission(request.user, "reception.override_id")
+        try:
+            if action == "checkin":
+                if not user_has_permission(request.user, "reception.check_in"):
+                    raise PermissionDenied()
+                ReceptionService.check_in_visit(
+                    visit,
+                    actor=request.user,
+                    fin_code=request.POST.get("fin_code") or "",
+                    first_name=request.POST.get("first_name") or "",
+                    last_name=request.POST.get("last_name") or "",
+                    id_document_held=request.POST.get("id_document_held") == "on",
+                    id_override_reason=request.POST.get("id_override_reason") or "",
+                    allow_id_override=allow_override,
+                )
+                messages.success(request, "Check-in tamamlandı.")
+            elif action == "checkout":
+                if not user_has_permission(request.user, "reception.check_out"):
+                    raise PermissionDenied()
+                id_returned = request.POST.get("id_returned", "on") == "on"
+                ReceptionService.check_out_visit(
+                    visit,
+                    actor=request.user,
+                    id_returned=id_returned,
+                    allow_return_pending=allow_override and not id_returned,
+                )
+                messages.success(request, "Çıxış qeydə alındı.")
+            elif action == "cancel":
+                if not user_has_permission(request.user, "reception.cancel_visit"):
+                    raise PermissionDenied()
+                ReceptionService.cancel_visit(visit, actor=request.user)
+                messages.success(request, "Ziyarət ləğv edildi.")
+            elif action == "no_show":
+                ReceptionService.mark_no_show(visit, actor=request.user)
+                messages.success(request, "No-show qeydə alındı.")
+        except DomainError as exc:
+            messages.error(request, str(exc))
         return redirect("erp:reception")
+
+
+class ReceptionGuestLookupView(RoleRequiredMixin, View):
+    allowed_roles = (Role.RECEPTION,)
+
+    def get(self, request):
+        if not user_has_permission(request.user, "reception.search"):
+            raise PermissionDenied()
+        guest = ReceptionService.find_guest_by_fin(request.GET.get("fin", ""))
+        if not guest:
+            return JsonResponse({"found": False})
+        can_sensitive = user_has_permission(request.user, "reception.view_sensitive_data")
+        return JsonResponse(
+            {
+                "found": True,
+                "first_name": guest.first_name,
+                "last_name": guest.last_name,
+                "phone": guest.phone,
+                "fin": guest.fin_code if can_sensitive else mask_fin(guest.fin_code),
+            }
+        )
+
+
+class ReceptionInviteLookupView(RoleRequiredMixin, View):
+    allowed_roles = (Role.RECEPTION,)
+
+    def get(self, request):
+        code = (request.GET.get("code") or "").strip().upper()
+        visit = (
+            GuestVisit.objects.filter(invite_code__iexact=code)
+            .select_related("guest", "company", "host", "visit_type")
+            .first()
+        )
+        if not visit:
+            return JsonResponse({"found": False})
+        return JsonResponse(
+            {
+                "found": True,
+                "id": visit.pk,
+                "status": visit.status,
+                "guest": visit.guest.display_name,
+                "company": visit.company.name,
+                "host": visit.host.full_name if visit.host_id else "",
+                "visit_type": visit.visit_type.name if visit.visit_type_id else "",
+            }
+        )
+
+
+class ReceptionExportView(RoleRequiredMixin, View):
+    allowed_roles = (Role.RECEPTION,)
+
+    def get(self, request):
+        if not user_has_permission(request.user, "reception.export"):
+            raise PermissionDenied("Export icazəsi yoxdur.")
+        can_sensitive = user_has_permission(request.user, "reception.view_sensitive_data")
+        visits = today_visits_queryset().order_by("check_in_at", "created_at")
+        buf = StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(
+            [
+                "Guest",
+                "FIN",
+                "Company",
+                "Host",
+                "Type",
+                "Check-in",
+                "Check-out",
+                "ID",
+                "Access",
+                "Status",
+                "Invite",
+            ]
+        )
+        for v in visits:
+            fin = v.guest.fin_code if can_sensitive else mask_fin(v.guest.fin_code)
+            access = getattr(v, "visitor_access", None)
+            writer.writerow(
+                [
+                    v.guest.display_name,
+                    fin,
+                    v.company.name,
+                    v.host.full_name if v.host_id else "",
+                    v.visit_type.name if v.visit_type_id else "",
+                    timezone.localtime(v.check_in_at).strftime("%H:%M") if v.check_in_at else "",
+                    timezone.localtime(v.check_out_at).strftime("%H:%M") if v.check_out_at else "",
+                    str(v.id_document_label),
+                    access.status if access else "",
+                    v.get_status_display(),
+                    v.invite_code,
+                ]
+            )
+        response = HttpResponse("\ufeff" + buf.getvalue(), content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = (
+            f'attachment; filename="visitors-{timezone.localdate().isoformat()}.csv"'
+        )
+        return response
 
 
 class TicketListView(RoleRequiredMixin, ListView):
@@ -125,13 +341,23 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
     allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
 
     def get_ticket(self):
-        return get_object_or_404(Ticket, code=self.kwargs["code"])
+        return get_object_or_404(
+            Ticket.objects.select_related("category", "company", "space", "assignee").prefetch_related(
+                "attachments", "messages"
+            ),
+            code=self.kwargs["code"],
+        )
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["ticket"] = self.get_ticket()
+        ticket = self.get_ticket()
+        ctx["ticket"] = ticket
         ctx["staff_users"] = User.objects.filter(role__in=[Role.SERVICE_DESK, Role.PROPERTY_FM, Role.ADMIN])
-        ctx["status_events"] = self.get_ticket().status_events.select_related("actor")
+        ctx["status_events"] = ticket.status_events.select_related("actor")
+        ctx["priorities"] = TicketPriority.choices
+        from apps.maintenance.models import WorkOrder
+
+        ctx["work_orders"] = WorkOrder.objects.filter(ticket=ticket)
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -143,6 +369,29 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
             assignee_id = request.POST.get("assignee")
             ticket.assignee_id = assignee_id or None
             ticket.save(update_fields=["assignee", "updated_at"])
+        elif action == "priority":
+            priority = request.POST.get("priority")
+            if priority in dict(TicketPriority.choices):
+                ticket.priority = priority
+                ticket.save(update_fields=["priority", "updated_at"])
+                apply_sla(ticket)
+                messages.success(request, "Prioritet yeniləndi.")
+        elif action == "attach":
+            upload = request.FILES.get("file")
+            if upload:
+                from apps.tickets.models import TicketAttachment
+
+                TicketAttachment.objects.create(ticket=ticket, file=upload)
+                messages.success(request, "Fayl əlavə olundu.")
+        elif action == "create_wo":
+            from apps.maintenance.models import WorkOrder
+            from apps.maintenance.services import create_wo_from_ticket
+
+            if WorkOrder.objects.filter(ticket=ticket).exists():
+                messages.info(request, "Work Order artıq mövcuddur.")
+            else:
+                wo = create_wo_from_ticket(ticket)
+                messages.success(request, f"Work Order yaradıldı: {wo.code}")
         elif action == "message":
             body = request.POST.get("body", "").strip()
             if body:
@@ -205,6 +454,14 @@ class ResidentListView(StaffRequiredMixin, ListView):
     context_object_name = "companies"
 
 
+class PartyListView(StaffRequiredMixin, ListView):
+    """Master-data foundation UI for Party SoT (Scope 0)."""
+
+    template_name = "erp/parties.html"
+    queryset = Party.objects.prefetch_related("roles").order_by("legal_name")
+    context_object_name = "parties"
+
+
 class ResidentDetailView(StaffRequiredMixin, TemplateView):
     template_name = "erp/resident_detail.html"
 
@@ -237,13 +494,166 @@ class ReportsView(RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        from apps.billing.models import Invoice, InvoiceStatus
+        from apps.crm.models import Lead, LeadStatus
+        from apps.leases.models import Lease, LeaseStatus
+        from apps.maintenance.models import WorkOrder, WorkOrderStatus
+        from apps.property.models import CommercialStatus, Space
+        from apps.warehouse.models import SKU, Stock
+
         open_tickets = list(Ticket.objects.filter(status__in=OPEN_STATUSES))
+        spaces = Space.objects.all()
+        vacant_m2 = sum(
+            float(s.rentable_area_m2 or s.area_m2 or 0)
+            for s in spaces.filter(commercial_status=CommercialStatus.VACANT)
+        )
+        total_m2 = sum(float(s.rentable_area_m2 or s.area_m2 or 0) for s in spaces) or 1
+        occupied_m2 = total_m2 - vacant_m2
+        low_stock = [
+            st
+            for st in Stock.objects.select_related("sku")
+            if st.quantity <= (st.sku.reorder_level or 0)
+        ]
         ctx.update(
             {
                 "open_count": len(open_tickets),
                 "sla_risk_count": sum(1 for t in open_tickets if t.sla_risk),
                 "guest_count": GuestVisit.objects.filter(scheduled_for=timezone.localdate()).count(),
                 "companies": ResidentCompany.objects.filter(status="active"),
+                "occupancy_pct": round(100 * occupied_m2 / total_m2, 1),
+                "vacant_m2": round(vacant_m2, 1),
+                "leases_expiring": Lease.objects.filter(
+                    status__in=[LeaseStatus.ACTIVE, LeaseStatus.EXPIRING]
+                ).count(),
+                "crm_new_leads": Lead.objects.filter(status=LeadStatus.NEW).count(),
+                "open_wo": WorkOrder.objects.exclude(
+                    status__in=[WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED]
+                ).count(),
+                "low_stock_count": len(low_stock),
+                "receivable_count": Invoice.objects.filter(
+                    status__in=[InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE]
+                ).count(),
+                "sku_count": SKU.objects.count(),
             }
         )
+        return ctx
+
+
+class LeaseListView(StaffRequiredMixin, ListView):
+    template_name = "erp/leases.html"
+    context_object_name = "leases"
+
+    def get_queryset(self):
+        from apps.leases.models import Lease
+
+        return Lease.objects.select_related("party", "space").order_by("-created_at")
+
+
+class LeaseDetailView(StaffRequiredMixin, TemplateView):
+    template_name = "erp/lease_detail.html"
+
+    def get_context_data(self, **kwargs):
+        from apps.leases.models import Lease
+
+        ctx = super().get_context_data(**kwargs)
+        ctx["lease"] = get_object_or_404(Lease.objects.select_related("party", "space"), code=self.kwargs["code"])
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        from apps.leases.models import Lease
+        from apps.leases.services import activate_lease, terminate_lease
+
+        lease = get_object_or_404(Lease, code=kwargs["code"])
+        action = request.POST.get("action")
+        if action == "activate":
+            activate_lease(lease, actor=request.user)
+            messages.success(request, "Lease aktivləşdirildi.")
+        elif action == "terminate":
+            terminate_lease(lease, actor=request.user)
+            messages.success(request, "Lease dayandırıldı.")
+        return redirect("erp:lease_detail", code=lease.code)
+
+
+class CrmLeadListView(StaffRequiredMixin, ListView):
+    template_name = "erp/crm_leads.html"
+    context_object_name = "leads"
+
+    def get_queryset(self):
+        from apps.crm.models import Lead
+
+        return Lead.objects.select_related("interested_space", "party").order_by("-created_at")
+
+
+class CrmOfferListView(StaffRequiredMixin, ListView):
+    template_name = "erp/crm_offers.html"
+    context_object_name = "offers"
+
+    def get_queryset(self):
+        from apps.crm.models import Offer
+
+        return Offer.objects.select_related("party", "space", "opportunity", "lease").order_by("-id")
+
+
+class WorkOrderListView(StaffRequiredMixin, ListView):
+    template_name = "erp/work_orders.html"
+    context_object_name = "work_orders"
+
+    def get_queryset(self):
+        from apps.maintenance.models import WorkOrder
+
+        return WorkOrder.objects.select_related("space", "ticket", "asset").order_by("-created_at")
+
+
+class WarehouseListView(StaffRequiredMixin, TemplateView):
+    template_name = "erp/warehouse.html"
+
+    def get_context_data(self, **kwargs):
+        from apps.warehouse.models import SKU, Stock, StockMovement
+
+        ctx = super().get_context_data(**kwargs)
+        stocks = list(Stock.objects.select_related("sku", "warehouse", "bin"))
+        ctx.update(
+            {
+                "skus": SKU.objects.all()[:50],
+                "stocks": stocks[:50],
+                "movements": StockMovement.objects.select_related("sku", "warehouse")[:20],
+                "low_stock": [s for s in stocks if s.quantity <= (s.sku.reorder_level or 0)],
+            }
+        )
+        return ctx
+
+
+class ProcurementListView(StaffRequiredMixin, TemplateView):
+    template_name = "erp/procurement.html"
+
+    def get_context_data(self, **kwargs):
+        from apps.procurement.models import PurchaseOrder, PurchaseRequest
+
+        ctx = super().get_context_data(**kwargs)
+        ctx["prs"] = PurchaseRequest.objects.all()[:30]
+        ctx["pos"] = PurchaseOrder.objects.select_related("supplier_party")[:30]
+        return ctx
+
+
+class BillingListView(StaffRequiredMixin, TemplateView):
+    template_name = "erp/billing.html"
+
+    def get_context_data(self, **kwargs):
+        from apps.billing.models import Charge, Invoice
+
+        ctx = super().get_context_data(**kwargs)
+        ctx["invoices"] = Invoice.objects.select_related("party", "lease")[:40]
+        ctx["charges"] = Charge.objects.select_related("party", "lease")[:40]
+        return ctx
+
+
+class AccountingListView(StaffRequiredMixin, TemplateView):
+    template_name = "erp/accounting.html"
+
+    def get_context_data(self, **kwargs):
+        from apps.accounting.models import Account, JournalEntry
+
+        ctx = super().get_context_data(**kwargs)
+        ctx["accounts"] = Account.objects.all()[:50]
+        ctx["journals"] = JournalEntry.objects.all()[:30]
         return ctx

@@ -15,6 +15,12 @@ def role_context(request):
         "nav_tickets": is_adminish or role in {Role.SERVICE_DESK, Role.PROPERTY_FM},
         "nav_property": is_adminish or role == Role.PROPERTY_FM,
         "nav_residents": is_adminish or role in {Role.SERVICE_DESK, Role.PROPERTY_FM, Role.RECEPTION},
+        "nav_parties": is_adminish or role in {Role.SERVICE_DESK, Role.PROPERTY_FM, Role.RECEPTION},
         "nav_docs": True,
         "nav_reports": is_adminish,
+        "nav_leases": is_adminish or role == Role.PROPERTY_FM,
+        "nav_crm": is_adminish,
+        "nav_fm": is_adminish or role in {Role.PROPERTY_FM, Role.SERVICE_DESK},
+        "nav_supply": is_adminish,
+        "nav_finance": is_adminish,
     }

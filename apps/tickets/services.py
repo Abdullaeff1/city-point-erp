@@ -67,4 +67,18 @@ def advance_ticket_status(ticket, actor=None):
         _("%(code)s statusu: %(status)s")
         % {"code": ticket.code, "status": ticket.get_status_display()},
     )
+    try:
+        from apps.audit.services import log_action
+
+        log_action(
+            action="ticket.status_change",
+            actor=actor,
+            entity=ticket,
+            old_values={"status": previous},
+            new_values={"status": ticket.status},
+            source="tickets",
+        )
+    except Exception:
+        # Audit must never break operational ticket flow.
+        pass
     return ticket

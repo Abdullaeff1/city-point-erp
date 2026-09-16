@@ -29,13 +29,27 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "apps.core.apps.CoreConfig",
     "apps.accounts.apps.AccountsConfig",
+    "apps.parties.apps.PartiesConfig",
     "apps.property.apps.PropertyConfig",
     "apps.residents.apps.ResidentsConfig",
     "apps.reception.apps.ReceptionConfig",
     "apps.tickets.apps.TicketsConfig",
     "apps.comms.apps.CommsConfig",
     "apps.documents.apps.DocumentsConfig",
+    "apps.audit.apps.AuditConfig",
+    "apps.rbac.apps.RbacConfig",
+    "apps.workflows.apps.WorkflowsConfig",
+    "apps.integrations.apps.IntegrationsConfig",
+    "apps.leases.apps.LeasesConfig",
+    "apps.crm.apps.CrmConfig",
+    "apps.maintenance.apps.MaintenanceConfig",
+    "apps.warehouse.apps.WarehouseConfig",
+    "apps.procurement.apps.ProcurementConfig",
+    "apps.billing.apps.BillingConfig",
+    "apps.accounting.apps.AccountingConfig",
+    "apps.api.apps.ApiConfig",
     "apps.portal.apps.PortalConfig",
     "apps.erp.apps.ErpConfig",
 ]
@@ -89,7 +103,7 @@ CSRF_TRUSTED_ORIGINS = [
     origin.strip()
     for origin in os.environ.get(
         "DJANGO_CSRF_TRUSTED_ORIGINS",
-        "http://localhost:8000,http://127.0.0.1:8000",
+        "http://localhost:3001,http://127.0.0.1:3001,http://localhost:8000,http://127.0.0.1:8000",
     ).split(",")
     if origin.strip()
 ]

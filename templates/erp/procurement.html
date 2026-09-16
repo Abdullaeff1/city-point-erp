@@ -1,0 +1,29 @@
+{% extends "erp/base.html" %}
+{% block page_title %}Procurement{% endblock %}
+{% block heading %}Procurement{% endblock %}
+{% block content %}
+<div class="grid gap-4" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+  <div class="cp-card">
+    <h3 class="cp-section">Purchase Requests</h3>
+    <table class="cp-table">
+      <thead><tr><th>Kod</th><th>Başlıq</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for pr in prs %}
+        <tr><td>{{ pr.code }}</td><td>{{ pr.title }}</td><td>{{ pr.get_status_display }}</td></tr>
+        {% empty %}<tr><td colspan="3">Boş</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="cp-card">
+    <h3 class="cp-section">Purchase Orders</h3>
+    <table class="cp-table">
+      <thead><tr><th>Kod</th><th>Təchizatçı</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for po in pos %}
+        <tr><td>{{ po.code }}</td><td>{{ po.supplier_party.display_name|default:"—" }}</td><td>{{ po.get_status_display }}</td></tr>
+        {% empty %}<tr><td colspan="3">Boş</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

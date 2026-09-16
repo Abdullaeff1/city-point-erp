@@ -21,6 +21,24 @@
       {% endif %}
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span>{% translate "Sahələr" %}</span></a>{% endif %}
       {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span>{% translate "Rezidentlər" %}</span></a>{% endif %}
+      {% if nav_parties %}<a class="{% nav_active 'parties' %}" href="{% url 'erp:parties' %}"><i data-lucide="building" width="18" height="18"></i><span>{% translate "Parties" %}</span></a>{% endif %}
+      {% if nav_leases %}<a class="{% nav_active 'leases' 'lease_detail' %}" href="{% url 'erp:leases' %}"><i data-lucide="file-signature" width="18" height="18"></i><span>Leases</span></a>{% endif %}
+      {% if nav_crm %}
+      <div class="cp-nav-label">CRM</div>
+      <a class="{% nav_active 'crm_leads' %}" href="{% url 'erp:crm_leads' %}"><i data-lucide="user-plus" width="18" height="18"></i><span>Leads</span></a>
+      <a class="{% nav_active 'crm_offers' %}" href="{% url 'erp:crm_offers' %}"><i data-lucide="handshake" width="18" height="18"></i><span>Offers</span></a>
+      {% endif %}
+      {% if nav_fm %}<a class="{% nav_active 'work_orders' %}" href="{% url 'erp:work_orders' %}"><i data-lucide="wrench" width="18" height="18"></i><span>Work Orders</span></a>{% endif %}
+      {% if nav_supply %}
+      <div class="cp-nav-label">SUPPLY</div>
+      <a class="{% nav_active 'warehouse' %}" href="{% url 'erp:warehouse' %}"><i data-lucide="warehouse" width="18" height="18"></i><span>Warehouse</span></a>
+      <a class="{% nav_active 'procurement' %}" href="{% url 'erp:procurement' %}"><i data-lucide="shopping-cart" width="18" height="18"></i><span>Procurement</span></a>
+      {% endif %}
+      {% if nav_finance %}
+      <div class="cp-nav-label">FINANCE</div>
+      <a class="{% nav_active 'billing' %}" href="{% url 'erp:billing' %}"><i data-lucide="receipt" width="18" height="18"></i><span>Billing</span></a>
+      <a class="{% nav_active 'accounting' %}" href="{% url 'erp:accounting' %}"><i data-lucide="book-open" width="18" height="18"></i><span>Accounting</span></a>
+      {% endif %}
       {% if nav_docs %}<a class="{% nav_active 'documents' %}" href="{% url 'erp:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span>{% translate "Sənədlər" %}</span></a>{% endif %}
       {% if nav_reports %}
       <div class="cp-nav-label">{% translate "ANALİTİKA" %}</div>

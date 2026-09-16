@@ -3,9 +3,15 @@
 {% block heading %}{% translate "Hesabatlar" %}{% endblock %}
 {% block content %}
 <div class="grid-3 mb-4">
+  <div class="cp-card p-card"><div class="cp-meta">Occupancy %</div><div class="cp-metric">{{ occupancy_pct }}%</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">Vacant m²</div><div class="cp-metric">{{ vacant_m2 }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">CRM new leads</div><div class="cp-metric">{{ crm_new_leads }}</div></div>
   <div class="cp-card p-card"><div class="cp-meta">{% translate "Açıq ticket" %}</div><div class="cp-metric">{{ open_count }}</div></div>
   <div class="cp-card p-card"><div class="cp-meta">{% translate "SLA risk" %}</div><div class="cp-metric">{{ sla_risk_count }}</div></div>
   <div class="cp-card p-card"><div class="cp-meta">{% translate "Qonaqlar" %}</div><div class="cp-metric">{{ guest_count }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">Open WO</div><div class="cp-metric">{{ open_wo }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">Low stock</div><div class="cp-metric">{{ low_stock_count }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">Receivables</div><div class="cp-metric">{{ receivable_count }}</div></div>
 </div>
 <div class="cp-card p-card">
   <div class="cp-section" style="font-size:16px;">{% translate "Rezidentlər" %}</div>

@@ -63,6 +63,59 @@ a:hover { text-decoration: underline; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .grid-main { display: grid; grid-template-columns: 1.35fr 0.65fr; gap: 20px; }
+.grid-reception {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.grid-reception > :first-child,
+.grid-reception > .reception-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.reception-journal {
+  width: 100%;
+  box-sizing: border-box;
+}
+#inside-panel {
+  max-height: 280px;
+  overflow-y: auto;
+}
+#inside-panel .cp-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--cp-surface, #fff);
+  z-index: 1;
+}
+.grid-reception > .cp-card.p-card,
+.walk-in-panel {
+  flex: 0 0 300px;
+  width: 300px;
+  max-width: 300px;
+  box-sizing: border-box;
+}
+.walk-in-panel {
+  padding: 14px 16px !important;
+  align-self: flex-start;
+}
+.walk-in-panel .cp-section { font-size: 15px; }
+.walk-in-panel #walk-in-form {
+  gap: 8px;
+}
+.walk-in-panel .cp-input,
+.walk-in-panel select.cp-input,
+.walk-in-panel textarea.cp-input {
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.walk-in-panel .walk-in-submit {
+  font-size: 14px;
+  padding: 10px 12px;
+  width: 100%;
+}
+.walk-in-panel .walk-in-invite {
+  margin: 8px 0 10px;
+}
 .grid-dash { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 16px; }
 .p-card { padding: 20px; }
 .p-card-lg { padding: 24px; }
@@ -364,6 +417,17 @@ a:hover { text-decoration: underline; }
   .grid-4, .grid-3, .grid-main, .grid-dash, .grid-2 { grid-template-columns: 1fr; }
   .cp-content { padding: 16px 20px 40px; }
   .cp-header { padding: 20px 20px 0; }
+}
+@media (max-width: 760px) {
+  .grid-reception {
+    flex-direction: column;
+  }
+  .grid-reception > .cp-card.p-card,
+  .walk-in-panel {
+    flex: none;
+    width: 100%;
+    max-width: none;
+  }
 }
 @media (max-width: 900px) {
   .login-split { grid-template-columns: 1fr; }

@@ -1,0 +1,22 @@
+{% extends "erp/base.html" %}
+{% block page_title %}Work Orders{% endblock %}
+{% block heading %}Work Orders{% endblock %}
+{% block content %}
+<div class="cp-card">
+  <table class="cp-table">
+    <thead><tr><th>Kod</th><th>Başlıq</th><th>Status</th><th>Prioritet</th><th>Sahə</th><th>Ticket</th></tr></thead>
+    <tbody>
+      {% for wo in work_orders %}
+      <tr>
+        <td>{{ wo.code }}</td>
+        <td>{{ wo.title }}</td>
+        <td>{{ wo.get_status_display }}</td>
+        <td>{{ wo.get_priority_display }}</td>
+        <td>{{ wo.space.code|default:"—" }}</td>
+        <td>{% if wo.ticket %}<a href="{% url 'erp:ticket_detail' wo.ticket.code %}">{{ wo.ticket.code }}</a>{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}<tr><td colspan="6">Work order yoxdur.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

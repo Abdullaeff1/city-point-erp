@@ -1,5 +1,7 @@
 from django import template
 
+from apps.reception.models import mask_fin
+
 register = template.Library()
 
 STATUS_CLASS = {
@@ -8,8 +10,12 @@ STATUS_CLASS = {
     "in_progress": "badge-progress",
     "resolved": "badge-resolved",
     "waiting": "badge-sent",
+    "pre_registered": "badge-sent",
     "inside": "badge-progress",
     "left": "badge-muted",
+    "cancelled": "badge-muted",
+    "no_show": "badge-urgent",
+    "return_pending": "badge-urgent",
 }
 
 PRIORITY_CLASS = {
@@ -27,6 +33,11 @@ def status_class(value):
 @register.simple_tag
 def priority_class(value):
     return PRIORITY_CLASS.get(value, "badge-muted")
+
+
+@register.filter(name="mask_fin_filter")
+def mask_fin_filter(value):
+    return mask_fin(value or "")
 
 
 @register.simple_tag(takes_context=True)

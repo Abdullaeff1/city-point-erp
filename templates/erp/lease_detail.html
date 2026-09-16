@@ -1,0 +1,35 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{{ lease.code }}{% endblock %}
+{% block heading %}{{ lease.code }}{% endblock %}
+{% block content %}
+<div class="grid gap-4" style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+  <div class="cp-card">
+    <p class="cp-meta">Party</p>
+    <p class="cp-section">{{ lease.party.display_name }}</p>
+    <p class="cp-meta mt-4">Sahə</p>
+    <p>{{ lease.space.code|default:"—" }}</p>
+    <p class="cp-meta mt-4">Status</p>
+    <p>{{ lease.get_status_display }}</p>
+    <p class="cp-meta mt-4">Şərtlər</p>
+    <p>Kirayə: {{ lease.rent }} {{ lease.currency }} · Depozit: {{ lease.deposit }} · SC: {{ lease.service_charge }}</p>
+    <p class="cp-meta mt-2">{{ lease.start_date|default:"—" }} → {{ lease.end_date|default:"—" }}</p>
+    {% if lease.notes %}<p class="mt-4">{{ lease.notes }}</p>{% endif %}
+  </div>
+  <div class="cp-card">
+    <p class="cp-meta">Flags</p>
+    <p>Billing: {{ lease.billing_active|yesno:"on,off" }}</p>
+    <p>Portal: {{ lease.portal_eligible|yesno:"on,off" }}</p>
+    <p>Access: {{ lease.access_eligible|yesno:"on,off" }}</p>
+    <form method="post" class="mt-4 flex-col gap-2">
+      {% csrf_token %}
+      {% if lease.status != "active" and lease.status != "terminated" %}
+      <button class="cp-btn w-full" name="action" value="activate">Activate</button>
+      {% endif %}
+      {% if lease.status == "active" or lease.status == "expiring" %}
+      <button class="cp-btn-ghost w-full" name="action" value="terminate">Terminate</button>
+      {% endif %}
+    </form>
+  </div>
+</div>
+{% endblock %}

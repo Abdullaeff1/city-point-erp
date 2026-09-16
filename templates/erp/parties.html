@@ -1,0 +1,33 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{% translate "Parties" %}{% endblock %}
+{% block heading %}{% translate "Parties" %}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-4">{% translate "Master data — Single Source of Truth (Scope 0). Legacy rezident körpüsü saxlanılır." %}</p>
+<div class="cp-card">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Ad" %}</th>
+        <th>{% translate "Tip" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th>{% translate "Rollar" %}</th>
+        <th>{% translate "Legacy" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for party in parties %}
+      <tr>
+        <td>{{ party.display_name }}</td>
+        <td>{{ party.get_party_type_display }}</td>
+        <td>{{ party.get_status_display }}</td>
+        <td>{% for r in party.roles.all %}{{ r.get_role_display }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>
+        <td>{% if party.legacy_resident_company %}<a href="{% url 'erp:resident_detail' party.legacy_resident_company.slug %}">{{ party.legacy_resident_company.slug }}</a>{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5">{% translate "Party yoxdur. seed_demo işlədin." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

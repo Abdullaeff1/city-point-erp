@@ -153,17 +153,52 @@ class EmployeeAccessView(ResidentPortalMixin, TemplateView):
         return ctx
 
 
-class GuestsView(ResidentPortalMixin, ListView):
+class GuestsView(ResidentPortalMixin, FormView):
     template_name = "portal/guests.html"
-    context_object_name = "visits"
+    form_class = None  # set in get_form_class
 
-    def get_queryset(self):
-        return (
-            GuestVisit.objects.filter(
-                company=self.request.user.resident_company, scheduled_for=timezone.localdate()
-            )
-            .select_related("guest", "host", "floor", "space")
+    def get_form_class(self):
+        from apps.erp.forms import PortalGuestForm
+
+        return PortalGuestForm
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["company"] = self.request.user.resident_company
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        company = self.request.user.resident_company
+        ctx["visits"] = (
+            GuestVisit.objects.filter(company=company, scheduled_for=timezone.localdate())
+            .select_related("guest", "host", "floor", "space", "visit_type")
+            if company
+            else GuestVisit.objects.none()
         )
+        return ctx
+
+    def form_valid(self, form):
+        from apps.reception.services import pre_register_visit
+
+        company = self.request.user.resident_company
+        visit = pre_register_visit(
+            company=company,
+            first_name=form.cleaned_data["first_name"],
+            last_name=form.cleaned_data["last_name"],
+            email=form.cleaned_data.get("email") or "",
+            phone=form.cleaned_data.get("phone") or "",
+            host=form.cleaned_data.get("host"),
+            space=form.cleaned_data.get("space"),
+            location_note=form.cleaned_data.get("location_note") or "",
+            visit_type=form.cleaned_data.get("visit_type"),
+            portal_user=self.request.user,
+        )
+        if form.cleaned_data.get("expected_arrival"):
+            visit.expected_arrival = form.cleaned_data["expected_arrival"]
+            visit.scheduled_for = form.cleaned_data["expected_arrival"].date()
+            visit.save(update_fields=["expected_arrival", "scheduled_for", "updated_at"])
+        return redirect("portal:guests")
 
 
 class AnnouncementsView(ResidentPortalMixin, ListView):

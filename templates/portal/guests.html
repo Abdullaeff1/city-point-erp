@@ -2,20 +2,36 @@
 {% load i18n cp_ui %}
 {% block heading %}{% translate "Qonaqlar" %}{% endblock %}
 {% block content %}
+<div class="cp-card mb-4" style="padding:16px;">
+  <h3 class="cp-section" style="font-size:16px;">{% translate "Əvvəlcədən qeydiyyat" %}</h3>
+  <form method="post" class="mt-3" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+    {% csrf_token %}
+    {% for field in form %}
+    <label>
+      <span class="cp-meta">{{ field.label }}</span>
+      {{ field }}
+    </label>
+    {% endfor %}
+    <div style="grid-column:1/-1;">
+      <button class="cp-btn" type="submit">{% translate "Qeyd et" %}</button>
+    </div>
+  </form>
+</div>
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
-    <thead><tr><th>{% translate "Qonaq" %}</th><th>Host</th><th>{% translate "Mərtəbə" %}</th><th>{% translate "Giriş" %}</th><th>{% translate "Status" %}</th></tr></thead>
+    <thead><tr><th>{% translate "Qonaq" %}</th><th>Host</th><th>{% translate "Tip" %}</th><th>{% translate "Mərtəbə" %}</th><th>Invite</th><th>{% translate "Status" %}</th></tr></thead>
     <tbody>
       {% for v in visits %}
       <tr>
-        <td>{{ v.guest.full_name }}</td>
+        <td>{{ v.guest.display_name }}</td>
         <td>{{ v.host.full_name|default:"—" }}</td>
+        <td>{{ v.visit_type.name|default:"—" }}</td>
         <td>{% if v.space %}{{ v.floor.code }} / {{ v.space.short_label }}{% elif v.location_note %}{{ v.location_note }}{% else %}{{ v.floor.code|default:"—" }}{% endif %}</td>
-        <td>{% if v.check_in_at %}{{ v.check_in_at|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td class="cp-code">{{ v.invite_code|default:"—" }}</td>
         <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Bu gün qonaq yoxdur." %}</td></tr>
+      <tr><td colspan="6" class="cp-meta empty-pad">{% translate "Bu gün qonaq yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

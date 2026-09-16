@@ -2,40 +2,252 @@
 {% load i18n cp_ui %}
 {% block heading %}Reception{% endblock %}
 {% block content %}
-<div class="grid-main">
-  <div class="cp-card" style="padding:8px 0;">
-    <div class="cp-section section-pad">{% translate "Bugünkü qonaqlar" %}</div>
-    <table class="cp-table">
-      <thead><tr><th>{% translate "Qonaq" %}</th><th>{% translate "Rezident" %}</th><th>Host</th><th>{% translate "Mərtəbə" %}</th><th>{% translate "Status" %}</th><th></th></tr></thead>
-      <tbody>
-        {% for v in visits %}
-        <tr>
-          <td>{{ v.guest.full_name }}</td>
-          <td>{{ v.company.name }}</td>
-          <td>{{ v.host.full_name|default:"—" }}</td>
-          <td>{{ v.floor.code|default:v.location_note|default:"—" }}</td>
-          <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
-          <td>
-            <form method="post" action="{% url 'erp:reception_status' v.pk %}">
-              {% csrf_token %}
-              {% if v.status == 'waiting' %}<button class="cp-btn" name="action" value="checkin" style="padding:6px 10px;font-size:12px;">{% translate "Giriş" %}</button>{% endif %}
-              {% if v.status == 'inside' %}<button class="cp-btn-ghost" name="action" value="checkout">{% translate "Çıxış" %}</button>{% endif %}
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  {% include "partials/kpi_card.html" with label="Inside now" value=stats.inside %}
+  {% include "partials/kpi_card.html" with label="Today" value=stats.today %}
+  {% include "partials/kpi_card.html" with label="Waiting / Pre-reg" value=stats.waiting %}
+  {% include "partials/kpi_card.html" with label="ID return pending" value=stats.id_pending %}
+</div>
+
+<div class="grid-reception">
+  <div class="reception-main">
+    <div class="cp-card p-card mb-4">
+      <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;">
+        <label style="flex:1;min-width:160px;">
+          <span class="cp-meta">{% translate "Axtarış" %}</span>
+          <input class="cp-input" name="q" value="{{ q }}" placeholder="FIN / ad / şirkət / host / kod">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Status" %}</span>
+          <select class="cp-input" name="status">
+            <option value="">—</option>
+            <option value="inside" {% if filter_status == "inside" %}selected{% endif %}>{% translate "İçəridə" %}</option>
+            <option value="checked_out" {% if filter_status == "checked_out" %}selected{% endif %}>{% translate "Çıxış" %}</option>
+            <option value="waiting" {% if filter_status == "waiting" %}selected{% endif %}>{% translate "Gözləyir / Pre-reg" %}</option>
+            <option value="pre_registered" {% if filter_status == "pre_registered" %}selected{% endif %}>Pre-reg</option>
+            <option value="cancelled" {% if filter_status == "cancelled" %}selected{% endif %}>{% translate "Ləğv" %}</option>
+            <option value="no_show" {% if filter_status == "no_show" %}selected{% endif %}>No-show</option>
+          </select>
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Şirkət" %}</span>
+          <select class="cp-input" name="company">
+            <option value="">—</option>
+            {% for c in companies %}
+            <option value="{{ c.id }}" {% if filter_company == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="cp-meta" style="display:flex;align-items:center;gap:6px;padding-bottom:8px;">
+          <input type="checkbox" name="id_not_returned" value="1" {% if id_not_returned %}checked{% endif %}>
+          {% translate "Vəsiqə qaytarılmayıb" %}
+        </label>
+        <button class="cp-btn" type="submit">{% translate "Filter" %}</button>
+        {% if can_export %}
+        <a class="cp-btn-ghost" href="{% url 'erp:reception_export' %}">{% translate "Export CSV" %}</a>
+        {% endif %}
+      </form>
+    </div>
+
+    <div class="cp-card" style="padding:8px 0;" id="inside-panel">
+      <div class="cp-section section-pad">{% translate "İçəridə olanlar" %}</div>
+      <table class="cp-table">
+        <thead>
+          <tr>
+            <th>{% translate "Qonaq" %}</th>
+            <th>FIN</th>
+            <th>{% translate "Şirkət" %}</th>
+            <th>Host</th>
+            <th>{% translate "Giriş" %}</th>
+            <th>{% translate "Vəsiqə" %}</th>
+            <th>Access</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in inside_visits %}
+          <tr>
+            <td>{{ v.guest.display_name }}</td>
+            <td class="cp-code">{% if can_sensitive %}{{ v.guest.fin_code|default:"—" }}{% else %}{{ v.guest.fin_code|mask_fin_filter }}{% endif %}</td>
+            <td>{{ v.company.name }}</td>
+            <td>{{ v.host.full_name|default:"—" }}</td>
+            <td>{{ v.check_in_at|date:"H:i"|default:"—" }}</td>
+            <td>{{ v.id_document_label }}</td>
+            <td>{% if v.visitor_access %}{{ v.visitor_access.get_status_display }}{% else %}—{% endif %}</td>
+            <td>
+              <form method="post" action="{% url 'erp:reception_status' v.pk %}" class="flex gap-1">
+                {% csrf_token %}
+                <label class="cp-meta" style="display:flex;align-items:center;gap:4px;white-space:nowrap;">
+                  <input type="checkbox" name="id_returned" checked> ID
+                </label>
+                <button class="cp-btn-ghost" name="action" value="checkout" style="padding:6px 10px;font-size:12px;">{% translate "Çıxış" %}</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" class="cp-meta empty-pad">{% translate "İçəridə qonaq yoxdur." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
-  <div class="cp-card p-card">
-    <div class="cp-section" style="font-size:16px;">{% translate "Yeni qonaq" %}</div>
-    <form method="post" class="flex-col gap-3 mt-3">
+
+  <div class="cp-card p-card walk-in-panel">
+    <div class="cp-section">{% translate "+ Yeni qonaq" %}</div>
+    <div class="walk-in-invite">
+      <label class="cp-meta">{% translate "Invite / visit code" %}</label>
+      <div class="flex gap-2 mt-1">
+        <input class="cp-input flex-1" id="invite-code-input" placeholder="ABC123…">
+        <button type="button" class="cp-btn-ghost" id="invite-lookup-btn">{% translate "Tap" %}</button>
+      </div>
+      <div id="invite-lookup-result" class="cp-meta mt-1"></div>
+    </div>
+    <form method="post" class="flex-col" id="walk-in-form">
       {% csrf_token %}
-      {% for field in form %}
-        <label><span class="cp-meta">{{ field.label }}</span><div class="mt-1">{{ field }}</div></label>
-      {% endfor %}
-      <button class="cp-btn">{% translate "Qeyd et" %}</button>
+      <label><span class="cp-meta">{{ form.fin_code.label }}</span><div class="mt-1">{{ form.fin_code }}</div></label>
+      <div class="flex gap-2">
+        <label class="flex-1"><span class="cp-meta">{{ form.first_name.label }}</span><div class="mt-1">{{ form.first_name }}</div></label>
+        <label class="flex-1"><span class="cp-meta">{{ form.last_name.label }}</span><div class="mt-1">{{ form.last_name }}</div></label>
+      </div>
+      <label><span class="cp-meta">{{ form.company.label }}</span><div class="mt-1">{{ form.company }}</div></label>
+      <label><span class="cp-meta">{{ form.host.label }}</span><div class="mt-1">{{ form.host }}</div></label>
+      <label class="cp-meta" style="display:flex;align-items:center;gap:8px;margin-top:2px;">
+        {{ form.id_document_held }} {{ form.id_document_held.label }}
+      </label>
+      <label><span class="cp-meta">{{ form.notes.label }}</span><div class="mt-1">{{ form.notes }}</div></label>
+      <button class="cp-btn walk-in-submit" type="submit">{% translate "GİRİŞİ QEYD ET" %}</button>
     </form>
   </div>
 </div>
+
+<div class="cp-card mt-4 reception-journal" style="padding:8px 0;" id="journal-panel" data-refresh-url="{% url 'erp:reception' %}">
+  <div class="cp-section section-pad">{% translate "Bugünkü jurnal" %}</div>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Qonaq" %}</th>
+        <th>FIN</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>Host</th>
+        <th>{% translate "Giriş" %}</th>
+        <th>{% translate "Çıxış" %}</th>
+        <th>{% translate "Vəsiqə" %}</th>
+        <th>Access</th>
+        <th>{% translate "Status" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in visits %}
+      <tr>
+        <td>{{ v.guest.display_name }}</td>
+        <td class="cp-code">{% if can_sensitive %}{{ v.guest.fin_code|default:"—" }}{% else %}{{ v.guest.fin_code|mask_fin_filter }}{% endif %}</td>
+        <td>{{ v.company.name }}</td>
+        <td>{{ v.host.full_name|default:"—" }}</td>
+        <td>{{ v.check_in_at|date:"H:i"|default:"—" }}</td>
+        <td>{{ v.check_out_at|date:"H:i"|default:"—" }}</td>
+        <td>{{ v.id_document_label }}</td>
+        <td>{% if v.visitor_access %}{{ v.visitor_access.get_status_display }}{% else %}—{% endif %}</td>
+        <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
+        <td>
+          {% if v.status == "pre_registered" or v.status == "waiting" %}
+          <details>
+            <summary class="cp-btn" style="padding:6px 10px;font-size:12px;display:inline-block;">{% translate "Check-in" %}</summary>
+            <form method="post" action="{% url 'erp:reception_status' v.pk %}" class="flex-col gap-2 mt-2" style="min-width:220px;">
+              {% csrf_token %}
+              <input class="cp-input" name="fin_code" placeholder="FIN" required>
+              <label class="cp-meta"><input type="checkbox" name="id_document_held"> {% translate "ID qəbul" %}</label>
+              <button class="cp-btn" name="action" value="checkin">{% translate "Təsdiq et" %}</button>
+              <button class="cp-btn-ghost" name="action" value="cancel">{% translate "Ləğv" %}</button>
+              {% if v.status == "pre_registered" %}
+              <button class="cp-btn-ghost" name="action" value="no_show">No-show</button>
+              {% endif %}
+            </form>
+          </details>
+          {% elif v.status == "inside" %}
+          <form method="post" action="{% url 'erp:reception_status' v.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="id_returned" value="on">
+            <button class="cp-btn-ghost" name="action" value="checkout">{% translate "Çıxış" %}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="10" class="cp-meta empty-pad">{% translate "Bu gün qonaq yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+(function () {
+  const hosts = {{ hosts_json|safe }};
+  const companySelect = document.getElementById("id_company");
+  const hostSelect = document.getElementById("id_host");
+  const finInput = document.getElementById("id_fin_code");
+
+  function filterHosts() {
+    if (!companySelect || !hostSelect) return;
+    const cid = companySelect.value;
+    const current = hostSelect.value;
+    hostSelect.innerHTML = '<option value="">---------</option>';
+    hosts.filter(h => !cid || String(h.company_id) === String(cid)).forEach(h => {
+      const opt = document.createElement("option");
+      opt.value = h.id;
+      opt.textContent = h.full_name;
+      if (String(h.id) === String(current)) opt.selected = true;
+      hostSelect.appendChild(opt);
+    });
+  }
+  if (companySelect) {
+    companySelect.addEventListener("change", filterHosts);
+    filterHosts();
+  }
+
+  let finTimer;
+  if (finInput) {
+    finInput.addEventListener("input", function () {
+      clearTimeout(finTimer);
+      finTimer = setTimeout(async () => {
+        const fin = finInput.value.trim();
+        if (fin.length < 5) return;
+        const res = await fetch("{% url 'erp:reception_guest_lookup' %}?fin=" + encodeURIComponent(fin));
+        const data = await res.json();
+        if (data.found) {
+          const first = document.getElementById("id_first_name");
+          const last = document.getElementById("id_last_name");
+          if (first && !first.value) first.value = data.first_name || "";
+          if (last && !last.value) last.value = data.last_name || "";
+        }
+      }, 350);
+    });
+  }
+
+  const inviteBtn = document.getElementById("invite-lookup-btn");
+  if (inviteBtn) {
+    inviteBtn.addEventListener("click", async () => {
+      const code = document.getElementById("invite-code-input").value.trim();
+      const out = document.getElementById("invite-lookup-result");
+      const res = await fetch("{% url 'erp:reception_invite_lookup' %}?code=" + encodeURIComponent(code));
+      const data = await res.json();
+      if (!data.found) {
+        out.textContent = "Kod tapılmadı.";
+        return;
+      }
+      out.innerHTML = data.guest + " · " + data.company + " · " + data.status +
+        ' — <a href="?q=' + encodeURIComponent(code) + '">jurnalda aç</a>';
+    });
+  }
+
+  // Light polling refresh every 45s
+  setInterval(() => {
+    if (document.hidden) return;
+    const params = new URLSearchParams(window.location.search);
+    fetch(window.location.pathname + "?" + params.toString(), { headers: { "X-Requested-With": "XMLHttpRequest" } })
+      .then(() => { /* SSR soft hint — full reload keeps desk simple */ })
+      .catch(() => {});
+  }, 45000);
+})();
+</script>
 {% endblock %}

@@ -9,7 +9,7 @@ cd bin/dev
 docker compose up --build
 ```
 
-Open http://localhost:8000/login/
+Open http://localhost:3001/login/
 
 ### Demo accounts
 
@@ -25,5 +25,17 @@ Open http://localhost:8000/login/
 ## Stack
 
 - Django 5 + PostgreSQL 16
-- Docker Compose (`bin/dev`, `bin/prod`)
+- Docker Compose (`bin/dev`, `bin/prod`) — host port **3001**
 - i18n: AZ / EN / RU
+
+## Scope status (Master Plan)
+
+- **Scope 0:** Party/Person, Audit, RBAC, workflows, integrations adapters, document versions
+- **Scope 1:** Space commercial/operational status, parking, meters
+- **Scope 2:** Lease lifecycle + activate/terminate cascade
+- **Scope 3:** CRM Lead / Opportunity / Offer → Lease draft
+- **Scope 4:** Public API stubs `/api/v1/public/spaces|leads` (mock-safe)
+- **Scope 5:** Portal guest pre-registration + invite code
+- **Scope 6:** Turnstile — mock adapter only until real schema
+- **Scope 7–11:** FM Work Orders, Warehouse, Procurement, Billing, Accounting foundations
+- **Scope 12:** Expanded management KPIs on Reports

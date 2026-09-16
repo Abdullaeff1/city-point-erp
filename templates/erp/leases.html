@@ -1,0 +1,25 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}Leases{% endblock %}
+{% block heading %}Leases{% endblock %}
+{% block content %}
+<div class="cp-card">
+  <table class="cp-table">
+    <thead><tr><th>Kod</th><th>Party</th><th>Sahə</th><th>Status</th><th>Kirayə</th><th>Müddət</th></tr></thead>
+    <tbody>
+      {% for lease in leases %}
+      <tr>
+        <td><a href="{% url 'erp:lease_detail' lease.code %}">{{ lease.code }}</a></td>
+        <td>{{ lease.party.display_name }}</td>
+        <td>{{ lease.space.code|default:"—" }}</td>
+        <td>{{ lease.get_status_display }}</td>
+        <td>{{ lease.rent }} {{ lease.currency }}</td>
+        <td>{{ lease.start_date|default:"—" }} → {{ lease.end_date|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6">Lease yoxdur.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

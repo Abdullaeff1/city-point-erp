@@ -1,0 +1,32 @@
+{% extends "erp/base.html" %}
+{% block page_title %}Warehouse{% endblock %}
+{% block heading %}Warehouse{% endblock %}
+{% block content %}
+{% if low_stock %}
+<div class="badge badge-urgent mb-4" style="display:block;padding:10px 12px;border-radius:10px;">Low stock: {{ low_stock|length }}</div>
+{% endif %}
+<div class="grid gap-4" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+  <div class="cp-card">
+    <h3 class="cp-section">Stock</h3>
+    <table class="cp-table">
+      <thead><tr><th>SKU</th><th>Anbar</th><th>Miqdar</th></tr></thead>
+      <tbody>
+        {% for s in stocks %}
+        <tr><td>{{ s.sku.code }}</td><td>{{ s.warehouse.code }}</td><td>{{ s.quantity }}</td></tr>
+        {% empty %}<tr><td colspan="3">Boş</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="cp-card">
+    <h3 class="cp-section">Son hərəkətlər</h3>
+    <table class="cp-table">
+      <thead><tr><th>SKU</th><th>Tip</th><th>Miqdar</th></tr></thead>
+      <tbody>
+        {% for m in movements %}
+        <tr><td>{{ m.sku.code }}</td><td>{{ m.get_movement_type_display }}</td><td>{{ m.quantity }}</td></tr>
+        {% empty %}<tr><td colspan="3">Boş</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

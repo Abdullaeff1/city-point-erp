@@ -19,6 +19,22 @@
       <div class="cp-meta mt-3">{% translate "Təsvir" %}</div>
       <p class="cp-body-text mt-2">{{ ticket.description }}</p>
     </div>
+    <div class="cp-card p-card mt-4">
+      <div class="cp-section" style="font-size:16px;">{% translate "Əlavələr" %}</div>
+      <ul class="mt-3 flex-col gap-2">
+        {% for a in ticket.attachments.all %}
+        <li><a href="{{ a.file.url }}" target="_blank" rel="noopener">{{ a.file.name }}</a> <span class="cp-meta">{{ a.uploaded_at|date:"d.m H:i" }}</span></li>
+        {% empty %}
+        <li class="cp-meta">{% translate "Fayl yoxdur." %}</li>
+        {% endfor %}
+      </ul>
+      <form method="post" enctype="multipart/form-data" class="flex gap-2 mt-3">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="attach">
+        <input type="file" name="file" class="cp-input flex-1" required>
+        <button class="cp-btn">{% translate "Yüklə" %}</button>
+      </form>
+    </div>
     {% if status_events %}
     <div class="cp-card p-card mt-4">
       <div class="cp-section" style="font-size:16px;">{% translate "Status tarixçəsi" %}</div>
@@ -52,7 +68,20 @@
   </div>
   <aside class="cp-card p-card flex-col gap-3">
     <div><div class="cp-meta">{% translate "Kateqoriya" %}</div>{{ ticket.category }}</div>
-    <div><div class="cp-meta">{% translate "Prioritet" %}</div>{% include "partials/priority_badge.html" with value=ticket.priority label=ticket.get_priority_display %}</div>
+    <div>
+      <div class="cp-meta">{% translate "Prioritet" %}</div>
+      {% include "partials/priority_badge.html" with value=ticket.priority label=ticket.get_priority_display %}
+      <form method="post" class="mt-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="priority">
+        <select name="priority" class="cp-input">
+          {% for value, label in priorities %}
+          <option value="{{ value }}" {% if ticket.priority == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button class="cp-btn-ghost mt-2">{% translate "Prioriteti dəyiş" %}</button>
+      </form>
+    </div>
     <div><div class="cp-meta">{% translate "Təyin olunub" %}</div>{{ ticket.assignee.display_name|default:"—" }}</div>
     <div><div class="cp-meta">{% translate "Yaradılıb" %}</div>{{ ticket.created_at|date:"d.m.Y H:i" }}</div>
     {% if ticket.space %}
@@ -73,6 +102,19 @@
       </select>
       <button class="cp-btn-ghost mt-2">{% translate "Təyin et" %}</button>
     </form>
+    <div>
+      <div class="cp-meta">Work Orders</div>
+      {% for wo in work_orders %}
+      <div class="mt-1">{{ wo.code }} · {{ wo.get_status_display }}</div>
+      {% empty %}
+      <div class="cp-meta mt-1">{% translate "Yoxdur" %}</div>
+      {% endfor %}
+      <form method="post" class="mt-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_wo">
+        <button class="cp-btn w-full">{% translate "WO yarat" %}</button>
+      </form>
+    </div>
   </aside>
 </div>
 {% endblock %}
