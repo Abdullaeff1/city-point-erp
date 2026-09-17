@@ -4,34 +4,78 @@ from django.utils.translation import gettext_lazy as _
 from apps.property.models import Floor, Space
 from apps.reception.models import VisitorType
 from apps.residents.models import ResidentCompany, ResidentEmployee
-from apps.tickets.models import Ticket, TicketCategory, TicketPriority
+from apps.tickets.models import Ticket, TicketCategory, TicketPriority, TicketSubcategory, TicketType
+from apps.tickets.services import allowed_resident_priorities
 
 
 class PortalTicketForm(forms.ModelForm):
     photo = forms.FileField(required=False, label=_("Foto / sənəd"))
+    ticket_type = forms.ChoiceField(choices=TicketType.choices, label=_("Müraciət tipi"))
+    subcategory = forms.ModelChoiceField(
+        queryset=TicketSubcategory.objects.none(),
+        label=_("Alt kateqoriya"),
+    )
+    resident_priority_suggestion = forms.ChoiceField(
+        choices=allowed_resident_priorities(),
+        required=False,
+        initial=TicketPriority.NORMAL,
+        label=_("Təxmini prioritet"),
+    )
 
     class Meta:
         model = Ticket
-        fields = ("category", "space", "priority", "description")
+        fields = ("ticket_type", "category", "subcategory", "space", "description")
         labels = {
             "category": _("Kateqoriya"),
             "space": _("Sahə"),
-            "priority": _("Prioritet"),
             "description": _("Təsvir"),
         }
         widgets = {
-            "description": forms.Textarea(attrs={"rows": 4, "placeholder": _("Problemi qısa təsvir edin...")}),
+            "description": forms.Textarea(
+                attrs={"rows": 4, "placeholder": _("Problemi qısa təsvir edin...")}
+            ),
         }
 
     def __init__(self, *args, company=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["category"].queryset = TicketCategory.objects.all()
-        self.fields["priority"].initial = TicketPriority.NORMAL
+        self.fields["category"].queryset = TicketCategory.objects.filter(is_active=True)
+        self.fields["space"].required = False
+        self.fields["ticket_type"].initial = TicketType.INCIDENT
+
+        category_id = None
+        if self.data.get("category"):
+            category_id = self.data.get("category")
+        elif self.initial.get("category"):
+            category_id = getattr(self.initial["category"], "pk", self.initial["category"])
+
+        if category_id:
+            self.fields["subcategory"].queryset = TicketSubcategory.objects.filter(
+                is_active=True, category_id=category_id
+            )
+        else:
+            self.fields["subcategory"].queryset = TicketSubcategory.objects.none()
+
         if company:
             self.fields["space"].queryset = Space.objects.filter(resident=company)
         for name, field in self.fields.items():
             if name != "photo":
                 field.widget.attrs["class"] = "cp-input"
+
+    def clean(self):
+        cleaned = super().clean()
+        category = cleaned.get("category")
+        subcategory = cleaned.get("subcategory")
+        description = (cleaned.get("description") or "").strip()
+        if subcategory and category and subcategory.category_id != category.id:
+            self.add_error("subcategory", _("Alt kateqoriya seçilmiş kateqoriyaya aid deyil."))
+        if subcategory and subcategory.requires_description_min:
+            if len(description) < subcategory.requires_description_min:
+                self.add_error(
+                    "description",
+                    _("Digər seçimində ən az %(n)s simvol yazın.")
+                    % {"n": subcategory.requires_description_min},
+                )
+        return cleaned
 
 
 class PortalGuestForm(forms.Form):

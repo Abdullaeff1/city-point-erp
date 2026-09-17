@@ -5,6 +5,7 @@
 <div class="flex gap-2 mb-4" style="flex-wrap:wrap;">
   <a class="badge {% if tab == 'all' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=all">{% translate "Hamısı" %}</a>
   <a class="badge {% if tab == 'open' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=open">{% translate "Açıq" %}</a>
+  <a class="badge {% if tab == 'queue' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=queue">{% translate "Queue" %}</a>
   <a class="badge {% if tab == 'sla' %}badge-progress{% else %}badge-muted{% endif %}" href="?tab=sla">{% translate "SLA risk" %}</a>
   <a class="badge {% if tab == 'mine' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=mine">{% translate "Mənim" %}</a>
 </div>
@@ -15,6 +16,7 @@
         <th>{% translate "Kod" %}</th>
         <th>{% translate "Müraciət" %}</th>
         <th>{% translate "Kateqoriya" %}</th>
+        <th>{% translate "Queue" %}</th>
         <th>{% translate "Sahə" %}</th>
         <th>{% translate "Prioritet" %}</th>
         <th>{% translate "Cavabdeh" %}</th>
@@ -28,7 +30,8 @@
       <tr>
         <td><a href="{% url 'erp:ticket_detail' t.code %}">{{ t.code }}</a></td>
         <td>{{ t.company.name }}</td>
-        <td>{{ t.category }}</td>
+        <td>{{ t.category }}{% if t.subcategory %}<br><span class="cp-meta">{{ t.subcategory.name }}</span>{% endif %}</td>
+        <td>{{ t.queue.name|default:"—" }}</td>
         <td>{{ t.space.short_label|default:"—" }}</td>
         <td>{% include "partials/priority_badge.html" with value=t.priority label=t.get_priority_display %}</td>
         <td>{{ t.assignee.display_name|default:"—" }}</td>

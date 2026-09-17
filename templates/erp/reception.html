@@ -11,8 +11,8 @@
 
 <div class="grid-reception">
   <div class="reception-main">
-    <div class="cp-card p-card mb-4">
-      <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;">
+    <div class="cp-card p-card mb-4 reception-toolbar">
+      <form method="get" class="flex gap-2 reception-filters" style="flex-wrap:wrap;align-items:end;">
         <label style="flex:1;min-width:160px;">
           <span class="cp-meta">{% translate "Axtarış" %}</span>
           <input class="cp-input" name="q" value="{{ q }}" placeholder="FIN / ad / şirkət / host / kod">
@@ -47,6 +47,29 @@
         <a class="cp-btn-ghost" href="{% url 'erp:reception_export' %}">{% translate "Export CSV" %}</a>
         {% endif %}
       </form>
+      <details class="walk-in-dropdown" {% if form.errors %}open{% endif %}>
+        <summary class="cp-btn walk-in-toggle">+ {% translate "Yeni qonaq" %}</summary>
+        <div class="cp-card p-card walk-in-panel">
+          <form method="post" class="flex-col" id="walk-in-form">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+            <div class="cp-meta" style="color:var(--cp-danger);">{{ form.non_field_errors }}</div>
+            {% endif %}
+            <label><span class="cp-meta">{{ form.fin_code.label }}</span><div class="mt-1">{{ form.fin_code }}</div>{{ form.fin_code.errors }}</label>
+            <div class="flex gap-2">
+              <label class="flex-1"><span class="cp-meta">{{ form.first_name.label }}</span><div class="mt-1">{{ form.first_name }}</div>{{ form.first_name.errors }}</label>
+              <label class="flex-1"><span class="cp-meta">{{ form.last_name.label }}</span><div class="mt-1">{{ form.last_name }}</div>{{ form.last_name.errors }}</label>
+            </div>
+            <label><span class="cp-meta">{{ form.company.label }}</span><div class="mt-1">{{ form.company }}</div>{{ form.company.errors }}</label>
+            <label><span class="cp-meta">{{ form.host.label }}</span><div class="mt-1">{{ form.host }}</div>{{ form.host.errors }}</label>
+            <label class="cp-meta" style="display:flex;align-items:center;gap:8px;margin-top:2px;">
+              {{ form.id_document_held }} {{ form.id_document_held.label }}
+            </label>
+            <label><span class="cp-meta">{{ form.notes.label }}</span><div class="mt-1">{{ form.notes }}</div></label>
+            <button class="cp-btn walk-in-submit" type="submit">{% translate "GİRİŞİ QEYD ET" %}</button>
+          </form>
+        </div>
+      </details>
     </div>
 
     <div class="cp-card" style="padding:8px 0;" id="inside-panel">
@@ -90,33 +113,6 @@
         </tbody>
       </table>
     </div>
-  </div>
-
-  <div class="cp-card p-card walk-in-panel">
-    <div class="cp-section">{% translate "+ Yeni qonaq" %}</div>
-    <div class="walk-in-invite">
-      <label class="cp-meta">{% translate "Invite / visit code" %}</label>
-      <div class="flex gap-2 mt-1">
-        <input class="cp-input flex-1" id="invite-code-input" placeholder="ABC123…">
-        <button type="button" class="cp-btn-ghost" id="invite-lookup-btn">{% translate "Tap" %}</button>
-      </div>
-      <div id="invite-lookup-result" class="cp-meta mt-1"></div>
-    </div>
-    <form method="post" class="flex-col" id="walk-in-form">
-      {% csrf_token %}
-      <label><span class="cp-meta">{{ form.fin_code.label }}</span><div class="mt-1">{{ form.fin_code }}</div></label>
-      <div class="flex gap-2">
-        <label class="flex-1"><span class="cp-meta">{{ form.first_name.label }}</span><div class="mt-1">{{ form.first_name }}</div></label>
-        <label class="flex-1"><span class="cp-meta">{{ form.last_name.label }}</span><div class="mt-1">{{ form.last_name }}</div></label>
-      </div>
-      <label><span class="cp-meta">{{ form.company.label }}</span><div class="mt-1">{{ form.company }}</div></label>
-      <label><span class="cp-meta">{{ form.host.label }}</span><div class="mt-1">{{ form.host }}</div></label>
-      <label class="cp-meta" style="display:flex;align-items:center;gap:8px;margin-top:2px;">
-        {{ form.id_document_held }} {{ form.id_document_held.label }}
-      </label>
-      <label><span class="cp-meta">{{ form.notes.label }}</span><div class="mt-1">{{ form.notes }}</div></label>
-      <button class="cp-btn walk-in-submit" type="submit">{% translate "GİRİŞİ QEYD ET" %}</button>
-    </form>
   </div>
 </div>
 
@@ -205,6 +201,18 @@
     filterHosts();
   }
 
+  const walkIn = document.querySelector(".walk-in-dropdown");
+  if (walkIn) {
+    document.addEventListener("click", function (e) {
+      if (!walkIn.open) return;
+      if (walkIn.contains(e.target)) return;
+      walkIn.open = false;
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && walkIn.open) walkIn.open = false;
+    });
+  }
+
   let finTimer;
   if (finInput) {
     finInput.addEventListener("input", function () {
@@ -221,22 +229,6 @@
           if (last && !last.value) last.value = data.last_name || "";
         }
       }, 350);
-    });
-  }
-
-  const inviteBtn = document.getElementById("invite-lookup-btn");
-  if (inviteBtn) {
-    inviteBtn.addEventListener("click", async () => {
-      const code = document.getElementById("invite-code-input").value.trim();
-      const out = document.getElementById("invite-lookup-result");
-      const res = await fetch("{% url 'erp:reception_invite_lookup' %}?code=" + encodeURIComponent(code));
-      const data = await res.json();
-      if (!data.found) {
-        out.textContent = "Kod tapılmadı.";
-        return;
-      }
-      out.innerHTML = data.guest + " · " + data.company + " · " + data.status +
-        ' — <a href="?q=' + encodeURIComponent(code) + '">jurnalda aç</a>';
     });
   }
 

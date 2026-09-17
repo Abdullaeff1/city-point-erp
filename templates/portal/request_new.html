@@ -3,7 +3,8 @@
 {% block heading %}{% translate "Yeni müraciət" %}{% endblock %}
 {% block content %}
 <div class="cp-card p-card-lg" style="max-width:520px;">
-  <form method="post" enctype="multipart/form-data" class="flex-col gap-3">
+  <p class="cp-meta mb-3">{% translate "Qısa təsvir kifayətdir — əlavə detalları şöbə sizinlə əlaqə saxlayaraq tamamlayacaq." %}</p>
+  <form method="post" enctype="multipart/form-data" class="flex-col gap-3" id="ticket-create-form">
     {% csrf_token %}
     {% for field in form %}
       <label>
@@ -15,4 +16,34 @@
     <button class="cp-btn" type="submit">{% translate "Göndər" %}</button>
   </form>
 </div>
+<script type="application/json" id="subcategory-map">{{ subcategory_map_json|safe }}</script>
+<script>
+(function () {
+  var raw = document.getElementById("subcategory-map");
+  var map = {};
+  try { map = JSON.parse(raw.textContent || "{}"); } catch (e) { map = {}; }
+  var cat = document.getElementById("id_category");
+  var sub = document.getElementById("id_subcategory");
+  if (!cat || !sub) return;
+  function refill() {
+    var cid = cat.value;
+    var current = sub.value;
+    sub.innerHTML = "";
+    var opt0 = document.createElement("option");
+    opt0.value = "";
+    opt0.textContent = "---------";
+    sub.appendChild(opt0);
+    Object.keys(map).forEach(function (id) {
+      if (String(map[id].category_id) !== String(cid)) return;
+      var o = document.createElement("option");
+      o.value = id;
+      o.textContent = map[id].name;
+      if (id === current) o.selected = true;
+      sub.appendChild(o);
+    });
+  }
+  cat.addEventListener("change", refill);
+  if (cat.value) refill();
+})();
+</script>
 {% endblock %}

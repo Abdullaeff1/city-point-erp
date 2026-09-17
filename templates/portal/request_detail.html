@@ -2,7 +2,7 @@
 {% load i18n cp_ui %}
 {% block heading %}{{ ticket.code }}{% endblock %}
 {% block content %}
-<p class="cp-meta mb-4" style="margin-top:-8px;">{{ ticket.category }} · <span class="cp-code">{{ ticket.space.code|default:"—" }}</span></p>
+<p class="cp-meta mb-4" style="margin-top:-8px;">{{ ticket.get_ticket_type_display }} · {{ ticket.category }}{% if ticket.subcategory %} / {{ ticket.subcategory.name }}{% endif %} · <span class="cp-code">{{ ticket.space.code|default:"—" }}</span></p>
 <div class="grid-main">
   <div>
     {% include "partials/status_badge.html" with value=ticket.status label=ticket.get_status_display %}

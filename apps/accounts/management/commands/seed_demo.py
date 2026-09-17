@@ -17,7 +17,10 @@ from apps.tickets.models import (
     TicketMessage,
     TicketPriority,
     TicketStatus,
+    TicketType,
 )
+from apps.tickets.seed_taxonomy import seed_ticket_taxonomy
+from apps.tickets.services import route_ticket
 
 
 class Command(BaseCommand):
@@ -185,21 +188,25 @@ class Command(BaseCommand):
                     invite_code="PRE-DEMO01" if status == VisitStatus.PRE_REGISTERED else "",
                 )
 
-        cats = {}
-        for slug, name in [
-            ("hvac", "HVAC / Kondisioner"),
-            ("access", "Access Card"),
-            ("cleaning", "Təmizlik"),
-            ("electric", "Elektrik"),
-        ]:
-            cats[slug], _ = TicketCategory.objects.get_or_create(slug=slug, defaults={"name": name})
+        tax = seed_ticket_taxonomy()
+        cats = tax["categories"]
+        subs = tax["subcategories"]
 
-        for prio, hours, label in [
-            (TicketPriority.HIGH, 8, "Yüksək SLA"),
-            (TicketPriority.NORMAL, 24, "Normal SLA"),
-            (TicketPriority.LOW, 48, "Aşağı SLA"),
-        ]:
-            SlaPolicy.objects.update_or_create(priority=prio, defaults={"name": label, "hours": hours})
+        # Prefer new taxonomy for demo tickets; keep legacy slug keys for upsert helper.
+        demo_cats = {
+            "hvac": cats["technical"],
+            "electric": cats["technical"],
+            "cleaning": cats["cleaning"],
+            "access": cats["security"],
+            "larger-office": cats["commercial-space"],
+        }
+        demo_subs = {
+            "hvac": subs["technical:hvac"],
+            "electric": subs["technical:electric"],
+            "cleaning": subs["cleaning:office-cleaning"],
+            "access": subs["security:access-fault"],
+            "larger-office": subs["commercial-space:larger-office"],
+        }
 
         staff_map = {
             "admin": ("admin@citypoint.az", "Admin", Role.ADMIN, "admin123"),
@@ -240,21 +247,29 @@ class Command(BaseCommand):
         desk = created_users["desk"]
         now = timezone.now()
 
-        def upsert_ticket(code, cat, company, space, prio, status, desc, sla_hours):
+        def upsert_ticket(code, cat_key, company, space, prio, status, desc, sla_hours, ticket_type=None):
+            ttype = ticket_type or (
+                TicketType.COMMERCIAL if cat_key == "larger-office" else TicketType.INCIDENT
+            )
             ticket, _ = Ticket.objects.update_or_create(
                 code=code,
                 defaults={
-                    "category": cat,
+                    "ticket_type": ttype,
+                    "category": demo_cats[cat_key],
+                    "subcategory": demo_subs[cat_key],
                     "company": company,
                     "space": space,
                     "requester": portal_user if company == asbc else None,
-                    "assignee": desk if status in {TicketStatus.IN_PROGRESS, TicketStatus.ACCEPTED} else None,
+                    "assignee": desk
+                    if status in {TicketStatus.IN_PROGRESS, TicketStatus.ACCEPTED, TicketStatus.ASSIGNED}
+                    else None,
                     "priority": prio,
                     "status": status,
                     "description": desc,
                     "sla_due_at": now + timedelta(hours=sla_hours),
                 },
             )
+            route_ticket(ticket, actor=desk, note="seed", apply_default_priority=False)
             TicketMessage.objects.get_or_create(
                 ticket=ticket,
                 body=desc,
@@ -267,7 +282,7 @@ class Command(BaseCommand):
 
         t1042 = upsert_ticket(
             "TK-1042",
-            cats["hvac"],
+            "hvac",
             asbc,
             space801,
             TicketPriority.HIGH,
@@ -285,12 +300,23 @@ class Command(BaseCommand):
             body="Bu gün 14:00-16:00 arası yoxlanılacaq.",
             defaults={"author": desk, "author_label": "Texnik"},
         )
-        upsert_ticket("TK-1040", cats["electric"], asbc, None, TicketPriority.NORMAL, TicketStatus.SENT, "Koridor F03 işıqları yanıb-sönür.", 24)
-        upsert_ticket("TK-1038", cats["access"], asbc, space801, TicketPriority.NORMAL, TicketStatus.RESOLVED, "Access kart yenilənməsi.", 24)
-        upsert_ticket("TK-1035", cats["access"], techco, None, TicketPriority.NORMAL, TicketStatus.ACCEPTED, "Yeni əməkdaş üçün kart.", 24)
-        upsert_ticket("TK-1031", cats["cleaning"], asbc, lobby, TicketPriority.LOW, TicketStatus.IN_PROGRESS, "F01 Lobby təmizlik.", 48)
-        upsert_ticket("TK-1021", cats["cleaning"], asbc, space801, TicketPriority.NORMAL, TicketStatus.RESOLVED, "Ofis təmizliyi.", 24)
-        upsert_ticket("TK-1010", cats["electric"], asbc, space801, TicketPriority.NORMAL, TicketStatus.RESOLVED, "Rozetka nasazlığı.", 24)
+        upsert_ticket("TK-1040", "electric", asbc, None, TicketPriority.NORMAL, TicketStatus.SENT, "Koridor F03 işıqları yanıb-sönür.", 24)
+        upsert_ticket("TK-1038", "access", asbc, space801, TicketPriority.NORMAL, TicketStatus.RESOLVED, "Access kart yenilənməsi.", 24)
+        upsert_ticket("TK-1035", "access", techco, None, TicketPriority.NORMAL, TicketStatus.ACCEPTED, "Yeni əməkdaş üçün kart.", 24)
+        upsert_ticket("TK-1031", "cleaning", asbc, lobby, TicketPriority.LOW, TicketStatus.IN_PROGRESS, "F01 Lobby təmizlik.", 48)
+        upsert_ticket("TK-1021", "cleaning", asbc, space801, TicketPriority.NORMAL, TicketStatus.RESOLVED, "Ofis təmizliyi.", 24)
+        upsert_ticket("TK-1010", "electric", asbc, space801, TicketPriority.NORMAL, TicketStatus.RESOLVED, "Rozetka nasazlığı.", 24)
+        upsert_ticket(
+            "TK-1050",
+            "larger-office",
+            asbc,
+            space801,
+            TicketPriority.NORMAL,
+            TicketStatus.SENT,
+            "Hazırkı ofisimiz kiçikdir, daha böyük sahə istəyirik.",
+            24,
+            ticket_type=TicketType.COMMERCIAL,
+        )
 
         Notification.objects.get_or_create(user=portal_user, ticket=t1042, message="TK-1042 statusu: İcra olunur")
         Notification.objects.get_or_create(user=portal_user, message="TK-1038 həll edildi")

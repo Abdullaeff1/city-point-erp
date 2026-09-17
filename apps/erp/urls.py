@@ -9,7 +9,6 @@ urlpatterns = [
     path("reception/", views.ReceptionView.as_view(), name="reception"),
     path("reception/<int:pk>/status/", views.ReceptionStatusView.as_view(), name="reception_status"),
     path("reception/guest-lookup/", views.ReceptionGuestLookupView.as_view(), name="reception_guest_lookup"),
-    path("reception/invite-lookup/", views.ReceptionInviteLookupView.as_view(), name="reception_invite_lookup"),
     path("reception/export/", views.ReceptionExportView.as_view(), name="reception_export"),
     path("tickets/", views.TicketListView.as_view(), name="tickets"),
     path("tickets/<str:code>/", views.TicketDetailView.as_view(), name="ticket_detail"),

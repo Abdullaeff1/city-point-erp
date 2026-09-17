@@ -6,14 +6,17 @@ register = template.Library()
 
 STATUS_CLASS = {
     "sent": "badge-sent",
+    "assigned": "badge-assigned",
     "accepted": "badge-accepted",
     "in_progress": "badge-progress",
+    "waiting": "badge-waiting",
     "resolved": "badge-resolved",
-    "waiting": "badge-sent",
+    "closed": "badge-closed",
+    "cancelled": "badge-cancelled",
+    "reopened": "badge-reopened",
     "pre_registered": "badge-sent",
     "inside": "badge-progress",
     "left": "badge-muted",
-    "cancelled": "badge-muted",
     "no_show": "badge-urgent",
     "return_pending": "badge-urgent",
 }
@@ -22,6 +25,7 @@ PRIORITY_CLASS = {
     "low": "badge-muted",
     "normal": "badge-sent",
     "high": "badge-urgent",
+    "critical": "badge-critical",
 }
 
 

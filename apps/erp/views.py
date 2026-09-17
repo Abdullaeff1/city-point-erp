@@ -23,8 +23,14 @@ from apps.reception.services import (
 )
 from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.rbac.services import user_has_permission
-from apps.tickets.models import OPEN_STATUSES, Ticket, TicketPriority, TicketStatus
-from apps.tickets.services import add_message, advance_ticket_status, apply_sla
+from apps.tickets.models import CLOSED_STATUSES, OPEN_STATUSES, Ticket, TicketPriority, TicketStatus
+from apps.tickets.services import (
+    add_message,
+    advance_ticket_status,
+    apply_sla,
+    create_crm_opportunity_from_ticket,
+    set_ticket_status,
+)
 
 
 class DashboardView(StaffRequiredMixin, TemplateView):
@@ -143,7 +149,6 @@ class ReceptionView(RoleRequiredMixin, FormView):
                 "can_override": can_override,
                 "can_export": can_export,
                 "mask_fin": mask_fin,
-                "invite_lookup": self.request.GET.get("invite", "").strip(),
             }
         )
         return ctx
@@ -238,31 +243,6 @@ class ReceptionGuestLookupView(RoleRequiredMixin, View):
         )
 
 
-class ReceptionInviteLookupView(RoleRequiredMixin, View):
-    allowed_roles = (Role.RECEPTION,)
-
-    def get(self, request):
-        code = (request.GET.get("code") or "").strip().upper()
-        visit = (
-            GuestVisit.objects.filter(invite_code__iexact=code)
-            .select_related("guest", "company", "host", "visit_type")
-            .first()
-        )
-        if not visit:
-            return JsonResponse({"found": False})
-        return JsonResponse(
-            {
-                "found": True,
-                "id": visit.pk,
-                "status": visit.status,
-                "guest": visit.guest.display_name,
-                "company": visit.company.name,
-                "host": visit.host.full_name if visit.host_id else "",
-                "visit_type": visit.visit_type.name if visit.visit_type_id else "",
-            }
-        )
-
-
 class ReceptionExportView(RoleRequiredMixin, View):
     allowed_roles = (Role.RECEPTION,)
 
@@ -319,7 +299,9 @@ class TicketListView(RoleRequiredMixin, ListView):
     allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
 
     def get_queryset(self):
-        qs = Ticket.objects.select_related("category", "company", "space", "assignee")
+        qs = Ticket.objects.select_related(
+            "category", "subcategory", "company", "space", "assignee", "queue", "department"
+        )
         tab = self.request.GET.get("tab", "all")
         if tab == "open":
             qs = qs.filter(status__in=OPEN_STATUSES)
@@ -328,6 +310,8 @@ class TicketListView(RoleRequiredMixin, ListView):
             qs = qs.filter(id__in=ids)
         elif tab == "mine":
             qs = qs.filter(assignee=self.request.user)
+        elif tab == "queue":
+            qs = qs.filter(assignee__isnull=True, status__in=OPEN_STATUSES)
         return qs
 
     def get_context_data(self, **kwargs):
@@ -342,9 +326,16 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
 
     def get_ticket(self):
         return get_object_or_404(
-            Ticket.objects.select_related("category", "company", "space", "assignee").prefetch_related(
-                "attachments", "messages"
-            ),
+            Ticket.objects.select_related(
+                "category",
+                "subcategory",
+                "company",
+                "space",
+                "assignee",
+                "queue",
+                "department",
+                "opportunity",
+            ).prefetch_related("attachments", "messages", "routing_events"),
             code=self.kwargs["code"],
         )
 
@@ -352,12 +343,19 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         ticket = self.get_ticket()
         ctx["ticket"] = ticket
-        ctx["staff_users"] = User.objects.filter(role__in=[Role.SERVICE_DESK, Role.PROPERTY_FM, Role.ADMIN])
+        ctx["staff_users"] = User.objects.filter(
+            role__in=[Role.SERVICE_DESK, Role.PROPERTY_FM, Role.ADMIN]
+        )
         ctx["status_events"] = ticket.status_events.select_related("actor")
+        ctx["routing_events"] = ticket.routing_events.select_related(
+            "from_queue", "to_queue", "actor"
+        )
         ctx["priorities"] = TicketPriority.choices
         from apps.maintenance.models import WorkOrder
 
         ctx["work_orders"] = WorkOrder.objects.filter(ticket=ticket)
+        ctx["wo_eligible"] = ticket.wo_eligible
+        ctx["crm_eligible"] = ticket.crm_eligible
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -365,10 +363,28 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
         action = request.POST.get("action")
         if action == "advance" and ticket.next_status:
             advance_ticket_status(ticket, actor=request.user)
+        elif action == "waiting":
+            reason = request.POST.get("waiting_reason", "").strip()
+            set_ticket_status(
+                ticket, TicketStatus.WAITING, actor=request.user, note=reason, waiting_reason=reason
+            )
+        elif action == "close" and ticket.status == TicketStatus.RESOLVED:
+            set_ticket_status(ticket, TicketStatus.CLOSED, actor=request.user)
+        elif action == "reopen" and ticket.status in {
+            TicketStatus.RESOLVED,
+            TicketStatus.CLOSED,
+        }:
+            set_ticket_status(ticket, TicketStatus.REOPENED, actor=request.user, note="reopened")
+        elif action == "cancel" and ticket.is_open:
+            set_ticket_status(
+                ticket, TicketStatus.CANCELLED, actor=request.user, note=request.POST.get("note", "")
+            )
         elif action == "assign":
             assignee_id = request.POST.get("assignee")
             ticket.assignee_id = assignee_id or None
             ticket.save(update_fields=["assignee", "updated_at"])
+            if ticket.assignee_id and ticket.status == TicketStatus.SENT:
+                set_ticket_status(ticket, TicketStatus.ASSIGNED, actor=request.user, note="assigned")
         elif action == "priority":
             priority = request.POST.get("priority")
             if priority in dict(TicketPriority.choices):
@@ -376,6 +392,11 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
                 ticket.save(update_fields=["priority", "updated_at"])
                 apply_sla(ticket)
                 messages.success(request, "Prioritet yeniləndi.")
+        elif action == "enrich":
+            notes = request.POST.get("enrichment_notes", "").strip()
+            ticket.enrichment_notes = notes
+            ticket.save(update_fields=["enrichment_notes", "updated_at"])
+            messages.success(request, "Əlavə qeydlər saxlanıldı.")
         elif action == "attach":
             upload = request.FILES.get("file")
             if upload:
@@ -387,11 +408,21 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
             from apps.maintenance.models import WorkOrder
             from apps.maintenance.services import create_wo_from_ticket
 
-            if WorkOrder.objects.filter(ticket=ticket).exists():
+            if not ticket.wo_eligible:
+                messages.error(request, "Bu ticket üçün Work Order yaradıla bilməz.")
+            elif WorkOrder.objects.filter(ticket=ticket).exists():
                 messages.info(request, "Work Order artıq mövcuddur.")
             else:
                 wo = create_wo_from_ticket(ticket)
                 messages.success(request, f"Work Order yaradıldı: {wo.code}")
+        elif action == "create_crm":
+            if not ticket.crm_eligible:
+                messages.error(request, "Bu ticket üçün CRM ötürülməsi uyğun deyil.")
+            elif ticket.opportunity_id:
+                messages.info(request, "CRM Opportunity artıq bağlıdır.")
+            else:
+                opp = create_crm_opportunity_from_ticket(ticket, actor=request.user)
+                messages.success(request, f"CRM Opportunity yaradıldı: {opp.title}")
         elif action == "message":
             body = request.POST.get("body", "").strip()
             if body:
@@ -438,7 +469,7 @@ class SpaceDetailView(RoleRequiredMixin, TemplateView):
         ctx["space"] = space
         ctx["tab"] = tab
         ctx["open_tickets"] = space.tickets.filter(status__in=OPEN_STATUSES)
-        ctx["ticket_history"] = space.tickets.filter(status=TicketStatus.RESOLVED)
+        ctx["ticket_history"] = space.tickets.filter(status__in=CLOSED_STATUSES)
         ctx["all_tickets"] = space.tickets.select_related("category")[:20]
         ctx["assets"] = space.assets.all()
         ctx["documents"] = space.documents.all()

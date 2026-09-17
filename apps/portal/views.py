@@ -1,3 +1,5 @@
+import json
+
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
@@ -9,8 +11,8 @@ from apps.documents.models import Document
 from apps.erp.forms import PortalTicketForm
 from apps.reception.models import GuestVisit
 from apps.residents.models import AccessEventType, ResidentEmployee
-from apps.tickets.models import OPEN_STATUSES, Ticket, TicketAttachment, TicketStatus
-from apps.tickets.services import add_message, apply_sla, next_ticket_code, record_status_event
+from apps.tickets.models import CLOSED_STATUSES, OPEN_STATUSES, Ticket, TicketAttachment, TicketSubcategory
+from apps.tickets.services import add_message, create_ticket_from_portal
 
 
 class HomeView(ResidentPortalMixin, TemplateView):
@@ -55,16 +57,26 @@ class RequestCreateView(ResidentPortalMixin, FormView):
         kwargs["company"] = self.request.user.resident_company
         return kwargs
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        mapping = {
+            str(s.id): {"category_id": s.category_id, "name": s.name}
+            for s in TicketSubcategory.objects.filter(is_active=True).only("id", "category_id", "name")
+        }
+        ctx["subcategory_map_json"] = json.dumps(mapping, ensure_ascii=False)
+        return ctx
+
     def form_valid(self, form):
-        ticket = form.save(commit=False)
-        ticket.code = next_ticket_code()
-        ticket.company = self.request.user.resident_company
-        ticket.requester = self.request.user
-        ticket.status = TicketStatus.SENT
-        ticket.save()
-        apply_sla(ticket)
-        record_status_event(ticket, ticket.status, actor=self.request.user, note="created")
-        add_message(ticket, self.request.user, ticket.description, "Siz")
+        ticket = create_ticket_from_portal(
+            company=self.request.user.resident_company,
+            requester=self.request.user,
+            ticket_type=form.cleaned_data["ticket_type"],
+            category=form.cleaned_data["category"],
+            subcategory=form.cleaned_data["subcategory"],
+            description=form.cleaned_data["description"],
+            space=form.cleaned_data.get("space"),
+            priority_suggestion=form.cleaned_data.get("resident_priority_suggestion") or "",
+        )
         photo = form.cleaned_data.get("photo")
         if photo:
             TicketAttachment.objects.create(ticket=ticket, file=photo)
@@ -83,7 +95,7 @@ class RequestListView(ResidentPortalMixin, ListView):
         if self.kwargs.get("scope") == "active":
             qs = qs.filter(status__in=OPEN_STATUSES)
         elif self.kwargs.get("scope") == "history":
-            qs = qs.filter(status=TicketStatus.RESOLVED)
+            qs = qs.filter(status__in=CLOSED_STATUSES)
         return qs
 
 
@@ -115,7 +127,9 @@ class AlertsView(ResidentPortalMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
         ctx["notifications"] = Notification.objects.filter(user=user)
-        ctx["history"] = Ticket.objects.filter(company=user.resident_company, status=TicketStatus.RESOLVED)
+        ctx["history"] = Ticket.objects.filter(
+            company=user.resident_company, status__in=CLOSED_STATUSES
+        )
         Notification.objects.filter(user=user, is_read=False).update(is_read=True)
         return ctx
 
