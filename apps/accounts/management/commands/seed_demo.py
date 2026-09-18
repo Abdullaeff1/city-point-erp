@@ -10,6 +10,7 @@ from apps.documents.models import Document
 from apps.property.models import Asset, Building, Contractor, Floor, Occupancy, Space
 from apps.reception.models import Guest, GuestVisit, VisitStatus
 from apps.residents.models import AccessEvent, AccessEventType, ResidentCompany, ResidentEmployee
+from apps.integrations.models import ExternalIdentity
 from apps.tickets.models import (
     SlaPolicy,
     Ticket,
@@ -116,17 +117,19 @@ class Command(BaseCommand):
         Contractor.objects.get_or_create(name="CityPoint FM", defaults={"contact_email": "fm@citypoint.az"})
 
         employees = {}
-        for full_name, card in [
-            ("N. Həsənov", "AC-1042"),
-            ("S. Quliyeva", "AC-1108"),
-            ("R. Əliyev", "AC-1091"),
-            ("L. Məmmədova", "AC-1077"),
-            ("K. Orucov", "AC-1120"),
-        ]:
-            emp, _ = ResidentEmployee.objects.update_or_create(
-                company=asbc, card_number=card, defaults={"full_name": full_name, "is_active": True}
-            )
-            employees[full_name] = emp
+        # Prefer real AxTrax-synced ASBC staff; do not recreate demo AC-* card fakes.
+        asbc_real = list(
+            ResidentEmployee.objects.filter(company=asbc, is_active=True)
+            .exclude(card_number="")
+            .order_by("id")[:5]
+        )
+        if len(asbc_real) >= 2:
+            for emp in asbc_real:
+                employees[emp.full_name] = emp
+            default_asbc_host = asbc_real[0]
+        else:
+            default_asbc_host = None
+
         tech_host, _ = ResidentEmployee.objects.update_or_create(
             company=techco, card_number="AC-2201", defaults={"full_name": "R. Quliyev"}
         )
@@ -137,16 +140,28 @@ class Command(BaseCommand):
         def at_hour(h, m=0):
             return make_aware(datetime.combine(today, time(h, m)), tz)
 
-        if not AccessEvent.objects.filter(employee__company=asbc, occurred_at__date=today).exists():
+        # Demo AccessEvent only when ASBC has no AxTrax-linked employees yet.
+        from django.contrib.contenttypes.models import ContentType
+
+        emp_ct = ContentType.objects.get_for_model(ResidentEmployee)
+        axtrax_emp_ids = ExternalIdentity.objects.filter(
+            system="axtraxng",
+            external_id__startswith="emp:",
+            entity_type=emp_ct,
+        ).values_list("entity_id", flat=True)
+        has_axtrax_asbc = ResidentEmployee.objects.filter(company=asbc, id__in=axtrax_emp_ids).exists()
+        if (
+            not has_axtrax_asbc
+            and default_asbc_host
+            and not AccessEvent.objects.filter(employee__company=asbc, occurred_at__date=today).exists()
+        ):
             AccessEvent.objects.bulk_create(
                 [
-                    AccessEvent(employee=employees["N. Həsənov"], event_type=AccessEventType.IN, occurred_at=at_hour(8, 52)),
-                    AccessEvent(employee=employees["S. Quliyeva"], event_type=AccessEventType.IN, occurred_at=at_hour(9, 5)),
-                    AccessEvent(employee=employees["R. Əliyev"], event_type=AccessEventType.IN, occurred_at=at_hour(8, 40)),
-                    AccessEvent(employee=employees["R. Əliyev"], event_type=AccessEventType.OUT, occurred_at=at_hour(13, 10)),
-                    AccessEvent(employee=employees["L. Məmmədova"], event_type=AccessEventType.IN, occurred_at=at_hour(9, 18)),
-                    AccessEvent(employee=employees["K. Orucov"], event_type=AccessEventType.IN, occurred_at=at_hour(8, 30)),
-                    AccessEvent(employee=employees["K. Orucov"], event_type=AccessEventType.OUT, occurred_at=at_hour(12, 45)),
+                    AccessEvent(
+                        employee=default_asbc_host,
+                        event_type=AccessEventType.IN,
+                        occurred_at=at_hour(8, 52),
+                    ),
                 ]
             )
 
@@ -155,11 +170,11 @@ class Command(BaseCommand):
 
             meeting = VisitorType.objects.filter(code="resident-meeting").first()
             guest_rows = [
-                ("A. Məmmədov", "7A3B2C1D2K", asbc, employees["N. Həsənov"], f08, space801, VisitStatus.INSIDE, at_hour(10, 15), None),
+                ("A. Məmmədov", "7A3B2C1D2K", asbc, default_asbc_host, f08, space801, VisitStatus.INSIDE, at_hour(10, 15), None),
                 ("L. Əliyeva", "1X2Y3Z4A5B", techco, tech_host, f05, None, VisitStatus.PRE_REGISTERED, None, None),
-                ("K. Orucov", "9K8J7H6G5F", asbc, employees["N. Həsənov"], f08, space801, VisitStatus.LEFT, at_hour(9, 40), at_hour(11, 10)),
-                ("T. Hüseynov", "5E4D3C2B1A", asbc, employees["N. Həsənov"], f08, space801, VisitStatus.LEFT, at_hour(9, 40), at_hour(10, 5)),
-                ("M. Rəhimova", "2M3N4P5Q6R", asbc, employees["R. Əliyev"], None, None, VisitStatus.WAITING, None, None),
+                ("K. Orucov", "9K8J7H6G5F", asbc, default_asbc_host, f08, space801, VisitStatus.LEFT, at_hour(9, 40), at_hour(11, 10)),
+                ("T. Hüseynov", "5E4D3C2B1A", asbc, default_asbc_host, f08, space801, VisitStatus.LEFT, at_hour(9, 40), at_hour(10, 5)),
+                ("M. Rəhimova", "2M3N4P5Q6R", asbc, default_asbc_host, None, None, VisitStatus.WAITING, None, None),
             ]
             for name, fin, company, host, floor, space, status, cin, cout in guest_rows:
                 parts = name.split(None, 1)

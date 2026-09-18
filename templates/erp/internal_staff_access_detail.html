@@ -1,0 +1,102 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{{ employee.full_name }}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3" style="margin-top:-8px;">
+  <a href="{% url 'erp:internal_staff_access' %}?roster={% if employee.is_active %}active{% else %}former{% endif %}&date={{ date_from|date:'Y-m-d' }}">← {% translate "CP İşçilər" %}</a>
+  · {% translate "Kart" %}: {{ employee.card_number|default:"—" }}
+  {% if not employee.is_active %}
+  · <strong>{% translate "Keçmiş işçi" %}</strong>{% if employee.deactivated_at %} · {% translate "çıxış" %}: {{ employee.deactivated_at|date:"d.m.Y" }}{% endif %}
+  {% endif %}
+</p>
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-tabs" style="margin-bottom:12px;">
+    <a class="cp-tab {% if preset == 'today' %}is-active{% endif %}" href="?range=today&date={% if single_day %}{{ date_from|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">{% translate "Günlük" %}</a>
+    <a class="cp-tab {% if preset == 'week' %}is-active{% endif %}" href="?range=week">{% translate "Bu həftə" %}</a>
+    <a class="cp-tab {% if preset == 'month' %}is-active{% endif %}" href="?range=month">{% translate "Bu ay" %}</a>
+    <a class="cp-tab {% if preset == 'year' %}is-active{% endif %}" href="?range=year&year={{ today.year }}">{% translate "Bu il" %}</a>
+    <a class="cp-tab {% if preset == 'custom' %}is-active{% endif %}" href="?range=custom&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}">{% translate "Tarix aralığı" %}</a>
+  </div>
+  {% if preset == 'custom' %}
+  <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;">
+    <input type="hidden" name="range" value="custom">
+    <label><span class="cp-meta">{% translate "Başlanğıc" %}</span><input class="cp-input mt-1" type="date" name="from" value="{{ date_from|date:'Y-m-d' }}" required></label>
+    <label><span class="cp-meta">{% translate "Son" %}</span><input class="cp-input mt-1" type="date" name="to" value="{{ date_to|date:'Y-m-d' }}" required></label>
+    <button class="cp-btn" type="submit">{% translate "Göstər" %}</button>
+  </form>
+  {% elif single_day %}
+  <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;">
+    <input type="hidden" name="range" value="today">
+    <label>
+      <span class="cp-meta">{% translate "Tarix" %}</span>
+      <input class="cp-input mt-1" type="date" name="date" value="{{ date_from|date:'Y-m-d' }}" onchange="this.form.submit()">
+    </label>
+  </form>
+  {% else %}
+  <p class="cp-meta">{{ date_from|date:"d.m.Y" }}{% if date_from != date_to %} – {{ date_to|date:"d.m.Y" }}{% endif %}</p>
+  {% endif %}
+</div>
+
+{% if single_day %}
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  <div class="cp-card p-card-sm">{% translate "Giriş" %} <strong>{{ in_count }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ out_count }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Cəmi" %} <strong>{{ flaps|length }}</strong></div>
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Saat" %}</th>
+        <th>{% translate "Tip" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in flaps %}
+      <tr>
+        <td>{{ e.occurred_at|time:"H:i:s" }}</td>
+        <td>
+          {% if e.event_type == "in" %}
+          <span class="badge badge-resolved">{% translate "Giriş" %}</span>
+          {% else %}
+          <span class="badge badge-progress">{% translate "Çıxış" %}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="2" class="cp-meta empty-pad">{% translate "Bu gün üçün giriş/çıxış yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  <div class="cp-card p-card-sm">{% translate "Gələn günlər" %} <strong>{{ present_days }}</strong></div>
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Tarix" %}</th>
+        <th>{% translate "İşə gəliş" %}</th>
+        <th>{% translate "İşdən çıxış" %}</th>
+        <th>{% translate "Status" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in days %}
+      <tr class="is-clickable" onclick="window.location='?range=today&date={{ d.date|date:'Y-m-d' }}'">
+        <td><a href="?range=today&date={{ d.date|date:'Y-m-d' }}">{{ d.date|date:"d.m.Y" }}</a></td>
+        <td>{% if d.in_at %}{{ d.in_at|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if d.out_at %}{{ d.out_at|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{{ d.status }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="cp-meta empty-pad">{% translate "Seçilmiş dövr üçün işə gəliş/çıxış yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

@@ -21,6 +21,14 @@ from apps.reception.services import (
     filter_visits,
     today_visits_queryset,
 )
+from apps.residents.access import (
+    access_range_bounds,
+    build_employee_access_rows,
+    employee_attendance_days,
+    employee_day_flaps,
+    employee_roster_qs,
+    parse_date,
+)
 from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.rbac.services import user_has_permission
 from apps.tickets.models import CLOSED_STATUSES, OPEN_STATUSES, Ticket, TicketPriority, TicketStatus
@@ -59,7 +67,7 @@ class DashboardView(StaffRequiredMixin, TemplateView):
                 "sla_risk_count": len(sla_tickets),
                 "sla_breach_count": len(breached),
                 "sla_ticket": sla_ticket,
-                "new_residents": ResidentCompany.objects.filter(status="active").count(),
+                "new_residents": ResidentCompany.objects.filter(status="active", is_internal=False).count(),
                 "waiting_guests": today_visits.filter(
                     status__in=[VisitStatus.WAITING, VisitStatus.PRE_REGISTERED]
                 ),
@@ -137,7 +145,7 @@ class ReceptionView(RoleRequiredMixin, FormView):
                 "filter_status": status,
                 "filter_company": company_id,
                 "id_not_returned": id_not_returned,
-                "companies": ResidentCompany.objects.filter(status="active"),
+                "companies": ResidentCompany.objects.filter(status="active", is_internal=False),
                 "hosts_json": json.dumps(
                     list(
                         ResidentEmployee.objects.filter(is_active=True).values(
@@ -450,7 +458,7 @@ class SpaceListView(RoleRequiredMixin, ListView):
             {
                 "floor_count": floors.count(),
                 "space_count": Space.objects.count(),
-                "active_residents": ResidentCompany.objects.filter(status="active").count(),
+                "active_residents": ResidentCompany.objects.filter(status="active", is_internal=False).count(),
                 "guest_today": GuestVisit.objects.filter(scheduled_for=timezone.localdate()).count(),
                 "floor_rows": floor_rows,
             }
@@ -481,7 +489,7 @@ class SpaceDetailView(RoleRequiredMixin, TemplateView):
 
 class ResidentListView(StaffRequiredMixin, ListView):
     template_name = "erp/residents.html"
-    queryset = ResidentCompany.objects.all()
+    queryset = ResidentCompany.objects.filter(is_internal=False)
     context_object_name = "companies"
 
 
@@ -498,7 +506,7 @@ class ResidentDetailView(StaffRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        company = get_object_or_404(ResidentCompany, slug=self.kwargs["slug"])
+        company = get_object_or_404(ResidentCompany, slug=self.kwargs["slug"], is_internal=False)
         today = timezone.localdate()
         ctx.update(
             {
@@ -508,6 +516,83 @@ class ResidentDetailView(StaffRequiredMixin, TemplateView):
                 "employees": company.employees.filter(is_active=True),
                 "guest_today": company.guest_visits.filter(scheduled_for=today).count(),
                 "latest_ticket": company.tickets.first(),
+            }
+        )
+        return ctx
+
+
+class InternalStaffAccessView(RoleRequiredMixin, TemplateView):
+    """City Point öz işçilərinin giriş/çıxışı — yalnız Admin / Rəhbərlik."""
+
+    template_name = "erp/internal_staff_access.html"
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+
+    def get_company(self):
+        return get_object_or_404(ResidentCompany, slug="city-point", is_internal=True)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        company = self.get_company()
+        today = timezone.localdate()
+        selected_date = parse_date(self.request.GET.get("date"), today)
+        base = company.employees.all().order_by("full_name")
+        employees, roster = employee_roster_qs(base, self.request.GET.get("roster"))
+        rows, inside, left, present = build_employee_access_rows(employees, selected_date)
+        ctx.update(
+            {
+                "company": company,
+                "rows": rows,
+                "inside": inside,
+                "left": left,
+                "present": present,
+                "roster": roster,
+                "today": today,
+                "selected_date": selected_date,
+                "is_today": selected_date == today,
+            }
+        )
+        return ctx
+
+
+class InternalStaffAccessDetailView(RoleRequiredMixin, TemplateView):
+    template_name = "erp/internal_staff_access_detail.html"
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+
+    def get_employee(self):
+        return get_object_or_404(
+            ResidentEmployee,
+            pk=self.kwargs["pk"],
+            company__slug="city-point",
+            company__is_internal=True,
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        employee = self.get_employee()
+        preset, date_from, date_to = access_range_bounds(self.request, default_preset="today")
+        single_day = date_from == date_to
+        if single_day:
+            flaps = employee_day_flaps(employee, date_from)
+            in_count = sum(1 for e in flaps if e.event_type == "in")
+            out_count = len(flaps) - in_count
+            days = []
+        else:
+            flaps = []
+            days = employee_attendance_days(employee, date_from, date_to)
+            in_count = out_count = 0
+        ctx.update(
+            {
+                "employee": employee,
+                "days": days,
+                "flaps": flaps,
+                "single_day": single_day,
+                "preset": preset,
+                "date_from": date_from,
+                "date_to": date_to,
+                "present_days": len(days) if not single_day else (1 if flaps else 0),
+                "in_count": in_count,
+                "out_count": out_count,
+                "today": timezone.localdate(),
             }
         )
         return ctx
@@ -550,7 +635,7 @@ class ReportsView(RoleRequiredMixin, TemplateView):
                 "open_count": len(open_tickets),
                 "sla_risk_count": sum(1 for t in open_tickets if t.sla_risk),
                 "guest_count": GuestVisit.objects.filter(scheduled_for=timezone.localdate()).count(),
-                "companies": ResidentCompany.objects.filter(status="active"),
+                "companies": ResidentCompany.objects.filter(status="active", is_internal=False),
                 "occupancy_pct": round(100 * occupied_m2 / total_m2, 1),
                 "vacant_m2": round(vacant_m2, 1),
                 "leases_expiring": Lease.objects.filter(

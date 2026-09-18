@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 import json
 
 from django.db.models import Q
@@ -10,7 +12,15 @@ from apps.comms.models import Announcement, Notification
 from apps.documents.models import Document
 from apps.erp.forms import PortalTicketForm
 from apps.reception.models import GuestVisit
-from apps.residents.models import AccessEventType, ResidentEmployee
+from apps.residents.access import (
+    access_range_bounds,
+    build_employee_access_rows,
+    employee_attendance_days,
+    employee_day_flaps,
+    employee_roster_qs,
+    parse_date,
+)
+from apps.residents.models import ResidentEmployee
 from apps.tickets.models import CLOSED_STATUSES, OPEN_STATUSES, Ticket, TicketAttachment, TicketSubcategory
 from apps.tickets.services import add_message, create_ticket_from_portal
 
@@ -140,30 +150,83 @@ class EmployeeAccessView(ResidentPortalMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         company = self.request.user.resident_company
-        today = timezone.localdate()
-        employees = ResidentEmployee.objects.filter(company=company, is_active=True)
-        rows = []
-        inside = 0
-        left = 0
-        for emp in employees:
-            events = list(emp.access_events.filter(occurred_at__date=today).order_by("occurred_at"))
-            last_in = next((e for e in reversed(events) if e.event_type == AccessEventType.IN), None)
-            last_out = next((e for e in reversed(events) if e.event_type == AccessEventType.OUT), None)
-            status = "Çıxış" if last_out and (not last_in or last_out.occurred_at >= last_in.occurred_at) else "İçəridə"
-            if events:
-                if status == "İçəridə":
-                    inside += 1
-                else:
-                    left += 1
-            rows.append(
+        if not company or company.is_internal:
+            ctx.update(
                 {
-                    "employee": emp,
-                    "in_at": last_in.occurred_at if last_in else None,
-                    "out_at": last_out.occurred_at if last_out else None,
-                    "status": status if events else "—",
+                    "rows": [],
+                    "inside": 0,
+                    "left": 0,
+                    "present": 0,
+                    "roster": "active",
+                    "today": timezone.localdate(),
+                    "selected_date": timezone.localdate(),
+                    "is_today": True,
                 }
             )
-        ctx.update({"rows": rows, "inside": inside, "left": left, "today": today})
+            return ctx
+        today = timezone.localdate()
+        selected_date = parse_date(self.request.GET.get("date"), today)
+        base = ResidentEmployee.objects.filter(company=company).order_by("full_name")
+        employees, roster = employee_roster_qs(base, self.request.GET.get("roster"))
+        rows, inside, left, present = build_employee_access_rows(employees, selected_date)
+        ctx.update(
+            {
+                "rows": rows,
+                "inside": inside,
+                "left": left,
+                "present": present,
+                "roster": roster,
+                "today": today,
+                "selected_date": selected_date,
+                "is_today": selected_date == today,
+            }
+        )
+        return ctx
+
+
+class EmployeeAccessDetailView(ResidentPortalMixin, TemplateView):
+    template_name = "portal/employee_access_detail.html"
+
+    def get_employee(self):
+        company = self.request.user.resident_company
+        return get_object_or_404(
+            ResidentEmployee,
+            pk=self.kwargs["pk"],
+            company=company,
+            company__is_internal=False,
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        employee = self.get_employee()
+        preset, date_from, date_to = access_range_bounds(self.request, default_preset="today")
+        single_day = date_from == date_to
+        if single_day:
+            flaps = employee_day_flaps(employee, date_from)
+            in_count = sum(1 for e in flaps if e.event_type == "in")
+            out_count = len(flaps) - in_count
+            days = []
+        else:
+            flaps = []
+            days = employee_attendance_days(employee, date_from, date_to)
+            in_count = out_count = 0
+        ctx.update(
+            {
+                "employee": employee,
+                "days": days,
+                "flaps": flaps,
+                "single_day": single_day,
+                "preset": preset,
+                "date_from": date_from,
+                "date_to": date_to,
+                "present_days": len(days) if not single_day else (1 if flaps else 0),
+                "in_count": in_count,
+                "out_count": out_count,
+                "today": timezone.localdate(),
+                "list_url_name": "portal:employees",
+                "detail_url_name": "portal:employee_access_detail",
+            }
+        )
         return ctx
 
 

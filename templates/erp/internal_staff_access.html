@@ -1,7 +1,8 @@
-{% extends "portal/base.html" %}
+{% extends "erp/base.html" %}
 {% load i18n %}
-{% block heading %}{% translate "Əməkdaş giriş / çıxış" %}{% endblock %}
+{% block heading %}{% translate "City Point işçiləri — giriş/çıxış" %}{% endblock %}
 {% block content %}
+<p class="cp-meta mb-3">{% translate "Yalnız Admin və Rəhbərlik görə bilər. Keçmiş işçilərin tarixçəsi AxTrax silinsə belə burada qalır." %}</p>
 <div class="cp-tabs mb-3">
   <a class="cp-tab {% if roster == 'active' %}is-active{% endif %}" href="?roster=active&date={{ selected_date|date:'Y-m-d' }}">{% translate "Aktiv" %}</a>
   <a class="cp-tab {% if roster == 'former' %}is-active{% endif %}" href="?roster=former&date={{ selected_date|date:'Y-m-d' }}">{% translate "Keçmiş işçilər" %}</a>
@@ -14,28 +15,22 @@
     <div class="flex gap-2 mt-1" style="align-items:center;">
       <input class="cp-input" id="access-date" type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" onchange="this.form.submit()">
       {% if not is_today %}
-      <a class="cp-btn-ghost" href="{% url 'portal:employees' %}?roster={{ roster }}" style="padding:8px 10px;white-space:nowrap;">{% translate "Bu gün" %}</a>
+      <a class="cp-btn-ghost" href="{% url 'erp:internal_staff_access' %}?roster={{ roster }}" style="padding:8px 10px;white-space:nowrap;">{% translate "Bu gün" %}</a>
       {% endif %}
     </div>
   </form>
   <div class="cp-card p-card-sm">{% translate "İçəridə" %} <strong>{{ inside }}</strong></div>
   <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ left }}</strong></div>
+  <div class="cp-card p-card-sm">{{ company.name }} · {{ rows|length }}</div>
 </div>
-<p class="cp-meta mb-3">
-  {% if roster == 'former' %}
-  {% translate "AxTrax-dan silinmiş / işdən çıxmış işçilər — tarixçə ERP-də saxlanır." %}
-  {% else %}
-  {% translate "İşçinin üzərinə klikləyin — giriş/çıxış tarixçəsini görün." %}
-  {% endif %}
-</p>
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
     <thead><tr><th>{% translate "Əməkdaş" %}</th><th>{% translate "Kart" %}</th><th>{% translate "İşə gəliş" %}</th><th>{% translate "İşdən çıxış" %}</th><th>{% translate "Status" %}</th></tr></thead>
     <tbody>
       {% for row in rows %}
-      <tr class="is-clickable" onclick="window.location='{% url 'portal:employee_access_detail' row.employee.pk %}?range=today&date={{ selected_date|date:'Y-m-d' }}'">
+      <tr class="is-clickable" onclick="window.location='{% url 'erp:internal_staff_access_detail' row.employee.pk %}?range=today&date={{ selected_date|date:'Y-m-d' }}'">
         <td>
-          <a href="{% url 'portal:employee_access_detail' row.employee.pk %}?range=today&date={{ selected_date|date:'Y-m-d' }}">{{ row.employee.full_name }}</a>
+          <a href="{% url 'erp:internal_staff_access_detail' row.employee.pk %}?range=today&date={{ selected_date|date:'Y-m-d' }}">{{ row.employee.full_name }}</a>
           {% if not row.employee.is_active %}<span class="cp-meta"> · {% translate "keçmiş" %}</span>{% endif %}
         </td>
         <td>{{ row.employee.card_number|default:"—" }}</td>
@@ -44,7 +39,7 @@
         <td>{% if not row.employee.is_active %}{% translate "Arxiv" %}{% else %}{{ row.status }}{% endif %}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Əməkdaş yoxdur." %}</td></tr>
+      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "İşçi yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

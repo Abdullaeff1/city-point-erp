@@ -6,6 +6,7 @@ __pycache__/
 venv/
 media/
 staticfiles/
+var/
 *.log
 .DS_Store
 .idea/

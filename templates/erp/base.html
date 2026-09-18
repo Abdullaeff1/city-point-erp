@@ -43,6 +43,9 @@
       {% if nav_reports %}
       <div class="cp-nav-label">{% translate "ANALİTİKA" %}</div>
       <a class="{% nav_active 'reports' %}" href="{% url 'erp:reports' %}"><i data-lucide="bar-chart-3" width="18" height="18"></i><span>{% translate "Hesabatlar" %}</span></a>
+      {% if nav_internal_access %}
+      <a class="{% nav_active 'internal_staff_access' 'internal_staff_access_detail' %}" href="{% url 'erp:internal_staff_access' %}"><i data-lucide="id-card" width="18" height="18"></i><span>{% translate "CP İşçilər" %}</span></a>
+      {% endif %}
       {% endif %}
     </nav>
     <div class="cp-user-bar">

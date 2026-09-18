@@ -333,6 +333,9 @@ a:hover { text-decoration: underline; }
 .cp-table td { padding: 12px; vertical-align: middle; }
 .cp-table tbody tr { border-bottom: 1px solid var(--cp-border); }
 .cp-table tbody tr:last-child { border-bottom: 0; }
+.cp-table tbody tr.is-clickable { cursor: pointer; }
+.cp-table tbody tr.is-clickable:hover { background: rgba(15, 23, 42, 0.03); }
+.access-date-card .cp-input[type="date"] { min-width: 150px; }
 
 .cp-input, select.cp-input, textarea.cp-input {
   width: 100%;

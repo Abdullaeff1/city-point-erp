@@ -129,7 +129,7 @@ class GuestVisitForm(forms.Form):
 
     def __init__(self, *args, company=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["company"].queryset = ResidentCompany.objects.filter(status="active")
+        self.fields["company"].queryset = ResidentCompany.objects.filter(status="active", is_internal=False)
         hosts = ResidentEmployee.objects.filter(is_active=True).select_related("company")
         if company:
             hosts = hosts.filter(company=company)
