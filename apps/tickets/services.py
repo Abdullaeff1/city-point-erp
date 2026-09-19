@@ -194,7 +194,18 @@ def advance_ticket_status(ticket, actor=None):
     return set_ticket_status(ticket, nxt, actor=actor)
 
 
-def create_ticket_from_portal(*, company, requester, ticket_type, category, subcategory, description, space=None, priority_suggestion=""):
+def create_ticket_from_portal(
+    *,
+    company,
+    requester,
+    ticket_type,
+    category,
+    subcategory,
+    description,
+    space=None,
+    priority_suggestion="",
+    related_employee=None,
+):
     """Thin intake: route via subcategory rule, apply SLA, record created event."""
     with transaction.atomic():
         ticket = Ticket(
@@ -209,6 +220,7 @@ def create_ticket_from_portal(*, company, requester, ticket_type, category, subc
             status=TicketStatus.SENT,
             resident_priority_suggestion=priority_suggestion or "",
             priority=TicketPriority.NORMAL,
+            related_employee=related_employee,
         )
         ticket.save()
         route_ticket(ticket, actor=requester, note="created", apply_default_priority=True)

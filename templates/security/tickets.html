@@ -1,0 +1,38 @@
+{% extends "security/base.html" %}
+{% load i18n cp_ui %}
+{% block heading %}{% translate "Təhlükəsizlik ticketləri" %}{% endblock %}
+{% block content %}
+<div class="flex gap-2 mb-4" style="flex-wrap:wrap;">
+  <a class="badge {% if tab == 'open' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=open">{% translate "Açıq" %}</a>
+  <a class="badge {% if tab == 'card-orders' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=card-orders">{% translate "Kart sifarişləri" %}</a>
+  <a class="badge {% if tab == 'all' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=all">{% translate "Hamısı" %}</a>
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Kod" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Alt kateqoriya" %}</th>
+        <th>{% translate "Əməkdaş" %}</th>
+        <th>{% translate "Səviyyə" %}</th>
+        <th>{% translate "Status" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tickets %}
+      <tr>
+        <td><a href="{% url 'security:ticket_detail' t.code %}">{{ t.code }}</a></td>
+        <td>{{ t.company.name }}</td>
+        <td>{{ t.subcategory.name|default:t.category }}</td>
+        <td>{{ t.related_employee.full_name|default:"—" }}</td>
+        <td>{% if t.related_employee %}{{ t.related_employee.get_access_level_display }}{% else %}—{% endif %}</td>
+        <td>{% include "partials/status_badge.html" with value=t.status label=t.get_status_display %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="cp-meta empty-pad">{% translate "Ticket yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

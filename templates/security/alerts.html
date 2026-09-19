@@ -1,0 +1,78 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Bildirişlər" %}{% endblock %}
+{% block content %}
+<div class="flex gap-2 mb-3" style="flex-wrap:wrap;">
+  <a class="badge {% if kind == 'rapid' %}badge-sent{% else %}badge-muted{% endif %}" href="{% url 'security:alerts_rapid' %}?tab={{ tab }}">{% translate "Kart çoxvurma" %}{% if open_rapid_alerts %} ({{ open_rapid_alerts }}){% endif %}</a>
+  <a class="badge {% if kind == 'shaft' %}badge-sent{% else %}badge-muted{% endif %}" href="{% url 'security:alerts_shaft' %}?tab={{ tab }}">{% translate "Şaxta" %}{% if open_shaft_alerts %} ({{ open_shaft_alerts }}){% endif %}</a>
+</div>
+<div class="flex gap-2 mb-4" style="flex-wrap:wrap;">
+  <a class="badge {% if tab == 'open' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=open">{% translate "Açıq" %}</a>
+  <a class="badge {% if tab == 'acked' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=acked">{% translate "Bağlı" %}</a>
+  <a class="badge {% if tab == 'all' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=all">{% translate "Hamısı" %}</a>
+</div>
+
+{% if kind == 'shaft' %}
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Vaxt" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Əməkdaş" %}</th>
+        <th>{% translate "Kart" %}</th>
+        <th>{% translate "Şaxta / oxuyucu adı" %}</th>
+        <th>{% translate "Oxuyucu ID" %}</th>
+        <th>{% translate "Tip" %}</th>
+        <th>{% translate "Status" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in shaft_alerts %}
+      <tr>
+        <td><a href="{% url 'security:shaft_alert_detail' a.pk %}">{{ a.occurred_at|date:"d.m.Y H:i:s" }}</a></td>
+        <td>{{ a.company_name|default:"—" }}</td>
+        <td>{{ a.employee_name }}</td>
+        <td>{{ a.card_number|default:"—" }}</td>
+        <td style="word-break:break-all;font-family:ui-monospace,Consolas,monospace;">{{ a.reader_name|default:"—" }}</td>
+        <td>{% if a.reader_id %}{{ a.reader_id }}{% else %}—{% endif %}</td>
+        <td>{% if a.event_type == "in" %}{% translate "Giriş" %}{% else %}{% translate "Çıxış" %}{% endif %}</td>
+        <td>{% if a.acknowledged_at %}{% translate "Bağlı" %}{% else %}{% translate "Açıq" %}{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="cp-meta empty-pad">{% translate "Bildiriş yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Vaxt" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Əməkdaş" %}</th>
+        <th>{% translate "Kart" %}</th>
+        <th>{% translate "Say" %}</th>
+        <th>{% translate "Status" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in alerts %}
+      <tr>
+        <td><a href="{% url 'security:alert_detail' a.pk %}">{{ a.created_at|date:"d.m.Y H:i" }}</a></td>
+        <td>{{ a.company_name|default:"—" }}</td>
+        <td>{{ a.employee_name }}</td>
+        <td>{{ a.card_number|default:"—" }}</td>
+        <td><strong>{{ a.swipe_count }}</strong></td>
+        <td>{% if a.acknowledged_at %}{% translate "Bağlı" %}{% else %}{% translate "Açıq" %}{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="cp-meta empty-pad">{% translate "Bildiriş yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

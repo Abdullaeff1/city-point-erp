@@ -110,7 +110,9 @@ Phase 1 implementation: **`AxTraxNgReadAdapter.fetch_events`** + management comm
 ## Recommended next implementation steps
 
 1. Env: `TURNSTILE_MSSQL_*` / `TURNSTILE_MSSQL_PASSWORD` (never commit secrets).
-2. People: `python manage.py sync_axtrax_people --file=var/axtrax_people.json`
+2. People: `powershell -File bin/dev/export_axtrax_people.ps1` then
+   `python manage.py sync_axtrax_people --file=var/axtrax_people.json`
+   (`access_level`: AxTrax `IdAccessGroup` → turn_back oxuyucusu varsa **2**, yoxsa **1**)
 3. Events poll (default **15 saniyə**):
    ```powershell
    $env:TURNSTILE_MSSQL_PASSWORD = '***'

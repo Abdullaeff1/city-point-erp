@@ -1,0 +1,31 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Təhlükəsizlik paneli" %}{% endblock %}
+{% block content %}
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  <div class="cp-card p-card-sm">{% translate "Şirkət" %} <strong>{{ company_count }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Aktiv əməkdaş" %} <strong>{{ employee_count }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Açıq ticket" %} <strong>{{ open_security_tickets }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Kart sifarişi" %} <strong>{{ open_card_orders }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Kart çoxvurma" %} <strong>{{ open_rapid_alerts }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Şaxta" %} <strong>{{ open_shaft_alerts }}</strong></div>
+</div>
+<div class="flex gap-2" style="flex-wrap:wrap;">
+  <a class="cp-btn" href="{% url 'security:companies' %}">{% translate "Şirkətlər" %}</a>
+  <a class="cp-btn-ghost" href="{% url 'security:alerts_rapid' %}">{% translate "Kart çoxvurma" %}{% if open_rapid_alerts %} ({{ open_rapid_alerts }}){% endif %}</a>
+  <a class="cp-btn-ghost" href="{% url 'security:alerts_shaft' %}">{% translate "Şaxta bildirişləri" %}{% if open_shaft_alerts %} ({{ open_shaft_alerts }}){% endif %}</a>
+  <a class="cp-btn-ghost" href="{% url 'security:tickets' %}?tab=card-orders">{% translate "Kart sifarişləri" %}</a>
+  <a class="cp-btn-ghost" href="{% url 'security:tickets' %}">{% translate "Bütün təhlükəsizlik ticketləri" %}</a>
+</div>
+<p class="cp-meta mt-4">
+  {% translate "Səviyyə AxTraxNG-dən oxunur." %}
+  {% translate "Səviyyə 1" %}: {% translate "arxa turniket (turn_back) yox" %}.
+  {% translate "Səviyyə 2" %}: {% translate "turn_back icazəli" %}.
+</p>
+<p class="cp-meta mt-2">
+  {% translate "Kart 60 saniyə ərzində 1-ci mərtəbə (F1) turniketində 3 və daha çox dəfə vurulanda bildiriş yaranır." %}
+</p>
+<p class="cp-meta mt-2">
+  {% translate "Adı Shaft ilə başlayan oxuyucuda kart vurulanda şaxta bildirişi yaranır." %}
+</p>
+{% endblock %}

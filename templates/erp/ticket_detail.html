@@ -24,6 +24,21 @@
       <p class="mt-1" style="font-weight:600;">{{ ticket.company.name }}{% if ticket.requester %} · {{ ticket.requester.display_name }}{% endif %}</p>
       <div class="cp-meta mt-3">{% translate "Təsvir" %}</div>
       <p class="cp-body-text mt-2">{{ ticket.description }}</p>
+      {% if ticket.related_employee %}
+      <div class="cp-meta mt-3">{% translate "Əməkdaş (kart sifarişi)" %}</div>
+      <p class="mt-1" style="font-weight:600;">{{ ticket.related_employee.full_name }}</p>
+      <p class="cp-meta mt-1">
+        {% translate "Kart" %}:
+        {% if ticket.related_employee.card_number %}{{ ticket.related_employee.card_number }}
+        {% else %}{% translate "hələ təyin olunmayıb" %}{% endif %}
+        · {% translate "Səviyyə" %}: {{ ticket.related_employee.get_access_level_display }}
+      </p>
+      {% if ticket.related_employee.id_document %}
+      <p class="mt-2">
+        <a href="{{ ticket.related_employee.id_document.url }}" target="_blank" rel="noopener">{% translate "Şəxsiyyət vəsiqəsi" %}</a>
+      </p>
+      {% endif %}
+      {% endif %}
       {% if ticket.enrichment_notes %}
       <div class="cp-meta mt-3">{% translate "Şöbə qeydləri" %}</div>
       <p class="cp-body-text mt-2">{{ ticket.enrichment_notes }}</p>

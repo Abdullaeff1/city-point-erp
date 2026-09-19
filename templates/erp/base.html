@@ -20,7 +20,7 @@
       <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
       {% endif %}
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span>{% translate "Sahələr" %}</span></a>{% endif %}
-      {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span>{% translate "Rezidentlər" %}</span></a>{% endif %}
+      {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span>{% translate "Rezidentlər" %}</span><span class="badge badge-muted" style="margin-left:auto;">{{ resident_count }}</span></a>{% endif %}
       {% if nav_parties %}<a class="{% nav_active 'parties' %}" href="{% url 'erp:parties' %}"><i data-lucide="building" width="18" height="18"></i><span>{% translate "Parties" %}</span></a>{% endif %}
       {% if nav_leases %}<a class="{% nav_active 'leases' 'lease_detail' %}" href="{% url 'erp:leases' %}"><i data-lucide="file-signature" width="18" height="18"></i><span>Leases</span></a>{% endif %}
       {% if nav_crm %}

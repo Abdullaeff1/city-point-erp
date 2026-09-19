@@ -1,0 +1,69 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Kart çoxvurma" %} #{{ alert.pk }}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3" style="margin-top:-8px;">
+  <a href="{% url 'security:alerts' %}">← {% translate "Bildirişlər" %}</a>
+</p>
+<div class="cp-card p-card mb-4">
+  <div class="cp-meta">{% translate "Əməkdaş" %}</div>
+  <p style="font-weight:600;">
+    <a href="{% url 'security:employee_access' alert.employee_id %}">{{ alert.employee_name }}</a>
+  </p>
+  <div class="cp-meta mt-3">{% translate "Şirkət" %}</div>
+  <p style="font-weight:600;">{{ alert.company_name|default:"—" }}</p>
+  <div class="cp-meta mt-3">{% translate "Kart nömrəsi" %}</div>
+  <p style="font-weight:600;">{{ alert.card_number|default:"—" }}</p>
+  {% if alert.employee.access_level %}
+  <div class="cp-meta mt-3">{% translate "Kart səviyyəsi" %}</div>
+  <p>{{ alert.employee.get_access_level_display }}</p>
+  {% endif %}
+  <div class="flex gap-3 mt-3" style="flex-wrap:wrap;">
+    <div class="cp-card p-card-sm">{% translate "Vurulma sayı" %} <strong>{{ alert.swipe_count }}</strong></div>
+    <div class="cp-card p-card-sm">{% translate "Pəncərə başlanğıc" %} <strong>{{ alert.window_start|date:"d.m.Y H:i:s" }}</strong></div>
+    <div class="cp-card p-card-sm">{% translate "Pəncərə son" %} <strong>{{ alert.window_end|date:"d.m.Y H:i:s" }}</strong></div>
+  </div>
+  {% if alert.acknowledged_at %}
+  <p class="cp-meta mt-3">
+    {% translate "Bağlandı" %}: {{ alert.acknowledged_at|date:"d.m.Y H:i" }}
+    {% if alert.acknowledged_by %} · {{ alert.acknowledged_by.display_name }}{% endif %}
+  </p>
+  {% else %}
+  <form method="post" action="{% url 'security:alert_ack' alert.pk %}" class="mt-3">
+    {% csrf_token %}
+    <button class="cp-btn" type="submit">{% translate "Bağla / oxundu" %}</button>
+  </form>
+  {% endif %}
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <div class="cp-section" style="padding:12px 16px 0;font-size:16px;">{% translate "Vurulmalar" %}</div>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>{% translate "Saat" %}</th>
+        <th>{% translate "Tip" %}</th>
+        <th>{% translate "Oxuyucu adı" %}</th>
+        <th>{% translate "Oxuyucu ID" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in swipes %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ s.at_display }}</td>
+        <td>
+          {% if s.event_type == "in" %}{% translate "Giriş" %}
+          {% elif s.event_type == "out" %}{% translate "Çıxış" %}
+          {% else %}{{ s.event_type }}{% endif %}
+        </td>
+        <td style="word-break:break-all;font-family:ui-monospace,Consolas,monospace;">{{ s.reader_name|default:"—" }}</td>
+        <td>{% if s.reader_id %}{{ s.reader_id }}{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Məlumat yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

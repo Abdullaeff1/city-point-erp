@@ -1,4 +1,5 @@
 from django import forms
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from apps.property.models import Floor, Space
@@ -6,6 +7,45 @@ from apps.reception.models import VisitorType
 from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.tickets.models import Ticket, TicketCategory, TicketPriority, TicketSubcategory, TicketType
 from apps.tickets.services import allowed_resident_priorities
+
+
+class PortalEmployeeCreateForm(forms.Form):
+    full_name = forms.CharField(
+        max_length=160,
+        label=_("Əməkdaşın adı"),
+        widget=forms.TextInput(attrs={"class": "cp-input", "placeholder": _("Ad Soyad")}),
+    )
+    access_level = forms.ChoiceField(
+        label=_("İstənilən kart səviyyəsi"),
+        choices=[
+            ("1", _("Səviyyə 1 — arxa turniket (turn_back) yox")),
+            ("2", _("Səviyyə 2 — arxa turniket (turn_back) icazəli")),
+        ],
+        initial="1",
+        widget=forms.RadioSelect,
+        help_text=_("Kart sifarişi üçün. Faktiki səviyyə AxTraxNG-də təyin olunandan sonra sync ilə gəlir."),
+    )
+    id_document = forms.FileField(
+        label=_("Şəxsiyyət vəsiqəsi"),
+        help_text=_("PDF, JPG və ya PNG (maks. 10 MB)."),
+        widget=forms.ClearableFileInput(attrs={"class": "cp-input", "accept": ".pdf,.jpg,.jpeg,.png"}),
+    )
+
+    def clean_full_name(self):
+        value = (self.cleaned_data.get("full_name") or "").strip()
+        if not value:
+            raise forms.ValidationError(_("Əməkdaşın adı mütləqdir."))
+        return value
+
+    def clean_id_document(self):
+        from apps.residents.services import validate_id_document
+
+        uploaded = self.cleaned_data.get("id_document")
+        try:
+            validate_id_document(uploaded)
+        except ValidationError as exc:
+            raise forms.ValidationError(exc.messages)
+        return uploaded
 
 
 class PortalTicketForm(forms.ModelForm):

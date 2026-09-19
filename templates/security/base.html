@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load i18n cp_ui %}
+{% block title %}{% block page_title %}{% translate "Təhlükəsizlik" %}{% endblock %} · City Point{% endblock %}
+{% block body %}
+<div class="cp-shell">
+  <aside class="cp-sidebar">
+    <div class="cp-brand">
+      <div class="cp-brand-kicker">CITY POINT</div>
+      <div class="cp-brand-sub">{% translate "Təhlükəsizlik" %}</div>
+    </div>
+    <nav class="cp-nav">
+      <a class="{% nav_active 'home' %}" href="{% url 'security:home' %}"><i data-lucide="shield" width="18" height="18"></i><span class="cp-nav-text">{% translate "Əsas" %}</span></a>
+      <a class="{% nav_active 'alerts' 'alert_detail' 'shaft_alert_detail' %}" href="{% url 'security:alerts' %}"><i data-lucide="bell" width="18" height="18"></i><span class="cp-nav-text">{% translate "Bildirişlər" %}</span>{% if open_security_alerts %}<span class="badge badge-muted" style="margin-left:auto;background:var(--cp-accent);color:var(--cp-primary-dark);">{{ open_security_alerts }}</span>{% endif %}</a>
+      <a class="{% nav_active 'companies' 'company_employees' 'employee_access' %}" href="{% url 'security:companies' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Şirkətlər" %}</span></a>
+      <a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'security:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Ticketlər" %}</span></a>
+    </nav>
+    <div class="cp-user-bar">
+      <div class="cp-avatar">{{ user.initials }}</div>
+      <div class="cp-user-meta min-0 flex-1">
+        <div class="cp-user-name">{{ user.display_name }}</div>
+        <div class="cp-user-role">{{ user.get_role_display }}</div>
+      </div>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+        <button class="cp-btn-ghost" title="{% translate 'Çıxış' %}" style="color:rgba(255,255,255,0.7);"><i data-lucide="log-out" width="16" height="16"></i></button>
+      </form>
+    </div>
+  </aside>
+  <main class="cp-main">
+    <header class="cp-header">
+      <div>
+        <p class="cp-meta">CITY POINT · {% translate "Təhlükəsizlik" %}</p>
+        <h1 class="cp-title">{% block heading %}{% endblock %}</h1>
+      </div>
+      <form action="{% url 'set_language' %}" method="post" class="cp-lang">
+        {% csrf_token %}
+        <input name="next" type="hidden" value="{{ request.get_full_path }}">
+        <select name="language" onchange="this.form.submit()" style="border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;">
+          {% get_current_language as LANGUAGE_CODE %}
+          {% get_available_languages as LANGUAGES %}
+          {% for lang_code, lang_name in LANGUAGES %}
+            <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>{{ lang_code|upper }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </header>
+    <div class="cp-content">
+      {% if messages %}
+      <ul class="mb-4" style="list-style:none;padding:0;">
+        {% for message in messages %}
+        <li class="cp-card p-card-sm mb-2">{{ message }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+<script>lucide.createIcons();</script>
+{% endblock %}

@@ -229,6 +229,7 @@ class Command(BaseCommand):
             "desk": ("desk@citypoint.az", "Service Desk", Role.SERVICE_DESK, "desk123"),
             "fm": ("fm@citypoint.az", "Property FM", Role.PROPERTY_FM, "fm123"),
             "manager": ("manager@citypoint.az", "Rəhbərlik", Role.MANAGEMENT, "manager123"),
+            "security": ("security@citypoint.az", "Təhlükəsizlik", Role.SECURITY, "security123"),
         }
         created_users = {}
         for uname, (email, first, role, password) in staff_map.items():
@@ -557,3 +558,4 @@ class Command(BaseCommand):
         self.stdout.write("ERP admin: admin@citypoint.az / admin123")
         self.stdout.write("Reception: reception@citypoint.az / reception123")
         self.stdout.write("Service Desk: desk@citypoint.az / desk123")
+        self.stdout.write("Security: security@citypoint.az / security123 → /security/")

@@ -308,7 +308,14 @@ class TicketListView(RoleRequiredMixin, ListView):
 
     def get_queryset(self):
         qs = Ticket.objects.select_related(
-            "category", "subcategory", "company", "space", "assignee", "queue", "department"
+            "category",
+            "subcategory",
+            "company",
+            "space",
+            "assignee",
+            "queue",
+            "department",
+            "related_employee",
         )
         tab = self.request.GET.get("tab", "all")
         if tab == "open":
@@ -320,6 +327,10 @@ class TicketListView(RoleRequiredMixin, ListView):
             qs = qs.filter(assignee=self.request.user)
         elif tab == "queue":
             qs = qs.filter(assignee__isnull=True, status__in=OPEN_STATUSES)
+        elif tab == "card-orders":
+            qs = qs.filter(subcategory__slug="card-order")
+        if self.request.GET.get("department") == "security":
+            qs = qs.filter(department__code="security")
         return qs
 
     def get_context_data(self, **kwargs):
@@ -343,6 +354,7 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
                 "queue",
                 "department",
                 "opportunity",
+                "related_employee",
             ).prefetch_related("attachments", "messages", "routing_events"),
             code=self.kwargs["code"],
         )

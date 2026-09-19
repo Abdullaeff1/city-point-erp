@@ -14,7 +14,7 @@ from django.utils.text import slugify
 
 from apps.integrations.models import ExternalIdentity, SyncLog, SyncStatus
 from apps.parties.services import PartyService
-from apps.residents.models import CompanyStatus, ResidentCompany, ResidentEmployee
+from apps.residents.models import AccessLevel, CompanyStatus, ResidentCompany, ResidentEmployee
 
 AXTRAX_SYSTEM = "axtraxng"
 
@@ -62,6 +62,67 @@ def resolve_badge_number(row: dict) -> str:
         row.get("last_name") or "",
     )
     return from_name
+
+
+def access_level_from_axtrax(
+    *,
+    has_turn_back: bool | None = None,
+    access_group_name: str = "",
+) -> str:
+    """Map AxTrax access group → ERP level.
+
+    Level 2 = arxa turniket (turn_back / Back readers) icazəli;
+    Level 1 = yox.
+    """
+    if has_turn_back is True:
+        return AccessLevel.LEVEL_2
+    if has_turn_back is False:
+        return AccessLevel.LEVEL_1
+    name = (access_group_name or "").casefold()
+    if "back" in name:
+        return AccessLevel.LEVEL_2
+    return AccessLevel.LEVEL_1
+
+
+def _build_access_group_lookup(payload: dict) -> dict[int, dict]:
+    """id → {name, has_turn_back} from export `access_groups` list."""
+    lookup: dict[int, dict] = {}
+    for raw in payload.get("access_groups") or []:
+        try:
+            gid = int(raw.get("id") or raw.get("access_group_id"))
+        except (TypeError, ValueError):
+            continue
+        name = (raw.get("name") or raw.get("access_group_name") or "").strip()
+        has_tb = raw.get("has_turn_back")
+        if has_tb is None:
+            has_tb = "back" in name.casefold()
+        else:
+            has_tb = bool(has_tb)
+        lookup[gid] = {"name": name, "has_turn_back": has_tb}
+    return lookup
+
+
+def resolve_access_level_for_row(row: dict, group_lookup: dict[int, dict] | None = None) -> str | None:
+    """Return AccessLevel value when export carries enough group info; else None."""
+    if "has_turn_back" in row and row.get("has_turn_back") is not None:
+        return access_level_from_axtrax(has_turn_back=bool(row.get("has_turn_back")))
+    name = (row.get("access_group_name") or "").strip()
+    if name:
+        return access_level_from_axtrax(access_group_name=name)
+    gid_raw = row.get("access_group_id")
+    if gid_raw is None or group_lookup is None:
+        return None
+    try:
+        gid = int(gid_raw)
+    except (TypeError, ValueError):
+        return None
+    meta = group_lookup.get(gid)
+    if not meta:
+        return None
+    return access_level_from_axtrax(
+        has_turn_back=meta.get("has_turn_back"),
+        access_group_name=meta.get("name") or "",
+    )
 
 
 def clean_person_name(first_name: str, middle_name: str, last_name: str) -> str:
@@ -117,10 +178,19 @@ def _group_rows(rows: list[dict]) -> dict[int, dict]:
                 "is_enabled": bool(row.get("is_enabled", True)),
                 "badge_number": "",
                 "card_code": "",
+                "access_group_id": row.get("access_group_id"),
+                "access_group_name": row.get("access_group_name") or "",
+                "has_turn_back": row.get("has_turn_back"),
             },
         )
         if not emp.get("identification") and row.get("identification"):
             emp["identification"] = row.get("identification") or ""
+        if emp.get("access_group_id") is None and row.get("access_group_id") is not None:
+            emp["access_group_id"] = row.get("access_group_id")
+        if not emp.get("access_group_name") and row.get("access_group_name"):
+            emp["access_group_name"] = row.get("access_group_name") or ""
+        if emp.get("has_turn_back") is None and row.get("has_turn_back") is not None:
+            emp["has_turn_back"] = row.get("has_turn_back")
         badge = resolve_badge_number(row)
         if badge and not emp["badge_number"]:
             emp["badge_number"] = badge
@@ -203,15 +273,39 @@ def _resolve_company(department_id: int, department_name: str) -> tuple[Resident
     return company, created
 
 
+def _normalize_person_name(name: str) -> str:
+    return _MULTISPACE_RE.sub(" ", (name or "").strip().lower())
+
+
+def _find_unlinked_employee_by_name(company: ResidentCompany, full_name: str):
+    """Portal-created employees have no AxTrax ExternalIdentity yet — match by name."""
+    ct = ContentType.objects.get_for_model(ResidentEmployee)
+    linked_ids = ExternalIdentity.objects.filter(
+        system=AXTRAX_SYSTEM,
+        external_id__startswith="emp:",
+        entity_type=ct,
+        entity_id__in=ResidentEmployee.objects.filter(company=company).values_list("id", flat=True),
+    ).values_list("entity_id", flat=True)
+    target = _normalize_person_name(full_name)
+    if not target:
+        return None
+    for emp in ResidentEmployee.objects.filter(company=company).exclude(pk__in=linked_ids):
+        if _normalize_person_name(emp.full_name) == target:
+            return emp
+    return None
+
+
 @transaction.atomic
 def sync_people_from_export(path: Path) -> dict:
     payload = load_export(path)
     rows = payload.get("rows") or []
     departments = _group_rows(rows)
+    group_lookup = _build_access_group_lookup(payload)
 
     stats = defaultdict(int)
     stats["departments_in_file"] = len(departments)
     stats["employee_rows_in_file"] = len(rows)
+    stats["access_groups_in_file"] = len(group_lookup)
 
     for dept in departments.values():
         company, created = _resolve_company(dept["department_id"], dept["department_name"])
@@ -229,6 +323,8 @@ def sync_people_from_export(path: Path) -> dict:
             if identity:
                 employee = ResidentEmployee.objects.filter(pk=identity.entity_id).first()
 
+            level = resolve_access_level_for_row(emp, group_lookup)
+
             if employee:
                 employee.company = company
                 employee.full_name = full_name
@@ -242,17 +338,40 @@ def sync_people_from_export(path: Path) -> dict:
                     employee.deactivated_at = None
                 elif (not now_active) and was_active and employee.deactivated_at is None:
                     employee.deactivated_at = timezone.now()
+                if level is not None and employee.access_level != level:
+                    employee.access_level = level
+                    stats["access_levels_updated"] += 1
                 employee.save()
                 stats["employees_updated"] += 1
             else:
-                employee = ResidentEmployee.objects.create(
-                    company=company,
-                    full_name=full_name,
-                    card_number=emp.get("badge_number") or "",
-                    is_active=bool(emp["is_enabled"]),
-                    deactivated_at=None if emp["is_enabled"] else timezone.now(),
-                )
-                stats["employees_created"] += 1
+                employee = _find_unlinked_employee_by_name(company, full_name)
+                if employee:
+                    employee.full_name = full_name
+                    badge = emp.get("badge_number") or ""
+                    if badge:
+                        employee.card_number = badge
+                    employee.is_active = bool(emp["is_enabled"])
+                    if employee.is_active:
+                        employee.deactivated_at = None
+                    elif employee.deactivated_at is None:
+                        employee.deactivated_at = timezone.now()
+                    if level is not None and employee.access_level != level:
+                        employee.access_level = level
+                        stats["access_levels_updated"] += 1
+                    employee.save()
+                    stats["employees_matched"] += 1
+                else:
+                    employee = ResidentEmployee.objects.create(
+                        company=company,
+                        full_name=full_name,
+                        card_number=emp.get("badge_number") or "",
+                        access_level=level or AccessLevel.LEVEL_1,
+                        is_active=bool(emp["is_enabled"]),
+                        deactivated_at=None if emp["is_enabled"] else timezone.now(),
+                    )
+                    if level is not None:
+                        stats["access_levels_updated"] += 1
+                    stats["employees_created"] += 1
 
             _upsert_external(AXTRAX_SYSTEM, ext_emp, employee)
             PartyService.upsert_person_from_employee(employee)

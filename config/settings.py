@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "apps.accounting.apps.AccountingConfig",
     "apps.api.apps.ApiConfig",
     "apps.portal.apps.PortalConfig",
+    "apps.security.apps.SecurityConfig",
     "apps.erp.apps.ErpConfig",
 ]
 
@@ -62,6 +63,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "apps.accounts.middleware.MustSetPasswordMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -143,3 +145,26 @@ AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "post_login"
 LOGOUT_REDIRECT_URL = "login"
+
+# Email (invite + password reset). Console backend for local/dev.
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@citypoint.az")
+
+# Production HTTPS hardening (enable when behind TLS reverse proxy)
+if not DEBUG:
+    SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "1") == "1"
+    CSRF_COOKIE_SECURE = os.environ.get("CSRF_COOKIE_SECURE", "1") == "1"
+    SECURE_SSL_REDIRECT = os.environ.get("SECURE_SSL_REDIRECT", "0") == "1"
+    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "0"))
+    if os.environ.get("SECURE_PROXY_SSL_HEADER", ""):
+        # e.g. SECURE_PROXY_SSL_HEADER=HTTP_X_FORWARDED_PROTO,https
+        header, value = os.environ["SECURE_PROXY_SSL_HEADER"].split(",", 1)
+        SECURE_PROXY_SSL_HEADER = (header.strip(), value.strip())

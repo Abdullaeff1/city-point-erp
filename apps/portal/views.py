@@ -2,15 +2,18 @@ from datetime import datetime, timedelta
 
 import json
 
+from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
+from django.utils.translation import gettext as _
 from django.views.generic import FormView, ListView, TemplateView
 
 from apps.accounts.mixins import ResidentPortalMixin
 from apps.comms.models import Announcement, Notification
 from apps.documents.models import Document
-from apps.erp.forms import PortalTicketForm
+from apps.erp.forms import PortalEmployeeCreateForm, PortalTicketForm
 from apps.reception.models import GuestVisit
 from apps.residents.access import (
     access_range_bounds,
@@ -21,6 +24,7 @@ from apps.residents.access import (
     parse_date,
 )
 from apps.residents.models import ResidentEmployee
+from apps.residents.services import create_employee_card_order
 from apps.tickets.models import CLOSED_STATUSES, OPEN_STATUSES, Ticket, TicketAttachment, TicketSubcategory
 from apps.tickets.services import add_message, create_ticket_from_portal
 
@@ -169,6 +173,17 @@ class EmployeeAccessView(ResidentPortalMixin, TemplateView):
         base = ResidentEmployee.objects.filter(company=company).order_by("full_name")
         employees, roster = employee_roster_qs(base, self.request.GET.get("roster"))
         rows, inside, left, present = build_employee_access_rows(employees, selected_date)
+        pending_ids = set(
+            Ticket.objects.filter(
+                company=company,
+                subcategory__slug="card-order",
+                status__in=OPEN_STATUSES,
+                related_employee_id__isnull=False,
+            ).values_list("related_employee_id", flat=True)
+        )
+        for row in rows:
+            emp = row["employee"]
+            row["card_pending"] = (not emp.card_number) and (emp.pk in pending_ids)
         ctx.update(
             {
                 "rows": rows,
@@ -179,9 +194,42 @@ class EmployeeAccessView(ResidentPortalMixin, TemplateView):
                 "today": today,
                 "selected_date": selected_date,
                 "is_today": selected_date == today,
+                "can_add_employee": True,
             }
         )
         return ctx
+
+
+class EmployeeCreateView(ResidentPortalMixin, FormView):
+    template_name = "portal/employee_create.html"
+    form_class = PortalEmployeeCreateForm
+
+    def dispatch(self, request, *args, **kwargs):
+        company = request.user.resident_company
+        if not company or company.is_internal:
+            messages.error(request, _("Bu hesab üçün kart sifarişi edilə bilməz."))
+            return redirect("portal:home")
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        company = self.request.user.resident_company
+        try:
+            employee, ticket = create_employee_card_order(
+                company=company,
+                requester=self.request.user,
+                full_name=form.cleaned_data["full_name"],
+                id_document=form.cleaned_data["id_document"],
+                access_level=form.cleaned_data["access_level"],
+            )
+        except ValidationError as exc:
+            form.add_error(None, exc)
+            return self.form_invalid(form)
+        messages.success(
+            self.request,
+            _("“%(name)s” üçün kart sifarişi təhlükəsizliyə göndərildi (%(code)s). Kart AxTrax-da verildikdən sonra siyahıda görünəcək.")
+            % {"name": employee.full_name, "code": ticket.code},
+        )
+        return redirect("portal:employees")
 
 
 class EmployeeAccessDetailView(ResidentPortalMixin, TemplateView):

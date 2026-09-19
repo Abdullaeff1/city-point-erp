@@ -13,6 +13,7 @@ urlpatterns = [
     path("requests/<str:code>/", views.RequestDetailView.as_view(), name="request_detail"),
     path("alerts/", views.AlertsView.as_view(), name="alerts"),
     path("employees/access/", views.EmployeeAccessView.as_view(), name="employees"),
+    path("employees/new/", views.EmployeeCreateView.as_view(), name="employee_create"),
     path(
         "employees/access/<int:pk>/",
         views.EmployeeAccessDetailView.as_view(),

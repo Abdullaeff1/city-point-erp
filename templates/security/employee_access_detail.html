@@ -1,0 +1,62 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{{ employee.full_name }}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3" style="margin-top:-8px;">
+  <a href="{% url 'security:company_employees' company.pk %}">← {{ company.name }}</a>
+  · {% translate "Kart" %}: {{ employee.card_number|default:"—" }}
+  · {{ employee.get_access_level_display }}
+</p>
+<div class="cp-card p-card mb-4">
+  <div class="cp-tabs" style="margin-bottom:12px;">
+    <a class="cp-tab {% if preset == 'today' %}is-active{% endif %}" href="?range=today&date={% if single_day %}{{ date_from|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">{% translate "Günlük" %}</a>
+    <a class="cp-tab {% if preset == 'week' %}is-active{% endif %}" href="?range=week">{% translate "Bu həftə" %}</a>
+    <a class="cp-tab {% if preset == 'month' %}is-active{% endif %}" href="?range=month">{% translate "Bu ay" %}</a>
+  </div>
+  {% if single_day %}
+  <form method="get"><input type="hidden" name="range" value="today"><input class="cp-input" type="date" name="date" value="{{ date_from|date:'Y-m-d' }}" onchange="this.form.submit()"></form>
+  {% else %}
+  <p class="cp-meta">{{ date_from|date:"d.m.Y" }} – {{ date_to|date:"d.m.Y" }}</p>
+  {% endif %}
+</div>
+{% if single_day %}
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  <div class="cp-card p-card-sm">{% translate "Giriş" %} <strong>{{ in_count }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ out_count }}</strong></div>
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Saat" %}</th><th>{% translate "Tip" %}</th><th>{% translate "Oxuyucu adı" %}</th></tr></thead>
+    <tbody>
+      {% for e in flaps %}
+      <tr>
+        <td>{{ e.occurred_at|time:"H:i:s" }}</td>
+        <td>{% if e.event_type == "in" %}{% translate "Giriş" %}{% else %}{% translate "Çıxış" %}{% endif %}</td>
+        <td style="word-break:break-all;font-family:ui-monospace,Consolas,monospace;">{{ e.reader_name|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="cp-meta empty-pad">{% translate "Hadisə yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Tarix" %}</th><th>{% translate "İşə gəliş" %}</th><th>{% translate "İşdən çıxış" %}</th><th>{% translate "Status" %}</th></tr></thead>
+    <tbody>
+      {% for d in days %}
+      <tr>
+        <td><a href="?range=today&date={{ d.date|date:'Y-m-d' }}">{{ d.date|date:"d.m.Y" }}</a></td>
+        <td>{% if d.in_at %}{{ d.in_at|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if d.out_at %}{{ d.out_at|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{{ d.status }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="cp-meta empty-pad">{% translate "Məlumat yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

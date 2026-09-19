@@ -1,0 +1,37 @@
+{% extends "portal/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Yeni kart sifarişi" %}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3" style="margin-top:-8px;">
+  <a href="{% url 'portal:employees' %}">← {% translate "Əməkdaşlar" %}</a>
+</p>
+<div class="cp-card p-card" style="max-width:520px;">
+  <p class="cp-meta mb-3">
+    {% translate "Bu, AxTrax-da kart verilənə qədər sifarişdir. Kart nömrəsi soruşulmur; şəxsiyyət vəsiqəsi təhlükəsizliyə göndərilir. Kart AxTrax-da verildikdən sonra əməkdaş siyahıya avtomatik düşür." %}
+  </p>
+  <form method="post" enctype="multipart/form-data" class="flex-col gap-3">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+    <div class="badge badge-urgent" style="display:block;border-radius:10px;padding:10px 12px;">{{ form.non_field_errors|striptags }}</div>
+    {% endif %}
+    <label>
+      <span class="cp-meta">{{ form.full_name.label }}</span>
+      {{ form.full_name }}
+      {% if form.full_name.errors %}<p class="cp-meta" style="color:#b91c1c;">{{ form.full_name.errors|striptags }}</p>{% endif %}
+    </label>
+    <fieldset class="mt-1">
+      <legend class="cp-meta">{{ form.access_level.label }}</legend>
+      {% if form.access_level.help_text %}<p class="cp-meta mb-2">{{ form.access_level.help_text }}</p>{% endif %}
+      {{ form.access_level }}
+      {% if form.access_level.errors %}<p class="cp-meta" style="color:#b91c1c;">{{ form.access_level.errors|striptags }}</p>{% endif %}
+    </fieldset>
+    <label>
+      <span class="cp-meta">{{ form.id_document.label }}</span>
+      {{ form.id_document }}
+      {% if form.id_document.help_text %}<p class="cp-meta mt-1">{{ form.id_document.help_text }}</p>{% endif %}
+      {% if form.id_document.errors %}<p class="cp-meta" style="color:#b91c1c;">{{ form.id_document.errors|striptags }}</p>{% endif %}
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Kart sifariş et" %}</button>
+  </form>
+</div>
+{% endblock %}

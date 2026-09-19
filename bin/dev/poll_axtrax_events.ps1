@@ -49,6 +49,7 @@ SELECT TOP 5000
   e.dtEventReal AS occurred_at,
   ISNULL(r.bReaderOut, 0) AS reader_out,
   e.IdReader AS reader_id,
+  LTRIM(RTRIM(ISNULL(r.tDescReader, ''))) AS reader_name,
   e.iEventType AS event_type
 FROM tblEvents e
 LEFT JOIN tblReader r ON r.IdReader = e.IdReader
@@ -72,6 +73,7 @@ ORDER BY e.IdAutoEvents
                 occurred_at = $occurred
                 reader_out = [bool]$r["reader_out"]
                 reader_id = if ($r["reader_id"] -is [DBNull]) { $null } else { [int]$r["reader_id"] }
+                reader_name = [string]$r["reader_name"]
                 event_type = [int]$r["event_type"]
             })
         }

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% translate "Dəvət etibarsızdır" %} · City Point{% endblock %}
+{% block body %}
+<div class="login-form-wrap" style="min-height:100vh;display:flex;align-items:center;justify-content:center;">
+  <div class="cp-card login-card">
+    <h2 class="cp-section">{% translate "Link etibarsızdır və ya vaxtı bitib" %}</h2>
+    <p class="cp-meta mt-3">{% translate "City Point Admin-dən yeni dəvət istəyin və ya şifrə bərpasından istifadə edin." %}</p>
+    <p class="mt-4"><a class="cp-btn" href="{% url 'login' %}">{% translate "Girişə qayıt" %}</a></p>
+  </div>
+</div>
+{% endblock %}

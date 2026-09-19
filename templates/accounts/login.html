@@ -42,6 +42,9 @@
           <input class="cp-input mt-1" type="password" name="password" required>
         </label>
         <button class="cp-btn w-full mt-2" type="submit">{% translate "Daxil ol" %}</button>
+        <p class="cp-meta mt-3" style="text-align:center;">
+          <a href="{% url 'accounts:password_reset' %}">{% translate "Şifrəni unutmusunuz?" %}</a>
+        </p>
       </form>
     </div>
   </section>

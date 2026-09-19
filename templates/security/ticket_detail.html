@@ -1,0 +1,36 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{{ ticket.code }}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3" style="margin-top:-8px;">
+  <a href="{% url 'security:tickets' %}">← {% translate "Ticketlər" %}</a>
+  · {{ ticket.subcategory.name|default:ticket.category }}
+</p>
+<div class="cp-card p-card mb-4">
+  <div class="cp-meta">{% translate "Şirkət" %}</div>
+  <p style="font-weight:600;">{{ ticket.company.name }}</p>
+  <div class="cp-meta mt-3">{% translate "Təsvir" %}</div>
+  <p class="cp-body-text mt-2" style="white-space:pre-wrap;">{{ ticket.description }}</p>
+  {% if ticket.related_employee %}
+  <div class="cp-meta mt-3">{% translate "Əməkdaş" %}</div>
+  <p style="font-weight:600;">
+    <a href="{% url 'security:employee_access' ticket.related_employee.pk %}">{{ ticket.related_employee.full_name }}</a>
+  </p>
+  <p class="cp-meta">{{ ticket.related_employee.get_access_level_display }} · {% translate "Kart" %}: {{ ticket.related_employee.card_number|default:"—" }}</p>
+  <p class="cp-meta mt-1">{% translate "Səviyyə AxTraxNG access group-dan oxunur (əl ilə dəyişilmir)." %}</p>
+  {% if ticket.related_employee.id_document %}
+  <p class="mt-2"><a href="{{ ticket.related_employee.id_document.url }}" target="_blank" rel="noopener">{% translate "Şəxsiyyət vəsiqəsi" %}</a></p>
+  {% endif %}
+  {% endif %}
+</div>
+<div class="cp-card p-card">
+  <div class="cp-section" style="font-size:16px;">{% translate "Əlavələr" %}</div>
+  <ul class="mt-3 flex-col gap-2">
+    {% for a in ticket.attachments.all %}
+    <li><a href="{{ a.file.url }}" target="_blank" rel="noopener">{{ a.file.name }}</a></li>
+    {% empty %}
+    <li class="cp-meta">{% translate "Fayl yoxdur." %}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

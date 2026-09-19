@@ -226,6 +226,14 @@ class Ticket(models.Model):
         on_delete=models.SET_NULL,
         related_name="source_tickets",
     )
+    related_employee = models.ForeignKey(
+        "residents.ResidentEmployee",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="card_order_tickets",
+        help_text="Kart sifarişi / əməkdaş onboarding ticket-i",
+    )
     sla_due_at = models.DateTimeField(null=True, blank=True)
     sla_paused_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

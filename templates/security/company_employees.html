@@ -1,0 +1,52 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{{ company.name }}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3" style="margin-top:-8px;">
+  <a href="{% url 'security:companies' %}">← {% translate "Şirkətlər" %}</a>
+</p>
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;align-items:end;">
+  <form method="get" class="cp-card p-card-sm" style="margin:0;">
+    <label class="cp-meta" for="d">{% translate "Tarix" %}</label>
+    <input class="cp-input mt-1" id="d" type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" onchange="this.form.submit()">
+  </form>
+  <div class="cp-card p-card-sm">{% translate "İçəridə" %} <strong>{{ inside }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ left }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Gələn" %} <strong>{{ present }}</strong></div>
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Əməkdaş" %}</th>
+        <th>{% translate "Kart" %}</th>
+        <th>{% translate "Səviyyə" %}</th>
+        <th>{% translate "İşə gəliş" %}</th>
+        <th>{% translate "İşdən çıxış" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>
+          <a href="{% url 'security:employee_access' row.employee.pk %}?range=today&date={{ selected_date|date:'Y-m-d' }}">{{ row.employee.full_name }}</a>
+        </td>
+        <td>{{ row.employee.card_number|default:"—" }}</td>
+        <td>
+          <strong>{{ row.employee.access_level }}</strong>
+          <span class="cp-meta">{{ row.employee.get_access_level_display }}</span>
+        </td>
+        <td>{% if row.in_at %}{{ row.in_at|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if row.out_at %}{{ row.out_at|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{{ row.status }}</td>
+        <td><a class="cp-meta" href="{% url 'security:employee_access' row.employee.pk %}">{% translate "Detal" %}</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="cp-meta empty-pad">{% translate "Əməkdaş yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

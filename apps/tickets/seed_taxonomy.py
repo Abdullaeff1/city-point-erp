@@ -97,6 +97,7 @@ def seed_ticket_taxonomy():
                 ("security-incident", "Təhlükəsizlik hadisəsi", "security", TicketPriority.CRITICAL, False, False, 0),
                 ("suspicious", "Şübhəli hal", "security", TicketPriority.HIGH, False, False, 0),
                 ("access-fault", "Access problemi (nasazlıq)", "security", TicketPriority.HIGH, True, False, 0),
+                ("card-order", "Yeni əməkdaş — kart sifarişi", "security", TicketPriority.NORMAL, False, False, 0),
             ],
         ),
         (

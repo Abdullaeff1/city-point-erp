@@ -1,7 +1,7 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
 
-from apps.accounts.models import Role, STAFF_ROLES
+from apps.accounts.models import Role, STAFF_ROLES, SECURITY_PORTAL_ROLES
 
 
 class StaffRequiredMixin(LoginRequiredMixin):
@@ -24,8 +24,17 @@ class ResidentPortalMixin(LoginRequiredMixin):
         return super().dispatch(request, *args, **kwargs)
 
 
+class SecurityPortalMixin(LoginRequiredMixin):
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if not request.user.can_access_security_portal():
+            raise PermissionDenied("Təhlükəsizlik portalına giriş icazəniz yoxdur.")
+        return super().dispatch(request, *args, **kwargs)
+
+
 class RoleRequiredMixin(StaffRequiredMixin):
-    allowed_roles: tuple[str, ...] = tuple(STAFF_ROLES)
+    allowed_roles: tuple[str, ...] = tuple(r for r in STAFF_ROLES if r != Role.SECURITY)
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:

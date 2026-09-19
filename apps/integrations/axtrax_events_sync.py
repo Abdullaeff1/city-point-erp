@@ -105,8 +105,11 @@ def sync_events_from_export(path: Path, *, since_id: int | None = None) -> dict:
         "skipped_unmapped": 0,
         "skipped_bad_time": 0,
         "skipped_old": 0,
+        "rapid_swipe_alerts": 0,
+        "shaft_access_alerts": 0,
     }
     max_id = cursor
+    created_events: list[AccessEvent] = []
 
     for row in rows:
         try:
@@ -141,6 +144,13 @@ def sync_events_from_export(path: Path, *, since_id: int | None = None) -> dict:
             stats["skipped_unmapped"] += 1
             continue
 
+        reader_id = None
+        if row.get("reader_id") not in (None, ""):
+            try:
+                reader_id = int(row["reader_id"])
+            except (TypeError, ValueError):
+                reader_id = None
+
         event = AccessEvent.objects.create(
             employee_id=employee.pk,
             event_type=_event_type(row.get("reader_out")),
@@ -148,6 +158,8 @@ def sync_events_from_export(path: Path, *, since_id: int | None = None) -> dict:
             employee_name=employee.full_name[:160],
             card_number=(employee.card_number or "")[:32],
             axtrax_employee_id=emp_num,
+            reader_id=reader_id,
+            reader_name=(str(row.get("reader_name") or "").strip()[:255]),
         )
         ExternalIdentity.objects.create(
             system=AXTRAX_SYSTEM,
@@ -158,10 +170,20 @@ def sync_events_from_export(path: Path, *, since_id: int | None = None) -> dict:
             last_status=SyncStatus.SUCCESS,
         )
         stats["created"] += 1
+        created_events.append(event)
 
     if max_id > cursor:
         set_events_cursor(max_id, stats={"created": stats["created"]})
     stats["cursor_after"] = max_id if max_id > cursor else cursor
+
+    if created_events:
+        from apps.residents.rapid_swipe import detect_rapid_swipes_after_sync
+        from apps.residents.shaft_access import detect_shaft_access_after_sync
+
+        alerts = detect_rapid_swipes_after_sync(created_events)
+        stats["rapid_swipe_alerts"] = len(alerts)
+        shaft_alerts = detect_shaft_access_after_sync(created_events)
+        stats["shaft_access_alerts"] = len(shaft_alerts)
 
     SyncLog.objects.create(
         system=AXTRAX_SYSTEM,
