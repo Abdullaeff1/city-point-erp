@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-
 import json
 
 from django.contrib import messages
@@ -11,7 +10,8 @@ from django.utils.translation import gettext as _
 from django.views.generic import FormView, ListView, TemplateView
 
 from apps.accounts.mixins import ResidentPortalMixin
-from apps.comms.models import Announcement, Notification
+from apps.comms.announcements import announcements_for_user
+from apps.comms.models import Notification
 from apps.documents.models import Document
 from apps.erp.forms import PortalEmployeeCreateForm, PortalTicketForm
 from apps.reception.models import GuestVisit
@@ -46,7 +46,7 @@ class HomeView(ResidentPortalMixin, TemplateView):
                 "open_tickets": tickets.filter(status__in=OPEN_STATUSES),
                 "recent_tickets": tickets[:6],
                 "latest_ticket": latest,
-                "announcements": Announcement.objects.all()[:4],
+                "announcements": announcements_for_user(self.request.user)[:4],
             }
         )
         return ctx
@@ -295,9 +295,14 @@ class GuestsView(ResidentPortalMixin, FormView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         company = self.request.user.resident_company
+        days = int(self.request.GET.get("days") or 30)
+        days = max(1, min(days, 365))
+        since = timezone.localdate() - timedelta(days=days)
+        ctx["guest_days"] = days
         ctx["visits"] = (
-            GuestVisit.objects.filter(company=company, scheduled_for=timezone.localdate())
+            GuestVisit.objects.filter(company=company, scheduled_for__gte=since)
             .select_related("guest", "host", "floor", "space", "visit_type")
+            .order_by("-scheduled_for", "-id")[:100]
             if company
             else GuestVisit.objects.none()
         )
@@ -328,8 +333,10 @@ class GuestsView(ResidentPortalMixin, FormView):
 
 class AnnouncementsView(ResidentPortalMixin, ListView):
     template_name = "portal/announcements.html"
-    queryset = Announcement.objects.all()
     context_object_name = "announcements"
+
+    def get_queryset(self):
+        return announcements_for_user(self.request.user)
 
 
 class DocumentsView(ResidentPortalMixin, ListView):

@@ -39,6 +39,18 @@ class ReceptionServiceTests(TestCase):
             role=Role.RECEPTION,
         )
 
+    def test_serial_required_for_walk_in(self):
+        with self.assertRaises(DomainError) as ctx:
+            ReceptionService.register_walk_in(
+                fin_code="",
+                first_name="Ali",
+                last_name="Veli",
+                company=self.company,
+                id_document_held=True,
+                actor=self.user,
+            )
+        self.assertIn("Seriya", str(ctx.exception))
+
     def test_walk_in_requires_id_or_override(self):
         with self.assertRaises(DomainError):
             ReceptionService.register_walk_in(

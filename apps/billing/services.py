@@ -1,9 +1,11 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db import transaction
 from django.utils import timezone
 
-from apps.billing.models import Charge, Invoice, InvoiceLine, InvoiceStatus
+from apps.billing.models import Charge, Invoice, InvoiceLine, InvoiceStatus, Payment
+from apps.core import events as bus
 
 
 def next_invoice_code():
@@ -40,6 +42,7 @@ def generate_invoice_from_charges(party, charge_ids) -> Invoice:
         lease=lease,
         status=InvoiceStatus.ISSUED,
         issue_date=timezone.localdate(),
+        due_date=timezone.localdate() + timedelta(days=14),
         currency=currency,
         total=total,
     )
@@ -56,4 +59,31 @@ def generate_invoice_from_charges(party, charge_ids) -> Invoice:
         charge.invoice = invoice
     InvoiceLine.objects.bulk_create(lines)
     Charge.objects.bulk_update(charges, ["invoice"])
+    bus.emit(bus.INVOICE_GENERATED, payload={"invoice_id": invoice.pk, "code": invoice.code})
+    try:
+        from apps.accounting.services import AccountingService
+
+        AccountingService.journal_from_invoice(invoice)
+    except Exception:
+        pass
     return invoice
+
+
+@transaction.atomic
+def record_payment(*, invoice: Invoice, amount, method: str = "bank", reference: str = "") -> Payment:
+    payment = Payment.objects.create(
+        invoice=invoice,
+        amount=amount,
+        currency=invoice.currency or "AZN",
+        method=method or "bank",
+        reference=reference or "",
+    )
+    paid = sum((p.amount for p in invoice.payments.all()), Decimal("0"))
+    if paid >= (invoice.total or 0):
+        invoice.status = InvoiceStatus.PAID
+        invoice.save(update_fields=["status"])
+    bus.emit(
+        bus.PAYMENT_RECEIVED,
+        payload={"payment_id": payment.pk, "invoice_id": invoice.pk, "amount": str(amount)},
+    )
+    return payment

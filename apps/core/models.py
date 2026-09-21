@@ -4,6 +4,9 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+# Re-export org models so Django discovers them under apps.core
+from apps.core.organization import Organization, OrgDepartment, OrgQueue, Team  # noqa: E402,F401
+
 
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(default=timezone.now, editable=False)

@@ -16,6 +16,14 @@ for env_path in (
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "unsafe-dev-key")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+CP_ENV = os.environ.get("CP_ENV", "development").strip().lower()  # development | staging | production
+CP_OFFLINE = os.environ.get("CP_OFFLINE", "0") == "1"  # LAN/air-gapped: no Internet assumed
+if not DEBUG and (not SECRET_KEY or SECRET_KEY == "unsafe-dev-key"):
+    raise RuntimeError("DJANGO_SECRET_KEY must be set to a strong value when DJANGO_DEBUG=0")
+if CP_ENV == "production" and DEBUG:
+    raise RuntimeError("CP_ENV=production requires DJANGO_DEBUG=0")
+if CP_ENV == "production" and os.environ.get("SEED_DEMO", "0") == "1":
+    raise RuntimeError("SEED_DEMO must be 0 when CP_ENV=production")
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",")
@@ -111,8 +119,16 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 10}},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
+
+# Session: 8h idle-ish absolute age; browser close still ends session cookie unless SESSION_EXPIRE_AT_BROWSER_CLOSE
+SESSION_COOKIE_AGE = int(os.environ.get("SESSION_COOKIE_AGE", str(8 * 60 * 60)))
+SESSION_EXPIRE_AT_BROWSER_CLOSE = os.environ.get("SESSION_EXPIRE_AT_BROWSER_CLOSE", "0") == "1"
+SESSION_SAVE_EVERY_REQUEST = os.environ.get("SESSION_SAVE_EVERY_REQUEST", "1") == "1"
 
 LANGUAGE_CODE = "az"
 LANGUAGES = [
@@ -157,6 +173,14 @@ EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@citypoint.az")
+
+# Air-gapped: allow file-based outbox instead of Internet SMTP.
+# Ops can copy invite URLs from var/mail_outbox or use internal LAN Exchange.
+if CP_OFFLINE and not os.environ.get("EMAIL_BACKEND"):
+    EMAIL_BACKEND = "django.core.mail.backends.filebased.EmailBackend"
+    EMAIL_FILE_PATH = os.environ.get("EMAIL_FILE_PATH", str(BASE_DIR / "var" / "mail_outbox"))
+elif CP_ENV in {"production", "staging"} and "console.EmailBackend" in EMAIL_BACKEND and not CP_OFFLINE:
+    raise RuntimeError(f"CP_ENV={CP_ENV} requires a real EMAIL_BACKEND (not console), or set CP_OFFLINE=1")
 
 # Production HTTPS hardening (enable when behind TLS reverse proxy)
 if not DEBUG:

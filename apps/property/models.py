@@ -84,6 +84,14 @@ class Space(models.Model):
         default=OperationalStatus.AVAILABLE,
     )
     rentable_area_m2 = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    base_rent_rate = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True, help_text="AZN / m² / ay (istinad)"
+    )
+    service_charge_rate = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True, help_text="AZN / m² / ay (istinad)"
+    )
+    availability_date = models.DateField(null=True, blank=True)
+    fit_out_status = models.CharField(max_length=64, blank=True)
     is_public = models.BooleanField(default=False)
     public_description = models.TextField(blank=True)
 

@@ -226,6 +226,18 @@ def create_ticket_from_portal(
         route_ticket(ticket, actor=requester, note="created", apply_default_priority=True)
         record_status_event(ticket, TicketStatus.SENT, actor=requester, note="created")
         add_message(ticket, requester, description, "Siz")
+        from apps.core import events as bus
+
+        bus.emit(
+            bus.TICKET_CREATED,
+            payload={
+                "ticket_id": ticket.pk,
+                "code": ticket.code,
+                "company_id": company.pk if company else None,
+                "entity_model": "ticket",
+            },
+            actor=requester,
+        )
         return ticket
 
 
@@ -234,18 +246,9 @@ def create_crm_opportunity_from_ticket(ticket, actor=None):
     if ticket.opportunity_id:
         return ticket.opportunity
     from apps.crm.models import Opportunity, OpportunityStatus
+    from apps.parties.resolvers import party_for_company
 
-    party = None
-    company = ticket.company
-    if hasattr(company, "party_id") and company.party_id:
-        party = company.party
-    else:
-        try:
-            from apps.parties.models import Party
-
-            party = Party.objects.filter(name=company.name).first()
-        except Exception:
-            party = None
+    party = party_for_company(ticket.company, ensure=True)
 
     label = ticket.subcategory.name if ticket.subcategory_id else ticket.category.name
     title = f"{ticket.code}: {label}"

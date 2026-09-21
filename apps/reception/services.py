@@ -109,7 +109,7 @@ class ReceptionService(Service):
         allow_id_override: bool = False,
     ) -> GuestVisit:
         cls.require(company is not None, "Şirkət seçilməlidir.")
-        cls.require(bool(normalize_fin(fin_code)), "FIN tələb olunur.")
+        cls.require(bool(normalize_fin(fin_code)), "Seriya nömrəsi tələb olunur.")
         if not id_document_held:
             cls.require(
                 allow_id_override and bool(id_override_reason.strip()),
@@ -217,6 +217,13 @@ class ReceptionService(Service):
         )
         create_visitor_access(visit)
         _audit("visit.check_in", actor=actor, entity=visit)
+        from apps.core import events as bus
+
+        bus.emit(
+            bus.VISITOR_CHECKED_IN,
+            payload={"visit_id": visit.pk, "company_id": visit.company_id, "entity_model": "visit"},
+            actor=actor,
+        )
         return visit
 
     @classmethod
@@ -260,6 +267,13 @@ class ReceptionService(Service):
         )
         revoke_visitor_access(visit)
         _audit("visit.check_out", actor=actor, entity=visit)
+        from apps.core import events as bus
+
+        bus.emit(
+            bus.VISITOR_CHECKED_OUT,
+            payload={"visit_id": visit.pk, "company_id": visit.company_id, "entity_model": "visit"},
+            actor=actor,
+        )
         return visit
 
     @classmethod

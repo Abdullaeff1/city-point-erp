@@ -8,7 +8,7 @@ from django.db import transaction
 from django.utils.translation import gettext as _
 
 from apps.parties.services import PartyService
-from apps.residents.models import AccessLevel, ResidentEmployee
+from apps.residents.models import AccessLevel, CardOrderStatus, ResidentEmployee
 from apps.tickets.models import TicketAttachment, TicketSubcategory, TicketType
 from apps.tickets.services import create_ticket_from_portal
 
@@ -57,6 +57,7 @@ def create_employee_card_order(*, company, requester, full_name: str, id_documen
         full_name=name[:160],
         card_number="",
         access_level=access_level,
+        card_order_status=CardOrderStatus.SUBMITTED,
         is_active=True,
     )
     employee.id_document.save(raw_name, ContentFile(content), save=False)

@@ -109,3 +109,22 @@ class InvoiceLine(models.Model):
 
     def __str__(self):
         return f"{self.invoice_id}:{self.description}"
+
+
+class Payment(models.Model):
+    """Phase 11 payment stub — official cash application before full Accounting."""
+
+    invoice = models.ForeignKey(Invoice, on_delete=models.PROTECT, related_name="payments")
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=8, default="AZN")
+    paid_at = models.DateField(default=timezone.localdate)
+    method = models.CharField(max_length=32, blank=True, default="bank")
+    reference = models.CharField(max_length=64, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        ordering = ["-paid_at", "-id"]
+
+    def __str__(self):
+        return f"PAY-{self.pk}:{self.amount}"

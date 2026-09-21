@@ -35,6 +35,17 @@ class AccessLevel(models.TextChoices):
     LEVEL_2 = "2", "Səviyyə 2 — turn_back icazəli"
 
 
+class CardOrderStatus(models.TextChoices):
+    NONE = "none", "—"
+    SUBMITTED = "submitted", "Göndərilib"
+    UNDER_REVIEW = "under_review", "Yoxlanılır"
+    APPROVED = "approved", "Təsdiqlənib"
+    PREPARED = "prepared", "Hazırlanır"
+    ISSUED = "issued", "Verilib"
+    REJECTED = "rejected", "Rədd"
+    CANCELLED = "cancelled", "Ləğv"
+
+
 class ResidentEmployee(models.Model):
     """Employee master — never hard-delete if AccessEvent exists (PROTECT).
 
@@ -49,6 +60,12 @@ class ResidentEmployee(models.Model):
         choices=AccessLevel.choices,
         default=AccessLevel.LEVEL_1,
         help_text="AxTraxNG access group: 1 = turn_back yox; 2 = turn_back icazəli",
+    )
+    card_order_status = models.CharField(
+        max_length=16,
+        choices=CardOrderStatus.choices,
+        default=CardOrderStatus.NONE,
+        blank=True,
     )
     id_document = models.FileField(
         upload_to="employees/id/%Y/%m/",

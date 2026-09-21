@@ -6,3 +6,8 @@ class CoreConfig(AppConfig):
     name = "apps.core"
     label = "core"
     verbose_name = "Core"
+
+    def ready(self):
+        from apps.core.event_handlers import register_default_handlers
+
+        register_default_handlers()

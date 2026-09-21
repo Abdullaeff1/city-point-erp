@@ -11,7 +11,9 @@ docker compose up --build
 
 Open http://localhost:3001/login/
 
-### Demo accounts
+### Demo accounts (dev only — never use in production)
+
+`SEED_DEMO=1` seeds these locally. Production must run with `SEED_DEMO=0` and real invites.
 
 | Role | Email | Password |
 |------|-------|----------|
@@ -25,24 +27,19 @@ Open http://localhost:3001/login/
 
 Open http://localhost:3001/security/ after login as Security.
 
-## Stack
+## Deployment
 
-- Django 5 + PostgreSQL 16
-- Docker Compose (`bin/dev`, `bin/prod`) — host port **3001**
-- i18n: AZ / EN / RU
+- Dev: `bin/dev` · Prod (LAN/air-gapped): [`docs/deployment/air-gapped-lan.md`](docs/deployment/air-gapped-lan.md)
+- Offline go-live: no CDN; set `CP_OFFLINE=1` (see `bin/prod/.env.example`)
 
-## Scope status (Master Plan)
+## Master plan status
 
-- **Scope 0:** Party/Person, Audit, RBAC, workflows, integrations adapters, document versions
-- **Scope 1:** Space commercial/operational status, parking, meters
-- **Scope 2:** Lease lifecycle + activate/terminate cascade
-- **Scope 3:** CRM Lead / Opportunity / Offer → Lease draft
-- **Scope 4:** Public API stubs `/api/v1/public/spaces|leads` (mock-safe)
-- **Scope 5:** Portal guest pre-registration + invite code
-- **Scope 6:** Turnstile — AxTraxNG read sync (see `docs/integrations/turnstile-audit.md`)
-- **Scope 7–11:** FM Work Orders, Warehouse, Procurement, Billing, Accounting foundations
-- **Scope 12:** Expanded management KPIs on Reports
+- **Phase 0–2:** done (audit, hardening code, ERP core foundation)
+- **Phase 3–13:** thin-but-real foundations landed — see [`docs/architecture/master-plan-progress.md`](docs/architecture/master-plan-progress.md)
+- **To finish production:** business/ops inputs in [`docs/architecture/finish-requirements.md`](docs/architecture/finish-requirements.md)
+
+Scaffold-looking modules now have service workflows; they are **not** full product UX yet.
 
 ## Security (prod)
 
-See `docs/security/` — DB isolation decision, Portal public / ERP private checklist, Postgres roles, resident invite auth (no public signup).
+See `docs/security/` — Phase 0 security audit, DB isolation, Portal public / ERP private checklist, Postgres roles, resident invite auth (no public signup).

@@ -14,6 +14,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import PortalInvite, Role
+from apps.comms.models import NotificationChannel, NotificationDispatch
 
 User = get_user_model()
 
@@ -75,7 +76,8 @@ def invite_url(request, raw_token: str) -> str:
     return request.build_absolute_uri(path)
 
 
-def send_invite_email(*, user: User, absolute_url: str) -> None:
+def send_invite_email(*, user: User, absolute_url: str) -> NotificationDispatch:
+    """Send invite mail and record delivery outcome on NotificationDispatch."""
     company = ""
     if user.resident_company_id:
         company = f" ({user.resident_company.name})"
@@ -87,13 +89,62 @@ def send_invite_email(*, user: User, absolute_url: str) -> None:
         f"{absolute_url}\n\n"
         f"Əgər bu dəvəti gözləmirdinizsə, bu məktubu nəzərə almayın.\n"
     )
-    send_mail(
-        subject,
-        body,
-        settings.DEFAULT_FROM_EMAIL,
-        [user.email],
-        fail_silently=False,
+    payload = {"subject": subject, "url": absolute_url, "user_id": user.pk}
+    dispatch = NotificationDispatch.objects.create(
+        channel=NotificationChannel.EMAIL,
+        status="pending",
+        recipient=user.email,
+        template_code="portal.invite",
+        payload=payload,
     )
+    try:
+        send_mail(
+            subject,
+            body,
+            settings.DEFAULT_FROM_EMAIL,
+            [user.email],
+            fail_silently=False,
+        )
+    except Exception as exc:  # noqa: BLE001 — log delivery failure, re-raise for caller
+        dispatch.status = "failed"
+        dispatch.error_message = str(exc)[:2000]
+        dispatch.save(update_fields=["status", "error_message"])
+        raise
+    dispatch.status = "sent"
+    dispatch.sent_at = timezone.now()
+    dispatch.save(update_fields=["status", "sent_at"])
+    return dispatch
+
+
+def retry_failed_invite_dispatches(*, limit: int = 20) -> dict:
+    """Re-send failed portal.invite emails (ops / management command)."""
+    stats = {"attempted": 0, "sent": 0, "failed": 0}
+    qs = NotificationDispatch.objects.filter(
+        channel=NotificationChannel.EMAIL,
+        template_code="portal.invite",
+        status="failed",
+    ).order_by("created_at")[:limit]
+    for row in qs:
+        stats["attempted"] += 1
+        url = (row.payload or {}).get("url") or ""
+        subject = (row.payload or {}).get("subject") or "City Point Portal — şifrə təyin edin"
+        body = (
+            f"City Point Resident Portal — şifrə linki:\n\n{url}\n\n"
+            if url
+            else "Dəvət linki tapılmadı; yenidən invite_portal_user işlədin.\n"
+        )
+        try:
+            send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, [row.recipient], fail_silently=False)
+            row.status = "sent"
+            row.sent_at = timezone.now()
+            row.error_message = ""
+            row.save(update_fields=["status", "sent_at", "error_message"])
+            stats["sent"] += 1
+        except Exception as exc:  # noqa: BLE001
+            row.error_message = str(exc)[:2000]
+            row.save(update_fields=["error_message"])
+            stats["failed"] += 1
+    return stats
 
 
 def provision_portal_user(

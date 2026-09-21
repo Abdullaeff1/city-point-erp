@@ -52,6 +52,9 @@ def apply_movement(
     if movement_type == StockMovementType.ADJUSTMENT:
         stock.quantity = qty
     else:
-        stock.quantity = (stock.quantity or Decimal("0")) + (sign * qty)
+        new_qty = (stock.quantity or Decimal("0")) + (sign * qty)
+        if new_qty < 0:
+            raise ValueError("Insufficient stock")
+        stock.quantity = new_qty
     stock.save(update_fields=["quantity"])
     return movement

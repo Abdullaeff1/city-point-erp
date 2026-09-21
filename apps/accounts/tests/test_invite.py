@@ -59,3 +59,16 @@ class PortalInviteTests(TestCase):
         resp = self.client.get(reverse("portal:home"))
         self.assertEqual(resp.status_code, 302)
         self.assertIn("/accounts/force-password/", resp["Location"])
+
+    def test_invite_email_writes_dispatch(self):
+        from django.core import mail
+
+        from apps.accounts.invite import send_invite_email
+        from apps.comms.models import NotificationDispatch
+
+        user, raw = provision_portal_user(email="mail@asbc.az", company=self.company)
+        send_invite_email(user=user, absolute_url=f"https://portal.test/accounts/invite/{raw}/")
+        self.assertEqual(len(mail.outbox), 1)
+        row = NotificationDispatch.objects.get(template_code="portal.invite", recipient="mail@asbc.az")
+        self.assertEqual(row.status, "sent")
+        self.assertIsNotNone(row.sent_at)

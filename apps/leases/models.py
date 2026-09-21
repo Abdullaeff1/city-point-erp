@@ -51,6 +51,16 @@ class Lease(UUIDPrimaryModel):
     billing_active = models.BooleanField(default=False)
     portal_eligible = models.BooleanField(default=False)
     access_eligible = models.BooleanField(default=False)
+    billing_frequency = models.CharField(
+        max_length=16,
+        choices=[
+            ("monthly", "Monthly"),
+            ("quarterly", "Quarterly"),
+            ("yearly", "Yearly"),
+            ("once", "Once"),
+        ],
+        default="monthly",
+    )
     notes = models.TextField(blank=True)
     activated_at = models.DateTimeField(null=True, blank=True)
     terminated_at = models.DateTimeField(null=True, blank=True)

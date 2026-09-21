@@ -4,9 +4,24 @@
 {% block content %}
 <div class="grid-4 mb-4">
   <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Sahə" %}</div><div style="font-weight:700;">{% for s in spaces %}{{ s.short_label }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</div></div>
+  {% if can_view_resident_ops %}
+  <a class="cp-card p-card-sm" href="{% url 'erp:resident_tickets' company.slug %}" style="text-decoration:none;color:inherit;display:block;">
+    <div class="cp-meta">{% translate "Açıq ticket" %}</div>
+    <div class="cp-metric" style="font-size:24px;">{{ open_tickets.count }}</div>
+  </a>
+  <a class="cp-card p-card-sm" href="{% url 'erp:resident_employees' company.slug %}" style="text-decoration:none;color:inherit;display:block;">
+    <div class="cp-meta">{% translate "Əməkdaşlar" %}</div>
+    <div class="cp-metric" style="font-size:24px;">{{ employees.count }}</div>
+  </a>
+  <a class="cp-card p-card-sm" href="{% url 'erp:resident_guests' company.slug %}" style="text-decoration:none;color:inherit;display:block;">
+    <div class="cp-meta">{% translate "Bugünkü qonaq" %}</div>
+    <div class="cp-metric" style="font-size:24px;">{{ guest_today }}</div>
+  </a>
+  {% else %}
   <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Açıq ticket" %}</div><div class="cp-metric" style="font-size:24px;">{{ open_tickets.count }}</div></div>
   <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Əməkdaşlar" %}</div><div class="cp-metric" style="font-size:24px;">{{ employees.count }}</div></div>
   <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Bugünkü qonaq" %}</div><div class="cp-metric" style="font-size:24px;">{{ guest_today }}</div></div>
+  {% endif %}
 </div>
 <div class="cp-card p-card">
   <p>{{ company.get_status_display }} · {% translate "Portal" %} {% if company.portal_active %}{% translate "aktiv" %}{% else %}{% translate "bağlı" %}{% endif %}</p>

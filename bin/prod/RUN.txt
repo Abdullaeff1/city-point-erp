@@ -1,11 +1,14 @@
 # Production (copy .env.example to .env first)
 #   docker compose -f bin/prod/docker-compose.yml --env-file bin/prod/.env up --build
 #
+# Set CP_ENV=production in .env (see docs/deployment/environments.md).
+#
 # Security docs:
 #   docs/security/database-isolation.md
 #   docs/security/resident-portal-access.md
 #   docs/security/postgres-roles.md
 #   docs/security/network-checklist.md
+#   docs/backup/phase1-backup-restore.md
 #
 # Postgres: create cp_migrator / cp_app / cp_readonly (postgres-roles.md),
 # run migrate as cp_migrator, then set POSTGRES_USER=cp_app for the web service.
@@ -14,3 +17,10 @@
 #   docker compose exec web python manage.py invite_portal_user \
 #     --email=office@tenant.az --company=asbc --first-name=Office --last-name=Manager \
 #     --base-url=https://portal.citypoint.az --send-email
+#
+# Retry failed invite emails:
+#   docker compose exec web python manage.py retry_invite_emails
+#
+# AxTrax poller (Windows host, elevated once):
+#   powershell -ExecutionPolicy Bypass -File bin/prod/register_axtrax_poller_task.ps1
+#   docker compose exec web python manage.py axtrax_sync_status

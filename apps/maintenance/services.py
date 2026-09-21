@@ -1,4 +1,11 @@
+from django.db import transaction
+from django.utils import timezone
+
+from apps.billing.models import Charge, ChargeSource
+from apps.core import events as bus
+from apps.core.services import Service
 from apps.maintenance.models import WorkOrder, WorkOrderPriority, WorkOrderStatus
+from apps.parties.resolvers import party_for_company
 
 
 def next_wo_code():
@@ -32,3 +39,36 @@ def create_wo_from_ticket(ticket) -> WorkOrder:
         ticket=ticket,
         assigned_to=getattr(ticket, "assignee", None),
     )
+
+
+class WorkOrderService(Service):
+    @classmethod
+    @transaction.atomic
+    def set_status(cls, wo: WorkOrder, status: str, *, actor=None) -> WorkOrder:
+        allowed = {c.value for c in WorkOrderStatus}
+        cls.require(status in allowed, "Naməlum WO status.")
+        wo.status = status
+        update = ["status"]
+        if status == WorkOrderStatus.COMPLETED:
+            wo.completed_at = timezone.now()
+            update.append("completed_at")
+            if wo.billable and (wo.labor_cost or wo.material_cost):
+                party = wo.party
+                if not party and wo.ticket_id and wo.ticket.company_id:
+                    party = party_for_company(wo.ticket.company, ensure=True)
+                if party:
+                    amount = (wo.labor_cost or 0) + (wo.material_cost or 0)
+                    Charge.objects.create(
+                        party=party,
+                        space=wo.space,
+                        source=ChargeSource.WORK_ORDER,
+                        description=f"WO {wo.code}",
+                        amount=amount,
+                    )
+            bus.emit(
+                bus.WORK_ORDER_CLOSED,
+                payload={"work_order_id": wo.pk, "code": wo.code},
+                actor=actor,
+            )
+        wo.save(update_fields=update)
+        return wo

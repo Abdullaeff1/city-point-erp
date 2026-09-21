@@ -32,6 +32,14 @@ class TicketPriority(models.TextChoices):
     CRITICAL = "critical", _("Kritik")
 
 
+class WaitingReasonCode(models.TextChoices):
+    RESIDENT_RESPONSE = "resident_response", _("Rezident cavabı")
+    SPARE_PART = "spare_part", _("Ehtiyat hissə")
+    CONTRACTOR = "contractor", _("Podratçı")
+    APPROVAL = "approval", _("Təsdiq")
+    OTHER = "other", _("Digər")
+
+
 OPEN_STATUSES = {
     TicketStatus.SENT,
     TicketStatus.ASSIGNED,
@@ -217,6 +225,12 @@ class Ticket(models.Model):
     )
     description = models.TextField()
     waiting_reason = models.CharField(max_length=255, blank=True)
+    waiting_reason_code = models.CharField(
+        max_length=32,
+        choices=WaitingReasonCode.choices,
+        blank=True,
+        default="",
+    )
     enrichment_notes = models.TextField(blank=True)
     resolution_note = models.TextField(blank=True)
     opportunity = models.ForeignKey(

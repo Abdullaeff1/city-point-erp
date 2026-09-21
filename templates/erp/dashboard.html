@@ -30,6 +30,21 @@
     <div class="cp-meta mt-2">{% translate "aktiv" %}</div>
   </div>
 </div>
+{% if axtrax_health %}
+<div class="cp-card p-card-sm mb-4">
+  <div class="cp-meta">AxTrax sync</div>
+  {% if axtrax_health.events_ok %}
+  <div class="cp-meta mt-1" style="color:var(--cp-ok, #0a7);">{% translate "Events sync OK" %}</div>
+  {% else %}
+  <div class="cp-meta mt-1" style="color:var(--cp-danger, #c00);">{% translate "Events sync stale / yoxdur — poller yoxlayın" %}</div>
+  {% endif %}
+  <div class="cp-meta mt-2">
+    cursor {{ axtrax_health.cursor }}
+    {% if axtrax_health.last_event_sync_at %} · last sync {{ axtrax_health.last_event_sync_at|timesince }} {% translate "əvvəl" %}{% endif %}
+    {% if axtrax_health.last_access_event_at %} · last event {{ axtrax_health.last_access_event_at|timesince }} {% translate "əvvəl" %}{% endif %}
+  </div>
+</div>
+{% endif %}
 <div class="grid-dash mb-4">
   <div class="cp-card" style="padding:8px 0;">
     <div class="cp-section section-pad">{% translate "Ticketlər" %}</div>

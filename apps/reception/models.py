@@ -46,7 +46,14 @@ class Guest(models.Model):
     last_name = models.CharField(max_length=80, blank=True)
     # Kept for migration/compat; prefer first_name + last_name
     full_name = models.CharField(max_length=160, blank=True)
-    fin_code = models.CharField(max_length=32, blank=True, db_index=True)
+    # Şəxsiyyət vəsiqəsi seriya № (köhnə ad: fin_code — DB uyğunluğu üçün saxlanılır)
+    fin_code = models.CharField(
+        _("Seriya nömrəsi"),
+        max_length=32,
+        blank=True,
+        db_index=True,
+        help_text=_("Şəxsiyyət vəsiqəsindəki seriya nömrəsi"),
+    )
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=64, blank=True)
     is_active = models.BooleanField(default=True)
@@ -76,14 +83,21 @@ class Guest(models.Model):
 
 
 def normalize_fin(value: str) -> str:
+    """Normalize ID serial / legacy FIN to uppercase alphanumeric."""
     return "".join(ch for ch in (value or "").upper().strip() if ch.isalnum())
 
 
 def mask_fin(value: str) -> str:
+    """Mask sensitive ID serial for display without view_sensitive_data."""
     fin = normalize_fin(value)
     if len(fin) < 5:
         return "****" if fin else "—"
     return f"{fin[:3]}****{fin[-2:]}"
+
+
+# Aliases — reception uses ID document series number (not FIN)
+normalize_id_serial = normalize_fin
+mask_id_serial = mask_fin
 
 
 class GuestVisit(models.Model):

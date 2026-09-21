@@ -16,6 +16,26 @@ urlpatterns = [
     path("spaces/<str:code>/", views.SpaceDetailView.as_view(), name="space_detail"),
     path("residents/", views.ResidentListView.as_view(), name="residents"),
     path("residents/<slug:slug>/", views.ResidentDetailView.as_view(), name="resident_detail"),
+    path(
+        "residents/<slug:slug>/tickets/",
+        views.ResidentTicketsView.as_view(),
+        name="resident_tickets",
+    ),
+    path(
+        "residents/<slug:slug>/guests/",
+        views.ResidentGuestsView.as_view(),
+        name="resident_guests",
+    ),
+    path(
+        "residents/<slug:slug>/employees/",
+        views.ResidentEmployeesAccessView.as_view(),
+        name="resident_employees",
+    ),
+    path(
+        "residents/<slug:slug>/employees/<int:pk>/",
+        views.ResidentEmployeeAccessDetailView.as_view(),
+        name="resident_employee_access",
+    ),
     path("internal-staff/access/", views.InternalStaffAccessView.as_view(), name="internal_staff_access"),
     path(
         "internal-staff/access/<int:pk>/",

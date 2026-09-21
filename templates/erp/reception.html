@@ -15,7 +15,7 @@
       <form method="get" class="flex gap-2 reception-filters" style="flex-wrap:wrap;align-items:end;">
         <label style="flex:1;min-width:160px;">
           <span class="cp-meta">{% translate "Axtarış" %}</span>
-          <input class="cp-input" name="q" value="{{ q }}" placeholder="FIN / ad / şirkət / host / kod">
+          <input class="cp-input" name="q" value="{{ q }}" placeholder="Seriya / ad / şirkət / host / kod">
         </label>
         <label>
           <span class="cp-meta">{% translate "Status" %}</span>
@@ -78,7 +78,7 @@
         <thead>
           <tr>
             <th>{% translate "Qonaq" %}</th>
-            <th>FIN</th>
+            <th>{% translate "Seriya №" %}</th>
             <th>{% translate "Şirkət" %}</th>
             <th>Host</th>
             <th>{% translate "Giriş" %}</th>
@@ -122,7 +122,7 @@
     <thead>
       <tr>
         <th>{% translate "Qonaq" %}</th>
-        <th>FIN</th>
+        <th>{% translate "Seriya №" %}</th>
         <th>{% translate "Şirkət" %}</th>
         <th>Host</th>
         <th>{% translate "Giriş" %}</th>
@@ -151,7 +151,7 @@
             <summary class="cp-btn" style="padding:6px 10px;font-size:12px;display:inline-block;">{% translate "Check-in" %}</summary>
             <form method="post" action="{% url 'erp:reception_status' v.pk %}" class="flex-col gap-2 mt-2" style="min-width:220px;">
               {% csrf_token %}
-              <input class="cp-input" name="fin_code" placeholder="FIN" required>
+              <input class="cp-input" name="fin_code" placeholder="{% translate 'Seriya №' %}" required>
               <label class="cp-meta"><input type="checkbox" name="id_document_held"> {% translate "ID qəbul" %}</label>
               <button class="cp-btn" name="action" value="checkin">{% translate "Təsdiq et" %}</button>
               <button class="cp-btn-ghost" name="action" value="cancel">{% translate "Ləğv" %}</button>
@@ -220,7 +220,7 @@
       finTimer = setTimeout(async () => {
         const fin = finInput.value.trim();
         if (fin.length < 5) return;
-        const res = await fetch("{% url 'erp:reception_guest_lookup' %}?fin=" + encodeURIComponent(fin));
+        const res = await fetch("{% url 'erp:reception_guest_lookup' %}?serial=" + encodeURIComponent(fin));
         const data = await res.json();
         if (data.found) {
           const first = document.getElementById("id_first_name");

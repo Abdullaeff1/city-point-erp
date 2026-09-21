@@ -8,6 +8,12 @@ class AnnouncementSeverity(models.TextChoices):
     UPDATE = "update", "Yenilənmə"
 
 
+class AnnouncementVisibility(models.TextChoices):
+    BUILDING = "building", "Bina-ümumi"
+    COMPANY = "company", "Şirkət"
+    TARGETED = "targeted", "Hədəflənmiş"
+
+
 class NotificationChannel(models.TextChoices):
     IN_APP = "in_app", "In-app"
     EMAIL = "email", "Email"
@@ -21,6 +27,25 @@ class Announcement(models.Model):
         max_length=16, choices=AnnouncementSeverity.choices, default=AnnouncementSeverity.INFO
     )
     published_at = models.DateField()
+    visibility = models.CharField(
+        max_length=16,
+        choices=AnnouncementVisibility.choices,
+        default=AnnouncementVisibility.BUILDING,
+    )
+    company = models.ForeignKey(
+        "residents.ResidentCompany",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="announcements",
+        help_text="COMPANY / TARGETED üçün məcburi; BUILDING üçün boş",
+    )
+    target_users = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name="targeted_announcements",
+        help_text="TARGETED görünürlük üçün",
+    )
 
     class Meta:
         ordering = ["-published_at"]

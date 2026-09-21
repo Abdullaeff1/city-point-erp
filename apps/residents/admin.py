@@ -8,6 +8,7 @@ from apps.residents.models import AccessEvent, RapidCardSwipeAlert, ResidentComp
 class ResidentCompanyAdmin(admin.ModelAdmin):
     list_display = ("name", "slug", "status", "portal_active", "is_internal")
     list_filter = ("status", "portal_active", "is_internal")
+    search_fields = ("name", "slug")
     prepopulated_fields = {"slug": ("name",)}
 
 

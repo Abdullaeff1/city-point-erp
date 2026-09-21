@@ -100,6 +100,13 @@ def activate_lease(lease: Lease, actor=None):
         log_action(action="lease.activated", actor=actor, entity=lease, source="leases")
     except Exception:
         pass
+    from apps.core import events as bus
+
+    bus.emit(
+        bus.LEASE_ACTIVATED,
+        payload={"lease_id": lease.pk, "code": lease.code, "entity_model": "lease"},
+        actor=actor,
+    )
     return lease
 
 
@@ -127,4 +134,11 @@ def terminate_lease(lease: Lease, actor=None):
         space = type(lease.space).objects.get(pk=lease.space_id)
         space.occupancy = Occupancy.VACANT
         space.save(update_fields=["occupancy"])
+    from apps.core import events as bus
+
+    bus.emit(
+        bus.LEASE_TERMINATED,
+        payload={"lease_id": lease.pk, "code": lease.code, "entity_model": "lease"},
+        actor=actor,
+    )
     return lease

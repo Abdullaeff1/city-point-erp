@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from apps.billing.models import Charge, Invoice, InvoiceLine
+from apps.billing.models import Charge, Invoice, InvoiceLine, Payment
 
 
 class InvoiceLineInline(admin.TabularInline):
@@ -35,3 +35,9 @@ class InvoiceAdmin(admin.ModelAdmin):
 @admin.register(InvoiceLine)
 class InvoiceLineAdmin(admin.ModelAdmin):
     list_display = ("invoice", "charge", "description", "amount")
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ("invoice", "amount", "currency", "paid_at", "method", "reference")
+    list_filter = ("method",)

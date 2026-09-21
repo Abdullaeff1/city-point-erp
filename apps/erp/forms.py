@@ -148,7 +148,11 @@ class PortalGuestForm(forms.Form):
 
 
 class GuestVisitForm(forms.Form):
-    fin_code = forms.CharField(label=_("FIN"), max_length=32)
+    fin_code = forms.CharField(
+        label=_("Seriya nömrəsi"),
+        max_length=32,
+        help_text=_("Şəxsiyyət vəsiqəsindəki seriya nömrəsi"),
+    )
     first_name = forms.CharField(label=_("Ad"), max_length=80)
     last_name = forms.CharField(label=_("Soyad"), max_length=80)
     phone = forms.CharField(required=False, label=_("Telefon"), max_length=64)
@@ -182,3 +186,4 @@ class GuestVisitForm(forms.Form):
             field.widget.attrs["class"] = "cp-input"
         self.fields["fin_code"].widget.attrs["autocomplete"] = "off"
         self.fields["fin_code"].widget.attrs["id"] = "id_fin_code"
+        self.fields["fin_code"].widget.attrs["placeholder"] = _("Seriya №")

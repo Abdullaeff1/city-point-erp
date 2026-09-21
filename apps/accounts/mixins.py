@@ -17,8 +17,12 @@ class ResidentPortalMixin(LoginRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return self.handle_no_permission()
-        if request.user.role == Role.RESIDENT_USER and not request.user.resident_company_id:
-            raise PermissionDenied("Rezident şirkəti təyin olunmayıb.")
+        if request.user.role == Role.RESIDENT_USER:
+            company = request.user.resident_company
+            if not company:
+                raise PermissionDenied("Rezident şirkəti təyin olunmayıb.")
+            if not company.portal_active:
+                raise PermissionDenied("Bu şirkət üçün portal müvəqqəti bağlanıb.")
         if not request.user.can_access_portal():
             raise PermissionDenied("Portal girişinə icazə yoxdur.")
         return super().dispatch(request, *args, **kwargs)

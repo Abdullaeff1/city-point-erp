@@ -1,0 +1,53 @@
+{% extends "erp/base.html" %}
+{% load i18n cp_ui %}
+{% block heading %}{{ company.name }} — {% translate "Qonaqlar" %}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3" style="margin-top:-8px;">
+  <a href="{% url 'erp:resident_detail' company.slug %}">← {{ company.name }}</a>
+</p>
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;align-items:end;">
+  <form method="get" class="cp-card p-card-sm access-date-card" style="margin:0;">
+    <label class="cp-meta" for="guest-date">{% translate "Tarix" %}</label>
+    <div class="flex gap-2 mt-1" style="align-items:center;">
+      <input class="cp-input" id="guest-date" type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" onchange="this.form.submit()">
+      {% if not is_today %}
+      <a class="cp-btn-ghost" href="{% url 'erp:resident_guests' company.slug %}" style="padding:8px 10px;white-space:nowrap;">{% translate "Bu gün" %}</a>
+      {% endif %}
+    </div>
+  </form>
+  <div class="cp-card p-card-sm">{% translate "İçəridə" %} <strong>{{ inside }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Gözləyir" %} <strong>{{ waiting }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ left }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Cəmi" %} <strong>{{ visits|length }}</strong></div>
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Qonaq" %}</th>
+        <th>{% translate "Seriya №" %}</th>
+        <th>Host</th>
+        <th>{% translate "Giriş" %}</th>
+        <th>{% translate "Çıxış" %}</th>
+        <th>{% translate "Vəsiqə" %}</th>
+        <th>{% translate "Status" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in visits %}
+      <tr>
+        <td>{{ v.guest.display_name }}</td>
+        <td class="cp-code">{% if can_sensitive %}{{ v.guest.fin_code|default:"—" }}{% else %}{{ v.guest.fin_code|mask_fin_filter }}{% endif %}</td>
+        <td>{{ v.host.full_name|default:"—" }}</td>
+        <td>{{ v.check_in_at|date:"H:i"|default:"—" }}</td>
+        <td>{{ v.check_out_at|date:"H:i"|default:"—" }}</td>
+        <td>{{ v.id_document_label }}</td>
+        <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="cp-meta empty-pad">{% translate "Bu tarix üçün qonaq yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

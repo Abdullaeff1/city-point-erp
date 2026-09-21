@@ -60,6 +60,11 @@ class DashboardView(StaffRequiredMixin, TemplateView):
         for v in today_visits.filter(check_in_at__isnull=False).order_by("-check_in_at")[:4]:
             activities.append({"at": v.check_in_at, "text": f"Qonaq giriş etdi · {v.guest.display_name}"})
         activities.sort(key=lambda x: x["at"] or timezone.now(), reverse=True)
+        axtrax = None
+        if self.request.user.role in {Role.ADMIN, Role.MANAGEMENT}:
+            from apps.integrations.axtrax_health import axtrax_sync_health
+
+            axtrax = axtrax_sync_health()
         ctx.update(
             {
                 "guest_count": today_visits.count(),
@@ -75,6 +80,7 @@ class DashboardView(StaffRequiredMixin, TemplateView):
                 "recent_open": open_list[:6],
                 "activities": activities[:8],
                 "unassigned": Ticket.objects.filter(status=TicketStatus.SENT, assignee__isnull=True)[:5],
+                "axtrax_health": axtrax,
             }
         )
         return ctx
@@ -236,17 +242,24 @@ class ReceptionGuestLookupView(RoleRequiredMixin, View):
     def get(self, request):
         if not user_has_permission(request.user, "reception.search"):
             raise PermissionDenied()
-        guest = ReceptionService.find_guest_by_fin(request.GET.get("fin", ""))
+        guest = ReceptionService.find_guest_by_fin(
+            request.GET.get("serial")
+            or request.GET.get("fin")
+            or request.GET.get("q")
+            or ""
+        )
         if not guest:
             return JsonResponse({"found": False})
         can_sensitive = user_has_permission(request.user, "reception.view_sensitive_data")
+        serial = guest.fin_code if can_sensitive else mask_fin(guest.fin_code)
         return JsonResponse(
             {
                 "found": True,
                 "first_name": guest.first_name,
                 "last_name": guest.last_name,
                 "phone": guest.phone,
-                "fin": guest.fin_code if can_sensitive else mask_fin(guest.fin_code),
+                "serial": serial,
+                "fin": serial,  # legacy alias
             }
         )
 
@@ -264,7 +277,7 @@ class ReceptionExportView(RoleRequiredMixin, View):
         writer.writerow(
             [
                 "Guest",
-                "FIN",
+                "Seriya",
                 "Company",
                 "Host",
                 "Type",
@@ -520,6 +533,8 @@ class ResidentDetailView(StaffRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         company = get_object_or_404(ResidentCompany, slug=self.kwargs["slug"], is_internal=False)
         today = timezone.localdate()
+        role = self.request.user.role
+        can_drill = role in {Role.ADMIN, Role.MANAGEMENT}
         ctx.update(
             {
                 "company": company,
@@ -528,6 +543,148 @@ class ResidentDetailView(StaffRequiredMixin, TemplateView):
                 "employees": company.employees.filter(is_active=True),
                 "guest_today": company.guest_visits.filter(scheduled_for=today).count(),
                 "latest_ticket": company.tickets.first(),
+                "can_view_resident_ops": can_drill,
+                # alias kept for older template snippets
+                "can_view_employees": can_drill,
+            }
+        )
+        return ctx
+
+
+def _resident_company(slug):
+    return get_object_or_404(ResidentCompany, slug=slug, is_internal=False)
+
+
+class ResidentTicketsView(RoleRequiredMixin, TemplateView):
+    """Şirkətin açıq ticket-ləri — Admin / Rəhbərlik."""
+
+    template_name = "erp/resident_tickets.html"
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        company = _resident_company(self.kwargs["slug"])
+        tab = self.request.GET.get("tab", "open")
+        qs = company.tickets.select_related(
+            "category", "subcategory", "space", "assignee", "queue"
+        ).order_by("-updated_at")
+        if tab == "open":
+            qs = qs.filter(status__in=OPEN_STATUSES)
+        elif tab == "closed":
+            qs = qs.filter(status__in=CLOSED_STATUSES)
+        ctx.update({"company": company, "tickets": qs, "tab": tab})
+        return ctx
+
+
+class ResidentGuestsView(RoleRequiredMixin, TemplateView):
+    """Şirkətin bugünkü qonaqları — Admin / Rəhbərlik."""
+
+    template_name = "erp/resident_guests.html"
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        company = _resident_company(self.kwargs["slug"])
+        today = timezone.localdate()
+        selected_date = parse_date(self.request.GET.get("date"), today)
+        visits = (
+            company.guest_visits.filter(scheduled_for=selected_date)
+            .select_related("guest", "host", "visit_type", "visitor_access")
+            .order_by("-check_in_at", "-id")
+        )
+        ctx.update(
+            {
+                "company": company,
+                "visits": visits,
+                "today": today,
+                "selected_date": selected_date,
+                "is_today": selected_date == today,
+                "inside": visits.filter(status=VisitStatus.INSIDE).count(),
+                "waiting": visits.filter(
+                    status__in=[VisitStatus.WAITING, VisitStatus.PRE_REGISTERED]
+                ).count(),
+                "left": visits.filter(status=VisitStatus.LEFT).count(),
+                "can_sensitive": user_has_permission(
+                    self.request.user, "reception.view_sensitive_data"
+                ),
+            }
+        )
+        return ctx
+
+
+class ResidentEmployeesAccessView(RoleRequiredMixin, TemplateView):
+    """Tenant şirkət işçiləri + giriş/çıxış — Admin / Rəhbərlik."""
+
+    template_name = "erp/resident_employees.html"
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+
+    def get_company(self):
+        return _resident_company(self.kwargs["slug"])
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        company = self.get_company()
+        today = timezone.localdate()
+        selected_date = parse_date(self.request.GET.get("date"), today)
+        base = company.employees.all().order_by("full_name")
+        employees, roster = employee_roster_qs(base, self.request.GET.get("roster"))
+        rows, inside, left, present = build_employee_access_rows(employees, selected_date)
+        ctx.update(
+            {
+                "company": company,
+                "rows": rows,
+                "inside": inside,
+                "left": left,
+                "present": present,
+                "roster": roster,
+                "today": today,
+                "selected_date": selected_date,
+                "is_today": selected_date == today,
+            }
+        )
+        return ctx
+
+
+class ResidentEmployeeAccessDetailView(RoleRequiredMixin, TemplateView):
+    template_name = "erp/resident_employee_access_detail.html"
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+
+    def get_employee(self):
+        return get_object_or_404(
+            ResidentEmployee.objects.select_related("company"),
+            pk=self.kwargs["pk"],
+            company__slug=self.kwargs["slug"],
+            company__is_internal=False,
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        employee = self.get_employee()
+        preset, date_from, date_to = access_range_bounds(self.request, default_preset="today")
+        single_day = date_from == date_to
+        if single_day:
+            flaps = employee_day_flaps(employee, date_from)
+            in_count = sum(1 for e in flaps if e.event_type == "in")
+            out_count = len(flaps) - in_count
+            days = []
+        else:
+            flaps = []
+            days = employee_attendance_days(employee, date_from, date_to)
+            in_count = out_count = 0
+        ctx.update(
+            {
+                "employee": employee,
+                "company": employee.company,
+                "days": days,
+                "flaps": flaps,
+                "single_day": single_day,
+                "preset": preset,
+                "date_from": date_from,
+                "date_to": date_to,
+                "present_days": len(days) if not single_day else (1 if flaps else 0),
+                "in_count": in_count,
+                "out_count": out_count,
+                "today": timezone.localdate(),
             }
         )
         return ctx
@@ -690,6 +847,7 @@ class LeaseDetailView(StaffRequiredMixin, TemplateView):
     def post(self, request, *args, **kwargs):
         from apps.leases.models import Lease
         from apps.leases.services import activate_lease, terminate_lease
+        from apps.leases.lease_ops import generate_monthly_lease_charges
 
         lease = get_object_or_404(Lease, code=kwargs["code"])
         action = request.POST.get("action")
@@ -699,6 +857,9 @@ class LeaseDetailView(StaffRequiredMixin, TemplateView):
         elif action == "terminate":
             terminate_lease(lease, actor=request.user)
             messages.success(request, "Lease dayandırıldı.")
+        elif action == "generate_charges":
+            stats = generate_monthly_lease_charges()
+            messages.success(request, f"Charges: created={stats['created']} skipped={stats['skipped']}")
         return redirect("erp:lease_detail", code=lease.code)
 
 
@@ -711,6 +872,20 @@ class CrmLeadListView(StaffRequiredMixin, ListView):
 
         return Lead.objects.select_related("interested_space", "party").order_by("-created_at")
 
+    def post(self, request, *args, **kwargs):
+        from apps.crm.models import Lead
+        from apps.crm.pipeline import CrmService
+
+        lead = get_object_or_404(Lead, pk=request.POST.get("lead_id"))
+        action = request.POST.get("action")
+        if action == "qualify":
+            CrmService.qualify_lead(lead)
+            messages.success(request, "Lead qualified.")
+        elif action == "opportunity":
+            opp = CrmService.create_opportunity_from_lead(lead)
+            messages.success(request, f"Opportunity #{opp.pk} yaradıldı.")
+        return redirect("erp:crm_leads")
+
 
 class CrmOfferListView(StaffRequiredMixin, ListView):
     template_name = "erp/crm_offers.html"
@@ -721,6 +896,17 @@ class CrmOfferListView(StaffRequiredMixin, ListView):
 
         return Offer.objects.select_related("party", "space", "opportunity", "lease").order_by("-id")
 
+    def post(self, request, *args, **kwargs):
+        from apps.crm.models import Offer
+        from apps.crm.pipeline import CrmService
+
+        offer = get_object_or_404(Offer, pk=request.POST.get("offer_id"))
+        if request.POST.get("action") == "to_lease":
+            lease = CrmService.accept_offer_to_lease(offer)
+            messages.success(request, f"Lease draft: {lease.code}")
+            return redirect("erp:lease_detail", code=lease.code)
+        return redirect("erp:crm_offers")
+
 
 class WorkOrderListView(StaffRequiredMixin, ListView):
     template_name = "erp/work_orders.html"
@@ -730,6 +916,17 @@ class WorkOrderListView(StaffRequiredMixin, ListView):
         from apps.maintenance.models import WorkOrder
 
         return WorkOrder.objects.select_related("space", "ticket", "asset").order_by("-created_at")
+
+    def post(self, request, *args, **kwargs):
+        from apps.maintenance.models import WorkOrder
+        from apps.maintenance.services import WorkOrderService
+
+        wo = get_object_or_404(WorkOrder, pk=request.POST.get("wo_id"))
+        status = request.POST.get("status")
+        if status:
+            WorkOrderService.set_status(wo, status, actor=request.user)
+            messages.success(request, f"{wo.code} → {status}")
+        return redirect("erp:work_orders")
 
 
 class WarehouseListView(StaffRequiredMixin, TemplateView):
@@ -750,6 +947,16 @@ class WarehouseListView(StaffRequiredMixin, TemplateView):
         )
         return ctx
 
+    def post(self, request, *args, **kwargs):
+        from apps.procurement.services import ProcurementService
+        from apps.warehouse.models import Stock
+
+        if request.POST.get("action") == "create_pr":
+            stock = get_object_or_404(Stock, pk=request.POST.get("stock_id"))
+            pr = ProcurementService.create_pr_from_low_stock(stock=stock, requested_by=request.user)
+            messages.success(request, f"PR yaradıldı: {pr.code}")
+        return redirect("erp:warehouse")
+
 
 class ProcurementListView(StaffRequiredMixin, TemplateView):
     template_name = "erp/procurement.html"
@@ -762,6 +969,30 @@ class ProcurementListView(StaffRequiredMixin, TemplateView):
         ctx["pos"] = PurchaseOrder.objects.select_related("supplier_party")[:30]
         return ctx
 
+    def post(self, request, *args, **kwargs):
+        from apps.procurement.models import PurchaseOrder, PurchaseRequest
+        from apps.procurement.services import ProcurementService
+        from apps.warehouse.models import Warehouse
+
+        action = request.POST.get("action")
+        if action == "approve_pr":
+            pr = get_object_or_404(PurchaseRequest, pk=request.POST.get("pr_id"))
+            ProcurementService.approve_pr(pr, actor=request.user)
+            messages.success(request, f"{pr.code} təsdiqləndi")
+        elif action == "create_po":
+            pr = get_object_or_404(PurchaseRequest, pk=request.POST.get("pr_id"))
+            po = ProcurementService.create_po_from_pr(pr)
+            messages.success(request, f"PO: {po.code}")
+        elif action == "receive_po":
+            po = get_object_or_404(PurchaseOrder, pk=request.POST.get("po_id"))
+            wh = Warehouse.objects.first()
+            if not wh:
+                messages.error(request, "Warehouse yoxdur")
+            else:
+                ProcurementService.receive_po(po, warehouse=wh, actor=request.user)
+                messages.success(request, f"{po.code} qəbul edildi")
+        return redirect("erp:procurement")
+
 
 class BillingListView(StaffRequiredMixin, TemplateView):
     template_name = "erp/billing.html"
@@ -771,8 +1002,32 @@ class BillingListView(StaffRequiredMixin, TemplateView):
 
         ctx = super().get_context_data(**kwargs)
         ctx["invoices"] = Invoice.objects.select_related("party", "lease")[:40]
-        ctx["charges"] = Charge.objects.select_related("party", "lease")[:40]
+        ctx["charges"] = Charge.objects.filter(invoice__isnull=True).select_related("party")[:40]
         return ctx
+
+    def post(self, request, *args, **kwargs):
+        from apps.billing.models import Charge
+        from apps.billing.services import generate_invoice_from_charges
+        from apps.leases.lease_ops import generate_monthly_lease_charges
+
+        action = request.POST.get("action")
+        if action == "generate_lease_charges":
+            stats = generate_monthly_lease_charges()
+            messages.success(request, f"Lease charges: {stats}")
+        elif action == "invoice_party":
+            party_id = request.POST.get("party_id")
+            ids = list(
+                Charge.objects.filter(party_id=party_id, invoice__isnull=True).values_list("pk", flat=True)[:50]
+            )
+            if ids:
+                from apps.parties.models import Party
+
+                party = get_object_or_404(Party, pk=party_id)
+                inv = generate_invoice_from_charges(party, ids)
+                messages.success(request, f"Invoice {inv.code}")
+            else:
+                messages.warning(request, "Uninvoiced charge yoxdur")
+        return redirect("erp:billing")
 
 
 class AccountingListView(StaffRequiredMixin, TemplateView):

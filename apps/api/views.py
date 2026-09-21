@@ -1,4 +1,5 @@
 import json
+import os
 
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -9,9 +10,20 @@ from apps.integrations.models import SyncLog, SyncStatus
 from apps.property.models import CommercialStatus, Space
 
 
+def _public_api_authorized(request) -> bool:
+    """Optional API key via PUBLIC_API_KEY env; if unset, allow (dev)."""
+    expected = (os.environ.get("PUBLIC_API_KEY") or "").strip()
+    if not expected:
+        return True
+    got = (request.headers.get("X-API-Key") or request.GET.get("api_key") or "").strip()
+    return got == expected
+
+
 @require_GET
 def public_spaces(request):
-    """Public marketable spaces whitelist (Scope 4 stub)."""
+    """Public marketable spaces whitelist."""
+    if not _public_api_authorized(request):
+        return JsonResponse({"error": {"code": "unauthorized", "message": "Invalid API key"}}, status=401)
     qs = (
         Space.objects.filter(is_public=True, commercial_status=CommercialStatus.VACANT)
         .select_related("floor", "floor__building")
@@ -24,6 +36,9 @@ def public_spaces(request):
             "floor": s.floor.code if s.floor_id else None,
             "building": s.floor.building.code if s.floor_id else None,
             "area_m2": float(s.rentable_area_m2 or s.area_m2 or 0),
+            "base_rent_rate": float(s.base_rent_rate) if s.base_rent_rate is not None else None,
+            "service_charge_rate": float(s.service_charge_rate) if s.service_charge_rate is not None else None,
+            "availability_date": s.availability_date.isoformat() if s.availability_date else None,
             "description": s.public_description or "",
         }
         for s in qs
@@ -34,7 +49,9 @@ def public_spaces(request):
 @csrf_exempt
 @require_POST
 def public_leads(request):
-    """Website → ERP lead ingest stub with duplicate-friendly external_id."""
+    """Website → ERP lead ingest with optional API key + duplicate external_id."""
+    if not _public_api_authorized(request):
+        return JsonResponse({"error": {"code": "unauthorized", "message": "Invalid API key"}}, status=401)
     try:
         payload = json.loads(request.body.decode("utf-8") or "{}")
     except json.JSONDecodeError:
@@ -58,7 +75,6 @@ def public_leads(request):
         )
 
     from apps.crm.models import Lead, LeadSource, LeadStatus
-    from apps.property.models import Space
 
     space = None
     space_code = payload.get("interested_space_code")

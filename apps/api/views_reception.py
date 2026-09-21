@@ -25,11 +25,12 @@ def _require_perm(user, code):
 
 def _visit_payload(visit, *, can_sensitive=False):
     access = getattr(visit, "visitor_access", None)
-    fin = visit.guest.fin_code if can_sensitive else mask_fin(visit.guest.fin_code)
+    serial = visit.guest.fin_code if can_sensitive else mask_fin(visit.guest.fin_code)
     return {
         "id": visit.pk,
         "guest": visit.guest.display_name,
-        "fin": fin,
+        "serial": serial,
+        "fin": serial,  # legacy alias — value is ID series number
         "company": visit.company.name,
         "company_id": visit.company_id,
         "host": visit.host.full_name if visit.host_id else None,
@@ -82,7 +83,10 @@ def reception_visits(request):
         visit_type = VisitorType.objects.filter(pk=payload["visit_type_id"]).first()
     try:
         visit = ReceptionService.register_walk_in(
-            fin_code=payload.get("fin_code") or "",
+            fin_code=payload.get("serial")
+            or payload.get("serial_number")
+            or payload.get("fin_code")
+            or "",
             first_name=payload.get("first_name") or "",
             last_name=payload.get("last_name") or "",
             phone=payload.get("phone") or "",
@@ -136,7 +140,10 @@ def _action_response(request, visit, action):
             visit = ReceptionService.check_in_visit(
                 visit,
                 actor=request.user,
-                fin_code=payload.get("fin_code") or "",
+                fin_code=payload.get("serial")
+                or payload.get("serial_number")
+                or payload.get("fin_code")
+                or "",
                 id_document_held=bool(payload.get("id_document_held")),
                 id_override_reason=payload.get("id_override_reason") or "",
                 allow_id_override=allow_override,
@@ -198,7 +205,13 @@ def reception_visit_cancel(request, pk):
 def reception_guest_search(request):
     if not _require_perm(request.user, "reception.search"):
         return _deny()
-    fin = request.GET.get("fin") or request.GET.get("q") or ""
+    fin = (
+        request.GET.get("serial")
+        or request.GET.get("serial_number")
+        or request.GET.get("fin")
+        or request.GET.get("q")
+        or ""
+    )
     guest = ReceptionService.find_guest_by_fin(fin)
     if not guest and fin:
         from apps.reception.models import Guest
@@ -211,6 +224,7 @@ def reception_guest_search(request):
     if not guest:
         return JsonResponse({"results": [], "count": 0})
     can_sensitive = user_has_permission(request.user, "reception.view_sensitive_data")
+    serial = guest.fin_code if can_sensitive else mask_fin(guest.fin_code)
     return JsonResponse(
         {
             "results": [
@@ -219,7 +233,8 @@ def reception_guest_search(request):
                     "first_name": guest.first_name,
                     "last_name": guest.last_name,
                     "display_name": guest.display_name,
-                    "fin": guest.fin_code if can_sensitive else mask_fin(guest.fin_code),
+                    "serial": serial,
+                    "fin": serial,  # legacy alias
                     "phone": guest.phone,
                 }
             ],
