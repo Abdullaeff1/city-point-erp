@@ -1,6 +1,8 @@
 # AxTrax events poller — reliability runbook (Phase 1)
 
-ERP does **not** call AxTrax at request time. A host poller exports events to JSON and Django imports them.
+When the web container starts and `TURNSTILE_MSSQL_PASSWORD` is set, Django starts `poll_axtrax` in the background (`AXTRAX_POLL_ON_START=1`). Log: `var/axtrax_poller.log`.
+
+The Windows host script remains an alternative if the container cannot reach AxTrax SQL.
 
 ## Dev / ops start
 

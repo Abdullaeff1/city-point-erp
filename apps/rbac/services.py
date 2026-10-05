@@ -24,6 +24,7 @@ DEFAULT_PERMISSIONS = [
     ("reception.export", "Jurnal export", "reception"),
     ("reception.view_sensitive_data", "Seriya nömrəsi tam baxış", "reception"),
     ("reception.override_id", "ID override", "reception"),
+    ("residents.export_access", "Giriş/çıxış Excel export", "residents"),
     ("document.view", "Sənəd baxış", "documents"),
     ("document.edit", "Sənəd redaktə", "documents"),
     ("report.view", "Hesabat baxış", "reporting"),
@@ -59,7 +60,7 @@ ROLE_MATRIX = {
         "reception.view",
         "reception.search",
     ],
-    Role.SECURITY: ["security.view", "party.view"],
+    Role.SECURITY: ["security.view", "party.view", "residents.export_access"],
     Role.MANAGEMENT: [p[0] for p in DEFAULT_PERMISSIONS],
     Role.ADMIN: [p[0] for p in DEFAULT_PERMISSIONS],
 }

@@ -25,6 +25,13 @@ services:
       dockerfile: bin/dev/Dockerfile
     env_file:
       - .env
+    environment:
+      AXTRAX_POLL_ON_START: ${AXTRAX_POLL_ON_START:-1}
+      AXTRAX_POLL_INTERVAL: ${AXTRAX_POLL_INTERVAL:-15}
+      TURNSTILE_MSSQL_HOST: ${TURNSTILE_MSSQL_HOST:-172.31.104.10}
+      TURNSTILE_MSSQL_PORT: ${TURNSTILE_MSSQL_PORT:-1433}
+      TURNSTILE_MSSQL_DATABASE: ${TURNSTILE_MSSQL_DATABASE:-AxTrax1}
+      TURNSTILE_MSSQL_USER: ${TURNSTILE_MSSQL_USER:-ReadOnlyerp}
     ports:
       - "3001:8000"
     volumes:

@@ -90,15 +90,21 @@ def _event_type(reader_out) -> str:
 
 
 @transaction.atomic
-def sync_events_from_export(path: Path, *, since_id: int | None = None) -> dict:
-    payload = load_export(path)
-    rows = payload.get("rows") or []
+def sync_event_rows(
+    rows: list,
+    *,
+    since_id: int | None = None,
+    source: str = "export",
+    detect_alerts: bool = True,
+) -> dict:
+    """Import already-fetched AxTrax access-granted rows."""
     cursor = get_events_cursor() if since_id is None else int(since_id)
     emp_map = _employee_map()
     event_ct = ContentType.objects.get_for_model(AccessEvent)
 
     stats = {
         "rows_in_file": len(rows),
+        "source": source,
         "cursor_before": cursor,
         "created": 0,
         "skipped_existing": 0,
@@ -176,7 +182,7 @@ def sync_events_from_export(path: Path, *, since_id: int | None = None) -> dict:
         set_events_cursor(max_id, stats={"created": stats["created"]})
     stats["cursor_after"] = max_id if max_id > cursor else cursor
 
-    if created_events:
+    if created_events and detect_alerts:
         from apps.residents.rapid_swipe import detect_rapid_swipes_after_sync
         from apps.residents.shaft_access import detect_shaft_access_after_sync
 
@@ -189,7 +195,64 @@ def sync_events_from_export(path: Path, *, since_id: int | None = None) -> dict:
         system=AXTRAX_SYSTEM,
         operation="sync_events",
         status=SyncStatus.SUCCESS,
-        request_payload={"path": str(path), "since_id": cursor},
+        request_payload={"source": source, "since_id": cursor, "rows": len(rows)},
         response_payload=stats,
     )
     return stats
+
+
+def backfill_events_from_date(since_date, *, batch_size: int = 5000) -> dict:
+    """Pull AxTrax access-granted events from ``since_date`` (local calendar day) onward.
+
+    Uses ExternalIdentity for dedup so already-imported rows are skipped.
+    Does not fire rapid/shaft alerts (historical catch-up).
+    """
+    from apps.integrations.axtrax_mssql import fetch_granted_events_since
+
+    if hasattr(since_date, "hour"):
+        start = since_date
+    else:
+        start = timezone.make_aware(datetime.combine(since_date, datetime.min.time()))
+
+    after_id = 0
+    totals = {
+        "batches": 0,
+        "rows_fetched": 0,
+        "created": 0,
+        "skipped_existing": 0,
+        "skipped_unmapped": 0,
+        "skipped_bad_time": 0,
+        "skipped_old": 0,
+    }
+    while True:
+        rows = fetch_granted_events_since(start, after_id=after_id, limit=batch_size)
+        if not rows:
+            break
+        totals["batches"] += 1
+        totals["rows_fetched"] += len(rows)
+        # since_id=0: do not skip by live poller cursor; ExternalIdentity dedupes.
+        stats = sync_event_rows(
+            rows,
+            since_id=0,
+            source=f"backfill:{start.date().isoformat()}",
+            detect_alerts=False,
+        )
+        for key in (
+            "created",
+            "skipped_existing",
+            "skipped_unmapped",
+            "skipped_bad_time",
+            "skipped_old",
+        ):
+            totals[key] += int(stats.get(key) or 0)
+        after_id = max(int(r["event_id"]) for r in rows)
+        if len(rows) < batch_size:
+            break
+    totals["after_id"] = after_id
+    return totals
+
+
+def sync_events_from_export(path: Path, *, since_id: int | None = None) -> dict:
+    payload = load_export(path)
+    rows = payload.get("rows") or []
+    return sync_event_rows(rows, since_id=since_id, source=str(path))

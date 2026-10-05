@@ -15,8 +15,10 @@ from apps.accounts.models import Role, User
 from apps.comms.services import notify_in_app
 from apps.residents.models import AccessEvent, RapidCardSwipeAlert, ResidentEmployee
 
-WINDOW_SECONDS = 60
+WINDOW_SECONDS = 20
 MIN_SWIPES = 3
+# Collapse AxTrax double-fires on the same reader within this gap.
+DEDUP_SECONDS = 2
 # Look back a bit past the window so bursts spanning sync polls are caught.
 LOOKBACK_SECONDS = WINDOW_SECONDS * 3
 
@@ -34,10 +36,38 @@ def _iso(dt) -> str:
     return dt.isoformat()
 
 
-def find_rapid_windows(events: list[AccessEvent], *, window_seconds: int = WINDOW_SECONDS, min_swipes: int = MIN_SWIPES):
+def _event_span_seconds(first: AccessEvent, last: AccessEvent) -> float:
+    return (last.occurred_at - first.occurred_at).total_seconds()
+
+
+def dedupe_near_duplicate_swipes(
+    events: list[AccessEvent], *, dedup_seconds: int = DEDUP_SECONDS
+) -> list[AccessEvent]:
+    """Keep one punch when AxTrax emits near-identical consecutive events."""
+    if not events:
+        return []
+    gap = timedelta(seconds=dedup_seconds)
+    kept: list[AccessEvent] = [events[0]]
+    for e in events[1:]:
+        prev = kept[-1]
+        same_type = e.event_type == prev.event_type
+        same_reader = (e.reader_id and e.reader_id == prev.reader_id) or (
+            (e.reader_name or "").strip() == (prev.reader_name or "").strip()
+            and bool((e.reader_name or "").strip())
+        )
+        if same_type and same_reader and e.occurred_at - prev.occurred_at <= gap:
+            continue
+        kept.append(e)
+    return kept
+
+
+def find_rapid_windows(
+    events: list[AccessEvent], *, window_seconds: int = WINDOW_SECONDS, min_swipes: int = MIN_SWIPES
+):
     """Yield (window_start, window_end, slice) for each maximal burst of min_swipes within window.
 
     ``events`` must be ordered by occurred_at ascending.
+    A burst is valid only when first→last span is ≤ ``window_seconds``.
     Overlapping candidate windows are collapsed: we keep the first hit and skip
     windows whose start falls inside a previously reported burst.
     """
@@ -57,11 +87,12 @@ def find_rapid_windows(events: list[AccessEvent], *, window_seconds: int = WINDO
         end_idx = j - 1
         if end_idx - i + 1 >= min_swipes:
             burst = events[i : end_idx + 1]
-            yield burst[0].occurred_at, burst[-1].occurred_at, burst
-            reported_until = burst[-1].occurred_at
-            i = end_idx + 1
-        else:
-            i += 1
+            if _event_span_seconds(burst[0], burst[-1]) <= window_seconds:
+                yield burst[0].occurred_at, burst[-1].occurred_at, burst
+                reported_until = burst[-1].occurred_at
+                i = end_idx + 1
+                continue
+        i += 1
 
 
 def _open_alert_overlaps(employee_id: int, window_start, window_end) -> bool:
@@ -104,6 +135,8 @@ def create_alert_from_burst(employee: ResidentEmployee, burst: list[AccessEvent]
         return None
     window_start = burst[0].occurred_at
     window_end = burst[-1].occurred_at
+    if _event_span_seconds(burst[0], burst[-1]) > WINDOW_SECONDS:
+        return None
     if _open_alert_overlaps(employee.pk, window_start, window_end):
         return None
     if RapidCardSwipeAlert.objects.filter(employee=employee, window_start=window_start).exists():
@@ -149,7 +182,7 @@ def detect_rapid_swipes_for_employees(
         for e in ResidentEmployee.objects.select_related("company").filter(pk__in=ids)
     }
     for emp_id, employee in employees.items():
-        events = [
+        raw = [
             e
             for e in AccessEvent.objects.filter(
                 employee_id=emp_id,
@@ -158,6 +191,7 @@ def detect_rapid_swipes_for_employees(
             ).order_by("occurred_at")
             if is_f1_reader(e.reader_name)
         ]
+        events = dedupe_near_duplicate_swipes(raw)
         for window_start, window_end, burst in find_rapid_windows(
             events, window_seconds=window_seconds, min_swipes=min_swipes
         ):

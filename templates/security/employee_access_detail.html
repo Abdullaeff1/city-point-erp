@@ -12,12 +12,23 @@
     <a class="cp-tab {% if preset == 'today' %}is-active{% endif %}" href="?range=today&date={% if single_day %}{{ date_from|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">{% translate "Günlük" %}</a>
     <a class="cp-tab {% if preset == 'week' %}is-active{% endif %}" href="?range=week">{% translate "Bu həftə" %}</a>
     <a class="cp-tab {% if preset == 'month' %}is-active{% endif %}" href="?range=month">{% translate "Bu ay" %}</a>
+    <a class="cp-tab {% if preset == 'custom' %}is-active{% endif %}" href="?range=custom&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}">{% translate "Tarix aralığı" %}</a>
   </div>
-  {% if single_day %}
+  {% if preset == 'custom' %}
+  <form method="get" class="flex gap-2 mb-3" style="flex-wrap:wrap;align-items:end;">
+    <input type="hidden" name="range" value="custom">
+    <label><span class="cp-meta">{% translate "Başlanğıc" %}</span><input class="cp-input mt-1" type="date" name="from" value="{{ date_from|date:'Y-m-d' }}" required></label>
+    <label><span class="cp-meta">{% translate "Son" %}</span><input class="cp-input mt-1" type="date" name="to" value="{{ date_to|date:'Y-m-d' }}" required></label>
+    <button class="cp-btn" type="submit">{% translate "Göstər" %}</button>
+  </form>
+  {% elif single_day %}
   <form method="get"><input type="hidden" name="range" value="today"><input class="cp-input" type="date" name="date" value="{{ date_from|date:'Y-m-d' }}" onchange="this.form.submit()"></form>
   {% else %}
   <p class="cp-meta">{{ date_from|date:"d.m.Y" }} – {{ date_to|date:"d.m.Y" }}</p>
   {% endif %}
+  <div class="mt-3">
+    <a class="cp-btn" href="{% url 'security:employee_access_export' company.pk employee.pk %}?range={{ preset }}{% if preset == 'today' %}&date={{ date_from|date:'Y-m-d' }}{% elif preset == 'custom' %}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}{% endif %}">{% translate "Excel yüklə" %}</a>
+  </div>
 </div>
 {% if single_day %}
 <div class="flex gap-3 mb-4" style="flex-wrap:wrap;">

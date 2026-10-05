@@ -2,19 +2,22 @@ from datetime import datetime, timedelta
 import json
 
 from django.contrib import messages
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from django.utils.translation import gettext as _
+from django.views import View
 from django.views.generic import FormView, ListView, TemplateView
 
 from apps.accounts.mixins import ResidentPortalMixin
 from apps.comms.announcements import announcements_for_user
 from apps.comms.models import Notification
+from apps.core.services import DomainError
 from apps.documents.models import Document
 from apps.erp.forms import PortalEmployeeCreateForm, PortalTicketForm
 from apps.reception.models import GuestVisit
+from apps.reception.services import can_portal_checkout, portal_check_out_visit
 from apps.residents.access import (
     access_range_bounds,
     build_employee_access_rows,
@@ -23,6 +26,7 @@ from apps.residents.access import (
     employee_roster_qs,
     parse_date,
 )
+from apps.residents.access_export import access_xlsx_http_response
 from apps.residents.models import ResidentEmployee
 from apps.residents.services import create_employee_card_order
 from apps.tickets.models import CLOSED_STATUSES, OPEN_STATUSES, Ticket, TicketAttachment, TicketSubcategory
@@ -137,14 +141,18 @@ class RequestDetailView(ResidentPortalMixin, TemplateView):
 class AlertsView(ResidentPortalMixin, TemplateView):
     template_name = "portal/alerts.html"
 
+    def get(self, request, *args, **kwargs):
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return super().get(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
-        ctx["notifications"] = Notification.objects.filter(user=user)
+        ctx["notifications"] = Notification.objects.filter(user=user).order_by("-created_at")[:100]
         ctx["history"] = Ticket.objects.filter(
             company=user.resident_company, status__in=CLOSED_STATUSES
         )
-        Notification.objects.filter(user=user, is_read=False).update(is_read=True)
+        ctx["unread_alerts"] = 0
         return ctx
 
 
@@ -165,6 +173,9 @@ class EmployeeAccessView(ResidentPortalMixin, TemplateView):
                     "today": timezone.localdate(),
                     "selected_date": timezone.localdate(),
                     "is_today": True,
+                    "export_preset": "month",
+                    "export_from": timezone.localdate().replace(day=1),
+                    "export_to": timezone.localdate(),
                 }
             )
             return ctx
@@ -173,6 +184,14 @@ class EmployeeAccessView(ResidentPortalMixin, TemplateView):
         base = ResidentEmployee.objects.filter(company=company).order_by("full_name")
         employees, roster = employee_roster_qs(base, self.request.GET.get("roster"))
         rows, inside, left, present = build_employee_access_rows(employees, selected_date)
+        export_preset, export_from, export_to = access_range_bounds(
+            self.request, default_preset="month"
+        )
+        # List page defaults to day view; export range defaults to month unless ?range= given.
+        if "range" not in self.request.GET:
+            export_preset = "month"
+            export_from = today.replace(day=1)
+            export_to = today
         pending_ids = set(
             Ticket.objects.filter(
                 company=company,
@@ -195,9 +214,38 @@ class EmployeeAccessView(ResidentPortalMixin, TemplateView):
                 "selected_date": selected_date,
                 "is_today": selected_date == today,
                 "can_add_employee": True,
+                "export_preset": export_preset,
+                "export_from": export_from,
+                "export_to": export_to,
             }
         )
         return ctx
+
+
+class EmployeesAccessExportView(ResidentPortalMixin, View):
+    """Download company (or one employee) attendance as Excel for the selected range."""
+
+    def get(self, request, pk=None):
+        company = request.user.resident_company
+        if not company or company.is_internal:
+            raise PermissionDenied
+        preset, date_from, date_to = access_range_bounds(request, default_preset="month")
+        employee = None
+        if pk is not None:
+            employee = get_object_or_404(
+                ResidentEmployee,
+                pk=pk,
+                company=company,
+                company__is_internal=False,
+            )
+        roster = (request.GET.get("roster") or "active").strip().lower()
+        return access_xlsx_http_response(
+            company,
+            date_from,
+            date_to,
+            employee=employee,
+            roster=roster,
+        )
 
 
 class EmployeeCreateView(ResidentPortalMixin, FormView):
@@ -299,13 +347,18 @@ class GuestsView(ResidentPortalMixin, FormView):
         days = max(1, min(days, 365))
         since = timezone.localdate() - timedelta(days=days)
         ctx["guest_days"] = days
-        ctx["visits"] = (
-            GuestVisit.objects.filter(company=company, scheduled_for__gte=since)
-            .select_related("guest", "host", "floor", "space", "visit_type")
-            .order_by("-scheduled_for", "-id")[:100]
+        visits = (
+            list(
+                GuestVisit.objects.filter(company=company, scheduled_for__gte=since)
+                .select_related("guest", "host", "floor", "space", "visit_type", "visitor_access")
+                .order_by("-scheduled_for", "-id")[:100]
+            )
             if company
-            else GuestVisit.objects.none()
+            else []
         )
+        for v in visits:
+            v.portal_can_checkout = can_portal_checkout(v, company=company)
+        ctx["visits"] = visits
         return ctx
 
     def form_valid(self, form):
@@ -328,6 +381,22 @@ class GuestsView(ResidentPortalMixin, FormView):
             visit.expected_arrival = form.cleaned_data["expected_arrival"]
             visit.scheduled_for = form.cleaned_data["expected_arrival"].date()
             visit.save(update_fields=["expected_arrival", "scheduled_for", "updated_at"])
+        return redirect("portal:guests")
+
+
+class GuestCheckoutView(ResidentPortalMixin, View):
+    def post(self, request, pk):
+        company = request.user.resident_company
+        visit = get_object_or_404(
+            GuestVisit.objects.select_related("guest", "visitor_access"),
+            pk=pk,
+            company=company,
+        )
+        try:
+            portal_check_out_visit(visit, actor=request.user, company=company)
+            messages.success(request, _("Çıxış qeydə alındı."))
+        except DomainError as exc:
+            messages.error(request, str(exc))
         return redirect("portal:guests")
 
 

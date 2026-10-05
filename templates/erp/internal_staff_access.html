@@ -23,6 +23,30 @@
   <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ left }}</strong></div>
   <div class="cp-card p-card-sm">{{ company.name }} · {{ rows|length }}</div>
 </div>
+
+<div class="cp-card p-card mb-4">
+  <p class="cp-meta mb-2">{% translate "Excel export — AxTrax üslubu (işə giriş / işdən çıxış)" %}</p>
+  <div class="cp-tabs" style="margin-bottom:12px;">
+    <a class="cp-tab {% if export_preset == 'today' %}is-active{% endif %}" href="?roster={{ roster }}&date={{ selected_date|date:'Y-m-d' }}&range=today">{% translate "Günlük" %}</a>
+    <a class="cp-tab {% if export_preset == 'week' %}is-active{% endif %}" href="?roster={{ roster }}&date={{ selected_date|date:'Y-m-d' }}&range=week">{% translate "Bu həftə" %}</a>
+    <a class="cp-tab {% if export_preset == 'month' %}is-active{% endif %}" href="?roster={{ roster }}&date={{ selected_date|date:'Y-m-d' }}&range=month">{% translate "Bu ay" %}</a>
+    <a class="cp-tab {% if export_preset == 'custom' %}is-active{% endif %}" href="?roster={{ roster }}&date={{ selected_date|date:'Y-m-d' }}&range=custom&from={{ export_from|date:'Y-m-d' }}&to={{ export_to|date:'Y-m-d' }}">{% translate "Tarix aralığı" %}</a>
+  </div>
+  {% if export_preset == 'custom' %}
+  <form method="get" class="flex gap-2 mb-3" style="flex-wrap:wrap;align-items:end;">
+    <input type="hidden" name="roster" value="{{ roster }}">
+    <input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+    <input type="hidden" name="range" value="custom">
+    <label><span class="cp-meta">{% translate "Başlanğıc" %}</span><input class="cp-input mt-1" type="date" name="from" value="{{ export_from|date:'Y-m-d' }}" required></label>
+    <label><span class="cp-meta">{% translate "Son" %}</span><input class="cp-input mt-1" type="date" name="to" value="{{ export_to|date:'Y-m-d' }}" required></label>
+    <button class="cp-btn-ghost" type="submit">{% translate "Tətbiq et" %}</button>
+  </form>
+  {% else %}
+  <p class="cp-meta mb-3">{{ export_from|date:"d.m.Y" }}{% if export_from != export_to %} – {{ export_to|date:"d.m.Y" }}{% endif %}</p>
+  {% endif %}
+  <a class="cp-btn" href="{% url 'erp:internal_staff_access_export' %}?roster={{ roster }}&range={{ export_preset }}{% if export_preset == 'today' %}&date={{ export_from|date:'Y-m-d' }}{% elif export_preset == 'year' %}&year={{ export_from.year }}{% elif export_preset == 'custom' %}&from={{ export_from|date:'Y-m-d' }}&to={{ export_to|date:'Y-m-d' }}{% endif %}">{% translate "Excel yüklə" %}</a>
+</div>
+
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
     <thead><tr><th>{% translate "Əməkdaş" %}</th><th>{% translate "Kart" %}</th><th>{% translate "İşə gəliş" %}</th><th>{% translate "İşdən çıxış" %}</th><th>{% translate "Status" %}</th></tr></thead>

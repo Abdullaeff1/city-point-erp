@@ -12,6 +12,7 @@
       <a class="{% nav_active 'home' %}" href="{% url 'security:home' %}"><i data-lucide="shield" width="18" height="18"></i><span class="cp-nav-text">{% translate "Əsas" %}</span></a>
       <a class="{% nav_active 'alerts' 'alert_detail' 'shaft_alert_detail' %}" href="{% url 'security:alerts' %}"><i data-lucide="bell" width="18" height="18"></i><span class="cp-nav-text">{% translate "Bildirişlər" %}</span>{% if open_security_alerts %}<span class="badge badge-muted" style="margin-left:auto;background:var(--cp-accent);color:var(--cp-primary-dark);">{{ open_security_alerts }}</span>{% endif %}</a>
       <a class="{% nav_active 'companies' 'company_employees' 'employee_access' %}" href="{% url 'security:companies' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Şirkətlər" %}</span></a>
+      <a class="{% nav_active 'guests' %}" href="{% url 'security:guests' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Qonaqlar" %}</span></a>
       <a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'security:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Ticketlər" %}</span></a>
     </nav>
     <div class="cp-user-bar">

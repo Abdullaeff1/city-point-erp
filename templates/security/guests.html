@@ -1,0 +1,61 @@
+{% extends "security/base.html" %}
+{% load i18n cp_ui %}
+{% block heading %}{% translate "Qonaqlar" %}{% endblock %}
+{% block content %}
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;align-items:end;">
+  <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;margin:0;">
+    <label>
+      <span class="cp-meta">{% translate "Tarix" %}</span>
+      <input class="cp-input mt-1" type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" onchange="this.form.submit()">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Şirkət" %}</span>
+      <select class="cp-input mt-1" name="company" onchange="this.form.submit()">
+        <option value="">{% translate "Hamısı" %}</option>
+        {% for c in companies %}
+        <option value="{{ c.pk }}" {% if filter_company and filter_company.pk == c.pk %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </form>
+  <div class="cp-card p-card-sm">{% translate "Cəmi" %} <strong>{{ guest_total }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "İçəridə" %} <strong>{{ guest_inside }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ guest_left }}</strong></div>
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Qonaq" %}</th>
+        <th>{% translate "Seriya №" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Host" %}</th>
+        <th>{% translate "Giriş" %}</th>
+        <th>{% translate "Çıxış" %}</th>
+        <th>{% translate "Vəsiqə" %}</th>
+        <th>{% translate "Kart" %}</th>
+        <th>{% translate "Status" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in visits %}
+      <tr>
+        <td>{{ v.guest.display_name }}</td>
+        <td class="cp-code">{% if v.guest.fin_code %}{{ v.guest.fin_code|mask_fin_filter }}{% else %}—{% endif %}</td>
+        <td>
+          <a href="{% url 'security:company_employees' v.company_id %}?tab=guests&date={{ selected_date|date:'Y-m-d' }}">{{ v.company.name }}</a>
+        </td>
+        <td>{{ v.host.full_name|default:"—" }}</td>
+        <td>{% if v.check_in_at %}{{ v.check_in_at|date:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if v.check_out_at %}{{ v.check_out_at|date:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{{ v.id_document_label }}</td>
+        <td>{% if v.visitor_access %}{% if v.visitor_access.credential %}<span class="cp-code">{{ v.visitor_access.credential }}</span>{% else %}{{ v.visitor_access.get_status_display }}{% endif %}{% else %}—{% endif %}</td>
+        <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="9" class="cp-meta empty-pad">{% if is_today %}{% translate "Bu gün qonaq yoxdur." %}{% else %}{% translate "Bu tarix üçün qonaq yoxdur." %}{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

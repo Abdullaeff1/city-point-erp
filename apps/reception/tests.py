@@ -5,7 +5,16 @@ from django.utils import timezone
 
 from apps.accounts.models import Role
 from apps.core.services import DomainError
-from apps.reception.models import Guest, GuestVisit, VisitStatus, VisitorType, mask_fin, normalize_fin
+from apps.reception.models import (
+    Guest,
+    GuestVisit,
+    VisitStatus,
+    VisitorAccess,
+    VisitorAccessStatus,
+    VisitorType,
+    mask_fin,
+    normalize_fin,
+)
 from apps.reception.services import ReceptionService, pre_register_visit
 from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.rbac.services import seed_rbac_catalog, user_has_permission
@@ -51,7 +60,23 @@ class ReceptionServiceTests(TestCase):
             )
         self.assertIn("Seriya", str(ctx.exception))
 
-    def test_walk_in_requires_id_or_override(self):
+    def test_walk_in_without_id_ok(self):
+        visit = ReceptionService.register_walk_in(
+            fin_code="7A3B2C1D2K",
+            first_name="Ali",
+            last_name="Veli",
+            company=self.company,
+            host=self.host,
+            visit_type=self.vtype,
+            id_document_held=False,
+            actor=self.user,
+        )
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
+        self.assertTrue(visit.check_in_at)
+        self.assertFalse(visit.id_document_held)
+        self.assertFalse(VisitorAccess.objects.filter(visit=visit).exists())
+
+    def test_walk_in_with_id_issues_guest_card(self):
         with self.assertRaises(DomainError):
             ReceptionService.register_walk_in(
                 fin_code="7A3B2C1D2K",
@@ -60,7 +85,7 @@ class ReceptionServiceTests(TestCase):
                 company=self.company,
                 host=self.host,
                 visit_type=self.vtype,
-                id_document_held=False,
+                id_document_held=True,
                 actor=self.user,
             )
         visit = ReceptionService.register_walk_in(
@@ -71,11 +96,14 @@ class ReceptionServiceTests(TestCase):
             host=self.host,
             visit_type=self.vtype,
             id_document_held=True,
+            guest_card_number="GK-1001",
             actor=self.user,
         )
         self.assertEqual(visit.status, VisitStatus.INSIDE)
-        self.assertTrue(visit.check_in_at)
+        self.assertTrue(visit.id_document_held)
         self.assertTrue(hasattr(visit, "visitor_access"))
+        self.assertEqual(visit.visitor_access.status, VisitorAccessStatus.ACTIVE)
+        self.assertEqual(visit.visitor_access.credential, "GK-1001")
 
     def test_fin_reuses_guest(self):
         g1 = ReceptionService.find_or_create_guest(
@@ -95,6 +123,7 @@ class ReceptionServiceTests(TestCase):
                 company=self.company,
                 host=self.other_host,
                 id_document_held=True,
+                guest_card_number="GK-1",
                 actor=self.user,
             )
 
@@ -105,6 +134,7 @@ class ReceptionServiceTests(TestCase):
             last_name="Guest",
             company=self.company,
             id_document_held=True,
+            guest_card_number="GK-DUP",
             actor=self.user,
         )
         with self.assertRaises(DomainError):
@@ -114,6 +144,7 @@ class ReceptionServiceTests(TestCase):
                 last_name="Guest",
                 company=self.company,
                 id_document_held=True,
+                guest_card_number="GK-DUP2",
                 actor=self.user,
             )
 
@@ -129,7 +160,11 @@ class ReceptionServiceTests(TestCase):
         self.assertTrue(visit.invite_code)
 
         ReceptionService.check_in_visit(
-            visit, actor=self.user, fin_code="PRE11111AA", id_document_held=True
+            visit,
+            actor=self.user,
+            fin_code="PRE11111AA",
+            id_document_held=True,
+            guest_card_number="GK-PRE",
         )
         visit.refresh_from_db()
         self.assertEqual(visit.status, VisitStatus.INSIDE)
@@ -144,7 +179,9 @@ class ReceptionServiceTests(TestCase):
         visit2.refresh_from_db()
         self.assertEqual(visit2.status, VisitStatus.CANCELLED)
         with self.assertRaises(DomainError):
-            ReceptionService.check_in_visit(visit2, actor=self.user, id_document_held=True)
+            ReceptionService.check_in_visit(
+                visit2, actor=self.user, id_document_held=True, guest_card_number="GK-X"
+            )
 
     def test_checkout_blocks_without_id_return(self):
         visit = ReceptionService.register_walk_in(
@@ -153,6 +190,7 @@ class ReceptionServiceTests(TestCase):
             last_name="Hold",
             company=self.company,
             id_document_held=True,
+            guest_card_number="GK-HOLD",
             actor=self.user,
         )
         with self.assertRaises(DomainError):

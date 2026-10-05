@@ -3,6 +3,7 @@ import secrets
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.translation import gettext as _
 
 from apps.core.services import DomainError, Service
 from apps.reception.models import (
@@ -107,14 +108,14 @@ class ReceptionService(Service):
         phone: str = "",
         actor=None,
         allow_id_override: bool = False,
+        guest_card_number: str = "",
     ) -> GuestVisit:
         cls.require(company is not None, "Şirkət seçilməlidir.")
         cls.require(bool(normalize_fin(fin_code)), "Seriya nömrəsi tələb olunur.")
-        if not id_document_held:
-            cls.require(
-                allow_id_override and bool(id_override_reason.strip()),
-                "Şəxsiyyət vəsiqəsi qəbul edilməlidir (və ya override + səbəb).",
-            )
+        held = bool(id_document_held)
+        card = (guest_card_number or "").strip()
+        if held:
+            cls.require(bool(card), "Qonaq kartı nömrəsi tələb olunur.")
         if host is not None:
             cls.require(host.company_id == company.id, "Host seçilmiş şirkətə aid deyil.")
             cls.require(host.is_active, "Host aktiv deyil.")
@@ -143,12 +144,14 @@ class ReceptionService(Service):
             scheduled_for=timezone.localdate(),
             check_in_at=now,
             created_by=actor if getattr(actor, "is_authenticated", False) else None,
-            id_document_held=bool(id_document_held),
-            id_override_reason=id_override_reason.strip() if not id_document_held else "",
+            id_document_held=held,
+            id_override_reason=(id_override_reason.strip() if not held else ""),
             notes=notes or "",
             pre_registered=False,
         )
-        create_visitor_access(visit)
+        # Guest card only when ID is held at reception (card issued).
+        if visit.id_document_held:
+            create_visitor_access(visit, credential=card)
         _audit(
             "visit.check_in",
             actor=actor,
@@ -170,6 +173,7 @@ class ReceptionService(Service):
         allow_id_override: bool = False,
         first_name: str = "",
         last_name: str = "",
+        guest_card_number: str = "",
     ) -> GuestVisit:
         visit = GuestVisit.objects.select_for_update().select_related("guest").get(pk=visit.pk)
         cls.require(visit.status != VisitStatus.CANCELLED, "Ləğv olunmuş ziyarət check-in edilə bilməz.")
@@ -177,11 +181,10 @@ class ReceptionService(Service):
             visit.status in (VisitStatus.PRE_REGISTERED, VisitStatus.WAITING),
             "Bu ziyarət check-in üçün uyğun deyil.",
         )
-        if not id_document_held:
-            cls.require(
-                allow_id_override and bool(id_override_reason.strip()),
-                "Şəxsiyyət vəsiqəsi qəbul edilməlidir.",
-            )
+        held = bool(id_document_held)
+        card = (guest_card_number or "").strip()
+        if held:
+            cls.require(bool(card), "Qonaq kartı nömrəsi tələb olunur.")
         guest = visit.guest
         if fin_code:
             guest.fin_code = normalize_fin(fin_code)
@@ -203,9 +206,8 @@ class ReceptionService(Service):
 
         visit.status = VisitStatus.INSIDE
         visit.check_in_at = timezone.now()
-        visit.id_document_held = bool(id_document_held)
-        if not id_document_held:
-            visit.id_override_reason = id_override_reason.strip()
+        visit.id_document_held = held
+        visit.id_override_reason = id_override_reason.strip() if not held else ""
         visit.save(
             update_fields=[
                 "status",
@@ -215,7 +217,8 @@ class ReceptionService(Service):
                 "updated_at",
             ]
         )
-        create_visitor_access(visit)
+        if visit.id_document_held:
+            create_visitor_access(visit, credential=card)
         _audit("visit.check_in", actor=actor, entity=visit)
         from apps.core import events as bus
 
@@ -357,7 +360,39 @@ def check_out_visit(visit: GuestVisit, **kwargs) -> GuestVisit:
     return ReceptionService.check_out_visit(visit, **kwargs)
 
 
-def create_visitor_access(visit: GuestVisit) -> VisitorAccess:
+def visit_has_active_guest_card(visit: GuestVisit) -> bool:
+    try:
+        access = visit.visitor_access
+    except VisitorAccess.DoesNotExist:
+        return False
+    return access.status == VisitorAccessStatus.ACTIVE
+
+
+def can_portal_checkout(visit: GuestVisit, *, company) -> bool:
+    """Resident may close visits reception is not fully tracking (no ID / no guest card)."""
+    if company is None or visit.company_id != company.id:
+        return False
+    if visit.status != VisitStatus.INSIDE:
+        return False
+    if visit.id_document_held:
+        return False
+    if visit_has_active_guest_card(visit):
+        return False
+    return True
+
+
+@transaction.atomic
+def portal_check_out_visit(visit: GuestVisit, *, actor, company) -> GuestVisit:
+    visit = GuestVisit.objects.select_for_update().select_related("company").get(pk=visit.pk)
+    if not can_portal_checkout(visit, company=company):
+        raise DomainError(
+            _("Bu qonağın çıxışını yalnız reception bağlaya bilər (vəsiqə və ya qonaq kartı).")
+        )
+    return ReceptionService.check_out_visit(visit, actor=actor, id_returned=True)
+
+
+def create_visitor_access(visit: GuestVisit, *, credential: str = "") -> VisitorAccess:
+    card = (credential or "").strip()
     access, _ = VisitorAccess.objects.get_or_create(
         visit=visit,
         defaults={
@@ -365,13 +400,19 @@ def create_visitor_access(visit: GuestVisit) -> VisitorAccess:
             "status": VisitorAccessStatus.PENDING,
             "sync_status": SyncStatus.PENDING,
             "valid_from": visit.check_in_at or timezone.now(),
+            "credential": card,
         },
     )
+    if card and access.credential != card:
+        access.credential = card
     try:
         from apps.integrations.adapters import MockAccessControlAdapter
 
         result = MockAccessControlAdapter().assign_credential(
-            {"code": visit.invite_code or f"visit-{visit.pk}", "visit_id": visit.pk}
+            {
+                "code": card or visit.invite_code or f"visit-{visit.pk}",
+                "visit_id": visit.pk,
+            }
         )
         access.external_id = result.external_id or access.external_id
         access.status = VisitorAccessStatus.ACTIVE if result.ok else VisitorAccessStatus.FAILED

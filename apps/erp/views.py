@@ -29,6 +29,7 @@ from apps.residents.access import (
     employee_roster_qs,
     parse_date,
 )
+from apps.residents.access_export import access_xlsx_http_response
 from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.rbac.services import user_has_permission
 from apps.tickets.models import CLOSED_STATUSES, OPEN_STATUSES, Ticket, TicketPriority, TicketStatus
@@ -109,11 +110,12 @@ class ReceptionView(RoleRequiredMixin, FormView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         today = timezone.localdate()
+        selected_date = parse_date(self.request.GET.get("date"), today)
         q = self.request.GET.get("q", "").strip()
         status = self.request.GET.get("status", "")
         company_id = self.request.GET.get("company") or ""
         id_not_returned = self.request.GET.get("id_not_returned") == "1"
-        base = today_visits_queryset(today)
+        base = today_visits_queryset(selected_date)
         visits = filter_visits(
             base,
             q=q,
@@ -129,7 +131,8 @@ class ReceptionView(RoleRequiredMixin, FormView):
         can_export = user_has_permission(self.request.user, "reception.export")
         stats = {
             "inside": GuestVisit.objects.filter(status=VisitStatus.INSIDE).count(),
-            "today": base.count(),
+            "today": today_visits_queryset(today).count(),
+            "day_total": base.count(),
             "waiting": base.filter(
                 status__in=[VisitStatus.WAITING, VisitStatus.PRE_REGISTERED]
             ).count(),
@@ -163,6 +166,9 @@ class ReceptionView(RoleRequiredMixin, FormView):
                 "can_override": can_override,
                 "can_export": can_export,
                 "mask_fin": mask_fin,
+                "today": today,
+                "selected_date": selected_date,
+                "is_today": selected_date == today,
             }
         )
         return ctx
@@ -179,6 +185,7 @@ class ReceptionView(RoleRequiredMixin, FormView):
                 company=form.cleaned_data["company"],
                 host=form.cleaned_data.get("host"),
                 id_document_held=bool(form.cleaned_data.get("id_document_held")),
+                guest_card_number=form.cleaned_data.get("guest_card_number") or "",
                 notes=form.cleaned_data.get("notes") or "",
                 actor=self.request.user,
                 allow_id_override=False,
@@ -208,6 +215,7 @@ class ReceptionStatusView(RoleRequiredMixin, View):
                     first_name=request.POST.get("first_name") or "",
                     last_name=request.POST.get("last_name") or "",
                     id_document_held=request.POST.get("id_document_held") == "on",
+                    guest_card_number=request.POST.get("guest_card_number") or "",
                     id_override_reason=request.POST.get("id_override_reason") or "",
                     allow_id_override=allow_override,
                 )
@@ -271,7 +279,8 @@ class ReceptionExportView(RoleRequiredMixin, View):
         if not user_has_permission(request.user, "reception.export"):
             raise PermissionDenied("Export icazəsi yoxdur.")
         can_sensitive = user_has_permission(request.user, "reception.view_sensitive_data")
-        visits = today_visits_queryset().order_by("check_in_at", "created_at")
+        day = parse_date(request.GET.get("date"), timezone.localdate())
+        visits = today_visits_queryset(day).order_by("check_in_at", "created_at")
         buf = StringIO()
         writer = csv.writer(buf)
         writer.writerow(
@@ -308,9 +317,7 @@ class ReceptionExportView(RoleRequiredMixin, View):
                 ]
             )
         response = HttpResponse("\ufeff" + buf.getvalue(), content_type="text/csv; charset=utf-8")
-        response["Content-Disposition"] = (
-            f'attachment; filename="visitors-{timezone.localdate().isoformat()}.csv"'
-        )
+        response["Content-Disposition"] = f'attachment; filename="visitors-{day.isoformat()}.csv"'
         return response
 
 
@@ -629,6 +636,13 @@ class ResidentEmployeesAccessView(RoleRequiredMixin, TemplateView):
         base = company.employees.all().order_by("full_name")
         employees, roster = employee_roster_qs(base, self.request.GET.get("roster"))
         rows, inside, left, present = build_employee_access_rows(employees, selected_date)
+        export_preset, export_from, export_to = access_range_bounds(
+            self.request, default_preset="month"
+        )
+        if "range" not in self.request.GET:
+            export_preset = "month"
+            export_from = today.replace(day=1)
+            export_to = today
         ctx.update(
             {
                 "company": company,
@@ -640,9 +654,40 @@ class ResidentEmployeesAccessView(RoleRequiredMixin, TemplateView):
                 "today": today,
                 "selected_date": selected_date,
                 "is_today": selected_date == today,
+                "export_preset": export_preset,
+                "export_from": export_from,
+                "export_to": export_to,
             }
         )
         return ctx
+
+
+class ResidentAccessExportView(RoleRequiredMixin, View):
+    """Admin/Management: Excel attendance for a resident company (optional one employee)."""
+
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+
+    def get(self, request, slug, pk=None):
+        if not user_has_permission(request.user, "residents.export_access"):
+            raise PermissionDenied("Export icazəsi yoxdur.")
+        company = _resident_company(slug)
+        preset, date_from, date_to = access_range_bounds(request, default_preset="month")
+        employee = None
+        if pk is not None:
+            employee = get_object_or_404(
+                ResidentEmployee,
+                pk=pk,
+                company=company,
+                company__is_internal=False,
+            )
+        roster = (request.GET.get("roster") or "active").strip().lower()
+        return access_xlsx_http_response(
+            company,
+            date_from,
+            date_to,
+            employee=employee,
+            roster=roster,
+        )
 
 
 class ResidentEmployeeAccessDetailView(RoleRequiredMixin, TemplateView):
@@ -707,6 +752,13 @@ class InternalStaffAccessView(RoleRequiredMixin, TemplateView):
         base = company.employees.all().order_by("full_name")
         employees, roster = employee_roster_qs(base, self.request.GET.get("roster"))
         rows, inside, left, present = build_employee_access_rows(employees, selected_date)
+        export_preset, export_from, export_to = access_range_bounds(
+            self.request, default_preset="month"
+        )
+        if "range" not in self.request.GET:
+            export_preset = "month"
+            export_from = today.replace(day=1)
+            export_to = today
         ctx.update(
             {
                 "company": company,
@@ -718,9 +770,40 @@ class InternalStaffAccessView(RoleRequiredMixin, TemplateView):
                 "today": today,
                 "selected_date": selected_date,
                 "is_today": selected_date == today,
+                "export_preset": export_preset,
+                "export_from": export_from,
+                "export_to": export_to,
             }
         )
         return ctx
+
+
+class InternalStaffAccessExportView(RoleRequiredMixin, View):
+    """Admin/Management: Excel for City Point internal staff."""
+
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+
+    def get(self, request, pk=None):
+        if not user_has_permission(request.user, "residents.export_access"):
+            raise PermissionDenied("Export icazəsi yoxdur.")
+        company = get_object_or_404(ResidentCompany, slug="city-point", is_internal=True)
+        _preset, date_from, date_to = access_range_bounds(request, default_preset="month")
+        employee = None
+        if pk is not None:
+            employee = get_object_or_404(
+                ResidentEmployee,
+                pk=pk,
+                company=company,
+                company__is_internal=True,
+            )
+        roster = (request.GET.get("roster") or "active").strip().lower()
+        return access_xlsx_http_response(
+            company,
+            date_from,
+            date_to,
+            employee=employee,
+            roster=roster,
+        )
 
 
 class InternalStaffAccessDetailView(RoleRequiredMixin, TemplateView):

@@ -45,19 +45,19 @@ class RapidSwipeDetectorTests(TestCase):
         )
 
     def test_find_window_requires_three(self):
-        events = [self._punch(0), self._punch(10)]
+        events = [self._punch(0), self._punch(5)]
         self.assertEqual(list(find_rapid_windows(events)), [])
-        events.append(self._punch(20))
+        events.append(self._punch(12))
         bursts = list(find_rapid_windows(events))
         self.assertEqual(len(bursts), 1)
         self.assertEqual(len(bursts[0][2]), 3)
 
     def test_detect_creates_one_alert(self):
         self._punch(0)
-        self._punch(15)
-        self._punch(30, AccessEventType.OUT)
+        self._punch(8)
+        self._punch(15, AccessEventType.OUT)
         alerts = detect_rapid_swipes_for_employees(
-            [self.employee.pk], around=self.t0 + timedelta(seconds=40)
+            [self.employee.pk], around=self.t0 + timedelta(seconds=20)
         )
         self.assertEqual(len(alerts), 1)
         alert = alerts[0]
@@ -74,28 +74,57 @@ class RapidSwipeDetectorTests(TestCase):
         self._punch(0)
         self._punch(10)
         alerts = detect_rapid_swipes_for_employees(
+            [self.employee.pk], around=self.t0 + timedelta(seconds=20)
+        )
+        self.assertEqual(alerts, [])
+
+    def test_outside_20s_window_no_alert(self):
+        self._punch(0)
+        self._punch(10)
+        self._punch(25)
+        alerts = detect_rapid_swipes_for_employees(
             [self.employee.pk], around=self.t0 + timedelta(seconds=30)
         )
         self.assertEqual(alerts, [])
 
+    def test_span_41s_like_production_no_alert(self):
+        """08:01:53, 08:01:54, 08:02:34 must not alert under 20s window."""
+        self._punch(0, AccessEventType.OUT, reader_name=r"11\Panel 11\F1Ent5OUT")
+        self._punch(1, AccessEventType.OUT, reader_name=r"11\Panel 11\F1Ent5OUT")
+        self._punch(41, AccessEventType.IN, reader_name=r"7\Panel 9\F1Ent1IN")
+        alerts = detect_rapid_swipes_for_employees(
+            [self.employee.pk], around=self.t0 + timedelta(seconds=50)
+        )
+        self.assertEqual(alerts, [])
+
+    def test_dedupe_double_fire_needs_three_distinct(self):
+        self._punch(0, AccessEventType.OUT, reader_name=r"11\Panel 11\F1Ent5OUT")
+        self._punch(1, AccessEventType.OUT, reader_name=r"11\Panel 11\F1Ent5OUT")
+        self._punch(5, AccessEventType.IN, reader_name=r"7\Panel 9\F1Ent1IN")
+        alerts = detect_rapid_swipes_for_employees(
+            [self.employee.pk], around=self.t0 + timedelta(seconds=20)
+        )
+        # After dedupe only 2 punches remain → no alert.
+        self.assertEqual(alerts, [])
+
     def test_non_f1_readers_ignored(self):
         self._punch(0, reader_name="8\\Panel 13\\F3TurIN")
-        self._punch(10, reader_name="8\\Panel 13\\F3TurOUT")
-        self._punch(20, reader_name="8\\Panel 13\\F2TurIN")
+        self._punch(5, reader_name="8\\Panel 13\\F3TurOUT")
+        self._punch(10, reader_name="8\\Panel 13\\F2TurIN")
         alerts = detect_rapid_swipes_for_employees(
-            [self.employee.pk], around=self.t0 + timedelta(seconds=40)
+            [self.employee.pk], around=self.t0 + timedelta(seconds=20)
         )
         self.assertEqual(alerts, [])
 
     def test_dedup_second_detect(self):
         self._punch(0)
-        self._punch(10)
-        self._punch(20)
+        self._punch(8)
+        self._punch(15)
         first = detect_rapid_swipes_for_employees(
-            [self.employee.pk], around=self.t0 + timedelta(seconds=30)
+            [self.employee.pk], around=self.t0 + timedelta(seconds=20)
         )
         second = detect_rapid_swipes_for_employees(
-            [self.employee.pk], around=self.t0 + timedelta(seconds=30)
+            [self.employee.pk], around=self.t0 + timedelta(seconds=20)
         )
         self.assertEqual(len(first), 1)
         self.assertEqual(second, [])
@@ -171,6 +200,18 @@ class RapidSwipeSecurityUITests(TestCase):
         self.assertContains(detail, self.company.name)
         self.assertContains(detail, "009009")
         self.assertContains(detail, "F1TurIN")
+        self.alert.refresh_from_db()
+        self.assertIsNotNone(self.alert.acknowledged_at)
+        self.assertEqual(self.alert.acknowledged_by_id, self.security.pk)
+
+    def test_open_detail_auto_marks_read(self):
+        self.client.force_login(self.security)
+        self.assertIsNone(self.alert.acknowledged_at)
+        self.client.get(reverse("security:alert_detail", args=[self.alert.pk]))
+        self.alert.refresh_from_db()
+        self.assertIsNotNone(self.alert.acknowledged_at)
+        open_list = self.client.get(reverse("security:alerts") + "?tab=open")
+        self.assertNotContains(open_list, "UI Person")
 
     def test_acknowledge_closes(self):
         self.client.force_login(self.security)

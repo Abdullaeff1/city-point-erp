@@ -17,10 +17,15 @@ User = get_user_model()
 
 
 class ShaftReaderMatchTests(TestCase):
-    def test_leaf_starts_with_shaft(self):
-        self.assertTrue(is_shaft_reader("Shaft1"))
-        self.assertTrue(is_shaft_reader("20\\Panel\\ShaftA_IN"))
-        self.assertTrue(is_shaft_reader("shaft_door"))
+    def test_city_point_f_shaft_readers(self):
+        self.assertTrue(is_shaft_reader(r"13\Panel 1\F1ShaftElectric"))
+        self.assertTrue(is_shaft_reader(r"12\Panel 5\F5ShaftCooling"))
+        self.assertTrue(is_shaft_reader(r"24\Panel 7\F7ShaftIT"))
+        self.assertTrue(is_shaft_reader("F3ShaftTel"))
+        self.assertTrue(is_shaft_reader("f6shaftelectric"))
+        self.assertTrue(is_shaft_reader("F2SHAFTCOOLING"))
+        self.assertFalse(is_shaft_reader("Shaft1"))
+        self.assertFalse(is_shaft_reader("SHAFT_IN"))
         self.assertFalse(is_shaft_reader("F1TurIN"))
         self.assertFalse(is_shaft_reader("BackShaft"))
         self.assertFalse(is_shaft_reader(""))
@@ -57,10 +62,10 @@ class ShaftAccessDetectorTests(TestCase):
         return AccessEvent.objects.create(**defaults)
 
     def test_creates_alert_for_shaft(self):
-        event = self._event("Panel\\Shaft1")
+        event = self._event(r"13\Panel 1\F1ShaftElectric")
         alert = create_shaft_alert_from_event(event)
         self.assertIsNotNone(alert)
-        self.assertEqual(alert.reader_name, "Panel\\Shaft1")
+        self.assertEqual(alert.reader_name, r"13\Panel 1\F1ShaftElectric")
         self.assertEqual(alert.card_number, "007007")
         self.assertEqual(alert.company_name, "Shaft Co")
         self.assertTrue(
@@ -70,15 +75,19 @@ class ShaftAccessDetectorTests(TestCase):
     def test_ignores_non_shaft(self):
         event = self._event("F1TurIN")
         self.assertIsNone(create_shaft_alert_from_event(event))
+        self.assertIsNone(create_shaft_alert_from_event(self._event("Shaft1")))
 
     def test_dedup_same_event(self):
-        event = self._event("ShaftX")
+        event = self._event(r"15\Panel 3\F3ShaftIT")
         self.assertIsNotNone(create_shaft_alert_from_event(event))
         self.assertIsNone(create_shaft_alert_from_event(event))
         self.assertEqual(ShaftAccessAlert.objects.count(), 1)
 
     def test_sync_hook(self):
-        e1 = self._event("Shaft1", occurred_at=timezone.now() - timedelta(seconds=10))
+        e1 = self._event(
+            r"3\Panel 4\F4ShaftElectric",
+            occurred_at=timezone.now() - timedelta(seconds=10),
+        )
         e2 = self._event("F2TurIN", occurred_at=timezone.now())
         created = detect_shaft_access_after_sync([e1, e2])
         self.assertEqual(len(created), 1)
@@ -105,7 +114,7 @@ class ShaftAccessUITests(TestCase):
             occurred_at=timezone.now(),
             employee_name=self.employee.full_name,
             card_number=self.employee.card_number,
-            reader_name="ShaftMain",
+            reader_name=r"24\Panel 7\F7ShaftCooling",
         )
         self.alert = ShaftAccessAlert.objects.create(
             employee=self.employee,
@@ -125,12 +134,14 @@ class ShaftAccessUITests(TestCase):
         listing = self.client.get(reverse("security:alerts_shaft"))
         self.assertEqual(listing.status_code, 200)
         self.assertContains(listing, "UI Shaft Emp")
-        self.assertContains(listing, "ShaftMain")
+        self.assertContains(listing, "F7ShaftCooling")
         detail = self.client.get(reverse("security:shaft_alert_detail", args=[self.alert.pk]))
         self.assertEqual(detail.status_code, 200)
         self.assertContains(detail, "008008")
-        self.assertContains(detail, "ShaftMain")
+        self.assertContains(detail, "F7ShaftCooling")
         self.assertContains(detail, "Oxuyucu")
+        self.alert.refresh_from_db()
+        self.assertIsNotNone(self.alert.acknowledged_at)
 
     def test_acknowledge(self):
         self.client.force_login(self.security)

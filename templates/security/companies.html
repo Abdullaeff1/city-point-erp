@@ -9,6 +9,7 @@
         <th>{% translate "Şirkət" %}</th>
         <th>{% translate "Aktiv əməkdaş" %}</th>
         <th>{% translate "Səviyyə 2" %}</th>
+        <th>{% translate "Qonaq (içəridə)" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -20,9 +21,14 @@
         </td>
         <td>{{ row.active_employees }}</td>
         <td>{{ row.level2 }}</td>
+        <td>
+          {% if row.guests_inside %}
+          <a href="{% url 'security:company_employees' row.company.pk %}?tab=guests">{{ row.guests_inside }}</a>
+          {% else %}0{% endif %}
+        </td>
       </tr>
       {% empty %}
-      <tr><td colspan="3" class="cp-meta empty-pad">{% translate "Şirkət yoxdur." %}</td></tr>
+      <tr><td colspan="4" class="cp-meta empty-pad">{% translate "Şirkət yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -1,6 +1,8 @@
-"""Detect shaft door/reader access (reader leaf name starts with Shaft)."""
+"""Detect shaft door/reader access (City Point F#Shaft* AxTrax readers)."""
 
 from __future__ import annotations
+
+import re
 
 from django.db import IntegrityError, transaction
 
@@ -8,17 +10,21 @@ from apps.accounts.models import Role, User
 from apps.comms.services import notify_in_app
 from apps.residents.models import AccessEvent, ShaftAccessAlert
 
+# Real AxTrax leaf names: F1ShaftCooling, F5ShaftElectric, F7ShaftIT, …
+SHAFT_READER_RE = re.compile(r"F\d+SHAFT", re.IGNORECASE)
+
 
 def is_shaft_reader(reader_name: str | None) -> bool:
-    """True when the AxTrax reader leaf name starts with Shaft (case-insensitive).
+    """True for City Point shaft readers ``F{{n}}Shaft…`` (case-insensitive).
 
-    Examples: ``Shaft1``, ``Shaft_IN``, ``20\\Panel\\ShaftA``.
+    Examples: ``13\\Panel 1\\F1ShaftElectric``, ``F5ShaftCooling``, ``f7shaftit``.
+    Does not match bare ``Shaft1`` or turnstiles like ``F1TurIN``.
     """
     name = (reader_name or "").strip()
     if not name:
         return False
     leaf = name.replace("/", "\\").rsplit("\\", 1)[-1].strip()
-    return leaf.casefold().startswith("shaft")
+    return bool(SHAFT_READER_RE.search(leaf))
 
 
 def _notify_security_users(alert: ShaftAccessAlert) -> None:
@@ -32,7 +38,9 @@ def _notify_security_users(alert: ShaftAccessAlert) -> None:
 
 
 @transaction.atomic
-def create_shaft_alert_from_event(event: AccessEvent) -> ShaftAccessAlert | None:
+def create_shaft_alert_from_event(
+    event: AccessEvent, *, notify: bool = True
+) -> ShaftAccessAlert | None:
     if not is_shaft_reader(event.reader_name):
         return None
     if ShaftAccessAlert.objects.filter(access_event_id=event.pk).exists():
@@ -56,12 +64,37 @@ def create_shaft_alert_from_event(event: AccessEvent) -> ShaftAccessAlert | None
         )
     except IntegrityError:
         return None
-    _notify_security_users(alert)
+    if notify:
+        _notify_security_users(alert)
     return alert
 
 
+def backfill_shaft_alerts_for_day(day=None, *, notify: bool = False) -> list[ShaftAccessAlert]:
+    """Create missing shaft alerts for AccessEvents on a local calendar day."""
+    from datetime import timedelta
+
+    from django.utils import timezone as dj_tz
+
+    when = dj_tz.localtime(day) if day is not None else dj_tz.localtime()
+    start = when.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1)
+    events = (
+        AccessEvent.objects.filter(occurred_at__gte=start, occurred_at__lt=end)
+        .select_related("employee", "employee__company")
+        .order_by("occurred_at")
+    )
+    created: list[ShaftAccessAlert] = []
+    for event in events:
+        if not is_shaft_reader(event.reader_name):
+            continue
+        alert = create_shaft_alert_from_event(event, notify=notify)
+        if alert:
+            created.append(alert)
+    return created
+
+
 def detect_shaft_access_after_sync(created_events: list[AccessEvent]) -> list[ShaftAccessAlert]:
-    """Hook for event sync: one alert per new Shaft* AccessEvent."""
+    """Hook for event sync: one alert per new F#Shaft AccessEvent."""
     created: list[ShaftAccessAlert] = []
     # Prefetch company for notify snapshots
     event_ids = [e.pk for e in created_events if is_shaft_reader(e.reader_name)]

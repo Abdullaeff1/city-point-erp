@@ -131,6 +131,43 @@ a:hover { text-decoration: underline; }
   padding: 7px 10px;
   font-size: 13px;
 }
+.cp-combobox {
+  position: relative;
+}
+.cp-combobox-list {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--cp-surface, #fff);
+  border: 1px solid var(--cp-border, #e5e7eb);
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+.cp-combobox-list li {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cp-combobox-list li.is-active,
+.cp-combobox-list li:hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+.cp-combobox-list li.is-selected {
+  font-weight: 600;
+}
+.cp-combobox-empty {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--cp-text-muted, #6b7280);
+  cursor: default;
+}
 .walk-in-panel .walk-in-submit {
   font-size: 14px;
   padding: 10px 12px;
@@ -336,6 +373,28 @@ a:hover { text-decoration: underline; }
 .cp-table tbody tr.is-clickable { cursor: pointer; }
 .cp-table tbody tr.is-clickable:hover { background: rgba(15, 23, 42, 0.03); }
 .access-date-card .cp-input[type="date"] { min-width: 150px; }
+
+.cp-arrival-24h {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.cp-arrival-24h .cp-input[type="date"] {
+  flex: 1 1 150px;
+  min-width: 150px;
+  width: auto;
+}
+.cp-arrival-24h select.cp-input {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 4.5rem;
+}
+.cp-arrival-24h__sep {
+  font-weight: 600;
+  color: var(--cp-text);
+  user-select: none;
+}
 
 .cp-input, select.cp-input, textarea.cp-input {
   width: 100%;

@@ -235,9 +235,6 @@ msgstr "Активы"
 msgid "Texniki plan"
 msgstr "Техплан"
 
-msgid "Rezident"
-msgstr "Резидент"
-
 msgid "Açıq ticket"
 msgstr "Открытые тикеты"
 
@@ -264,6 +261,24 @@ msgstr "Связано со зданием."
 
 msgid "E-poçt"
 msgstr "Эл. почта"
+
+msgid "E-poçt (istəyə bağlı)"
+msgstr "Эл. почта (необязательно)"
+
+msgid "Telefon (istəyə bağlı)"
+msgstr "Телефон (необязательно)"
+
+msgid "İstəyə bağlı"
+msgstr "Необязательно"
+
+msgid "Çıxış ver"
+msgstr "Отметить выход"
+
+msgid "Çıxış qeydə alındı."
+msgstr "Выход зафиксирован."
+
+msgid "Bu qonağın çıxışını yalnız reception bağlaya bilər (vəsiqə və ya qonaq kartı)."
+msgstr "Выход этого гостя может закрыть только reception (документ или гостевая карта)."
 
 msgid "Şifrə"
 msgstr "Пароль"
@@ -417,3 +432,147 @@ msgstr "Здравствуйте, %(name)s"
 
 msgid "Sahə %(label)s"
 msgstr "Площадь %(label)s"
+
+msgid "Qəbul"
+msgstr "Ресепшн"
+
+msgid "Service Desk"
+msgstr "Служба поддержки"
+
+msgid "İcarələr"
+msgstr "Договоры аренды"
+
+msgid "CRM"
+msgstr "CRM"
+
+msgid "Lidlər"
+msgstr "Лиды"
+
+msgid "Təkliflər"
+msgstr "Предложения"
+
+msgid "İş sifarişləri"
+msgstr "Наряды"
+
+msgid "TƏCHİZAT"
+msgstr "СНАБЖЕНИЕ"
+
+msgid "Anbar"
+msgstr "Склад"
+
+msgid "Satınalma"
+msgstr "Закупки"
+
+msgid "MALİYYƏ"
+msgstr "ФИНАНСЫ"
+
+msgid "Billing"
+msgstr "Биллинг"
+
+msgid "Mühasibat"
+msgstr "Бухгалтерия"
+
+msgid "İçəridə indi"
+msgstr "Сейчас внутри"
+
+msgid "Bu gün"
+msgstr "Сегодня"
+
+msgid "Gözləyir / Pre-reg"
+msgstr "Ожидает / Pre-reg"
+
+msgid "Vəsiqə gözləyir"
+msgstr "Документ не возвращён"
+
+msgid "Pre-reg"
+msgstr "Pre-reg"
+
+msgid "Gəlməyib"
+msgstr "Не явился"
+
+msgid "Filter"
+msgstr "Фильтр"
+
+msgid "Access"
+msgstr "Доступ"
+
+msgid "Check-in"
+msgstr "Check-in"
+
+msgid "ID qəbul"
+msgstr "ID принят"
+
+msgid "Vəsiqə saxlanıldı (kart verildi)"
+msgstr "Документ оставлен (карта выдана)"
+
+msgid "Şəxsiyyət vəsiqəsi saxlanıldı (qonaq kartı verildi)"
+msgstr "Удостоверение оставлено (гостевая карта выдана)"
+
+msgid "Qonaq kartı №"
+msgstr "Гостевая карта №"
+
+msgid "Kart nömrəsi"
+msgstr "Номер карты"
+
+msgid "Qonaq kartı nömrəsi tələb olunur."
+msgstr "Требуется номер гостевой карты."
+
+msgid "Dəvət"
+msgstr "Приглашение"
+
+msgid "Gözləmədə"
+msgstr "В ожидании"
+
+msgid "Bitib"
+msgstr "Истёк"
+
+msgid "Ləğv edilib"
+msgstr "Отозван"
+
+msgid "Uğursuz"
+msgstr "Ошибка"
+
+msgid "Uğurlu"
+msgstr "Успешно"
+
+msgid "Xəta"
+msgstr "Ошибка"
+
+msgid "Əvvəlcədən qeyd"
+msgstr "Предрегистрация"
+
+msgid "Çıxış edib"
+msgstr "Вышел"
+
+msgid "Parties"
+msgstr "Стороны"
+
+msgid "Export CSV"
+msgstr "Экспорт CSV"
+
+msgid "Bu tarix üçün qonaq yoxdur."
+msgstr "Нет гостей на эту дату."
+
+msgid "Uyğun qonaq tapılmadı."
+msgstr "Подходящих гостей нет."
+
+msgid "Qonaq / seriya / şirkət / host…"
+msgstr "Гость / серия / компания / хост…"
+
+msgid "Şirkət axtar…"
+msgstr "Поиск компании…"
+
+msgid "Host axtar…"
+msgstr "Поиск хоста…"
+
+msgid "Şirkət tapılmadı"
+msgstr "Компания не найдена"
+
+msgid "Host tapılmadı"
+msgstr "Хост не найден"
+
+msgid "qonaq"
+msgstr "гостей"
+
+msgid "Jurnal"
+msgstr "Журнал"

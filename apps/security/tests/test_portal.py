@@ -8,6 +8,7 @@ from apps.integrations.axtrax_people_sync import (
     access_level_from_axtrax,
     resolve_access_level_for_row,
 )
+from apps.reception.models import Guest, GuestVisit, VisitStatus
 from apps.residents.models import AccessLevel, ResidentCompany, ResidentEmployee
 from apps.residents.services import create_employee_card_order
 from apps.tickets.seed_taxonomy import seed_ticket_taxonomy
@@ -135,3 +136,29 @@ class SecurityPortalTests(TestCase):
         detail = self.client.get(reverse("security:ticket_detail", args=[ticket.code]))
         self.assertEqual(detail.status_code, 200)
         self.assertContains(detail, "Səviyyə 2")
+
+    def test_guests_list_and_company_tab(self):
+        from django.utils import timezone
+
+        guest = Guest.objects.create(first_name="Sec", last_name="Guest", fin_code="SEC11111AA")
+        GuestVisit.objects.create(
+            guest=guest,
+            company=self.company,
+            status=VisitStatus.INSIDE,
+            scheduled_for=timezone.localdate(),
+            check_in_at=timezone.now(),
+            id_document_held=False,
+        )
+        self.client.force_login(self.security)
+        guests = self.client.get(reverse("security:guests"))
+        self.assertEqual(guests.status_code, 200)
+        self.assertContains(guests, "Sec Guest")
+        self.assertContains(guests, self.company.name)
+        company_guests = self.client.get(
+            reverse("security:company_employees", args=[self.company.pk]) + "?tab=guests"
+        )
+        self.assertEqual(company_guests.status_code, 200)
+        self.assertContains(company_guests, "Sec Guest")
+        self.assertContains(company_guests, "Qonaqlar")
+        self.client.force_login(self.resident)
+        self.assertEqual(self.client.get(reverse("security:guests")).status_code, 403)

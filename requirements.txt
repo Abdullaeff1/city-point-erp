@@ -4,3 +4,5 @@ gunicorn>=23.0
 python-dotenv>=1.0
 Pillow>=11.0
 whitenoise>=6.8
+pymssql>=2.3
+openpyxl>=3.1

@@ -36,6 +36,9 @@
   {% else %}
   <p class="cp-meta">{{ date_from|date:"d.m.Y" }}{% if date_from != date_to %} – {{ date_to|date:"d.m.Y" }}{% endif %}</p>
   {% endif %}
+  <div class="mt-3">
+    <a class="cp-btn" href="{% url 'erp:internal_staff_employee_export' employee.pk %}?range={{ preset }}{% if preset == 'today' %}&date={{ date_from|date:'Y-m-d' }}{% elif preset == 'year' %}&year={{ date_from.year }}{% elif preset == 'custom' %}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}{% endif %}">{% translate "Excel yüklə" %}</a>
+  </div>
 </div>
 
 {% if single_day %}

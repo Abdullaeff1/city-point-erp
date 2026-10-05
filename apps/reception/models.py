@@ -15,17 +15,17 @@ class VisitStatus(models.TextChoices):
 
 
 class VisitorAccessStatus(models.TextChoices):
-    PENDING = "pending", _("Pending")
-    ACTIVE = "active", _("Active")
-    EXPIRED = "expired", _("Expired")
-    REVOKED = "revoked", _("Revoked")
-    FAILED = "failed", _("Failed")
+    PENDING = "pending", _("Gözləmədə")
+    ACTIVE = "active", _("Aktiv")
+    EXPIRED = "expired", _("Bitib")
+    REVOKED = "revoked", _("Ləğv edilib")
+    FAILED = "failed", _("Uğursuz")
 
 
 class SyncStatus(models.TextChoices):
-    PENDING = "pending", _("Pending")
-    SUCCESS = "success", _("Success")
-    ERROR = "error", _("Error")
+    PENDING = "pending", _("Gözləmədə")
+    SUCCESS = "success", _("Uğurlu")
+    ERROR = "error", _("Xəta")
 
 
 class VisitorType(models.Model):

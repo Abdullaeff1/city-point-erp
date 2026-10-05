@@ -18,6 +18,17 @@ urlpatterns = [
     path("alerts/<int:pk>/ack/", views.AlertAcknowledgeView.as_view(), name="alert_ack_legacy"),
     path("companies/", views.CompanyListView.as_view(), name="companies"),
     path("companies/<int:pk>/", views.CompanyEmployeesView.as_view(), name="company_employees"),
+    path(
+        "companies/<int:pk>/access/export/",
+        views.CompanyAccessExportView.as_view(),
+        name="company_access_export",
+    ),
+    path(
+        "companies/<int:pk>/employees/<int:employee_pk>/access/export/",
+        views.CompanyAccessExportView.as_view(),
+        name="employee_access_export",
+    ),
+    path("guests/", views.GuestsView.as_view(), name="guests"),
     path("employees/<int:pk>/access/", views.EmployeeAccessDetailView.as_view(), name="employee_access"),
     path("tickets/", views.TicketListView.as_view(), name="tickets"),
     path("tickets/<str:code>/", views.TicketDetailView.as_view(), name="ticket_detail"),

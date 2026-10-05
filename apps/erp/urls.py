@@ -32,15 +32,35 @@ urlpatterns = [
         name="resident_employees",
     ),
     path(
+        "residents/<slug:slug>/employees/export/",
+        views.ResidentAccessExportView.as_view(),
+        name="resident_access_export",
+    ),
+    path(
         "residents/<slug:slug>/employees/<int:pk>/",
         views.ResidentEmployeeAccessDetailView.as_view(),
         name="resident_employee_access",
     ),
+    path(
+        "residents/<slug:slug>/employees/<int:pk>/export/",
+        views.ResidentAccessExportView.as_view(),
+        name="resident_employee_access_export",
+    ),
     path("internal-staff/access/", views.InternalStaffAccessView.as_view(), name="internal_staff_access"),
+    path(
+        "internal-staff/access/export/",
+        views.InternalStaffAccessExportView.as_view(),
+        name="internal_staff_access_export",
+    ),
     path(
         "internal-staff/access/<int:pk>/",
         views.InternalStaffAccessDetailView.as_view(),
         name="internal_staff_access_detail",
+    ),
+    path(
+        "internal-staff/access/<int:pk>/export/",
+        views.InternalStaffAccessExportView.as_view(),
+        name="internal_staff_employee_export",
     ),
     path("parties/", views.PartyListView.as_view(), name="parties"),
     path("leases/", views.LeaseListView.as_view(), name="leases"),

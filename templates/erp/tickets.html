@@ -1,6 +1,6 @@
 {% extends "erp/base.html" %}
 {% load i18n cp_ui %}
-{% block heading %}Service Desk{% endblock %}
+{% block heading %}{% translate "Service Desk" %}{% endblock %}
 {% block content %}
 <div class="flex gap-2 mb-4" style="flex-wrap:wrap;">
   <a class="badge {% if tab == 'all' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=all">{% translate "Hamısı" %}</a>

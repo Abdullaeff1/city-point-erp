@@ -235,9 +235,6 @@ msgstr "Aktivlər"
 msgid "Texniki plan"
 msgstr "Texniki plan"
 
-msgid "Rezident"
-msgstr "Rezident"
-
 msgid "Açıq ticket"
 msgstr "Açıq ticket"
 
@@ -264,6 +261,24 @@ msgstr "Bina ilə bağlı."
 
 msgid "E-poçt"
 msgstr "E-poçt"
+
+msgid "E-poçt (istəyə bağlı)"
+msgstr "E-poçt (istəyə bağlı)"
+
+msgid "Telefon (istəyə bağlı)"
+msgstr "Telefon (istəyə bağlı)"
+
+msgid "İstəyə bağlı"
+msgstr "İstəyə bağlı"
+
+msgid "Çıxış ver"
+msgstr "Çıxış ver"
+
+msgid "Çıxış qeydə alındı."
+msgstr "Çıxış qeydə alındı."
+
+msgid "Bu qonağın çıxışını yalnız reception bağlaya bilər (vəsiqə və ya qonaq kartı)."
+msgstr "Bu qonağın çıxışını yalnız reception bağlaya bilər (vəsiqə və ya qonaq kartı)."
 
 msgid "Şifrə"
 msgstr "Şifrə"
@@ -340,9 +355,6 @@ msgstr "Tarix"
 msgid "Aç"
 msgstr "Aç"
 
-msgid "Ümumi"
-msgstr "Ümumi"
-
 msgid "Bildiriş yoxdur."
 msgstr "Bildiriş yoxdur."
 
@@ -414,3 +426,147 @@ msgstr "Qeyd"
 
 msgid "Dil"
 msgstr "Dil"
+
+msgid "Qəbul"
+msgstr "Qəbul"
+
+msgid "Service Desk"
+msgstr "Service Desk"
+
+msgid "İcarələr"
+msgstr "İcarələr"
+
+msgid "CRM"
+msgstr "CRM"
+
+msgid "Lidlər"
+msgstr "Lidlər"
+
+msgid "Təkliflər"
+msgstr "Təkliflər"
+
+msgid "İş sifarişləri"
+msgstr "İş sifarişləri"
+
+msgid "TƏCHİZAT"
+msgstr "TƏCHİZAT"
+
+msgid "Anbar"
+msgstr "Anbar"
+
+msgid "Satınalma"
+msgstr "Satınalma"
+
+msgid "MALİYYƏ"
+msgstr "MALİYYƏ"
+
+msgid "Billing"
+msgstr "Billing"
+
+msgid "Mühasibat"
+msgstr "Mühasibat"
+
+msgid "İçəridə indi"
+msgstr "İçəridə indi"
+
+msgid "Bu gün"
+msgstr "Bu gün"
+
+msgid "Gözləyir / Pre-reg"
+msgstr "Gözləyir / Pre-reg"
+
+msgid "Vəsiqə gözləyir"
+msgstr "Vəsiqə gözləyir"
+
+msgid "Pre-reg"
+msgstr "Pre-reg"
+
+msgid "Gəlməyib"
+msgstr "Gəlməyib"
+
+msgid "Filter"
+msgstr "Filter"
+
+msgid "Access"
+msgstr "Access"
+
+msgid "Check-in"
+msgstr "Check-in"
+
+msgid "ID qəbul"
+msgstr "ID qəbul"
+
+msgid "Vəsiqə saxlanıldı (kart verildi)"
+msgstr "Vəsiqə saxlanıldı (kart verildi)"
+
+msgid "Şəxsiyyət vəsiqəsi saxlanıldı (qonaq kartı verildi)"
+msgstr "Şəxsiyyət vəsiqəsi saxlanıldı (qonaq kartı verildi)"
+
+msgid "Qonaq kartı №"
+msgstr "Qonaq kartı №"
+
+msgid "Kart nömrəsi"
+msgstr "Kart nömrəsi"
+
+msgid "Qonaq kartı nömrəsi tələb olunur."
+msgstr "Qonaq kartı nömrəsi tələb olunur."
+
+msgid "Dəvət"
+msgstr "Dəvət"
+
+msgid "Gözləmədə"
+msgstr "Gözləmədə"
+
+msgid "Bitib"
+msgstr "Bitib"
+
+msgid "Ləğv edilib"
+msgstr "Ləğv edilib"
+
+msgid "Uğursuz"
+msgstr "Uğursuz"
+
+msgid "Uğurlu"
+msgstr "Uğurlu"
+
+msgid "Xəta"
+msgstr "Xəta"
+
+msgid "Əvvəlcədən qeyd"
+msgstr "Əvvəlcədən qeyd"
+
+msgid "Çıxış edib"
+msgstr "Çıxış edib"
+
+msgid "Parties"
+msgstr "Parties"
+
+msgid "Export CSV"
+msgstr "Export CSV"
+
+msgid "Bu tarix üçün qonaq yoxdur."
+msgstr "Bu tarix üçün qonaq yoxdur."
+
+msgid "Uyğun qonaq tapılmadı."
+msgstr "Uyğun qonaq tapılmadı."
+
+msgid "Qonaq / seriya / şirkət / host…"
+msgstr "Qonaq / seriya / şirkət / host…"
+
+msgid "Şirkət axtar…"
+msgstr "Şirkət axtar…"
+
+msgid "Host axtar…"
+msgstr "Host axtar…"
+
+msgid "Şirkət tapılmadı"
+msgstr "Şirkət tapılmadı"
+
+msgid "Host tapılmadı"
+msgstr "Host tapılmadı"
+
+msgid "qonaq"
+msgstr "qonaq"
+
+msgid "Jurnal"
+msgstr "Jurnal"

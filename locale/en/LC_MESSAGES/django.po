@@ -235,9 +235,6 @@ msgstr "Assets"
 msgid "Texniki plan"
 msgstr "Technical plan"
 
-msgid "Rezident"
-msgstr "Resident"
-
 msgid "Açıq ticket"
 msgstr "Open tickets"
 
@@ -264,6 +261,24 @@ msgstr "Connected to the building."
 
 msgid "E-poçt"
 msgstr "Email"
+
+msgid "E-poçt (istəyə bağlı)"
+msgstr "Email (optional)"
+
+msgid "Telefon (istəyə bağlı)"
+msgstr "Phone (optional)"
+
+msgid "İstəyə bağlı"
+msgstr "Optional"
+
+msgid "Çıxış ver"
+msgstr "Check out"
+
+msgid "Çıxış qeydə alındı."
+msgstr "Checkout recorded."
+
+msgid "Bu qonağın çıxışını yalnız reception bağlaya bilər (vəsiqə və ya qonaq kartı)."
+msgstr "Only reception can check out this guest (ID held or guest card issued)."
 
 msgid "Şifrə"
 msgstr "Password"
@@ -417,3 +432,147 @@ msgstr "Hello, %(name)s"
 
 msgid "Sahə %(label)s"
 msgstr "Space %(label)s"
+
+msgid "Qəbul"
+msgstr "Reception"
+
+msgid "Service Desk"
+msgstr "Service Desk"
+
+msgid "İcarələr"
+msgstr "Leases"
+
+msgid "CRM"
+msgstr "CRM"
+
+msgid "Lidlər"
+msgstr "Leads"
+
+msgid "Təkliflər"
+msgstr "Offers"
+
+msgid "İş sifarişləri"
+msgstr "Work Orders"
+
+msgid "TƏCHİZAT"
+msgstr "SUPPLY"
+
+msgid "Anbar"
+msgstr "Warehouse"
+
+msgid "Satınalma"
+msgstr "Procurement"
+
+msgid "MALİYYƏ"
+msgstr "FINANCE"
+
+msgid "Billing"
+msgstr "Billing"
+
+msgid "Mühasibat"
+msgstr "Accounting"
+
+msgid "İçəridə indi"
+msgstr "Inside now"
+
+msgid "Bu gün"
+msgstr "Today"
+
+msgid "Gözləyir / Pre-reg"
+msgstr "Waiting / Pre-reg"
+
+msgid "Vəsiqə gözləyir"
+msgstr "ID return pending"
+
+msgid "Pre-reg"
+msgstr "Pre-reg"
+
+msgid "Gəlməyib"
+msgstr "No-show"
+
+msgid "Filter"
+msgstr "Filter"
+
+msgid "Access"
+msgstr "Access"
+
+msgid "Check-in"
+msgstr "Check-in"
+
+msgid "ID qəbul"
+msgstr "ID held"
+
+msgid "Vəsiqə saxlanıldı (kart verildi)"
+msgstr "ID held (guest card issued)"
+
+msgid "Şəxsiyyət vəsiqəsi saxlanıldı (qonaq kartı verildi)"
+msgstr "ID document held (guest card issued)"
+
+msgid "Qonaq kartı №"
+msgstr "Guest card #"
+
+msgid "Kart nömrəsi"
+msgstr "Card number"
+
+msgid "Qonaq kartı nömrəsi tələb olunur."
+msgstr "Guest card number is required."
+
+msgid "Dəvət"
+msgstr "Invite"
+
+msgid "Gözləmədə"
+msgstr "Pending"
+
+msgid "Bitib"
+msgstr "Expired"
+
+msgid "Ləğv edilib"
+msgstr "Revoked"
+
+msgid "Uğursuz"
+msgstr "Failed"
+
+msgid "Uğurlu"
+msgstr "Success"
+
+msgid "Xəta"
+msgstr "Error"
+
+msgid "Əvvəlcədən qeyd"
+msgstr "Pre-registered"
+
+msgid "Çıxış edib"
+msgstr "Checked out"
+
+msgid "Parties"
+msgstr "Parties"
+
+msgid "Export CSV"
+msgstr "Export CSV"
+
+msgid "Bu tarix üçün qonaq yoxdur."
+msgstr "No guests for this date."
+
+msgid "Uyğun qonaq tapılmadı."
+msgstr "No matching guests."
+
+msgid "Qonaq / seriya / şirkət / host…"
+msgstr "Guest / serial / company / host…"
+
+msgid "Şirkət axtar…"
+msgstr "Search company…"
+
+msgid "Host axtar…"
+msgstr "Search host…"
+
+msgid "Şirkət tapılmadı"
+msgstr "No company found"
+
+msgid "Host tapılmadı"
+msgstr "No host found"
+
+msgid "qonaq"
+msgstr "guests"
+
+msgid "Jurnal"
+msgstr "Journal"

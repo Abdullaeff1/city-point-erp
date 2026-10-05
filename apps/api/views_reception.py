@@ -94,6 +94,7 @@ def reception_visits(request):
             host=host,
             visit_type=visit_type,
             id_document_held=bool(payload.get("id_document_held")),
+            guest_card_number=payload.get("guest_card_number") or "",
             id_override_reason=payload.get("id_override_reason") or "",
             notes=payload.get("notes") or "",
             actor=request.user,
@@ -145,6 +146,7 @@ def _action_response(request, visit, action):
                 or payload.get("fin_code")
                 or "",
                 id_document_held=bool(payload.get("id_document_held")),
+                guest_card_number=payload.get("guest_card_number") or "",
                 id_override_reason=payload.get("id_override_reason") or "",
                 allow_id_override=allow_override,
                 first_name=payload.get("first_name") or "",

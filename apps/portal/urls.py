@@ -13,13 +13,20 @@ urlpatterns = [
     path("requests/<str:code>/", views.RequestDetailView.as_view(), name="request_detail"),
     path("alerts/", views.AlertsView.as_view(), name="alerts"),
     path("employees/access/", views.EmployeeAccessView.as_view(), name="employees"),
+    path("employees/access/export/", views.EmployeesAccessExportView.as_view(), name="employees_access_export"),
     path("employees/new/", views.EmployeeCreateView.as_view(), name="employee_create"),
     path(
         "employees/access/<int:pk>/",
         views.EmployeeAccessDetailView.as_view(),
         name="employee_access_detail",
     ),
+    path(
+        "employees/access/<int:pk>/export/",
+        views.EmployeesAccessExportView.as_view(),
+        name="employee_access_export",
+    ),
     path("guests/", views.GuestsView.as_view(), name="guests"),
+    path("guests/<int:pk>/checkout/", views.GuestCheckoutView.as_view(), name="guest_checkout"),
     path("announcements/", views.AnnouncementsView.as_view(), name="announcements"),
     path("documents/", views.DocumentsView.as_view(), name="documents"),
 ]

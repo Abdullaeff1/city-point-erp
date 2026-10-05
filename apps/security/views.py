@@ -5,6 +5,8 @@ from django.utils.translation import gettext as _
 from django.views.generic import TemplateView, View
 
 from apps.accounts.mixins import SecurityPortalMixin
+from apps.comms.models import Notification
+from apps.reception.models import GuestVisit, VisitStatus
 from apps.residents.access import (
     access_range_bounds,
     build_employee_access_rows,
@@ -12,6 +14,7 @@ from apps.residents.access import (
     employee_day_flaps,
     parse_date,
 )
+from apps.residents.access_export import access_xlsx_http_response
 from apps.residents.models import (
     AccessLevel,
     RapidCardSwipeAlert,
@@ -20,6 +23,38 @@ from apps.residents.models import (
     ShaftAccessAlert,
 )
 from apps.tickets.models import OPEN_STATUSES, Ticket
+
+
+def _guest_visits_for_date(*, company=None, selected_date=None):
+    selected_date = selected_date or timezone.localdate()
+    qs = (
+        GuestVisit.objects.filter(scheduled_for=selected_date)
+        .exclude(status__in=(VisitStatus.CANCELLED, VisitStatus.NO_SHOW))
+        .select_related("guest", "company", "host", "visit_type", "visitor_access")
+        .order_by("-check_in_at", "-id")
+    )
+    if company is not None:
+        qs = qs.filter(company=company)
+    return qs
+
+
+def _guest_stats(visits):
+    inside = sum(1 for v in visits if v.status == VisitStatus.INSIDE)
+    left = sum(1 for v in visits if v.status in (VisitStatus.LEFT, VisitStatus.RETURN_PENDING))
+    return {"guest_inside": inside, "guest_left": left, "guest_total": len(visits)}
+
+
+def _mark_user_notifications_read(user) -> None:
+    Notification.objects.filter(user=user, is_read=False).update(is_read=True)
+
+
+def _auto_acknowledge(alert, user) -> None:
+    """Opening an alert detail marks it read/closed for the badge."""
+    if alert.acknowledged_at is None:
+        alert.acknowledged_at = timezone.now()
+        alert.acknowledged_by = user
+        alert.save(update_fields=["acknowledged_at", "acknowledged_by"])
+    _mark_user_notifications_read(user)
 
 
 class HomeView(SecurityPortalMixin, TemplateView):
@@ -38,6 +73,9 @@ class HomeView(SecurityPortalMixin, TemplateView):
         ).count()
         open_rapid = RapidCardSwipeAlert.objects.filter(acknowledged_at__isnull=True).count()
         open_shaft = ShaftAccessAlert.objects.filter(acknowledged_at__isnull=True).count()
+        guest_inside = GuestVisit.objects.filter(
+            status=VisitStatus.INSIDE, scheduled_for=timezone.localdate()
+        ).count()
         ctx.update(
             {
                 "company_count": companies.count(),
@@ -47,6 +85,7 @@ class HomeView(SecurityPortalMixin, TemplateView):
                 "open_rapid_alerts": open_rapid,
                 "open_shaft_alerts": open_shaft,
                 "open_security_alerts": open_rapid + open_shaft,
+                "guest_inside_today": guest_inside,
             }
         )
         return ctx
@@ -89,6 +128,11 @@ class AlertDetailView(SecurityPortalMixin, TemplateView):
             pk=self.kwargs["pk"],
         )
 
+    def get(self, request, *args, **kwargs):
+        alert = self.get_alert()
+        _auto_acknowledge(alert, request.user)
+        return super().get(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         alert = self.get_alert()
@@ -117,11 +161,8 @@ class AlertDetailView(SecurityPortalMixin, TemplateView):
 class AlertAcknowledgeView(SecurityPortalMixin, View):
     def post(self, request, pk):
         alert = get_object_or_404(RapidCardSwipeAlert, pk=pk)
-        if alert.acknowledged_at is None:
-            alert.acknowledged_at = timezone.now()
-            alert.acknowledged_by = request.user
-            alert.save(update_fields=["acknowledged_at", "acknowledged_by"])
-            messages.success(request, _("Bildiriş bağlandı."))
+        _auto_acknowledge(alert, request.user)
+        messages.success(request, _("Bildiriş bağlandı."))
         return redirect("security:alert_detail", pk=alert.pk)
 
 
@@ -136,6 +177,11 @@ class ShaftAlertDetailView(SecurityPortalMixin, TemplateView):
             pk=self.kwargs["pk"],
         )
 
+    def get(self, request, *args, **kwargs):
+        alert = self.get_alert()
+        _auto_acknowledge(alert, request.user)
+        return super().get(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["alert"] = self.get_alert()
@@ -145,11 +191,8 @@ class ShaftAlertDetailView(SecurityPortalMixin, TemplateView):
 class ShaftAlertAcknowledgeView(SecurityPortalMixin, View):
     def post(self, request, pk):
         alert = get_object_or_404(ShaftAccessAlert, pk=pk)
-        if alert.acknowledged_at is None:
-            alert.acknowledged_at = timezone.now()
-            alert.acknowledged_by = request.user
-            alert.save(update_fields=["acknowledged_at", "acknowledged_by"])
-            messages.success(request, _("Bildiriş bağlandı."))
+        _auto_acknowledge(alert, request.user)
+        messages.success(request, _("Bildiriş bağlandı."))
         return redirect("security:shaft_alert_detail", pk=alert.pk)
 
 
@@ -158,6 +201,7 @@ class CompanyListView(SecurityPortalMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        today = timezone.localdate()
         companies = []
         for c in ResidentCompany.objects.all().order_by("-is_internal", "name"):
             companies.append(
@@ -165,6 +209,9 @@ class CompanyListView(SecurityPortalMixin, TemplateView):
                     "company": c,
                     "active_employees": c.employees.filter(is_active=True).count(),
                     "level2": c.employees.filter(is_active=True, access_level=AccessLevel.LEVEL_2).count(),
+                    "guests_inside": GuestVisit.objects.filter(
+                        company=c, status=VisitStatus.INSIDE, scheduled_for=today
+                    ).count(),
                 }
             )
         ctx["companies"] = companies
@@ -182,8 +229,20 @@ class CompanyEmployeesView(SecurityPortalMixin, TemplateView):
         company = self.get_company()
         today = timezone.localdate()
         selected_date = parse_date(self.request.GET.get("date"), today)
+        tab = self.request.GET.get("tab") or "employees"
+        if tab not in {"employees", "guests"}:
+            tab = "employees"
         employees = company.employees.filter(is_active=True).order_by("full_name")
         rows, inside, left, present = build_employee_access_rows(employees, selected_date)
+        guest_visits = list(_guest_visits_for_date(company=company, selected_date=selected_date))
+        guest_stats = _guest_stats(guest_visits)
+        export_preset, export_from, export_to = access_range_bounds(
+            self.request, default_preset="month"
+        )
+        if "range" not in self.request.GET:
+            export_preset = "month"
+            export_from = today.replace(day=1)
+            export_to = today
         ctx.update(
             {
                 "company": company,
@@ -191,9 +250,63 @@ class CompanyEmployeesView(SecurityPortalMixin, TemplateView):
                 "inside": inside,
                 "left": left,
                 "present": present,
+                "guest_visits": guest_visits,
+                "tab": tab,
                 "today": today,
                 "selected_date": selected_date,
                 "is_today": selected_date == today,
+                "export_preset": export_preset,
+                "export_from": export_from,
+                "export_to": export_to,
+                **guest_stats,
+            }
+        )
+        return ctx
+
+
+class CompanyAccessExportView(SecurityPortalMixin, View):
+    """Security: Excel attendance for any company (including City Point internal)."""
+
+    def get(self, request, pk, employee_pk=None):
+        company = get_object_or_404(ResidentCompany, pk=pk)
+        _preset, date_from, date_to = access_range_bounds(request, default_preset="month")
+        employee = None
+        if employee_pk is not None:
+            employee = get_object_or_404(ResidentEmployee, pk=employee_pk, company=company)
+        roster = (request.GET.get("roster") or "active").strip().lower()
+        return access_xlsx_http_response(
+            company,
+            date_from,
+            date_to,
+            employee=employee,
+            roster=roster,
+        )
+
+
+class GuestsView(SecurityPortalMixin, TemplateView):
+    """Building-wide guest check-in / check-out journal for security."""
+
+    template_name = "security/guests.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        today = timezone.localdate()
+        selected_date = parse_date(self.request.GET.get("date"), today)
+        company_id = self.request.GET.get("company") or ""
+        company = None
+        if company_id.isdigit():
+            company = ResidentCompany.objects.filter(pk=int(company_id)).first()
+        visits = list(_guest_visits_for_date(company=company, selected_date=selected_date))
+        stats = _guest_stats(visits)
+        ctx.update(
+            {
+                "visits": visits,
+                "companies": ResidentCompany.objects.filter(status="active").order_by("name"),
+                "filter_company": company,
+                "today": today,
+                "selected_date": selected_date,
+                "is_today": selected_date == today,
+                **stats,
             }
         )
         return ctx

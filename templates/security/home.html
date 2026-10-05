@@ -9,9 +9,11 @@
   <div class="cp-card p-card-sm">{% translate "Kart sifarişi" %} <strong>{{ open_card_orders }}</strong></div>
   <div class="cp-card p-card-sm">{% translate "Kart çoxvurma" %} <strong>{{ open_rapid_alerts }}</strong></div>
   <div class="cp-card p-card-sm">{% translate "Şaxta" %} <strong>{{ open_shaft_alerts }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Qonaq (içəridə)" %} <strong>{{ guest_inside_today }}</strong></div>
 </div>
 <div class="flex gap-2" style="flex-wrap:wrap;">
   <a class="cp-btn" href="{% url 'security:companies' %}">{% translate "Şirkətlər" %}</a>
+  <a class="cp-btn-ghost" href="{% url 'security:guests' %}">{% translate "Qonaqlar" %}{% if guest_inside_today %} ({{ guest_inside_today }}){% endif %}</a>
   <a class="cp-btn-ghost" href="{% url 'security:alerts_rapid' %}">{% translate "Kart çoxvurma" %}{% if open_rapid_alerts %} ({{ open_rapid_alerts }}){% endif %}</a>
   <a class="cp-btn-ghost" href="{% url 'security:alerts_shaft' %}">{% translate "Şaxta bildirişləri" %}{% if open_shaft_alerts %} ({{ open_shaft_alerts }}){% endif %}</a>
   <a class="cp-btn-ghost" href="{% url 'security:tickets' %}?tab=card-orders">{% translate "Kart sifarişləri" %}</a>
@@ -23,9 +25,9 @@
   {% translate "Səviyyə 2" %}: {% translate "turn_back icazəli" %}.
 </p>
 <p class="cp-meta mt-2">
-  {% translate "Kart 60 saniyə ərzində 1-ci mərtəbə (F1) turniketində 3 və daha çox dəfə vurulanda bildiriş yaranır." %}
+  {% translate "Kart 20 saniyə ərzində 1-ci mərtəbə (F1) turniketində 3 və daha çox dəfə vurulanda bildiriş yaranır." %}
 </p>
 <p class="cp-meta mt-2">
-  {% translate "Adı Shaft ilə başlayan oxuyucuda kart vurulanda şaxta bildirişi yaranır." %}
+  {% translate "Yalnız F1–F7 Shaft oxuyucularında (məs. F5ShaftElectric, F1ShaftCooling) kart vurulanda şaxta bildirişi yaranır; böyük-kiçik hərf fərqi yoxdur." %}
 </p>
 {% endblock %}

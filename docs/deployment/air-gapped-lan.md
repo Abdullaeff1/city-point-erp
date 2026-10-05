@@ -88,15 +88,19 @@ With `CP_OFFLINE=1`, production may use **file-based** email (ops read outbox / 
 
 ---
 
-## Access for residents without Internet
+## Access for residents (choose one — see NetAdmin Word guide)
 
-Residents use Portal **on the building LAN** (Wi‑Fi / cable), not via public Internet.
+Rezident ofisləri binanın lokal LAN-ına qoşulu **olmaya bilər**. NetAdmin rəhbərində üç variant var:
 
-Implications:
+| Variant | Model |
+|---------|--------|
+| **A** | Public HTTPS (`portal.citypoint.az`) — ERP yalnız daxili |
+| **B** | VPN → daxili URL (`portal.citypoint.local`) |
+| **C** | Faza 1 yalnız staff; Portal rezidentlər sonra |
 
-- Portal URL is an **internal** name or IP (print on welcome sheet).
-- No reliance on resident’s mobile data for core flows.
-- Password reset / invite: if no internal mail, admin uses `invite_portal_user` and **hands the link** (or prints QR).
+Tam kod, Nginx, firewall, `.env`: [CityPoint_AlmaLinux10_NetAdmin_Tam_Rehberi.docx](./CityPoint_AlmaLinux10_NetAdmin_Tam_Rehberi.docx)
+
+**LAN-only alternativ:** Portal URL daxili ad/IP; invite link admin təhvil verir (`CP_OFFLINE=1`).
 
 ---
 
@@ -104,7 +108,8 @@ Implications:
 
 - Postgres dumps to local disk / NAS on LAN
 - Media volume backups local
-- App updates: build image on a connected machine → transfer `.tar` → `docker load` on the air-gapped host
+- App updates: **native (tövsiyə)** — build maşınında wheelhouse + app zip → USB → prod-da `pip install --no-index` + `systemctl restart` (bax: [CityPoint_AlmaLinux10_Native_Offline_Rehberi.docx](./CityPoint_AlmaLinux10_Native_Offline_Rehberi.docx))
+- Alternativ (Docker): connected machine → `docker save` → transfer `.tar` → `docker load` on the air-gapped host
 
 ---
 
@@ -132,3 +137,9 @@ Implications:
 **Automated / dev smoke results:** [offline-smoke-checklist.md](./offline-smoke-checklist.md)
 
 **Lokal vs Cloud (tövsiyə + hücumlar):** [local-vs-cloud-security.md](./local-vs-cloud-security.md)
+
+**AlmaLinux 10 NetAdmin tam rəhbər (Docker yox; rezident A/B/C + İnternet I/II/III variantları):** [CityPoint_AlmaLinux10_NetAdmin_Tam_Rehberi.docx](./CityPoint_AlmaLinux10_NetAdmin_Tam_Rehberi.docx)
+
+**AlmaLinux 10 native offline (eyni faylın alternativ adı):** [CityPoint_AlmaLinux10_Native_Offline_Rehberi.docx](./CityPoint_AlmaLinux10_Native_Offline_Rehberi.docx)
+
+**AlmaLinux 10 Docker variant (alternativ):** [CityPoint_AlmaLinux10_Deploy_Rehberi.docx](./CityPoint_AlmaLinux10_Deploy_Rehberi.docx) — yalnız image-ləri əvvəlcədən `docker save` ilə gətirmək mümkün olduqda.

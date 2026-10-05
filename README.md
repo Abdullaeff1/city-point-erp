@@ -30,6 +30,9 @@ Open http://localhost:3001/security/ after login as Security.
 ## Deployment
 
 - Dev: `bin/dev` · Prod (LAN/air-gapped): [`docs/deployment/air-gapped-lan.md`](docs/deployment/air-gapped-lan.md)
+- **AlmaLinux 10 NetAdmin tam rəhbər (Docker yox, bütün şəbəkə variantları):** [`docs/deployment/CityPoint_AlmaLinux10_NetAdmin_Tam_Rehberi.docx`](docs/deployment/CityPoint_AlmaLinux10_NetAdmin_Tam_Rehberi.docx)
+- AlmaLinux 10 native offline (eyni məzmunun köhnə adı): [`docs/deployment/CityPoint_AlmaLinux10_Native_Offline_Rehberi.docx`](docs/deployment/CityPoint_AlmaLinux10_Native_Offline_Rehberi.docx)
+- AlmaLinux 10 Docker variant (alternativ): [`docs/deployment/CityPoint_AlmaLinux10_Deploy_Rehberi.docx`](docs/deployment/CityPoint_AlmaLinux10_Deploy_Rehberi.docx)
 - Offline go-live: no CDN; set `CP_OFFLINE=1` (see `bin/prod/.env.example`)
 
 ## Master plan status

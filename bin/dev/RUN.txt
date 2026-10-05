@@ -1,6 +1,10 @@
 # Local Docker (from repo root or this folder)
 #   docker compose -f bin/dev/docker-compose.yml --env-file bin/dev/.env up --build
 #
+# AxTrax connects automatically on startup when bin/dev/.env contains:
+#   TURNSTILE_MSSQL_PASSWORD=...
+#   AXTRAX_POLL_ON_START=1
+#
 # App: http://localhost:8000/login/
 # Portal: office@asbc.az / asbc123
 # ERP:    admin@citypoint.az / admin123
