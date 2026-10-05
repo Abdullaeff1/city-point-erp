@@ -6,10 +6,13 @@ City Point Baku — Resident Portal + Staff ERP (Django 5, PostgreSQL, Docker).
 
 ```bash
 cd bin/dev
-docker compose up --build
+cp .env.example .env   # set TURNSTILE_MSSQL_PASSWORD for AxTrax on City Point LAN
+docker compose --env-file .env up --build
 ```
 
 Open http://localhost:3001/login/
+
+**Teammate on same LAN (AxTrax like a working PC):** [`docs/deployment/teammate-axtrax-lan.md`](docs/deployment/teammate-axtrax-lan.md)
 
 ### Demo accounts (dev only — never use in production)
 
