@@ -16,11 +16,24 @@ powershell -File bin/dev/poll_axtrax_events.ps1
 - Export: `var/axtrax_events.json`
 - Import: `docker compose exec web python manage.py sync_axtrax_events --file=var/axtrax_events.json`
 
-People (less frequent):
+People (companies / employees / printed badges) — **live from AxTrax** (preferred):
+
+```powershell
+docker compose -f bin/dev/docker-compose.yml --env-file bin/dev/.env exec web `
+  python manage.py sync_axtrax_people --from-mssql
+```
+
+The in-container poller also refreshes people every `AXTRAX_PEOPLE_SYNC_INTERVAL` seconds (default **300**). Card rules:
+
+- Latest AxTrax `tIdentification` always overwrites ERP `card_number`
+- Same badge cannot stay on two employees (reclaimed to the enabled owner)
+- Disabled / missing employees are soft-deactivated and **lose** the badge (history stays on AccessEvent)
+
+Legacy JSON path (optional):
 
 ```powershell
 powershell -File bin/dev/export_axtrax_people.ps1
-# then sync_axtrax_people
+docker compose exec web python manage.py sync_axtrax_people --file=var/axtrax_people.json
 ```
 
 ## Production expectation

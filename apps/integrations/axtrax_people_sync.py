@@ -144,7 +144,6 @@ def company_slug_for_department(department_id: int, department_name: str) -> str
     if key in DEPARTMENT_SLUG_ALIASES:
         return DEPARTMENT_SLUG_ALIASES[key]
     base = slugify(department_name) or f"dept-{department_id}"
-    # Keep ASCII slug short and stable with AxTrax id suffix when generic.
     if base in {"asbc", "techco"}:
         return base
     return f"{base[:40]}-ax{department_id}"
@@ -183,19 +182,27 @@ def _group_rows(rows: list[dict]) -> dict[int, dict]:
                 "has_turn_back": row.get("has_turn_back"),
             },
         )
-        if not emp.get("identification") and row.get("identification"):
+        # Always prefer the latest non-empty AxTrax fields (card reassignment / renames).
+        if row.get("identification"):
             emp["identification"] = row.get("identification") or ""
+        if row.get("first_name"):
+            emp["first_name"] = row.get("first_name") or ""
+        if row.get("middle_name") is not None and str(row.get("middle_name") or ""):
+            emp["middle_name"] = row.get("middle_name") or ""
+        if row.get("last_name"):
+            emp["last_name"] = row.get("last_name") or ""
+        emp["is_enabled"] = bool(row.get("is_enabled", emp.get("is_enabled", True)))
         if emp.get("access_group_id") is None and row.get("access_group_id") is not None:
             emp["access_group_id"] = row.get("access_group_id")
-        if not emp.get("access_group_name") and row.get("access_group_name"):
+        if row.get("access_group_name"):
             emp["access_group_name"] = row.get("access_group_name") or ""
-        if emp.get("has_turn_back") is None and row.get("has_turn_back") is not None:
+        if row.get("has_turn_back") is not None:
             emp["has_turn_back"] = row.get("has_turn_back")
         badge = resolve_badge_number(row)
-        if badge and not emp["badge_number"]:
+        if badge:
             emp["badge_number"] = badge
         card = (row.get("card_code") or "").strip()
-        if card and not emp["card_code"]:
+        if card:
             emp["card_code"] = card[:32]
     return departments
 
@@ -295,17 +302,72 @@ def _find_unlinked_employee_by_name(company: ResidentCompany, full_name: str):
     return None
 
 
+def _reclaim_card_number(owner: ResidentEmployee, badge: str, stats: dict) -> None:
+    """Ensure only ``owner`` holds this printed badge in ERP."""
+    badge = normalize_identification(badge)
+    if not badge or not owner.pk:
+        return
+    others = ResidentEmployee.objects.filter(card_number=badge).exclude(pk=owner.pk)
+    cleared = others.update(card_number="")
+    if cleared:
+        stats["cards_reclaimed"] = stats.get("cards_reclaimed", 0) + cleared
+
+
+def _deactivate_employee(employee: ResidentEmployee, *, clear_card: bool = True) -> bool:
+    """Soft-deactivate; clear badge so former staff cannot keep a reassigned card."""
+    fields = []
+    changed = False
+    if employee.is_active:
+        employee.is_active = False
+        fields.append("is_active")
+        changed = True
+    if employee.deactivated_at is None:
+        employee.deactivated_at = timezone.now()
+        fields.append("deactivated_at")
+        changed = True
+    if clear_card and employee.card_number:
+        employee.card_number = ""
+        fields.append("card_number")
+        changed = True
+    if fields:
+        employee.save(update_fields=fields)
+    return changed
+
+
+def _badge_owner_map(departments: dict[int, dict]) -> dict[str, int]:
+    """Printed badge → winning AxTrax employee_id (prefer enabled, then higher emp id)."""
+    candidates: dict[str, list[tuple[bool, int]]] = defaultdict(list)
+    for dept in departments.values():
+        for emp in dept["employees"].values():
+            badge = normalize_identification(emp.get("badge_number") or "")
+            if not badge:
+                continue
+            candidates[badge].append((bool(emp.get("is_enabled")), int(emp["employee_id"])))
+    winners: dict[str, int] = {}
+    for badge, items in candidates.items():
+        items.sort(key=lambda t: (t[0], t[1]))
+        winners[badge] = items[-1][1]
+    return winners
+
+
+def sync_people_from_payload(payload: dict) -> dict:
+    """Apply an AxTrax people payload (file or live MSSQL) into ERP."""
+    return _sync_people_payload(payload)
+
+
 @transaction.atomic
-def sync_people_from_export(path: Path) -> dict:
-    payload = load_export(path)
+def _sync_people_payload(payload: dict) -> dict:
     rows = payload.get("rows") or []
     departments = _group_rows(rows)
     group_lookup = _build_access_group_lookup(payload)
+    badge_winners = _badge_owner_map(departments)
 
     stats = defaultdict(int)
     stats["departments_in_file"] = len(departments)
     stats["employee_rows_in_file"] = len(rows)
     stats["access_groups_in_file"] = len(group_lookup)
+
+    seen_emp_ids: set[int] = set()
 
     for dept in departments.values():
         company, created = _resolve_company(dept["department_id"], dept["department_name"])
@@ -313,7 +375,6 @@ def sync_people_from_export(path: Path) -> dict:
         _upsert_external(AXTRAX_SYSTEM, f"dept:{dept['department_id']}", company)
         PartyService.upsert_from_resident_company(company)
 
-        seen_emp_ids = set()
         for emp in dept["employees"].values():
             seen_emp_ids.add(emp["employee_id"])
             full_name = clean_person_name(emp["first_name"], emp["middle_name"], emp["last_name"])
@@ -324,20 +385,29 @@ def sync_people_from_export(path: Path) -> dict:
                 employee = ResidentEmployee.objects.filter(pk=identity.entity_id).first()
 
             level = resolve_access_level_for_row(emp, group_lookup)
+            badge = normalize_identification(emp.get("badge_number") or "")
+            # If another AxTrax person owns this badge in this export, do not keep it here.
+            if badge and badge_winners.get(badge) != emp["employee_id"]:
+                badge = ""
+                stats["badge_conflicts_skipped"] += 1
+
+            now_active = bool(emp["is_enabled"])
 
             if employee:
                 employee.company = company
                 employee.full_name = full_name
-                badge = emp.get("badge_number") or ""
-                if badge:
+                if employee.card_number != badge:
                     employee.card_number = badge
+                    stats["cards_updated"] += 1
                 was_active = employee.is_active
-                now_active = bool(emp["is_enabled"])
                 employee.is_active = now_active
                 if now_active and not was_active:
                     employee.deactivated_at = None
                 elif (not now_active) and was_active and employee.deactivated_at is None:
                     employee.deactivated_at = timezone.now()
+                if not now_active and employee.card_number:
+                    employee.card_number = ""
+                    stats["cards_cleared_inactive"] += 1
                 if level is not None and employee.access_level != level:
                     employee.access_level = level
                     stats["access_levels_updated"] += 1
@@ -346,15 +416,19 @@ def sync_people_from_export(path: Path) -> dict:
             else:
                 employee = _find_unlinked_employee_by_name(company, full_name)
                 if employee:
+                    employee.company = company
                     employee.full_name = full_name
-                    badge = emp.get("badge_number") or ""
-                    if badge:
+                    if employee.card_number != badge:
                         employee.card_number = badge
-                    employee.is_active = bool(emp["is_enabled"])
+                        stats["cards_updated"] += 1
+                    employee.is_active = now_active
                     if employee.is_active:
                         employee.deactivated_at = None
                     elif employee.deactivated_at is None:
                         employee.deactivated_at = timezone.now()
+                    if not now_active and employee.card_number:
+                        employee.card_number = ""
+                        stats["cards_cleared_inactive"] += 1
                     if level is not None and employee.access_level != level:
                         employee.access_level = level
                         stats["access_levels_updated"] += 1
@@ -364,48 +438,56 @@ def sync_people_from_export(path: Path) -> dict:
                     employee = ResidentEmployee.objects.create(
                         company=company,
                         full_name=full_name,
-                        card_number=emp.get("badge_number") or "",
+                        card_number=badge if now_active else "",
                         access_level=level or AccessLevel.LEVEL_1,
-                        is_active=bool(emp["is_enabled"]),
-                        deactivated_at=None if emp["is_enabled"] else timezone.now(),
+                        is_active=now_active,
+                        deactivated_at=None if now_active else timezone.now(),
                     )
                     if level is not None:
                         stats["access_levels_updated"] += 1
                     stats["employees_created"] += 1
 
+            if badge and now_active:
+                _reclaim_card_number(employee, badge, stats)
+
             _upsert_external(AXTRAX_SYSTEM, ext_emp, employee)
             PartyService.upsert_person_from_employee(employee)
 
-        # Soft-deactivate AxTrax-linked employees missing from this department export.
-        # Never hard-delete — AccessEvent history must remain queryable.
-        ct = ContentType.objects.get_for_model(ResidentEmployee)
-        linked = ExternalIdentity.objects.filter(
-            system=AXTRAX_SYSTEM,
-            external_id__startswith="emp:",
-            entity_type=ct,
-            entity_id__in=ResidentEmployee.objects.filter(company=company).values_list("id", flat=True),
-        )
-        for ident in linked:
-            try:
-                ax_id = int(str(ident.external_id).split(":", 1)[1])
-            except (IndexError, ValueError):
-                continue
-            if ax_id not in seen_emp_ids:
-                qs = ResidentEmployee.objects.filter(pk=ident.entity_id, is_active=True)
-                updated = qs.update(is_active=False, deactivated_at=timezone.now())
-                # If already inactive but deactivated_at empty, stamp once
-                if not updated:
-                    ResidentEmployee.objects.filter(
-                        pk=ident.entity_id, is_active=False, deactivated_at__isnull=True
-                    ).update(deactivated_at=timezone.now())
-                else:
-                    stats["employees_deactivated"] += 1
+    # Soft-deactivate all AxTrax-linked employees missing from the full export (any company).
+    ct = ContentType.objects.get_for_model(ResidentEmployee)
+    linked = ExternalIdentity.objects.filter(
+        system=AXTRAX_SYSTEM,
+        external_id__startswith="emp:",
+        entity_type=ct,
+    )
+    for ident in linked:
+        try:
+            ax_id = int(str(ident.external_id).split(":", 1)[1])
+        except (IndexError, ValueError):
+            continue
+        if ax_id in seen_emp_ids:
+            continue
+        employee = ResidentEmployee.objects.filter(pk=ident.entity_id).first()
+        if not employee:
+            continue
+        if _deactivate_employee(employee, clear_card=True):
+            stats["employees_deactivated"] += 1
 
     SyncLog.objects.create(
         system=AXTRAX_SYSTEM,
         operation="sync_people",
         status=SyncStatus.SUCCESS,
-        request_payload={"path": str(path), "row_count": payload.get("row_count")},
+        request_payload={"row_count": payload.get("row_count"), "source": payload.get("source")},
         response_payload=dict(stats),
     )
     return dict(stats)
+
+
+def sync_people_from_export(path: Path) -> dict:
+    return _sync_people_payload(load_export(path))
+
+
+def sync_people_from_mssql() -> dict:
+    from apps.integrations.axtrax_mssql import fetch_people_payload
+
+    return _sync_people_payload(fetch_people_payload())

@@ -24,3 +24,6 @@
 # AxTrax poller (Windows host, elevated once):
 #   powershell -ExecutionPolicy Bypass -File bin/prod/register_axtrax_poller_task.ps1
 #   docker compose exec web python manage.py axtrax_sync_status
+# Live people/companies/cards (LAN required):
+#   docker compose exec web python manage.py sync_axtrax_people --from-mssql
+# Poller also refreshes people every AXTRAX_PEOPLE_SYNC_INTERVAL seconds (default 300).

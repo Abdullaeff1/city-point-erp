@@ -55,7 +55,11 @@ def main():
     if os.environ.get("SEED_DEMO", "1") == "1":
         subprocess.check_call([sys.executable, "manage.py", "seed_demo"])
     start_axtrax_poller()
-    os.execvp(sys.executable, [sys.executable, "manage.py", "runserver", "0.0.0.0:8000"])
+    # OneDrive-mounted trees can crash Django autoreloader with Errno 5 (I/O error).
+    cmd = [sys.executable, "manage.py", "runserver", "0.0.0.0:8000"]
+    if os.environ.get("RUNSERVER_NORELOAD", "1") == "1":
+        cmd.append("--noreload")
+    os.execvp(sys.executable, cmd)
 
 
 if __name__ == "__main__":
