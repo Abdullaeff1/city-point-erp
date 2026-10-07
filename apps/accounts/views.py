@@ -1,12 +1,21 @@
+from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import PasswordResetConfirmView, PasswordResetView
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 from django.utils.translation import gettext as _
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.accounts.forms import ForcedSetPasswordForm, InviteSetPasswordForm, PortalPasswordResetForm
+from apps.accounts.impersonation import (
+    actor_can_switch_roles,
+    get_impersonator,
+    resolve_role_user,
+    start_impersonation,
+    stop_impersonation,
+)
 from apps.accounts.invite import consume_invite, get_valid_invite
 from apps.accounts.models import Role
 
@@ -35,6 +44,53 @@ def login_view(request):
 def logout_view(request):
     logout(request)
     return redirect("login")
+
+
+@login_required
+@require_POST
+def switch_role(request, role: str):
+    """One-click preview as a staff role (admin / superuser only)."""
+    if not actor_can_switch_roles(request):
+        raise PermissionDenied(_("Rol dəyişmək yalnız admin üçündür."))
+    if role not in {c.value for c in Role}:
+        raise PermissionDenied(_("Naməlum rol."))
+
+    impersonator = get_impersonator(request)
+    target = resolve_role_user(role)
+    if not target:
+        messages.error(request, _("Bu rol üçün aktiv istifadəçi tapılmadı."))
+        return redirect("post_login")
+
+    # Clicking Admin while previewing → restore original admin session
+    if impersonator and target.pk == impersonator.pk:
+        stop_impersonation(request)
+        messages.success(request, _("Admin hesabına qayıtdınız."))
+        return redirect("post_login")
+
+    if target.pk == request.user.pk:
+        return redirect("post_login")
+
+    try:
+        start_impersonation(request, target)
+    except PermissionError as exc:
+        raise PermissionDenied(str(exc)) from exc
+
+    messages.info(
+        request,
+        _("Rol önizləmə: %(role)s (%(email)s)")
+        % {"role": target.get_role_display(), "email": target.email},
+    )
+    return redirect("post_login")
+
+
+@login_required
+@require_POST
+def stop_role_preview(request):
+    if not get_impersonator(request):
+        return redirect("post_login")
+    stop_impersonation(request)
+    messages.success(request, _("Admin hesabına qayıtdınız."))
+    return redirect("post_login")
 
 
 @login_required

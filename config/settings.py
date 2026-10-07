@@ -78,12 +78,22 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 
+# With runserver --noreload (OneDrive-safe), Django's cached template loader
+# keeps stale HTML until process restart. In DEBUG, load templates from disk.
+_TEMPLATE_LOADERS = [
+    "django.template.loaders.filesystem.Loader",
+    "django.template.loaders.app_directories.Loader",
+]
+if not DEBUG:
+    _TEMPLATE_LOADERS = [("django.template.loaders.cached.Loader", _TEMPLATE_LOADERS)]
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [BASE_DIR / "templates"],
-        "APP_DIRS": True,
+        "APP_DIRS": False,
         "OPTIONS": {
+            "loaders": _TEMPLATE_LOADERS,
             "context_processors": [
                 "django.template.context_processors.request",
                 "django.template.context_processors.i18n",

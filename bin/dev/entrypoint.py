@@ -20,20 +20,24 @@ def start_axtrax_poller():
     log_dir.mkdir(exist_ok=True)
     log_path = log_dir / "axtrax_poller.log"
     log = open(log_path, "a", encoding="utf-8")
-    # Bootstrap once in foreground so first login already has fresh people/events attempt.
+    # Bootstrap in background so the web UI is reachable immediately after restart.
+    # Set AXTRAX_BOOTSTRAP_FOREGROUND=1 only if you need a blocking one-shot sync first.
     if os.environ.get("AXTRAX_BOOTSTRAP_ON_START", "1") == "1":
-        print("AxTrax bootstrap (one-shot)…")
-        try:
-            subprocess.call(
-                [sys.executable, "manage.py", "poll_axtrax", "--once"],
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                timeout=int(os.environ.get("AXTRAX_BOOTSTRAP_TIMEOUT", "120")),
-            )
-        except subprocess.TimeoutExpired:
-            print("AxTrax bootstrap timed out — continuing; background poller will retry")
-        except Exception as exc:  # noqa: BLE001
-            print(f"AxTrax bootstrap error: {exc}")
+        if os.environ.get("AXTRAX_BOOTSTRAP_FOREGROUND", "0") == "1":
+            print("AxTrax bootstrap (one-shot, foreground)…")
+            try:
+                subprocess.call(
+                    [sys.executable, "manage.py", "poll_axtrax", "--once"],
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    timeout=int(os.environ.get("AXTRAX_BOOTSTRAP_TIMEOUT", "120")),
+                )
+            except subprocess.TimeoutExpired:
+                print("AxTrax bootstrap timed out — continuing; background poller will retry")
+            except Exception as exc:  # noqa: BLE001
+                print(f"AxTrax bootstrap error: {exc}")
+        else:
+            print("AxTrax bootstrap will run via background poller (non-blocking)")
     proc = subprocess.Popen(
         [sys.executable, "manage.py", "poll_axtrax"],
         stdout=log,

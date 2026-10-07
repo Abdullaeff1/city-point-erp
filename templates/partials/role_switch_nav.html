@@ -1,0 +1,29 @@
+{% load i18n %}
+{% if nav_role_switch %}
+<details class="cp-nav-group" {% if is_impersonating %}open{% endif %}>
+  <summary class="cp-nav-summary">
+    <span class="cp-nav-summary-label">{% translate "ROLLAR" %}</span>
+    <i data-lucide="chevron-down" class="cp-nav-chevron" width="14" height="14"></i>
+  </summary>
+  <div class="cp-nav-group-body">
+    {% if is_impersonating and impersonator %}
+    <form method="post" action="{% url 'accounts:stop_role_preview' %}" class="cp-nav-role-form">
+      {% csrf_token %}
+      <button type="submit" class="cp-nav-role-btn cp-nav-role-btn--restore">
+        <i data-lucide="undo-2" width="18" height="18"></i>
+        <span class="cp-nav-text">{% translate "Adminə qayıt" %}</span>
+      </button>
+    </form>
+    {% endif %}
+    {% for item in role_switch_targets %}
+    <form method="post" action="{% url 'accounts:switch_role' item.role %}" class="cp-nav-role-form">
+      {% csrf_token %}
+      <button type="submit" class="cp-nav-role-btn{% if item.is_current %} is-active{% endif %}" {% if item.is_current %}disabled{% endif %}>
+        <i data-lucide="user-cog" width="18" height="18"></i>
+        <span class="cp-nav-text">{{ item.label }}</span>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}

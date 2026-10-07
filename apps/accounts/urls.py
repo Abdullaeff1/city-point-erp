@@ -6,6 +6,8 @@ app_name = "accounts"
 
 urlpatterns = [
     path("invite/<str:token>/", views.invite_accept, name="invite_accept"),
+    path("switch-role/<str:role>/", views.switch_role, name="switch_role"),
+    path("stop-role-preview/", views.stop_role_preview, name="stop_role_preview"),
     path("force-password/", views.force_set_password, name="force_set_password"),
     path("password-reset/", views.PortalPasswordResetView.as_view(), name="password_reset"),
     path("password-reset/done/", views.password_reset_done, name="password_reset_done"),

@@ -1,3 +1,9 @@
+from apps.accounts.impersonation import (
+    actor_can_switch_roles,
+    get_impersonator,
+    is_impersonating,
+    list_role_switch_targets,
+)
 from apps.accounts.models import Role
 from apps.comms.models import Notification
 
@@ -22,6 +28,18 @@ def role_context(request):
         from apps.residents.models import ResidentCompany
 
         resident_count = ResidentCompany.objects.filter(is_internal=False).count()
+
+    can_switch = False
+    role_targets = []
+    impersonator = None
+    impersonating = False
+    if user and user.is_authenticated:
+        can_switch = actor_can_switch_roles(request)
+        if can_switch:
+            role_targets = list_role_switch_targets(request)
+        impersonating = is_impersonating(request)
+        impersonator = get_impersonator(request) if impersonating else None
+
     return {
         "unread_alerts": unread,
         "open_rapid_alerts": open_rapid_alerts,
@@ -33,7 +51,7 @@ def role_context(request):
         "nav_property": is_adminish or role == Role.PROPERTY_FM,
         "nav_residents": nav_residents,
         "nav_parties": is_adminish or role in {Role.SERVICE_DESK, Role.PROPERTY_FM, Role.RECEPTION},
-        "nav_docs": True,
+        "nav_docs": is_adminish,
         "nav_reports": is_adminish,
         "nav_internal_access": is_adminish,
         "nav_leases": is_adminish or role == Role.PROPERTY_FM,
@@ -41,4 +59,8 @@ def role_context(request):
         "nav_fm": is_adminish or role in {Role.PROPERTY_FM, Role.SERVICE_DESK},
         "nav_supply": is_adminish,
         "nav_finance": is_adminish,
+        "nav_role_switch": can_switch,
+        "role_switch_targets": role_targets,
+        "is_impersonating": impersonating,
+        "impersonator": impersonator,
     }

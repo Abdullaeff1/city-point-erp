@@ -2,51 +2,111 @@
 {% load i18n cp_ui %}
 {% block title %}{% block page_title %}ERP{% endblock %} · City Point{% endblock %}
 {% block body %}
+{% with url_name=request.resolver_match.url_name %}
 <div class="cp-shell">
   <aside class="cp-sidebar">
     <div class="cp-brand">
       <div class="cp-brand-kicker">CITY POINT</div>
       <div class="cp-brand-sub">{% translate "Business Center" %}</div>
     </div>
-    <nav class="cp-nav">
-      <div class="cp-nav-label">{% translate "İDARƏETMƏ" %}</div>
-      <a class="{% nav_active 'dashboard' %}" href="{% url 'erp:dashboard' %}"><i data-lucide="layout-dashboard" width="18" height="18"></i><span>{% translate "İdarə paneli" %}</span></a>
+    <nav class="cp-nav" aria-label="ERP">
+      <details class="cp-nav-group" {% if url_name == 'dashboard' %}open{% endif %}>
+        <summary class="cp-nav-summary">
+          <span class="cp-nav-summary-label">{% translate "İDARƏETMƏ" %}</span>
+          <i data-lucide="chevron-down" class="cp-nav-chevron" width="14" height="14"></i>
+        </summary>
+        <div class="cp-nav-group-body">
+          <a class="{% nav_active 'dashboard' %}" href="{% url 'erp:dashboard' %}"><i data-lucide="layout-dashboard" width="18" height="18"></i><span class="cp-nav-text">{% translate "İdarə paneli" %}</span></a>
+        </div>
+      </details>
+
       {% if nav_reception or nav_tickets %}
-      <div class="cp-nav-label">{% translate "ƏMƏLİYYAT" %}</div>
+      <details class="cp-nav-group" {% if url_name == 'reception' or url_name == 'tickets' or url_name == 'ticket_detail' %}open{% endif %}>
+        <summary class="cp-nav-summary">
+          <span class="cp-nav-summary-label">{% translate "ƏMƏLİYYAT" %}</span>
+          <i data-lucide="chevron-down" class="cp-nav-chevron" width="14" height="14"></i>
+        </summary>
+        <div class="cp-nav-group-body">
+          {% if nav_reception %}<a class="{% nav_active 'reception' %}" href="{% url 'erp:reception' %}"><i data-lucide="door-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Qəbul" %}</span></a>{% endif %}
+          {% if nav_tickets %}<a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'erp:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Service Desk" %}</span></a>{% endif %}
+        </div>
+      </details>
       {% endif %}
-      {% if nav_reception %}<a class="{% nav_active 'reception' %}" href="{% url 'erp:reception' %}"><i data-lucide="door-open" width="18" height="18"></i><span>{% translate "Qəbul" %}</span></a>{% endif %}
-      {% if nav_tickets %}<a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'erp:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span>{% translate "Service Desk" %}</span></a>{% endif %}
-      {% if nav_property or nav_residents or nav_docs %}
-      <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
+
+      {% if nav_property or nav_residents or nav_parties or nav_leases or nav_fm %}
+      <details class="cp-nav-group" {% if url_name == 'spaces' or url_name == 'space_detail' or url_name == 'residents' or url_name == 'resident_detail' or url_name == 'parties' or url_name == 'leases' or url_name == 'lease_detail' or url_name == 'work_orders' %}open{% endif %}>
+        <summary class="cp-nav-summary">
+          <span class="cp-nav-summary-label">{% translate "ƏMLAK" %}</span>
+          <i data-lucide="chevron-down" class="cp-nav-chevron" width="14" height="14"></i>
+        </summary>
+        <div class="cp-nav-group-body">
+          {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
+          {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rezidentlər" %}</span><span class="badge badge-muted" style="margin-left:auto;">{{ resident_count }}</span></a>{% endif %}
+          {% if nav_parties %}<a class="{% nav_active 'parties' %}" href="{% url 'erp:parties' %}"><i data-lucide="building" width="18" height="18"></i><span class="cp-nav-text">{% translate "Parties" %}</span></a>{% endif %}
+          {% if nav_leases %}<a class="{% nav_active 'leases' 'lease_detail' %}" href="{% url 'erp:leases' %}"><i data-lucide="file-signature" width="18" height="18"></i><span class="cp-nav-text">{% translate "İcarələr" %}</span></a>{% endif %}
+          {% if nav_fm %}<a class="{% nav_active 'work_orders' %}" href="{% url 'erp:work_orders' %}"><i data-lucide="wrench" width="18" height="18"></i><span class="cp-nav-text">{% translate "İş sifarişləri" %}</span></a>{% endif %}
+        </div>
+      </details>
       {% endif %}
-      {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span>{% translate "Sahələr" %}</span></a>{% endif %}
-      {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span>{% translate "Rezidentlər" %}</span><span class="badge badge-muted" style="margin-left:auto;">{{ resident_count }}</span></a>{% endif %}
-      {% if nav_parties %}<a class="{% nav_active 'parties' %}" href="{% url 'erp:parties' %}"><i data-lucide="building" width="18" height="18"></i><span>{% translate "Parties" %}</span></a>{% endif %}
-      {% if nav_leases %}<a class="{% nav_active 'leases' 'lease_detail' %}" href="{% url 'erp:leases' %}"><i data-lucide="file-signature" width="18" height="18"></i><span>{% translate "İcarələr" %}</span></a>{% endif %}
+
       {% if nav_crm %}
-      <div class="cp-nav-label">{% translate "CRM" %}</div>
-      <a class="{% nav_active 'crm_leads' %}" href="{% url 'erp:crm_leads' %}"><i data-lucide="user-plus" width="18" height="18"></i><span>{% translate "Lidlər" %}</span></a>
-      <a class="{% nav_active 'crm_offers' %}" href="{% url 'erp:crm_offers' %}"><i data-lucide="handshake" width="18" height="18"></i><span>{% translate "Təkliflər" %}</span></a>
+      <details class="cp-nav-group" {% if url_name == 'crm_leads' or url_name == 'crm_offers' %}open{% endif %}>
+        <summary class="cp-nav-summary">
+          <span class="cp-nav-summary-label">{% translate "CRM" %}</span>
+          <i data-lucide="chevron-down" class="cp-nav-chevron" width="14" height="14"></i>
+        </summary>
+        <div class="cp-nav-group-body">
+          <a class="{% nav_active 'crm_leads' %}" href="{% url 'erp:crm_leads' %}"><i data-lucide="user-plus" width="18" height="18"></i><span class="cp-nav-text">{% translate "Lidlər" %}</span></a>
+          <a class="{% nav_active 'crm_offers' %}" href="{% url 'erp:crm_offers' %}"><i data-lucide="handshake" width="18" height="18"></i><span class="cp-nav-text">{% translate "Təkliflər" %}</span></a>
+        </div>
+      </details>
       {% endif %}
-      {% if nav_fm %}<a class="{% nav_active 'work_orders' %}" href="{% url 'erp:work_orders' %}"><i data-lucide="wrench" width="18" height="18"></i><span>{% translate "İş sifarişləri" %}</span></a>{% endif %}
+
       {% if nav_supply %}
-      <div class="cp-nav-label">{% translate "TƏCHİZAT" %}</div>
-      <a class="{% nav_active 'warehouse' %}" href="{% url 'erp:warehouse' %}"><i data-lucide="warehouse" width="18" height="18"></i><span>{% translate "Anbar" %}</span></a>
-      <a class="{% nav_active 'procurement' %}" href="{% url 'erp:procurement' %}"><i data-lucide="shopping-cart" width="18" height="18"></i><span>{% translate "Satınalma" %}</span></a>
+      <details class="cp-nav-group" {% if url_name == 'warehouse' or url_name == 'procurement' %}open{% endif %}>
+        <summary class="cp-nav-summary">
+          <span class="cp-nav-summary-label">{% translate "TƏCHİZAT" %}</span>
+          <i data-lucide="chevron-down" class="cp-nav-chevron" width="14" height="14"></i>
+        </summary>
+        <div class="cp-nav-group-body">
+          <a class="{% nav_active 'warehouse' %}" href="{% url 'erp:warehouse' %}"><i data-lucide="warehouse" width="18" height="18"></i><span class="cp-nav-text">{% translate "Anbar" %}</span></a>
+          <a class="{% nav_active 'procurement' %}" href="{% url 'erp:procurement' %}"><i data-lucide="shopping-cart" width="18" height="18"></i><span class="cp-nav-text">{% translate "Satınalma" %}</span></a>
+        </div>
+      </details>
       {% endif %}
-      {% if nav_finance %}
-      <div class="cp-nav-label">{% translate "MALİYYƏ" %}</div>
-      <a class="{% nav_active 'billing' %}" href="{% url 'erp:billing' %}"><i data-lucide="receipt" width="18" height="18"></i><span>{% translate "Billing" %}</span></a>
-      <a class="{% nav_active 'accounting' %}" href="{% url 'erp:accounting' %}"><i data-lucide="book-open" width="18" height="18"></i><span>{% translate "Mühasibat" %}</span></a>
+
+      {% if nav_finance or nav_docs %}
+      <details class="cp-nav-group" {% if url_name == 'billing' or url_name == 'accounting' or url_name == 'documents' %}open{% endif %}>
+        <summary class="cp-nav-summary">
+          <span class="cp-nav-summary-label">{% translate "MALİYYƏ" %}</span>
+          <i data-lucide="chevron-down" class="cp-nav-chevron" width="14" height="14"></i>
+        </summary>
+        <div class="cp-nav-group-body">
+          {% if nav_finance %}
+          <a class="{% nav_active 'billing' %}" href="{% url 'erp:billing' %}"><i data-lucide="receipt" width="18" height="18"></i><span class="cp-nav-text">{% translate "Billing" %}</span></a>
+          <a class="{% nav_active 'accounting' %}" href="{% url 'erp:accounting' %}"><i data-lucide="book-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Mühasibat" %}</span></a>
+          {% endif %}
+          {% if nav_docs %}<a class="{% nav_active 'documents' %}" href="{% url 'erp:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sənədlər" %}</span></a>{% endif %}
+        </div>
+      </details>
       {% endif %}
-      {% if nav_docs %}<a class="{% nav_active 'documents' %}" href="{% url 'erp:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span>{% translate "Sənədlər" %}</span></a>{% endif %}
+
       {% if nav_reports %}
-      <div class="cp-nav-label">{% translate "ANALİTİKA" %}</div>
-      <a class="{% nav_active 'reports' %}" href="{% url 'erp:reports' %}"><i data-lucide="bar-chart-3" width="18" height="18"></i><span>{% translate "Hesabatlar" %}</span></a>
-      {% if nav_internal_access %}
-      <a class="{% nav_active 'internal_staff_access' 'internal_staff_access_detail' %}" href="{% url 'erp:internal_staff_access' %}"><i data-lucide="id-card" width="18" height="18"></i><span>{% translate "CP İşçilər" %}</span></a>
+      <details class="cp-nav-group" {% if url_name == 'reports' or url_name == 'internal_staff_access' or url_name == 'internal_staff_access_detail' %}open{% endif %}>
+        <summary class="cp-nav-summary">
+          <span class="cp-nav-summary-label">{% translate "ANALİTİKA" %}</span>
+          <i data-lucide="chevron-down" class="cp-nav-chevron" width="14" height="14"></i>
+        </summary>
+        <div class="cp-nav-group-body">
+          <a class="{% nav_active 'reports' %}" href="{% url 'erp:reports' %}"><i data-lucide="bar-chart-3" width="18" height="18"></i><span class="cp-nav-text">{% translate "Hesabatlar" %}</span></a>
+          {% if nav_internal_access %}
+          <a class="{% nav_active 'internal_staff_access' 'internal_staff_access_detail' %}" href="{% url 'erp:internal_staff_access' %}"><i data-lucide="id-card" width="18" height="18"></i><span class="cp-nav-text">{% translate "CP İşçilər" %}</span></a>
+          {% endif %}
+        </div>
+      </details>
       {% endif %}
-      {% endif %}
+
+      {% include "partials/role_switch_nav.html" %}
     </nav>
     <div class="cp-user-bar">
       <div class="cp-avatar">{{ user.initials }}</div>
@@ -87,4 +147,5 @@
     </div>
   </main>
 </div>
+{% endwith %}
 {% endblock %}
