@@ -92,6 +92,8 @@ class Command(BaseCommand):
             if people_every <= 0:
                 continue
             now = timezone.now().timestamp()
-            if (now - last_people) >= people_every:
-                if self._sync_people():
-                    last_people = now
+            # Retry sooner after failure, but never every event cycle (avoids log spam).
+            due_in = people_every if last_people > 0 else min(60, people_every)
+            if (now - last_people) >= due_in:
+                last_people = now
+                self._sync_people()
