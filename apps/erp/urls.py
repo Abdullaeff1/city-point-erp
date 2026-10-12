@@ -6,6 +6,8 @@ app_name = "erp"
 
 urlpatterns = [
     path("", views.DashboardView.as_view(), name="dashboard"),
+    path("people-inside/", views.PeopleInsideView.as_view(), name="people_inside"),
+    path("people-inside/<int:pk>/", views.PeopleInsideDetailView.as_view(), name="people_inside_detail"),
     path("reception/", views.ReceptionView.as_view(), name="reception"),
     path("reception/<int:pk>/status/", views.ReceptionStatusView.as_view(), name="reception_status"),
     path("reception/guest-lookup/", views.ReceptionGuestLookupView.as_view(), name="reception_guest_lookup"),

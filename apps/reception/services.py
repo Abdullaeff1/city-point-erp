@@ -111,10 +111,11 @@ class ReceptionService(Service):
         guest_card_number: str = "",
     ) -> GuestVisit:
         cls.require(company is not None, "Şirkət seçilməlidir.")
-        cls.require(bool(normalize_fin(fin_code)), "Seriya nömrəsi tələb olunur.")
         held = bool(id_document_held)
         card = (guest_card_number or "").strip()
+        # Seriya optional (məs. kuryer) — yalnız vəsiqə saxlanılanda mütləqdir
         if held:
+            cls.require(bool(normalize_fin(fin_code)), "Seriya nömrəsi tələb olunur.")
             cls.require(bool(card), "Qonaq kartı nömrəsi tələb olunur.")
         if host is not None:
             cls.require(host.company_id == company.id, "Host seçilmiş şirkətə aid deyil.")
@@ -454,6 +455,14 @@ def today_visits_queryset(day=None):
     return GuestVisit.objects.filter(scheduled_for=day).select_related(
         "guest", "company", "host", "visit_type", "visitor_access"
     )
+
+
+def visits_queryset_for_range(date_from, date_to):
+    """Visits scheduled for an inclusive date range (export / reports)."""
+    return GuestVisit.objects.filter(
+        scheduled_for__gte=date_from,
+        scheduled_for__lte=date_to,
+    ).select_related("guest", "company", "host", "visit_type", "visitor_access")
 
 
 def filter_visits(qs, *, q="", status="", company_id=None, id_not_returned=False):

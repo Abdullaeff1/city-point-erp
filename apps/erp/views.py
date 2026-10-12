@@ -6,8 +6,6 @@ from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from django.views.generic import FormView, ListView, TemplateView, View
 import json
-import csv
-from io import StringIO
 
 from apps.accounts.mixins import RoleRequiredMixin, StaffRequiredMixin
 from apps.accounts.models import Role, User
@@ -16,14 +14,18 @@ from apps.documents.models import Document
 from apps.erp.forms import GuestVisitForm
 from apps.property.models import Floor, Space
 from apps.reception.models import GuestVisit, VisitStatus, mask_fin
+from apps.reception.export import visits_xlsx_http_response
 from apps.reception.services import (
     ReceptionService,
     filter_visits,
     today_visits_queryset,
+    visits_queryset_for_range,
 )
 from apps.residents.access import (
     access_range_bounds,
+    attendance_for_day,
     build_employee_access_rows,
+    currently_inside_employee_rows,
     employee_attendance_days,
     employee_day_flaps,
     employee_roster_qs,
@@ -48,40 +50,131 @@ class DashboardView(StaffRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         today = timezone.localdate()
-        open_qs = Ticket.objects.filter(status__in=OPEN_STATUSES).select_related("category", "company", "space")
-        open_list = list(open_qs)
-        sla_tickets = [t for t in open_list if t.sla_risk]
-        breached = [t for t in open_list if t.sla_breached]
-        sla_ticket = breached[0] if breached else (sla_tickets[0] if sla_tickets else None)
+        role = self.request.user.role
+        show_tickets = role != Role.RECEPTION
+        open_list = []
+        sla_tickets = []
+        breached = []
+        sla_ticket = None
+        if show_tickets:
+            open_qs = Ticket.objects.filter(status__in=OPEN_STATUSES).select_related(
+                "category", "company", "space"
+            )
+            open_list = list(open_qs)
+            sla_tickets = [t for t in open_list if t.sla_risk]
+            breached = [t for t in open_list if t.sla_breached]
+            sla_ticket = breached[0] if breached else (sla_tickets[0] if sla_tickets else None)
         today_visits = GuestVisit.objects.filter(scheduled_for=today).select_related("guest", "company")
-        recent_tickets = Ticket.objects.select_related("category", "company")[:6]
+        guests_inside = today_visits.filter(status=VisitStatus.INSIDE).count()
+        employees_inside = currently_inside_employee_rows(today)
+        people_inside_count = len(employees_inside) + guests_inside
         activities = []
-        for t in Ticket.objects.order_by("-updated_at")[:5]:
-            activities.append({"at": t.updated_at, "text": f"{t.code} yeniləndi · {t.get_status_display()}"})
+        if show_tickets:
+            for t in Ticket.objects.order_by("-updated_at")[:5]:
+                activities.append({"at": t.updated_at, "text": f"{t.code} yeniləndi · {t.get_status_display()}"})
         for v in today_visits.filter(check_in_at__isnull=False).order_by("-check_in_at")[:4]:
             activities.append({"at": v.check_in_at, "text": f"Qonaq giriş etdi · {v.guest.display_name}"})
         activities.sort(key=lambda x: x["at"] or timezone.now(), reverse=True)
         axtrax = None
-        if self.request.user.role in {Role.ADMIN, Role.MANAGEMENT}:
+        if role in {Role.ADMIN, Role.MANAGEMENT}:
             from apps.integrations.axtrax_health import axtrax_sync_health
 
             axtrax = axtrax_sync_health()
         ctx.update(
             {
+                "show_tickets": show_tickets,
                 "guest_count": today_visits.count(),
                 "open_count": len(open_list),
                 "sla_risk_count": len(sla_tickets),
                 "sla_breach_count": len(breached),
                 "sla_ticket": sla_ticket,
                 "new_residents": ResidentCompany.objects.filter(status="active", is_internal=False).count(),
+                "people_inside_count": people_inside_count,
+                "employees_inside_count": len(employees_inside),
+                "guests_inside_count": guests_inside,
                 "waiting_guests": today_visits.filter(
                     status__in=[VisitStatus.WAITING, VisitStatus.PRE_REGISTERED]
                 ),
                 "today_visits": today_visits[:8],
                 "recent_open": open_list[:6],
                 "activities": activities[:8],
-                "unassigned": Ticket.objects.filter(status=TicketStatus.SENT, assignee__isnull=True)[:5],
+                "unassigned": (
+                    Ticket.objects.filter(status=TicketStatus.SENT, assignee__isnull=True)[:5]
+                    if show_tickets
+                    else []
+                ),
                 "axtrax_health": axtrax,
+            }
+        )
+        return ctx
+
+
+class PeopleInsideView(StaffRequiredMixin, TemplateView):
+    """Hal-hazırda binada olan əməkdaşlar + qonaqlar (bu gün)."""
+
+    template_name = "erp/people_inside.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        today = timezone.localdate()
+        employees = currently_inside_employee_rows(today)
+        guests = list(
+            GuestVisit.objects.filter(scheduled_for=today, status=VisitStatus.INSIDE)
+            .select_related("guest", "company")
+            .order_by("check_in_at", "guest__full_name")
+        )
+        guest_rows = [
+            {
+                "kind": "guest",
+                "visit": v,
+                "name": v.guest.display_name,
+                "company": v.company,
+                "card_number": "",
+                "in_at": v.check_in_at,
+            }
+            for v in guests
+        ]
+        ctx.update(
+            {
+                "today": today,
+                "employee_rows": employees,
+                "guest_rows": guest_rows,
+                "inside_total": len(employees) + len(guest_rows),
+            }
+        )
+        return ctx
+
+
+class PeopleInsideDetailView(StaffRequiredMixin, TemplateView):
+    """Seçilmiş əməkdaşın bugünkü bütün kart eventləri."""
+
+    template_name = "erp/people_inside_detail.html"
+
+    def get_employee(self):
+        return get_object_or_404(
+            ResidentEmployee.objects.select_related("company"),
+            pk=self.kwargs["pk"],
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        employee = self.get_employee()
+        today = timezone.localdate()
+        flaps = employee_day_flaps(employee, today)
+        in_at, out_at, status = attendance_for_day(flaps) if flaps else (None, None, "—")
+        in_count = sum(1 for e in flaps if e.event_type == "in")
+        out_count = len(flaps) - in_count
+        ctx.update(
+            {
+                "employee": employee,
+                "company": employee.company,
+                "today": today,
+                "flaps": flaps,
+                "in_at": in_at,
+                "out_at": out_at,
+                "status": status,
+                "in_count": in_count,
+                "out_count": out_count,
             }
         )
         return ctx
@@ -123,12 +216,12 @@ class ReceptionView(RoleRequiredMixin, FormView):
             company_id=company_id or None,
             id_not_returned=id_not_returned,
         )
-        inside = GuestVisit.objects.filter(status=VisitStatus.INSIDE).select_related(
-            "guest", "company", "host", "visit_type", "visitor_access"
-        )
         can_sensitive = user_has_permission(self.request.user, "reception.view_sensitive_data")
         can_override = user_has_permission(self.request.user, "reception.override_id")
         can_export = user_has_permission(self.request.user, "reception.export")
+        export_preset, export_from, export_to = access_range_bounds(
+            self.request, default_preset="today"
+        )
         stats = {
             "inside": GuestVisit.objects.filter(status=VisitStatus.INSIDE).count(),
             "today": today_visits_queryset(today).count(),
@@ -148,7 +241,6 @@ class ReceptionView(RoleRequiredMixin, FormView):
         ctx.update(
             {
                 "visits": visits,
-                "inside_visits": inside[:50],
                 "stats": stats,
                 "q": q,
                 "filter_status": status,
@@ -169,6 +261,9 @@ class ReceptionView(RoleRequiredMixin, FormView):
                 "today": today,
                 "selected_date": selected_date,
                 "is_today": selected_date == today,
+                "export_preset": export_preset,
+                "export_from": export_from,
+                "export_to": export_to,
             }
         )
         return ctx
@@ -184,6 +279,7 @@ class ReceptionView(RoleRequiredMixin, FormView):
                 phone=form.cleaned_data.get("phone") or "",
                 company=form.cleaned_data["company"],
                 host=form.cleaned_data.get("host"),
+                visit_type=form.cleaned_data.get("visit_type"),
                 id_document_held=bool(form.cleaned_data.get("id_document_held")),
                 guest_card_number=form.cleaned_data.get("guest_card_number") or "",
                 notes=form.cleaned_data.get("notes") or "",
@@ -279,46 +375,20 @@ class ReceptionExportView(RoleRequiredMixin, View):
         if not user_has_permission(request.user, "reception.export"):
             raise PermissionDenied("Export icazəsi yoxdur.")
         can_sensitive = user_has_permission(request.user, "reception.view_sensitive_data")
-        day = parse_date(request.GET.get("date"), timezone.localdate())
-        visits = today_visits_queryset(day).order_by("check_in_at", "created_at")
-        buf = StringIO()
-        writer = csv.writer(buf)
-        writer.writerow(
-            [
-                "Guest",
-                "Seriya",
-                "Company",
-                "Host",
-                "Type",
-                "Check-in",
-                "Check-out",
-                "ID",
-                "Access",
-                "Status",
-                "Invite",
-            ]
+        _preset, date_from, date_to = access_range_bounds(request, default_preset="today")
+        visits = filter_visits(
+            visits_queryset_for_range(date_from, date_to),
+            q=request.GET.get("q", "").strip(),
+            status=request.GET.get("status", ""),
+            company_id=request.GET.get("company") or None,
+            id_not_returned=request.GET.get("id_not_returned") == "1",
+        ).order_by("scheduled_for", "check_in_at", "created_at")
+        return visits_xlsx_http_response(
+            visits,
+            date_from,
+            date_to,
+            can_sensitive=can_sensitive,
         )
-        for v in visits:
-            fin = v.guest.fin_code if can_sensitive else mask_fin(v.guest.fin_code)
-            access = getattr(v, "visitor_access", None)
-            writer.writerow(
-                [
-                    v.guest.display_name,
-                    fin,
-                    v.company.name,
-                    v.host.full_name if v.host_id else "",
-                    v.visit_type.name if v.visit_type_id else "",
-                    timezone.localtime(v.check_in_at).strftime("%H:%M") if v.check_in_at else "",
-                    timezone.localtime(v.check_out_at).strftime("%H:%M") if v.check_out_at else "",
-                    str(v.id_document_label),
-                    access.status if access else "",
-                    v.get_status_display(),
-                    v.invite_code,
-                ]
-            )
-        response = HttpResponse("\ufeff" + buf.getvalue(), content_type="text/csv; charset=utf-8")
-        response["Content-Disposition"] = f'attachment; filename="visitors-{day.isoformat()}.csv"'
-        return response
 
 
 class TicketListView(RoleRequiredMixin, ListView):

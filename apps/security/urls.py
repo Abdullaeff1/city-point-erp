@@ -6,6 +6,8 @@ app_name = "security"
 
 urlpatterns = [
     path("", views.HomeView.as_view(), name="home"),
+    path("events/feed/", views.EventsFeedView.as_view(), name="events_feed"),
+    path("people-inside/", views.PeopleInsideView.as_view(), name="people_inside"),
     path("alerts/", views.AlertListView.as_view(), name="alerts"),
     path("alerts/rapid/", views.AlertListView.as_view(), {"kind": "rapid"}, name="alerts_rapid"),
     path("alerts/shaft/", views.AlertListView.as_view(), {"kind": "shaft"}, name="alerts_shaft"),

@@ -2,8 +2,74 @@
 {% load i18n %}
 {% block heading %}{% translate "Şirkətlər" %}{% endblock %}
 {% block content %}
-<div class="cp-card" style="padding:8px 0;">
+<div class="cp-card mb-4" style="padding:12px 20px;">
+  <form method="get" id="companies-search-form" class="flex gap-2" style="flex-wrap:wrap;align-items:end;margin:0;">
+    <label style="flex:1;min-width:220px;margin:0;">
+      <span class="cp-meta">{% translate "Axtarış" %}</span>
+      <input
+        class="cp-input mt-1"
+        type="search"
+        name="q"
+        id="companies-search"
+        value="{{ q }}"
+        autocomplete="off"
+        placeholder="{% translate 'Ad, soyad, kart və ya şirkət…' %}"
+        aria-label="{% translate 'Ad, soyad, kart və ya şirkət axtarışı' %}"
+      >
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Axtar" %}</button>
+    {% if q %}
+    <a class="cp-btn-ghost" href="{% url 'security:companies' %}">{% translate "Təmizlə" %}</a>
+    {% endif %}
+  </form>
+  {% if q %}
+  <p class="cp-meta" style="margin:10px 0 0;">
+    {% translate "Göstərilir" %}:
+    <strong>{{ employee_hit_count }}</strong> {% translate "əməkdaş" %}
+    · <strong>{{ companies|length }}</strong> {% translate "şirkət" %}
+  </p>
+  {% else %}
+  <p class="cp-meta" style="margin:10px 0 0;" id="companies-filter-meta" hidden>
+    {% translate "Göstərilir" %}: <strong id="companies-visible-count">0</strong> / {{ companies|length }}
+  </p>
+  {% endif %}
+</div>
+
+{% if q %}
+<div class="cp-card mb-4" style="padding:8px 0;">
+  <div class="cp-section section-pad">{% translate "Əməkdaşlar" %}</div>
   <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Ad" %}</th>
+        <th>{% translate "Kart" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in employee_hits %}
+      <tr class="is-clickable" onclick="window.location='{% url 'security:employee_access' e.pk %}?range=today'">
+        <td><a href="{% url 'security:employee_access' e.pk %}?range=today">{{ e.full_name }}</a></td>
+        <td class="cp-code">{{ e.card_number|default:"—" }}</td>
+        <td>
+          <a href="{% url 'security:company_employees' e.company_id %}">{{ e.company.name }}</a>
+        </td>
+        <td><a class="cp-meta" href="{% url 'security:employee_access' e.pk %}">{% translate "Detal" %} →</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="cp-meta empty-pad">{% translate "Uyğun əməkdaş tapılmadı." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="cp-card" style="padding:8px 0;">
+  {% if q %}
+  <div class="cp-section section-pad">{% translate "Şirkətlər" %}</div>
+  {% endif %}
+  <table class="cp-table" id="companies-table">
     <thead>
       <tr>
         <th>{% translate "Şirkət" %}</th>
@@ -14,7 +80,11 @@
     </thead>
     <tbody>
       {% for row in companies %}
-      <tr class="is-clickable" onclick="window.location='{% url 'security:company_employees' row.company.pk %}'">
+      <tr
+        class="is-clickable company-row"
+        data-name="{{ row.company.name|lower }}"
+        onclick="window.location='{% url 'security:company_employees' row.company.pk %}'"
+      >
         <td>
           <a href="{% url 'security:company_employees' row.company.pk %}">{{ row.company.name }}</a>
           {% if row.company.is_internal %}<span class="cp-meta"> · City Point</span>{% endif %}
@@ -28,9 +98,75 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="4" class="cp-meta empty-pad">{% translate "Şirkət yoxdur." %}</td></tr>
+      <tr id="companies-empty-static"><td colspan="4" class="cp-meta empty-pad">{% if q %}{% translate "Uyğun şirkət tapılmadı." %}{% else %}{% translate "Şirkət yoxdur." %}{% endif %}</td></tr>
       {% endfor %}
+      {% if companies and not q %}
+      <tr id="companies-empty-filter" hidden>
+        <td colspan="4" class="cp-meta empty-pad">{% translate "Uyğun şirkət tapılmadı." %}</td>
+      </tr>
+      {% endif %}
     </tbody>
   </table>
 </div>
+{% if not q %}
+<script>
+(function () {
+  var input = document.getElementById("companies-search");
+  var form = document.getElementById("companies-search-form");
+  if (!input || !form) return;
+  var rows = Array.prototype.slice.call(document.querySelectorAll(".company-row"));
+  var emptyFilter = document.getElementById("companies-empty-filter");
+  var meta = document.getElementById("companies-filter-meta");
+  var countEl = document.getElementById("companies-visible-count");
+  var timer;
+
+  function norm(s) {
+    return (s || "").toString().toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  function looksLikePersonOrCard(q) {
+    // Kart nömrəsi və ya ad/soyad (boşluqlu) → server axtarışı
+    if (/^\d{3,}$/.test(q)) return true;
+    if (q.indexOf(" ") !== -1 && q.length >= 3) return true;
+    return false;
+  }
+
+  function filterCompanies(q) {
+    var visible = 0;
+    rows.forEach(function (row) {
+      var hay = row.getAttribute("data-name") || "";
+      var ok = !q || hay.indexOf(q) !== -1;
+      row.hidden = !ok;
+      if (ok) visible += 1;
+    });
+    if (emptyFilter) emptyFilter.hidden = !(q && visible === 0 && rows.length);
+    if (meta) meta.hidden = !q;
+    if (countEl) countEl.textContent = String(visible);
+  }
+
+  input.addEventListener("input", function () {
+    var q = norm(input.value);
+    clearTimeout(timer);
+    if (!q) {
+      filterCompanies("");
+      return;
+    }
+    // Şirkət adı — dərhal client-side
+    filterCompanies(q);
+    // Ad/soyad və ya kart — Enter və ya qısa gözləmə sonrası server
+    if (looksLikePersonOrCard(q)) {
+      timer = setTimeout(function () { form.submit(); }, 650);
+    }
+  });
+
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      clearTimeout(timer);
+      form.submit();
+    }
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

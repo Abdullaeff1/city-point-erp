@@ -1,0 +1,121 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Binada olanlar" %}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3" style="margin-top:-8px;">
+  <a href="{% url 'erp:dashboard' %}">← {% translate "İdarə paneli" %}</a>
+  · {{ today|date:"d.m.Y" }}
+  · {% translate "Cəmi" %}: <strong>{{ inside_total }}</strong>
+  ({{ employee_rows|length }} {% translate "əməkdaş" %} · {{ guest_rows|length }} {% translate "qonaq" %})
+</p>
+
+<div class="cp-card mb-4" style="padding:8px 0;">
+  <div class="cp-section section-pad" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
+    <span>{% translate "Əməkdaşlar (AxTrax)" %}</span>
+    <label class="cp-people-search" style="margin:0;flex:1;max-width:320px;">
+      <span class="visually-hidden">{% translate "Axtarış" %}</span>
+      <input
+        id="people-inside-search"
+        class="cp-input"
+        type="search"
+        autocomplete="off"
+        placeholder="{% translate 'Ad, soyad və ya kart…' %}"
+        aria-label="{% translate 'Ad, soyad və ya kart axtarışı' %}"
+      >
+    </label>
+  </div>
+  <p class="cp-meta" style="padding:0 20px 8px;margin:0;" id="people-inside-filter-meta" hidden>
+    {% translate "Göstərilir" %}: <strong id="people-inside-visible-count">0</strong> / {{ employee_rows|length }}
+  </p>
+  <table class="cp-table" id="people-inside-table">
+    <thead>
+      <tr>
+        <th>{% translate "Ad" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Kart" %}</th>
+        <th>{% translate "İlk giriş" %}</th>
+        <th>{% translate "Event" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in employee_rows %}
+      <tr
+        class="is-clickable people-inside-row"
+        data-name="{{ row.name|lower }}"
+        data-card="{{ row.card_number|default:''|lower }}"
+        data-company="{{ row.company.name|lower }}"
+        onclick="window.location='{% url 'erp:people_inside_detail' row.employee.pk %}'"
+      >
+        <td><a href="{% url 'erp:people_inside_detail' row.employee.pk %}">{{ row.name }}</a></td>
+        <td>{{ row.company.name }}</td>
+        <td>{{ row.card_number|default:"—" }}</td>
+        <td>{% if row.in_at %}{{ row.in_at|time:"H:i:s" }}{% else %}—{% endif %}</td>
+        <td>{{ row.event_count }}</td>
+      </tr>
+      {% empty %}
+      <tr id="people-inside-empty-static"><td colspan="5" class="cp-meta empty-pad">{% translate "İçəridə əməkdaş yoxdur." %}</td></tr>
+      {% endfor %}
+      {% if employee_rows %}
+      <tr id="people-inside-empty-filter" hidden>
+        <td colspan="5" class="cp-meta empty-pad">{% translate "Axtarışa uyğun nəticə yoxdur." %}</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<div class="cp-card mt-4" style="padding:8px 0;">
+  <div class="cp-section section-pad">{% translate "Qonaqlar (reception)" %}</div>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Ad" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Giriş" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in guest_rows %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td>{{ row.company.name }}</td>
+        <td>{% if row.in_at %}{{ row.in_at|time:"H:i" }}{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="cp-meta empty-pad">{% translate "İçəridə qonaq yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<script>
+(function () {
+  var input = document.getElementById("people-inside-search");
+  if (!input) return;
+  var rows = Array.prototype.slice.call(document.querySelectorAll(".people-inside-row"));
+  var emptyFilter = document.getElementById("people-inside-empty-filter");
+  var meta = document.getElementById("people-inside-filter-meta");
+  var countEl = document.getElementById("people-inside-visible-count");
+
+  function norm(s) {
+    return (s || "").toString().toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  function applyFilter() {
+    var q = norm(input.value);
+    var visible = 0;
+    rows.forEach(function (row) {
+      var hay = [row.getAttribute("data-name"), row.getAttribute("data-card"), row.getAttribute("data-company")].join(" ");
+      var ok = !q || hay.indexOf(q) !== -1;
+      row.hidden = !ok;
+      if (ok) visible += 1;
+    });
+    if (emptyFilter) emptyFilter.hidden = !(q && visible === 0 && rows.length);
+    if (meta) meta.hidden = !q;
+    if (countEl) countEl.textContent = String(visible);
+  }
+
+  input.addEventListener("input", applyFilter);
+  input.addEventListener("search", applyFilter);
+})();
+</script>
+{% endblock %}

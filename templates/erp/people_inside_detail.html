@@ -1,0 +1,51 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{{ employee.full_name }}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3" style="margin-top:-8px;">
+  <a href="{% url 'erp:people_inside' %}">← {% translate "Binada olanlar" %}</a>
+  · {{ company.name }}
+  · {% translate "Kart" %}: {{ employee.card_number|default:"—" }}
+  · {{ today|date:"d.m.Y" }}
+</p>
+
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  <div class="cp-card p-card-sm">{% translate "Status" %} <strong>{{ status }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "İlk giriş" %} <strong>{% if in_at %}{{ in_at|time:"H:i:s" }}{% else %}—{% endif %}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Giriş" %} <strong>{{ in_count }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ out_count }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Cəmi" %} <strong>{{ flaps|length }}</strong></div>
+</div>
+
+<div class="cp-card" style="padding:8px 0;">
+  <div class="cp-section section-pad">{% translate "Bugünkü kart eventləri" %}</div>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Saat" %}</th>
+        <th>{% translate "Tip" %}</th>
+        <th>{% translate "Oxuyucu" %}</th>
+        <th>{% translate "Kart" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in flaps %}
+      <tr>
+        <td>{{ e.occurred_at|time:"H:i:s" }}</td>
+        <td>
+          {% if e.event_type == "in" %}
+          <span class="badge badge-resolved">{% translate "Giriş" %}</span>
+          {% else %}
+          <span class="badge badge-progress">{% translate "Çıxış" %}</span>
+          {% endif %}
+        </td>
+        <td>{{ e.reader_name|default:"—" }}</td>
+        <td>{% firstof e.card_number employee.card_number "—" %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="cp-meta empty-pad">{% translate "Bu gün üçün kart event yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

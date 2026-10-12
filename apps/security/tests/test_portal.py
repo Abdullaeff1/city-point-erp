@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.accounts.models import Role
 from apps.integrations.axtrax_people_sync import (
@@ -73,6 +74,34 @@ class SecurityPortalTests(TestCase):
         resp = self.client.get(reverse("security:home"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Təhlükəsizlik")
+        self.assertContains(resp, "Events")
+        self.assertContains(resp, "axtrax-events")
+
+    def test_events_feed_json(self):
+        from apps.residents.models import AccessEvent, AccessEventType
+
+        emp = ResidentEmployee.objects.create(
+            company=self.company,
+            full_name="Event Person",
+            card_number="5555",
+            is_active=True,
+        )
+        AccessEvent.objects.create(
+            employee=emp,
+            event_type=AccessEventType.IN,
+            occurred_at=timezone.now(),
+            employee_name=emp.full_name,
+            card_number=emp.card_number,
+            reader_name=r"7\Panel 9\F1Ent1IN",
+        )
+        self.client.force_login(self.security)
+        resp = self.client.get(reverse("security:events_feed"))
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["ok"])
+        self.assertGreaterEqual(len(data["results"]), 1)
+        self.assertEqual(data["results"][0]["employee"], "Event Person")
+        self.assertTrue(data["results"][0]["is_in"])
 
     def test_resident_blocked_from_security(self):
         self.client.force_login(self.resident)

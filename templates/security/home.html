@@ -2,32 +2,179 @@
 {% load i18n %}
 {% block heading %}{% translate "Təhlükəsizlik paneli" %}{% endblock %}
 {% block content %}
+{% translate "Şirkət" as lbl_companies %}
+{% translate "Aktiv əməkdaş" as lbl_employees %}
+{% translate "Açıq ticket" as lbl_tickets %}
+{% translate "Kart sifarişi" as lbl_card_orders %}
+{% translate "Kart çoxvurma" as lbl_rapid %}
+{% translate "Şaxta" as lbl_shaft %}
+{% translate "Qonaq (içəridə)" as lbl_guests %}
+{% translate "İçəridə" as lbl_inside %}
 <div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
-  <div class="cp-card p-card-sm">{% translate "Şirkət" %} <strong>{{ company_count }}</strong></div>
-  <div class="cp-card p-card-sm">{% translate "Aktiv əməkdaş" %} <strong>{{ employee_count }}</strong></div>
-  <div class="cp-card p-card-sm">{% translate "Açıq ticket" %} <strong>{{ open_security_tickets }}</strong></div>
-  <div class="cp-card p-card-sm">{% translate "Kart sifarişi" %} <strong>{{ open_card_orders }}</strong></div>
-  <div class="cp-card p-card-sm">{% translate "Kart çoxvurma" %} <strong>{{ open_rapid_alerts }}</strong></div>
-  <div class="cp-card p-card-sm">{% translate "Şaxta" %} <strong>{{ open_shaft_alerts }}</strong></div>
-  <div class="cp-card p-card-sm">{% translate "Qonaq (içəridə)" %} <strong>{{ guest_inside_today }}</strong></div>
+  <a class="cp-card p-card cp-card-link" href="{% url 'security:people_inside' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{{ lbl_inside }}</div>
+    <div class="cp-metric mt-2">{% if people_inside_count < 10 %}0{% endif %}{{ people_inside_count }}</div>
+    <div class="cp-meta mt-2">{% translate "indi binada" %} · {% translate "Bax" %} →</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'security:companies' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{{ lbl_companies }}</div>
+    <div class="cp-metric mt-2">{{ company_count }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'security:companies' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{{ lbl_employees }}</div>
+    <div class="cp-metric mt-2">{{ employee_count }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'security:tickets' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{{ lbl_tickets }}</div>
+    <div class="cp-metric mt-2">{{ open_security_tickets }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'security:tickets' %}?tab=card-orders" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{{ lbl_card_orders }}</div>
+    <div class="cp-metric mt-2">{{ open_card_orders }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'security:alerts_rapid' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{{ lbl_rapid }}</div>
+    <div class="cp-metric mt-2 {% if open_rapid_alerts %}metric-warn{% endif %}">{{ open_rapid_alerts }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'security:alerts_shaft' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{{ lbl_shaft }}</div>
+    <div class="cp-metric mt-2 {% if open_shaft_alerts %}metric-warn{% endif %}">{{ open_shaft_alerts }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'security:guests' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{{ lbl_guests }}</div>
+    <div class="cp-metric mt-2">{{ guest_inside_today }}</div>
+  </a>
 </div>
-<div class="flex gap-2" style="flex-wrap:wrap;">
-  <a class="cp-btn" href="{% url 'security:companies' %}">{% translate "Şirkətlər" %}</a>
-  <a class="cp-btn-ghost" href="{% url 'security:guests' %}">{% translate "Qonaqlar" %}{% if guest_inside_today %} ({{ guest_inside_today }}){% endif %}</a>
-  <a class="cp-btn-ghost" href="{% url 'security:alerts_rapid' %}">{% translate "Kart çoxvurma" %}{% if open_rapid_alerts %} ({{ open_rapid_alerts }}){% endif %}</a>
-  <a class="cp-btn-ghost" href="{% url 'security:alerts_shaft' %}">{% translate "Şaxta bildirişləri" %}{% if open_shaft_alerts %} ({{ open_shaft_alerts }}){% endif %}</a>
-  <a class="cp-btn-ghost" href="{% url 'security:tickets' %}?tab=card-orders">{% translate "Kart sifarişləri" %}</a>
-  <a class="cp-btn-ghost" href="{% url 'security:tickets' %}">{% translate "Bütün təhlükəsizlik ticketləri" %}</a>
+
+<div class="cp-card axtrax-events" id="axtrax-events-panel">
+  <div class="axtrax-events-head section-pad">
+    <div>
+      <div class="cp-section" style="margin:0;">{% translate "Events" %} · AxTraxNG</div>
+      <p class="cp-meta" style="margin:4px 0 0;">
+        {% translate "Son keçidlər" %}
+        · <span id="axtrax-events-updated">{% translate "yenilənir…" %}</span>
+      </p>
+    </div>
+    <div class="axtrax-events-live" aria-hidden="true">
+      <span class="axtrax-events-dot"></span>
+      {% translate "Canlı" %}
+    </div>
+  </div>
+  <div class="axtrax-events-scroll">
+    <table class="cp-table axtrax-events-table" id="axtrax-events-table">
+      <thead>
+        <tr>
+          <th>{% translate "Vaxt" %}</th>
+          <th>{% translate "İşçi" %}</th>
+          <th>{% translate "Şirkət" %}</th>
+          <th>{% translate "Kart" %}</th>
+          <th>{% translate "Oxuyucu" %}</th>
+          <th>{% translate "Hadisə" %}</th>
+        </tr>
+      </thead>
+      <tbody id="axtrax-events-body">
+        {% for e in recent_events %}
+        <tr class="{% if e.event_type == 'in' %}is-event-in{% else %}is-event-out{% endif %}">
+          <td class="cp-code">{{ e.occurred_at|date:"d.m.Y H:i:s" }}</td>
+          <td>
+            {% if e.employee_id %}
+            <a href="{% url 'security:employee_access' e.employee_id %}?range=today">{{ e.employee_name|default:e.employee.full_name }}</a>
+            {% else %}
+            {{ e.employee_name|default:"—" }}
+            {% endif %}
+          </td>
+          <td>{{ e.employee.company.name|default:"—" }}</td>
+          <td class="cp-code">{{ e.card_number|default:e.employee.card_number|default:"—" }}</td>
+          <td>{{ e.reader_name|default:"—" }}</td>
+          <td>
+            {% if e.event_type == "in" %}
+            <span class="badge badge-sent">{% translate "Giriş" %}</span>
+            {% else %}
+            <span class="badge badge-muted">{% translate "Çıxış" %}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr id="axtrax-events-empty"><td colspan="6" class="cp-meta empty-pad">{% translate "Hələ event yoxdur." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
-<p class="cp-meta mt-4">
-  {% translate "Səviyyə AxTraxNG-dən oxunur." %}
-  {% translate "Səviyyə 1" %}: {% translate "arxa turniket (turn_back) yox" %}.
-  {% translate "Səviyyə 2" %}: {% translate "turn_back icazəli" %}.
-</p>
-<p class="cp-meta mt-2">
-  {% translate "Kart 20 saniyə ərzində 1-ci mərtəbə (F1) turniketində 3 və daha çox dəfə vurulanda bildiriş yaranır." %}
-</p>
-<p class="cp-meta mt-2">
-  {% translate "Yalnız F1–F7 Shaft oxuyucularında (məs. F5ShaftElectric, F1ShaftCooling) kart vurulanda şaxta bildirişi yaranır; böyük-kiçik hərf fərqi yoxdur." %}
-</p>
+
+{{ recent_events_json|json_script:"axtrax-events-initial" }}
+<script>
+(function () {
+  var feedUrl = "{% url 'security:events_feed' %}";
+  var body = document.getElementById("axtrax-events-body");
+  var updated = document.getElementById("axtrax-events-updated");
+  var empBase = "{% url 'security:employee_access' 999999 %}".replace("999999", "__ID__");
+  if (!body) return;
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function rowHtml(ev) {
+    var name = esc(ev.employee || "—");
+    var nameCell = ev.employee_id
+      ? '<a href="' + empBase.replace("__ID__", String(ev.employee_id)) + '?range=today">' + name + "</a>"
+      : name;
+    var badge = ev.is_in
+      ? '<span class="badge badge-sent">' + esc(ev.event_label) + "</span>"
+      : '<span class="badge badge-muted">' + esc(ev.event_label) + "</span>";
+    var cls = ev.is_in ? "is-event-in" : "is-event-out";
+    return (
+      '<tr class="' + cls + '" data-id="' + esc(ev.id) + '">' +
+      '<td class="cp-code">' + esc(ev.occurred_at) + "</td>" +
+      "<td>" + nameCell + "</td>" +
+      "<td>" + esc(ev.company || "—") + "</td>" +
+      '<td class="cp-code">' + esc(ev.card_number || "—") + "</td>" +
+      "<td>" + esc(ev.reader || "—") + "</td>" +
+      "<td>" + badge + "</td>" +
+      "</tr>"
+    );
+  }
+
+  function render(events, stamp) {
+    if (!events || !events.length) {
+      body.innerHTML =
+        '<tr id="axtrax-events-empty"><td colspan="6" class="cp-meta empty-pad">{% translate "Hələ event yoxdur." %}</td></tr>';
+    } else {
+      body.innerHTML = events.map(rowHtml).join("");
+    }
+    if (updated) {
+      updated.textContent = stamp
+        ? "{% translate 'yeniləndi' %} " + stamp
+        : "{% translate 'yeniləndi' %}";
+    }
+  }
+
+  function refresh() {
+    if (document.hidden) return;
+    fetch(feedUrl, { headers: { "X-Requested-With": "XMLHttpRequest" }, credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) return;
+        render(data.results || [], data.generated_at || "");
+      })
+      .catch(function () {});
+  }
+
+  var initial = document.getElementById("axtrax-events-initial");
+  if (initial) {
+    try {
+      var boot = JSON.parse(initial.textContent);
+      if (boot && boot.length) {
+        if (updated) updated.textContent = "{% translate 'hazır' %}";
+      }
+    } catch (e) {}
+  }
+  setInterval(refresh, 8000);
+})();
+</script>
 {% endblock %}

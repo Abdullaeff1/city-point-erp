@@ -157,6 +157,46 @@ def employee_day_flaps(employee, day):
     )
 
 
+def currently_inside_employee_rows(selected_date=None):
+    """Building-wide: employees whose last punch today is IN (still inside).
+
+    One DB query for all of today's events, then group by employee.
+    """
+    selected_date = selected_date or timezone.localdate()
+    start_dt = timezone.make_aware(datetime.combine(selected_date, datetime.min.time()))
+    end_dt = timezone.make_aware(datetime.combine(selected_date + timedelta(days=1), datetime.min.time()))
+    events = (
+        AccessEvent.objects.filter(occurred_at__gte=start_dt, occurred_at__lt=end_dt)
+        .select_related("employee", "employee__company")
+        .order_by("occurred_at")
+    )
+    by_emp: dict[int, list] = defaultdict(list)
+    for e in events:
+        by_emp[e.employee_id].append(e)
+
+    rows = []
+    for _emp_id, evs in by_emp.items():
+        in_at, out_at, status = attendance_for_day(evs)
+        if status != "İçəridə":
+            continue
+        emp = evs[0].employee
+        rows.append(
+            {
+                "kind": "employee",
+                "employee": emp,
+                "company": emp.company,
+                "name": emp.full_name,
+                "card_number": emp.card_number or evs[0].card_number or "",
+                "in_at": in_at,
+                "out_at": out_at,
+                "status": status,
+                "event_count": len(evs),
+            }
+        )
+    rows.sort(key=lambda r: (r["in_at"] is None, r["in_at"] or start_dt, r["name"]))
+    return rows
+
+
 # Back-compat aliases used by older imports
 def day_status(events):
     return attendance_for_day(events)

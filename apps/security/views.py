@@ -1,4 +1,6 @@
 from django.contrib import messages
+from django.db.models import Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -10,12 +12,15 @@ from apps.reception.models import GuestVisit, VisitStatus
 from apps.residents.access import (
     access_range_bounds,
     build_employee_access_rows,
+    currently_inside_employee_rows,
     employee_attendance_days,
     employee_day_flaps,
     parse_date,
 )
 from apps.residents.access_export import access_xlsx_http_response
 from apps.residents.models import (
+    AccessEvent,
+    AccessEventType,
     AccessLevel,
     RapidCardSwipeAlert,
     ResidentCompany,
@@ -23,6 +28,40 @@ from apps.residents.models import (
     ShaftAccessAlert,
 )
 from apps.tickets.models import OPEN_STATUSES, Ticket
+
+RECENT_EVENTS_LIMIT = 80
+
+
+def _serialize_access_event(event: AccessEvent) -> dict:
+    local = timezone.localtime(event.occurred_at)
+    name = event.employee_name or (event.employee.full_name if event.employee_id else "—")
+    company = ""
+    if event.employee_id and event.employee.company_id:
+        company = event.employee.company.name
+    card = event.card_number or (event.employee.card_number if event.employee_id else "") or ""
+    return {
+        "id": event.pk,
+        "occurred_at": local.strftime("%d.%m.%Y %H:%M:%S"),
+        "time": local.strftime("%H:%M:%S"),
+        "date": local.strftime("%d.%m.%Y"),
+        "employee": name,
+        "employee_id": event.employee_id,
+        "company": company,
+        "card_number": card,
+        "reader": event.reader_name or "—",
+        "event_type": event.event_type,
+        "event_label": str(
+            _("Giriş") if event.event_type == AccessEventType.IN else _("Çıxış")
+        ),
+        "is_in": event.event_type == AccessEventType.IN,
+    }
+
+
+def recent_access_events(limit: int = RECENT_EVENTS_LIMIT):
+    return (
+        AccessEvent.objects.select_related("employee", "employee__company")
+        .order_by("-occurred_at", "-id")[:limit]
+    )
 
 
 def _guest_visits_for_date(*, company=None, selected_date=None):
@@ -73,9 +112,12 @@ class HomeView(SecurityPortalMixin, TemplateView):
         ).count()
         open_rapid = RapidCardSwipeAlert.objects.filter(acknowledged_at__isnull=True).count()
         open_shaft = ShaftAccessAlert.objects.filter(acknowledged_at__isnull=True).count()
+        today = timezone.localdate()
         guest_inside = GuestVisit.objects.filter(
-            status=VisitStatus.INSIDE, scheduled_for=timezone.localdate()
+            status=VisitStatus.INSIDE, scheduled_for=today
         ).count()
+        employees_inside = currently_inside_employee_rows(today)
+        events = list(recent_access_events())
         ctx.update(
             {
                 "company_count": companies.count(),
@@ -86,6 +128,58 @@ class HomeView(SecurityPortalMixin, TemplateView):
                 "open_shaft_alerts": open_shaft,
                 "open_security_alerts": open_rapid + open_shaft,
                 "guest_inside_today": guest_inside,
+                "people_inside_count": len(employees_inside) + guest_inside,
+                "recent_events": events,
+                "recent_events_json": [_serialize_access_event(e) for e in events],
+            }
+        )
+        return ctx
+
+
+class EventsFeedView(SecurityPortalMixin, View):
+    """JSON feed — AxTraxNG Events üslubunda canlı siyahı."""
+
+    def get(self, request):
+        events = recent_access_events()
+        return JsonResponse(
+            {
+                "ok": True,
+                "generated_at": timezone.localtime().strftime("%H:%M:%S"),
+                "results": [_serialize_access_event(e) for e in events],
+            }
+        )
+
+
+class PeopleInsideView(SecurityPortalMixin, TemplateView):
+    """Hal-hazırda binada olan əməkdaşlar + qonaqlar (bu gün)."""
+
+    template_name = "security/people_inside.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        today = timezone.localdate()
+        employees = currently_inside_employee_rows(today)
+        guests = list(
+            GuestVisit.objects.filter(scheduled_for=today, status=VisitStatus.INSIDE)
+            .select_related("guest", "company")
+            .order_by("check_in_at", "guest__full_name")
+        )
+        guest_rows = [
+            {
+                "kind": "guest",
+                "visit": v,
+                "name": v.guest.display_name,
+                "company": v.company,
+                "in_at": v.check_in_at,
+            }
+            for v in guests
+        ]
+        ctx.update(
+            {
+                "today": today,
+                "employee_rows": employees,
+                "guest_rows": guest_rows,
+                "inside_total": len(employees) + len(guest_rows),
             }
         )
         return ctx
@@ -200,21 +294,72 @@ class CompanyListView(SecurityPortalMixin, TemplateView):
     template_name = "security/companies.html"
 
     def get_context_data(self, **kwargs):
+        from django.db.models import Count
+
         ctx = super().get_context_data(**kwargs)
         today = timezone.localdate()
-        companies = []
-        for c in ResidentCompany.objects.all().order_by("-is_internal", "name"):
-            companies.append(
-                {
-                    "company": c,
-                    "active_employees": c.employees.filter(is_active=True).count(),
-                    "level2": c.employees.filter(is_active=True, access_level=AccessLevel.LEVEL_2).count(),
-                    "guests_inside": GuestVisit.objects.filter(
-                        company=c, status=VisitStatus.INSIDE, scheduled_for=today
-                    ).count(),
-                }
+        q = (self.request.GET.get("q") or "").strip()
+        employee_hits = []
+        matched_company_ids: set[int] | None = None
+        if q:
+            employee_hits = list(
+                ResidentEmployee.objects.filter(is_active=True)
+                .filter(Q(full_name__icontains=q) | Q(card_number__icontains=q))
+                .select_related("company")
+                .order_by("full_name")[:80]
             )
-        ctx["companies"] = companies
+            matched_company_ids = {e.company_id for e in employee_hits}
+            matched_company_ids |= set(
+                ResidentCompany.objects.filter(name__icontains=q).values_list("id", flat=True)
+            )
+
+        guest_inside_by_company = {
+            row["company_id"]: row["c"]
+            for row in GuestVisit.objects.filter(
+                status=VisitStatus.INSIDE, scheduled_for=today
+            )
+            .values("company_id")
+            .annotate(c=Count("id"))
+        }
+
+        company_qs = (
+            ResidentCompany.objects.all()
+            .annotate(
+                active_employees=Count(
+                    "employees",
+                    filter=Q(employees__is_active=True),
+                    distinct=True,
+                ),
+                level2=Count(
+                    "employees",
+                    filter=Q(employees__is_active=True, employees__access_level=AccessLevel.LEVEL_2),
+                    distinct=True,
+                ),
+            )
+            .order_by("-is_internal", "name")
+        )
+        if matched_company_ids is not None:
+            company_qs = (
+                company_qs.filter(id__in=matched_company_ids) if matched_company_ids else company_qs.none()
+            )
+
+        companies = [
+            {
+                "company": c,
+                "active_employees": c.active_employees,
+                "level2": c.level2,
+                "guests_inside": guest_inside_by_company.get(c.id, 0),
+            }
+            for c in company_qs
+        ]
+        ctx.update(
+            {
+                "companies": companies,
+                "q": q,
+                "employee_hits": employee_hits,
+                "employee_hit_count": len(employee_hits),
+            }
+        )
         return ctx
 
 

@@ -40,7 +40,9 @@ class ReceptionServiceTests(TestCase):
         self.other_host = ResidentEmployee.objects.create(
             company=self.other, full_name="Other Host", is_active=True
         )
-        self.vtype = VisitorType.objects.create(code="meeting", name="Meeting")
+        self.vtype, _ = VisitorType.objects.get_or_create(
+            code="meeting", defaults={"name": "İclas üçün", "sort_order": 50}
+        )
         self.user = User.objects.create_user(
             username="reception_test",
             email="reception@test.az",
@@ -48,7 +50,7 @@ class ReceptionServiceTests(TestCase):
             role=Role.RECEPTION,
         )
 
-    def test_serial_required_for_walk_in(self):
+    def test_serial_required_when_id_held(self):
         with self.assertRaises(DomainError) as ctx:
             ReceptionService.register_walk_in(
                 fin_code="",
@@ -56,9 +58,31 @@ class ReceptionServiceTests(TestCase):
                 last_name="Veli",
                 company=self.company,
                 id_document_held=True,
+                guest_card_number="GC-1",
                 actor=self.user,
             )
         self.assertIn("Seriya", str(ctx.exception))
+
+    def test_walk_in_courier_without_serial_ok(self):
+        """Kuryer: seriya boş, vəsiqə saxlanılmır — yalnız ad/soyad/şirkət."""
+        courier, _ = VisitorType.objects.get_or_create(
+            code="courier", defaults={"name": "Kuryer", "sort_order": 10}
+        )
+        visit = ReceptionService.register_walk_in(
+            fin_code="",
+            first_name="Kuryer",
+            last_name="Ali",
+            company=self.company,
+            host=self.host,
+            visit_type=courier,
+            id_document_held=False,
+            notes="Kuryer",
+            actor=self.user,
+        )
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
+        self.assertEqual(visit.guest.fin_code, "")
+        self.assertFalse(visit.id_document_held)
+        self.assertEqual(visit.visit_type.code, "courier")
 
     def test_walk_in_without_id_ok(self):
         visit = ReceptionService.register_walk_in(
@@ -237,3 +261,105 @@ class ReceptionAPITests(TestCase):
         data = res.json()
         self.assertIn("stats", data)
         self.assertIn("results", data)
+
+
+class ReceptionExcelExportTests(TestCase):
+    def setUp(self):
+        seed_rbac_catalog()
+        self.client = Client()
+        self.user = User.objects.create_user(
+            username="rec_xlsx",
+            email="rec-xlsx@test.az",
+            password="pass12345",
+            role=Role.RECEPTION,
+        )
+        self.company = ResidentCompany.objects.create(
+            name="Export Co", slug="export-co", status="active"
+        )
+        self.vtype, _ = VisitorType.objects.get_or_create(
+            code="courier", defaults={"name": "Kuryer", "sort_order": 10}
+        )
+        self.client.login(email="rec-xlsx@test.az", password="pass12345")
+        today = timezone.localdate()
+        ReceptionService.register_walk_in(
+            fin_code="",
+            first_name="Kuryer",
+            last_name="Test",
+            company=self.company,
+            visit_type=self.vtype,
+            id_document_held=False,
+            notes="Excel test",
+            actor=self.user,
+        )
+        self.today = today
+
+    def test_export_xlsx_today(self):
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        res = self.client.get(reverse("erp:reception_export") + f"?range=today&date={self.today.isoformat()}")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(
+            "spreadsheetml.sheet",
+            res["Content-Type"],
+        )
+        self.assertIn(".xlsx", res["Content-Disposition"])
+        wb = load_workbook(BytesIO(res.content))
+        self.assertEqual(wb.sheetnames, ["Qonaqlar"])
+        ws = wb.active
+        self.assertEqual(ws["A1"].value, "Qonaqlar hesabatı")
+        # row1 title, row2 period, row3 blank, row4 company
+        self.assertTrue(str(ws["A4"].value).startswith("Export Co"))
+        self.assertEqual(ws["A5"].value, "№")
+        self.assertEqual(ws["B5"].value, "Qonaq")
+        self.assertEqual(ws["F5"].value, "Gəliş səbəbi")
+        self.assertEqual(ws["A6"].value, 1)
+        self.assertEqual(ws["B6"].value, "Kuryer Test")
+        self.assertEqual(ws["F6"].value, "Kuryer")
+
+    def test_export_xlsx_companies_alpha_one_sheet(self):
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        other = ResidentCompany.objects.create(name="Beta Co", slug="beta-co", status="active")
+        ReceptionService.register_walk_in(
+            fin_code="",
+            first_name="Qonaq",
+            last_name="Beta",
+            company=other,
+            visit_type=self.vtype,
+            id_document_held=False,
+            actor=self.user,
+        )
+        res = self.client.get(reverse("erp:reception_export") + f"?range=today&date={self.today.isoformat()}")
+        wb = load_workbook(BytesIO(res.content))
+        self.assertEqual(wb.sheetnames, ["Qonaqlar"])
+        ws = wb.active
+        # Alpha order: Beta Co before Export Co (row4 after title/period/blank)
+        self.assertTrue(str(ws["A4"].value).startswith("Beta Co"))
+        self.assertEqual(ws["B6"].value, "Qonaq Beta")
+        found_export = False
+        for r in range(1, ws.max_row + 1):
+            val = ws.cell(r, 1).value
+            if isinstance(val, str) and val.startswith("Export Co"):
+                found_export = True
+                self.assertEqual(ws.cell(r + 2, 2).value, "Kuryer Test")
+                self.assertEqual(ws.cell(r + 2, 1).value, 1)
+                break
+        self.assertTrue(found_export)
+
+    def test_export_xlsx_week_range(self):
+        res = self.client.get(reverse("erp:reception_export") + "?range=week")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(".xlsx", res["Content-Disposition"])
+
+    def test_export_page_shows_excel_controls(self):
+        res = self.client.get(reverse("erp:reception") + "?range=month")
+        self.assertEqual(res.status_code, 200)
+        body = res.content.decode("utf-8", "replace")
+        self.assertIn("Excel yüklə", body)
+        self.assertIn("Bu həftə", body)
+        self.assertIn("Bu ay", body)
+        self.assertIn("Tarix aralığı", body)

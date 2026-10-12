@@ -266,13 +266,19 @@ class GuestVisitForm(forms.Form):
     fin_code = forms.CharField(
         label=_("Seriya nömrəsi"),
         max_length=32,
-        help_text=_("Şəxsiyyət vəsiqəsindəki seriya nömrəsi"),
+        required=False,
+        help_text=_("İstəyə bağlı — vəsiqə saxlanılanda tələb olunur (kuryer üçün boş buraxıla bilər)"),
     )
     first_name = forms.CharField(label=_("Ad"), max_length=80)
     last_name = forms.CharField(label=_("Soyad"), max_length=80)
     phone = forms.CharField(required=False, label=_("Telefon"), max_length=64)
     company = forms.ModelChoiceField(queryset=ResidentCompany.objects.none(), label=_("Şirkət"))
     host = forms.ModelChoiceField(queryset=ResidentEmployee.objects.none(), required=False, label=_("Host"))
+    visit_type = forms.ModelChoiceField(
+        queryset=VisitorType.objects.filter(is_active=True),
+        label=_("Gəliş səbəbi"),
+        empty_label=_("Seçin…"),
+    )
     id_document_held = forms.BooleanField(
         required=False,
         initial=False,
@@ -312,6 +318,9 @@ class GuestVisitForm(forms.Form):
 
     def clean(self):
         cleaned = super().clean()
-        if cleaned.get("id_document_held") and not (cleaned.get("guest_card_number") or "").strip():
+        held = cleaned.get("id_document_held")
+        if held and not (cleaned.get("guest_card_number") or "").strip():
             self.add_error("guest_card_number", _("Qonaq kartı nömrəsi tələb olunur."))
+        if held and not (cleaned.get("fin_code") or "").strip():
+            self.add_error("fin_code", _("Vəsiqə saxlanılanda seriya nömrəsi tələb olunur."))
         return cleaned

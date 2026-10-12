@@ -2,12 +2,13 @@
 {% load i18n cp_ui %}
 {% block heading %}{% translate "İdarə paneli" %}{% endblock %}
 {% block content %}
-<div class="grid-4 mb-5">
+<div class="grid-kpi mb-5{% if not show_tickets %} grid-kpi--compact{% endif %}">
   <div class="cp-card p-card-sm">
     <div class="cp-meta">{% translate "QONAQLAR" %}</div>
     <div class="cp-metric mt-2">{% if guest_count < 10 %}0{% endif %}{{ guest_count }}</div>
     <div class="cp-meta mt-2">{% translate "bu gün" %}</div>
   </div>
+  {% if show_tickets %}
   <div class="cp-card p-card-sm">
     <div class="cp-meta">{% translate "AÇIQ TICKET" %}</div>
     <div class="cp-metric mt-2">{% if open_count < 10 %}0{% endif %}{{ open_count }}</div>
@@ -24,11 +25,17 @@
     {% endif %}
     <a class="cp-meta mt-3" href="{% url 'erp:tickets' %}?tab=sla" style="display:inline-block;">{% translate "Bax" %} →</a>
   </div>
+  {% endif %}
   <div class="cp-card p-card-sm">
     <div class="cp-meta">{% translate "REZİDENTLƏR" %}</div>
     <div class="cp-metric mt-2">{{ new_residents }}</div>
     <div class="cp-meta mt-2">{% translate "aktiv" %}</div>
   </div>
+  <a class="cp-card p-card-sm cp-card-link" href="{% url 'erp:people_inside' %}">
+    <div class="cp-meta">{% translate "İÇƏRİDƏ" %}</div>
+    <div class="cp-metric mt-2">{% if people_inside_count < 10 %}0{% endif %}{{ people_inside_count }}</div>
+    <div class="cp-meta mt-2">{% translate "indi binada" %} · {% translate "Bax" %} →</div>
+  </a>
 </div>
 {% if axtrax_health %}
 <div class="cp-card p-card-sm mb-4">
@@ -45,7 +52,8 @@
   </div>
 </div>
 {% endif %}
-<div class="grid-dash mb-4">
+<div class="grid-dash mb-4{% if not show_tickets %} grid-dash--single{% endif %}">
+  {% if show_tickets %}
   <div class="cp-card" style="padding:8px 0;">
     <div class="cp-section section-pad">{% translate "Ticketlər" %}</div>
     {% for t in recent_open %}
@@ -55,6 +63,7 @@
       </a>
     {% empty %}<p class="cp-meta empty-pad">{% translate "Açıq ticket yoxdur." %}</p>{% endfor %}
   </div>
+  {% endif %}
   <div class="cp-card" style="padding:8px 0;">
     <div class="cp-section section-pad">{% translate "Bugünkü qonaqlar" %}</div>
     {% for v in today_visits %}

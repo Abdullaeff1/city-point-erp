@@ -168,7 +168,10 @@ class Command(BaseCommand):
         if not GuestVisit.objects.filter(scheduled_for=today).exists():
             from apps.reception.models import VisitorType
 
-            meeting = VisitorType.objects.filter(code="resident-meeting").first()
+            meeting = (
+                VisitorType.objects.filter(code="meeting").first()
+                or VisitorType.objects.filter(code="resident-meeting").first()
+            )
             guest_rows = [
                 ("A. Məmmədov", "7A3B2C1D2K", asbc, default_asbc_host, f08, space801, VisitStatus.INSIDE, at_hour(10, 15), None),
                 ("L. Əliyeva", "1X2Y3Z4A5B", techco, tech_host, f05, None, VisitStatus.PRE_REGISTERED, None, None),
