@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
@@ -13,7 +14,6 @@ from apps.accounts.models import Role, User
 from apps.core.services import DomainError
 from apps.documents.models import Document
 from apps.erp.forms import GuestVisitForm
-from apps.parties.models import Party
 from apps.property.models import Floor, Space
 from apps.reception.models import GuestVisit, VisitStatus, mask_fin
 from apps.reception.services import (
@@ -525,12 +525,50 @@ class ResidentListView(StaffRequiredMixin, ListView):
     context_object_name = "companies"
 
 
-class PartyListView(StaffRequiredMixin, ListView):
-    """Master-data foundation UI for Party SoT (Scope 0)."""
+def _can_view_resident_ops(user) -> bool:
+    return user.role in {Role.ADMIN, Role.MANAGEMENT}
 
-    template_name = "erp/parties.html"
-    queryset = Party.objects.prefetch_related("roles").order_by("legal_name")
-    context_object_name = "parties"
+
+def guest_period_query(preset, date_from, date_to) -> str:
+    if preset == "custom":
+        return f"range=custom&from={date_from.isoformat()}&to={date_to.isoformat()}"
+    if preset == "today":
+        return f"range=today&date={date_from.isoformat()}"
+    return f"range={preset}"
+
+
+def resident_guest_period(company, request):
+    """Reception visits for one resident, filtered by scheduled_for.
+
+    Counts come from the full queryset before any page slice.
+    Unconfirmed portal pre-registrations stay in the set.
+    """
+    preset, date_from, date_to = access_range_bounds(request, default_preset="today")
+    qs = company.guest_visits.filter(
+        scheduled_for__gte=date_from,
+        scheduled_for__lte=date_to,
+    )
+    counts = qs.aggregate(
+        total=Count("id"),
+        inside=Count("id", filter=Q(status=VisitStatus.INSIDE)),
+        waiting=Count(
+            "id",
+            filter=Q(status__in=[VisitStatus.WAITING, VisitStatus.PRE_REGISTERED]),
+        ),
+        left=Count("id", filter=Q(status=VisitStatus.LEFT)),
+    )
+    return {
+        "preset": preset,
+        "date_from": date_from,
+        "date_to": date_to,
+        "single_day": date_from == date_to,
+        "query": guest_period_query(preset, date_from, date_to),
+        "qs": qs,
+        "total": counts["total"],
+        "inside": counts["inside"],
+        "waiting": counts["waiting"],
+        "left": counts["left"],
+    }
 
 
 class ResidentDetailView(StaffRequiredMixin, TemplateView):
@@ -539,22 +577,40 @@ class ResidentDetailView(StaffRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         company = get_object_or_404(ResidentCompany, slug=self.kwargs["slug"], is_internal=False)
-        today = timezone.localdate()
-        role = self.request.user.role
-        can_drill = role in {Role.ADMIN, Role.MANAGEMENT}
+        can_drill = _can_view_resident_ops(self.request.user)
         ctx.update(
             {
                 "company": company,
                 "spaces": company.spaces.select_related("floor"),
                 "open_tickets": company.tickets.filter(status__in=OPEN_STATUSES),
                 "employees": company.employees.filter(is_active=True),
-                "guest_today": company.guest_visits.filter(scheduled_for=today).count(),
                 "latest_ticket": company.tickets.first(),
                 "can_view_resident_ops": can_drill,
                 # alias kept for older template snippets
                 "can_view_employees": can_drill,
             }
         )
+        if can_drill:
+            today = timezone.localdate()
+            period = resident_guest_period(company, self.request)
+            ctx.update(
+                {
+                    "today": today,
+                    "guest_today": company.guest_visits.filter(scheduled_for=today).count(),
+                    "guest_preset": period["preset"],
+                    "guest_from": period["date_from"],
+                    "guest_to": period["date_to"],
+                    "guest_single_day": period["single_day"],
+                    "guest_is_live_today": (
+                        period["preset"] == "today" and period["date_from"] == today
+                    ),
+                    "guest_query": period["query"],
+                    "guest_total": period["total"],
+                    "guest_inside": period["inside"],
+                    "guest_waiting": period["waiting"],
+                    "guest_left": period["left"],
+                }
+            )
         return ctx
 
 
@@ -593,24 +649,25 @@ class ResidentGuestsView(RoleRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         company = _resident_company(self.kwargs["slug"])
         today = timezone.localdate()
-        selected_date = parse_date(self.request.GET.get("date"), today)
-        visits = (
-            company.guest_visits.filter(scheduled_for=selected_date)
-            .select_related("guest", "host", "visit_type", "visitor_access")
-            .order_by("-check_in_at", "-id")
-        )
+        period = resident_guest_period(company, self.request)
+        visits = period["qs"].select_related(
+            "guest", "host", "visit_type", "visitor_access"
+        ).order_by("-scheduled_for", "-check_in_at", "-id")
         ctx.update(
             {
                 "company": company,
                 "visits": visits,
+                "visit_total": period["total"],
                 "today": today,
-                "selected_date": selected_date,
-                "is_today": selected_date == today,
-                "inside": visits.filter(status=VisitStatus.INSIDE).count(),
-                "waiting": visits.filter(
-                    status__in=[VisitStatus.WAITING, VisitStatus.PRE_REGISTERED]
-                ).count(),
-                "left": visits.filter(status=VisitStatus.LEFT).count(),
+                "preset": period["preset"],
+                "date_from": period["date_from"],
+                "date_to": period["date_to"],
+                "single_day": period["single_day"],
+                "guest_query": period["query"],
+                "is_today": period["preset"] == "today" and period["date_from"] == today,
+                "inside": period["inside"],
+                "waiting": period["waiting"],
+                "left": period["left"],
                 "can_sensitive": user_has_permission(
                     self.request.user, "reception.view_sensitive_data"
                 ),

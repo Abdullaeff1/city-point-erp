@@ -62,7 +62,6 @@ urlpatterns = [
         views.InternalStaffAccessExportView.as_view(),
         name="internal_staff_employee_export",
     ),
-    path("parties/", views.PartyListView.as_view(), name="parties"),
     path("leases/", views.LeaseListView.as_view(), name="leases"),
     path("leases/<str:code>/", views.LeaseDetailView.as_view(), name="lease_detail"),
     path("crm/leads/", views.CrmLeadListView.as_view(), name="crm_leads"),

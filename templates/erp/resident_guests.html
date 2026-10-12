@@ -3,27 +3,51 @@
 {% block heading %}{{ company.name }} — {% translate "Qonaqlar" %}{% endblock %}
 {% block content %}
 <p class="cp-meta mb-3" style="margin-top:-8px;">
-  <a href="{% url 'erp:resident_detail' company.slug %}">← {{ company.name }}</a>
+  <a href="{% url 'erp:resident_detail' company.slug %}?{{ guest_query }}">← {{ company.name }}</a>
 </p>
-<div class="flex gap-3 mb-4" style="flex-wrap:wrap;align-items:end;">
-  <form method="get" class="cp-card p-card-sm access-date-card" style="margin:0;">
-    <label class="cp-meta" for="guest-date">{% translate "Tarix" %}</label>
-    <div class="flex gap-2 mt-1" style="align-items:center;">
-      <input class="cp-input" id="guest-date" type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" onchange="this.form.submit()">
-      {% if not is_today %}
-      <a class="cp-btn-ghost" href="{% url 'erp:resident_guests' company.slug %}" style="padding:8px 10px;white-space:nowrap;">{% translate "Bu gün" %}</a>
-      {% endif %}
-    </div>
+<div class="cp-card p-card mb-4">
+  <div class="cp-tabs" style="margin-bottom:12px;">
+    <a class="cp-tab {% if preset == 'today' %}is-active{% endif %}" href="?range=today&date={% if single_day %}{{ date_from|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">{% translate "Günlük" %}</a>
+    <a class="cp-tab {% if preset == 'week' %}is-active{% endif %}" href="?range=week">{% translate "Bu həftə" %}</a>
+    <a class="cp-tab {% if preset == 'month' %}is-active{% endif %}" href="?range=month">{% translate "Bu ay" %}</a>
+    <a class="cp-tab {% if preset == 'custom' %}is-active{% endif %}" href="?range=custom&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}">{% translate "Dövr" %}</a>
+  </div>
+  {% if preset == 'custom' %}
+  <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;">
+    <input type="hidden" name="range" value="custom">
+    <label><span class="cp-meta">{% translate "Başlanğıc" %}</span><input class="cp-input mt-1" type="date" name="from" value="{{ date_from|date:'Y-m-d' }}" required></label>
+    <label><span class="cp-meta">{% translate "Son" %}</span><input class="cp-input mt-1" type="date" name="to" value="{{ date_to|date:'Y-m-d' }}" required></label>
+    <button class="cp-btn" type="submit">{% translate "Göstər" %}</button>
   </form>
-  <div class="cp-card p-card-sm">{% translate "İçəridə" %} <strong>{{ inside }}</strong></div>
-  <div class="cp-card p-card-sm">{% translate "Gözləyir" %} <strong>{{ waiting }}</strong></div>
-  <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ left }}</strong></div>
-  <div class="cp-card p-card-sm">{% translate "Cəmi" %} <strong>{{ visits|length }}</strong></div>
+  {% elif preset == 'today' %}
+  <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;">
+    <input type="hidden" name="range" value="today">
+    <label>
+      <span class="cp-meta">{% translate "Tarix" %}</span>
+      <input class="cp-input mt-1" type="date" name="date" value="{{ date_from|date:'Y-m-d' }}" onchange="this.form.submit()">
+    </label>
+    {% if not is_today %}
+    <a class="cp-btn-ghost" href="{% url 'erp:resident_guests' company.slug %}" style="padding:8px 10px;white-space:nowrap;">{% translate "Bu gün" %}</a>
+    {% endif %}
+  </form>
+  {% else %}
+  <p class="cp-meta">{{ date_from|date:"d.m.Y" }}{% if date_from != date_to %} – {{ date_to|date:"d.m.Y" }}{% endif %}</p>
+  {% endif %}
 </div>
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  <div class="cp-card p-card-sm">{% translate "Dövr üzrə ziyarət" %} <strong>{{ visit_total }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Hazırda içəridə" %} <strong>{{ inside }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Gözləyir" %} <strong>{{ waiting }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Çıxış edib" %} <strong>{{ left }}</strong></div>
+</div>
+{% if not is_today %}
+<p class="cp-meta mb-3">{% translate "Hazırda içəridə, Gözləyir və Çıxış edib bu dövrdəki qeydlərin cari statusudur. Keçmiş dövrdə içəridə olmuş adamların sayı deyil." %}</p>
+{% endif %}
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
     <thead>
       <tr>
+        {% if not single_day %}<th>{% translate "Tarix" %}</th>{% endif %}
         <th>{% translate "Qonaq" %}</th>
         <th>{% translate "Seriya №" %}</th>
         <th>{% translate "Host" %}</th>
@@ -36,6 +60,7 @@
     <tbody>
       {% for v in visits %}
       <tr>
+        {% if not single_day %}<td>{{ v.scheduled_for|date:"d.m.Y" }}</td>{% endif %}
         <td>{{ v.guest.display_name }}</td>
         <td class="cp-code">{% if can_sensitive %}{{ v.guest.fin_code|default:"—" }}{% else %}{{ v.guest.fin_code|mask_fin_filter }}{% endif %}</td>
         <td>{{ v.host.full_name|default:"—" }}</td>
@@ -45,7 +70,7 @@
         <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="7" class="cp-meta empty-pad">{% translate "Bu tarix üçün qonaq yoxdur." %}</td></tr>
+      <tr><td colspan="{% if single_day %}7{% else %}8{% endif %}" class="cp-meta empty-pad">{% if single_day %}{% translate "Bu tarix üçün qonaq yoxdur." %}{% else %}{% translate "Bu dövr üçün qonaq yoxdur." %}{% endif %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

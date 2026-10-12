@@ -13,16 +13,58 @@
     <div class="cp-meta">{% translate "Əməkdaşlar" %}</div>
     <div class="cp-metric" style="font-size:24px;">{{ employees.count }}</div>
   </a>
-  <a class="cp-card p-card-sm" href="{% url 'erp:resident_guests' company.slug %}" style="text-decoration:none;color:inherit;display:block;">
+  <a class="cp-card p-card-sm" href="{% url 'erp:resident_guests' company.slug %}?range=today&date={{ today|date:'Y-m-d' }}" style="text-decoration:none;color:inherit;display:block;">
     <div class="cp-meta">{% translate "Bugünkü qonaq" %}</div>
     <div class="cp-metric" style="font-size:24px;">{{ guest_today }}</div>
   </a>
   {% else %}
   <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Açıq ticket" %}</div><div class="cp-metric" style="font-size:24px;">{{ open_tickets.count }}</div></div>
   <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Əməkdaşlar" %}</div><div class="cp-metric" style="font-size:24px;">{{ employees.count }}</div></div>
-  <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Bugünkü qonaq" %}</div><div class="cp-metric" style="font-size:24px;">{{ guest_today }}</div></div>
   {% endif %}
 </div>
+
+{% if can_view_resident_ops %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="margin-top:0;">{% translate "Resepsiya qeydləri" %}</div>
+  <div class="cp-tabs" style="margin-bottom:12px;">
+    <a class="cp-tab {% if guest_preset == 'today' %}is-active{% endif %}" href="?range=today&date={% if guest_single_day %}{{ guest_from|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">{% translate "Günlük" %}</a>
+    <a class="cp-tab {% if guest_preset == 'week' %}is-active{% endif %}" href="?range=week">{% translate "Bu həftə" %}</a>
+    <a class="cp-tab {% if guest_preset == 'month' %}is-active{% endif %}" href="?range=month">{% translate "Bu ay" %}</a>
+    <a class="cp-tab {% if guest_preset == 'custom' %}is-active{% endif %}" href="?range=custom&from={{ guest_from|date:'Y-m-d' }}&to={{ guest_to|date:'Y-m-d' }}">{% translate "Dövr" %}</a>
+  </div>
+  {% if guest_preset == 'custom' %}
+  <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;">
+    <input type="hidden" name="range" value="custom">
+    <label><span class="cp-meta">{% translate "Başlanğıc" %}</span><input class="cp-input mt-1" type="date" name="from" value="{{ guest_from|date:'Y-m-d' }}" required></label>
+    <label><span class="cp-meta">{% translate "Son" %}</span><input class="cp-input mt-1" type="date" name="to" value="{{ guest_to|date:'Y-m-d' }}" required></label>
+    <button class="cp-btn" type="submit">{% translate "Göstər" %}</button>
+  </form>
+  {% elif guest_preset == 'today' %}
+  <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;">
+    <input type="hidden" name="range" value="today">
+    <label>
+      <span class="cp-meta">{% translate "Tarix" %}</span>
+      <input class="cp-input mt-1" type="date" name="date" value="{{ guest_from|date:'Y-m-d' }}" onchange="this.form.submit()">
+    </label>
+  </form>
+  {% else %}
+  <p class="cp-meta">{{ guest_from|date:"d.m.Y" }}{% if guest_from != guest_to %} – {{ guest_to|date:"d.m.Y" }}{% endif %}</p>
+  {% endif %}
+  <div class="flex gap-3 mt-3" style="flex-wrap:wrap;">
+    <div class="cp-card p-card-sm">{% translate "Dövr üzrə ziyarət" %} <strong>{{ guest_total }}</strong></div>
+    <div class="cp-card p-card-sm">{% translate "Hazırda içəridə" %} <strong>{{ guest_inside }}</strong></div>
+    <div class="cp-card p-card-sm">{% translate "Gözləyir" %} <strong>{{ guest_waiting }}</strong></div>
+    <div class="cp-card p-card-sm">{% translate "Çıxış edib" %} <strong>{{ guest_left }}</strong></div>
+  </div>
+  {% if not guest_is_live_today %}
+  <p class="cp-meta mt-2">{% translate "Hazırda içəridə, Gözləyir və Çıxış edib bu dövrdəki qeydlərin cari statusudur. Keçmiş dövrdə içəridə olmuş adamların sayı deyil." %}</p>
+  {% endif %}
+  <div class="mt-3">
+    <a class="cp-btn" href="{% url 'erp:resident_guests' company.slug %}?{{ guest_query }}">{% translate "Bütün qeydlərə bax" %}</a>
+  </div>
+</div>
+{% endif %}
+
 <div class="cp-card p-card">
   <p>{{ company.get_status_display }} · {% translate "Portal" %} {% if company.portal_active %}{% translate "aktiv" %}{% else %}{% translate "bağlı" %}{% endif %}</p>
   <p class="cp-meta">{{ company.contact_email }} · {{ company.contract_start|date:"Y" }}–{{ company.contract_end|date:"Y" }}</p>
