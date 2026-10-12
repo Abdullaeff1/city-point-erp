@@ -8,6 +8,6 @@
 #   AXTRAX_POLL_ON_START=1
 #   See docs/deployment/teammate-axtrax-lan.md
 #
-# App: http://localhost:3001/login/
+# App: http://localhost:8222/login/
 # Portal: office@asbc.az / asbc123
 # ERP:    admin@citypoint.az / admin123

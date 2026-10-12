@@ -10,7 +10,7 @@ cp .env.example .env   # set TURNSTILE_MSSQL_PASSWORD for AxTrax on City Point L
 docker compose --env-file .env up --build
 ```
 
-Open http://localhost:3001/login/
+Open http://localhost:8222/login/
 
 **Teammate on same LAN (AxTrax like a working PC):** [`docs/deployment/teammate-axtrax-lan.md`](docs/deployment/teammate-axtrax-lan.md)
 
@@ -28,7 +28,13 @@ Open http://localhost:3001/login/
 | Management | `manager@citypoint.az` | `manager123` |
 | Security | `security@citypoint.az` | `security123` |
 
-Open http://localhost:3001/security/ after login as Security.
+Open http://localhost:8222/security/ after login as Security.
+
+## Stack
+
+- Django 5 + PostgreSQL 16
+- Docker Compose (`bin/dev`, `bin/prod`) — host port **8222**
+- i18n: AZ / EN / RU
 
 ## Deployment
 

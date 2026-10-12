@@ -11,8 +11,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-citypoint}
     volumes:
       - citypoint_pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-citypoint} -d ${POSTGRES_DB:-citypoint}"]
       interval: 5s
@@ -36,7 +34,7 @@ services:
       TURNSTILE_MSSQL_USER: ${TURNSTILE_MSSQL_USER:-ReadOnlyerp}
       TURNSTILE_MSSQL_PASSWORD: ${TURNSTILE_MSSQL_PASSWORD:-}
     ports:
-      - "3001:8000"
+      - "8222:8000"
     volumes:
       - ../..:/app
       - citypoint_media:/app/media

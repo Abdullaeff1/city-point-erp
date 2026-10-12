@@ -305,7 +305,7 @@ def build():
     add_heading_custom(doc, "4. Demo giriş məlumatları (yoxlama üçün)", 1)
     add_para(
         doc,
-        "İnkişaf mühitində sistem http://localhost:8000 ünvanında işləyir. "
+        "İnkişaf mühitində sistem http://localhost:8222 ünvanında işləyir. "
         "Aşağıdakı hesablarla rollər üzrə ssenarilər nümayiş etdirilə bilər:",
     )
     add_table(
@@ -321,9 +321,9 @@ def build():
         ],
     )
     add_para(doc, "Əsas keçidlər:", bold=True)
-    add_bullet(doc, "Giriş: http://localhost:8000/login/")
-    add_bullet(doc, "Portal: http://localhost:8000/portal/")
-    add_bullet(doc, "ERP: http://localhost:8000/erp/")
+    add_bullet(doc, "Giriş: http://localhost:8222/login/")
+    add_bullet(doc, "Portal: http://localhost:8222/portal/")
+    add_bullet(doc, "ERP: http://localhost:8222/erp/")
 
     # 5
     add_heading_custom(doc, "5. Gələcək inkişaf (roadmap)", 1)

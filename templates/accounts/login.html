@@ -1,17 +1,23 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n static %}
 {% block title %}{% translate "Giriş" %} · City Point{% endblock %}
 {% block body %}
 <div class="login-split">
   <section class="login-visual">
-    <div class="cp-brand-kicker">CITY POINT</div>
-    <h1 class="mt-3" style="font-size:40px;font-weight:700;letter-spacing:-0.04em;max-width:360px;">{% translate "Business Center" %}</h1>
-    <p class="mt-4" style="max-width:320px;color:rgba(255,255,255,0.72);font-size:16px;line-height:1.5;">{% translate "İş masanız." %}<br>{% translate "Bina ilə bağlı." %}</p>
-    <svg class="building-svg" width="280" height="420" viewBox="0 0 280 420" fill="none" aria-hidden="true">
-      <path d="M40 400V80l70-40 90 36v324H40Z" stroke="white" stroke-width="2"/>
-      <path d="M110 40v360M40 140h160M40 180h160M40 220h160M40 260h160M40 300h160M40 340h160" stroke="white" stroke-width="1"/>
-      <rect x="70" y="360" width="40" height="40" fill="white" fill-opacity="0.35"/>
-    </svg>
+    <img
+      class="login-visual-photo"
+      src="{% static 'img/city-point-building.jpg' %}"
+      alt="City Point Business Center"
+      width="1200"
+      height="1800"
+      decoding="async"
+    >
+    <div class="login-visual-overlay" aria-hidden="true"></div>
+    <div class="login-visual-content">
+      <div class="cp-brand-kicker">City Point Baku</div>
+      <h1 class="mt-3" style="font-size:40px;font-weight:700;letter-spacing:-0.04em;max-width:360px;">{% translate "Business Center" %}</h1>
+      <p class="mt-4" style="max-width:320px;color:rgba(255,255,255,0.72);font-size:16px;line-height:1.5;">{% translate "İş masanız." %}<br>{% translate "Bina ilə bağlı." %}</p>
+    </div>
   </section>
   <section class="login-form-wrap">
     <div class="cp-card login-card">

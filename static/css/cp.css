@@ -569,14 +569,46 @@ a:hover { text-decoration: underline; }
 
 .login-split { min-height: 100vh; display: grid; grid-template-columns: 1.05fr 0.95fr; }
 .login-visual {
-  background: linear-gradient(165deg, var(--cp-primary-dark) 0%, var(--cp-primary) 55%, #163e63 100%);
   color: #fff;
   position: relative;
   overflow: hidden;
   padding: 56px;
+  min-height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+.login-visual-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 35%;
+  display: block;
+}
+.login-visual-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    165deg,
+    rgba(12, 36, 58, 0.72) 0%,
+    rgba(22, 62, 99, 0.48) 45%,
+    rgba(12, 36, 58, 0.78) 100%
+  );
+  pointer-events: none;
+}
+.login-visual-content {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+}
+.login-visual .cp-brand-kicker {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
 }
 .login-form-wrap { display: flex; align-items: center; justify-content: center; background: var(--cp-background); }
-.building-svg { position: absolute; right: -20px; bottom: -10px; opacity: 0.18; }
 .login-card { width: 100%; max-width: 400px; padding: 36px; }
 
 .metric-warn { color: var(--cp-warning); }
@@ -607,7 +639,13 @@ a:hover { text-decoration: underline; }
 }
 @media (max-width: 900px) {
   .login-split { grid-template-columns: 1fr; }
-  .login-visual { min-height: 200px; padding: 32px; }
+  .login-visual {
+    min-height: clamp(220px, 42vw, 360px);
+    padding: 28px 24px;
+    align-items: flex-end;
+  }
+  .login-visual-photo { object-position: center 30%; }
+  .login-visual-content h1 { font-size: 28px !important; }
   .cp-sidebar { width: 72px; }
   .cp-nav-text, .cp-brand-sub, .cp-user-meta, .cp-nav-label, .cp-nav-summary-label, .cp-sidebar-cta span { display: none; }
   .cp-nav-group-body { margin-left: 0; border-left: 0; padding-left: 0; }
