@@ -62,11 +62,26 @@ class Notification(models.Model):
         "tickets.Ticket", null=True, blank=True, on_delete=models.CASCADE, related_name="notifications"
     )
     message = models.CharField(max_length=255)
+    event_key = models.CharField(
+        max_length=160,
+        blank=True,
+        default="",
+        db_default="",
+        db_index=True,
+        help_text="Dedup identifikatoru (mətn oxşarlığı deyil)",
+    )
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "event_key"],
+                condition=~models.Q(event_key=""),
+                name="uniq_notification_user_event_key",
+            )
+        ]
 
 
 class NotificationDispatch(models.Model):

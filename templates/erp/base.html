@@ -162,6 +162,11 @@
           <div class="badge badge-resolved mb-4" style="border-radius:10px;padding:8px 12px;">{{ message }}</div>
         {% endfor %}
       {% endif %}
+      {% if request.resolver_match.url_name != 'dashboard' %}
+      <p class="cp-meta mb-3" style="margin-top:-8px;">
+        <a href="{% url 'erp:dashboard' %}">← {% translate "İdarə paneli" %}</a>{% block back_trail %}{% endblock %}
+      </p>
+      {% endif %}
       {% block content %}{% endblock %}
     </div>
   </main>

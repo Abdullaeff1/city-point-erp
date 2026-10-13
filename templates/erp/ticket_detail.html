@@ -1,11 +1,12 @@
 {% extends "erp/base.html" %}
 {% load i18n cp_ui %}
 {% block heading %}{{ ticket.code }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:tickets' %}">{% translate "Service Desk" %}</a>
+ · {{ ticket.get_ticket_type_display }} · {{ ticket.category }}{% if ticket.subcategory %} / {{ ticket.subcategory.name }}{% endif %}
+ · <span class="cp-code">{{ ticket.space.code|default:"—" }}</span>
+{% endblock %}
 {% block content %}
-<p class="cp-meta mb-4" style="margin-top:-8px;">
-  {{ ticket.get_ticket_type_display }} · {{ ticket.category }}{% if ticket.subcategory %} / {{ ticket.subcategory.name }}{% endif %}
-  · <span class="cp-code">{{ ticket.space.code|default:"—" }}</span>
-</p>
 <div class="grid-main">
   <div>
     {% include "partials/status_badge.html" with value=ticket.status label=ticket.get_status_display %}
@@ -61,7 +62,7 @@
       <div class="cp-section" style="font-size:16px;">{% translate "Əlavələr" %}</div>
       <ul class="mt-3 flex-col gap-2">
         {% for a in ticket.attachments.all %}
-        <li><a href="{{ a.file.url }}" target="_blank" rel="noopener">{{ a.file.name }}</a> <span class="cp-meta">{{ a.uploaded_at|date:"d.m H:i" }}</span></li>
+        <li><a href="{% url 'ticket_attachment_download' a.pk %}" target="_blank" rel="noopener">{{ a.file.name }}</a> <span class="cp-meta">{{ a.uploaded_at|date:"d.m H:i" }}</span></li>
         {% empty %}
         <li class="cp-meta">{% translate "Fayl yoxdur." %}</li>
         {% endfor %}
@@ -194,6 +195,29 @@
       <div class="cp-meta mt-1">{% translate "CRM ötürülməsi yoxdur" %}</div>
       {% endif %}
     </div>
+    {% if can_handoff %}
+    <div>
+      <div class="cp-meta">{% translate "Şöbəyə yönləndir" %}</div>
+      <form method="post" class="flex-col gap-2 mt-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="handoff">
+        <select name="department" class="cp-input" required>
+          <option value="">—</option>
+          {% for d in handoff_departments %}
+          <option value="{{ d.id }}" {% if ticket.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+        <select name="queue" class="cp-input">
+          <option value="">— {% translate "Queue (istəyə bağlı)" %}</option>
+          {% for q in handoff_queues %}
+          <option value="{{ q.id }}" data-dept="{{ q.department_id }}">{{ q.department.name }} / {{ q.name }}</option>
+          {% endfor %}
+        </select>
+        <input name="note" class="cp-input" placeholder="{% translate 'Səbəb' %}">
+        <button class="cp-btn-ghost w-full">{% translate "Yönləndir" %}</button>
+      </form>
+    </div>
+    {% endif %}
   </aside>
 </div>
 {% endblock %}

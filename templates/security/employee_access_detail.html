@@ -1,12 +1,12 @@
 {% extends "security/base.html" %}
 {% load i18n %}
 {% block heading %}{{ employee.full_name }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'security:company_employees' company.pk %}">{{ company.name }}</a>
+ · {% translate "Kart" %}: {{ employee.card_number|default:"—" }}
+ · {{ employee.get_access_level_display }}
+{% endblock %}
 {% block content %}
-<p class="cp-meta mb-3" style="margin-top:-8px;">
-  <a href="{% url 'security:company_employees' company.pk %}">← {{ company.name }}</a>
-  · {% translate "Kart" %}: {{ employee.card_number|default:"—" }}
-  · {{ employee.get_access_level_display }}
-</p>
 <div class="cp-card p-card mb-4">
   <div class="cp-tabs" style="margin-bottom:12px;">
     <a class="cp-tab {% if preset == 'today' %}is-active{% endif %}" href="?range=today&date={% if single_day %}{{ date_from|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">{% translate "Günlük" %}</a>

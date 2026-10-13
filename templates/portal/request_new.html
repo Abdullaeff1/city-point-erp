@@ -1,17 +1,32 @@
 {% extends "portal/base.html" %}
 {% load i18n %}
 {% block heading %}{% translate "Yeni müraciət" %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'portal:requests_active' %}">{% translate "Müraciətlər" %}</a>
+{% endblock %}
 {% block content %}
 <div class="cp-card p-card-lg" style="max-width:520px;">
   <p class="cp-meta mb-3">{% translate "Qısa təsvir kifayətdir — əlavə detalları şöbə sizinlə əlaqə saxlayaraq tamamlayacaq." %}</p>
   <form method="post" enctype="multipart/form-data" class="flex-col gap-3" id="ticket-create-form">
     {% csrf_token %}
     {% for field in form %}
+      {% if field.field.widget.input_type == "file" %}
+      <div>
+        <span class="cp-meta">{{ field.label }}</span>
+        <div class="mt-1 cp-file-pick" data-cp-file>
+          {{ field }}
+          <button type="button" class="cp-btn cp-file-pick-btn">{% translate "Fayl seç" %}</button>
+          <span class="cp-meta cp-file-pick-name" hidden></span>
+        </div>
+        {{ field.errors }}
+      </div>
+      {% else %}
       <label>
         <span class="cp-meta">{{ field.label }}</span>
         <div class="mt-1">{{ field }}</div>
         {{ field.errors }}
       </label>
+      {% endif %}
     {% endfor %}
     <button class="cp-btn" type="submit">{% translate "Göndər" %}</button>
   </form>
@@ -19,6 +34,24 @@
 <script type="application/json" id="subcategory-map">{{ subcategory_map_json|safe }}</script>
 <script>
 (function () {
+  document.querySelectorAll("[data-cp-file]").forEach(function (wrap) {
+    var input = wrap.querySelector('input[type="file"]');
+    var btn = wrap.querySelector(".cp-file-pick-btn");
+    var nameEl = wrap.querySelector(".cp-file-pick-name");
+    if (!input || !btn) return;
+    btn.addEventListener("click", function () { input.click(); });
+    input.addEventListener("change", function () {
+      if (!nameEl) return;
+      if (input.files && input.files[0]) {
+        nameEl.textContent = input.files[0].name;
+        nameEl.hidden = false;
+      } else {
+        nameEl.textContent = "";
+        nameEl.hidden = true;
+      }
+    });
+  });
+
   var raw = document.getElementById("subcategory-map");
   var map = {};
   try { map = JSON.parse(raw.textContent || "{}"); } catch (e) { map = {}; }

@@ -120,41 +120,39 @@
   var countEl = document.getElementById("companies-visible-count");
   var timer;
 
-  function norm(s) {
-    return (s || "").toString().toLowerCase().replace(/\s+/g, " ").trim();
-  }
-
-  function looksLikePersonOrCard(q) {
+  function looksLikePersonOrCard(raw) {
     // Kart nömrəsi və ya ad/soyad (boşluqlu) → server axtarışı
+    var q = (raw || "").toString().replace(/\s+/g, " ").trim();
     if (/^\d{3,}$/.test(q)) return true;
     if (q.indexOf(" ") !== -1 && q.length >= 3) return true;
     return false;
   }
 
-  function filterCompanies(q) {
+  function filterCompanies(raw) {
     var visible = 0;
+    var hasQuery = !!(raw || "").toString().trim();
     rows.forEach(function (row) {
       var hay = row.getAttribute("data-name") || "";
-      var ok = !q || hay.indexOf(q) !== -1;
+      var ok = window.cpHaystackMatch ? cpHaystackMatch(hay, raw) : !hasQuery;
       row.hidden = !ok;
       if (ok) visible += 1;
     });
-    if (emptyFilter) emptyFilter.hidden = !(q && visible === 0 && rows.length);
-    if (meta) meta.hidden = !q;
+    if (emptyFilter) emptyFilter.hidden = !(hasQuery && visible === 0 && rows.length);
+    if (meta) meta.hidden = !hasQuery;
     if (countEl) countEl.textContent = String(visible);
   }
 
   input.addEventListener("input", function () {
-    var q = norm(input.value);
+    var raw = input.value;
     clearTimeout(timer);
-    if (!q) {
+    if (!raw.trim()) {
       filterCompanies("");
       return;
     }
     // Şirkət adı — dərhal client-side
-    filterCompanies(q);
+    filterCompanies(raw);
     // Ad/soyad və ya kart — Enter və ya qısa gözləmə sonrası server
-    if (looksLikePersonOrCard(q)) {
+    if (looksLikePersonOrCard(raw)) {
       timer = setTimeout(function () { form.submit(); }, 650);
     }
   });

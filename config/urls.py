@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from apps.accounts.views import login_view, logout_view, post_login
+from apps.tickets.views_attachments import ticket_attachment_download
 
 handler403 = "django.views.defaults.permission_denied"
 
@@ -18,6 +19,11 @@ urlpatterns = [
     path("security/", include("apps.security.urls")),
     path("erp/", include("apps.erp.urls")),
     path("api/", include("apps.api.urls")),
+    path(
+        "tickets/attachments/<int:pk>/",
+        ticket_attachment_download,
+        name="ticket_attachment_download",
+    ),
     path("", post_login),
 ]
 

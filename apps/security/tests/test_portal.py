@@ -12,6 +12,7 @@ from apps.integrations.axtrax_people_sync import (
 from apps.reception.models import Guest, GuestVisit, VisitStatus
 from apps.residents.models import AccessLevel, ResidentCompany, ResidentEmployee
 from apps.residents.services import create_employee_card_order
+from apps.tickets.models import TicketDepartment
 from apps.tickets.seed_taxonomy import seed_ticket_taxonomy
 
 User = get_user_model()
@@ -53,6 +54,7 @@ class SecurityPortalTests(TestCase):
             email="security@test.az",
             password="Pass12345!",
             role=Role.SECURITY,
+            ticket_department=TicketDepartment.objects.get(code="security"),
         )
         self.resident = User.objects.create_user(
             username="res1",

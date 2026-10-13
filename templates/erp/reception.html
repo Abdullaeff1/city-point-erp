@@ -3,14 +3,33 @@
 {% block heading %}{% translate "Qəbul" %}{% endblock %}
 {% block content %}
 {% translate "İçəridə indi" as lbl_inside %}
+{% translate "24+ saat" as lbl_inside_overdue %}
+{% translate "içəridə" as hint_inside_overdue %}
 {% translate "Bu gün" as lbl_today %}
 {% translate "Gözləyir / Pre-reg" as lbl_waiting %}
 {% translate "Vəsiqə gözləyir" as lbl_id_pending %}
 <div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
-  {% include "partials/kpi_card.html" with label=lbl_inside value=stats.inside %}
-  {% include "partials/kpi_card.html" with label=lbl_today value=stats.today %}
-  {% include "partials/kpi_card.html" with label=lbl_waiting value=stats.waiting %}
-  {% include "partials/kpi_card.html" with label=lbl_id_pending value=stats.id_pending %}
+  <a class="cp-card p-card cp-card-link" href="?status=inside&date={{ today|date:'Y-m-d' }}" style="min-width:120px;flex:1 1 120px;">
+    <div class="cp-meta">{{ lbl_inside }}</div>
+    <div class="cp-metric mt-2">{{ stats.inside }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="?status=inside_overdue" style="min-width:120px;flex:1 1 120px;">
+    <div class="cp-meta">{{ lbl_inside_overdue }}</div>
+    <div class="cp-metric mt-2">{{ stats.inside_overdue|default:0 }}</div>
+    <div class="cp-meta mt-2">{{ hint_inside_overdue }}</div>
+  </a>
+  <div class="cp-card p-card" style="min-width:120px;flex:1 1 120px;">
+    <div class="cp-meta">{{ lbl_today }}</div>
+    <div class="cp-metric mt-2">{{ stats.today }}</div>
+  </div>
+  <div class="cp-card p-card" style="min-width:120px;flex:1 1 120px;">
+    <div class="cp-meta">{{ lbl_waiting }}</div>
+    <div class="cp-metric mt-2">{{ stats.waiting }}</div>
+  </div>
+  <div class="cp-card p-card" style="min-width:120px;flex:1 1 120px;">
+    <div class="cp-meta">{{ lbl_id_pending }}</div>
+    <div class="cp-metric mt-2">{{ stats.id_pending }}</div>
+  </div>
 </div>
 
 {% if can_export %}
@@ -55,6 +74,7 @@
           <select class="cp-input" name="status">
             <option value="">—</option>
             <option value="inside" {% if filter_status == "inside" %}selected{% endif %}>{% translate "İçəridə" %}</option>
+            <option value="inside_overdue" {% if filter_status == "inside_overdue" %}selected{% endif %}>{% translate "24+ saat içəridə" %}</option>
             <option value="checked_out" {% if filter_status == "checked_out" %}selected{% endif %}>{% translate "Çıxış" %}</option>
             <option value="waiting" {% if filter_status == "waiting" %}selected{% endif %}>{% translate "Gözləyir / Pre-reg" %}</option>
             <option value="pre_registered" {% if filter_status == "pre_registered" %}selected{% endif %}>{% translate "Pre-reg" %}</option>
@@ -157,13 +177,25 @@
   <div class="flex gap-3 section-pad" style="flex-wrap:wrap;align-items:end;justify-content:space-between;">
     <div>
       <div class="cp-section" style="margin:0;">
-        {% if is_today %}
+        {% if filter_status == "inside_overdue" %}
+          {% translate "24+ saat içəridə olanlar" %}
+        {% elif filter_status == "inside" %}
+          {% translate "İçəridə indi" %}{% if not is_today %} · {{ selected_date|date:"d.m.Y" }}{% endif %}
+        {% elif is_today %}
           {% translate "Bugünkü jurnal" %}
         {% else %}
           {% translate "Jurnal" %} · {{ selected_date|date:"d.m.Y" }}
         {% endif %}
       </div>
-      <p class="cp-meta" style="margin:4px 0 0;">{{ stats.day_total }} {% translate "qonaq" %}</p>
+      <p class="cp-meta" style="margin:4px 0 0;">
+        {% if filter_status == "inside_overdue" %}
+          {{ visits|length }} {% translate "qonaq" %} · {% translate "girişdən 24 saatdan çox" %}
+        {% elif filter_status == "inside" %}
+          {{ visits|length }} {% translate "qonaq" %} · {% translate "bu gün" %}
+        {% else %}
+          {{ stats.day_total }} {% translate "qonaq" %}
+        {% endif %}
+      </p>
     </div>
     <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;margin:0;">
       <input type="hidden" name="range" value="{{ export_preset }}">
@@ -187,6 +219,7 @@
   <table class="cp-table">
     <thead>
       <tr>
+        {% if filter_status == "inside" or filter_status == "inside_overdue" %}<th>{% translate "Tarix" %}</th>{% endif %}
         <th>{% translate "Qonaq" %}</th>
         <th>{% translate "Seriya №" %}</th>
         <th>{% translate "Şirkət" %}</th>
@@ -203,6 +236,7 @@
     <tbody>
       {% for v in visits %}
       <tr>
+        {% if filter_status == "inside" or filter_status == "inside_overdue" %}<td>{{ v.scheduled_for|date:"d.m.Y" }}</td>{% endif %}
         <td>{{ v.guest.display_name }}</td>
         <td class="cp-code">{% if can_sensitive %}{{ v.guest.fin_code|default:"—" }}{% else %}{{ v.guest.fin_code|mask_fin_filter }}{% endif %}</td>
         <td>{{ v.company.name }}</td>
@@ -211,10 +245,10 @@
         <td>{{ v.check_out_at|date:"H:i"|default:"—" }}</td>
         <td>{{ v.id_document_label }}</td>
         <td>{% if v.visitor_access %}{% if v.visitor_access.credential %}<span class="cp-code">{{ v.visitor_access.credential }}</span> · {% endif %}{{ v.visitor_access.get_status_display }}{% else %}—{% endif %}</td>
-        <td class="cp-meta" style="max-width:180px;white-space:normal;">{% if v.notes %}{{ v.notes }}{% else %}—{% endif %}</td>
+        <td class="cp-meta cp-note-cell"{% if v.notes %} title="{{ v.notes }}"{% endif %}>{% if v.notes %}<span class="cp-note-text">{{ v.notes }}</span>{% else %}—{% endif %}</td>
         <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
         <td>
-          {% if is_today %}
+          {% if is_today or filter_status == "inside" or filter_status == "inside_overdue" %}
             {% if v.status == "pre_registered" or v.status == "waiting" %}
           <details>
             <summary class="cp-btn" style="padding:6px 10px;font-size:12px;display:inline-block;">{% translate "Check-in" %}</summary>
@@ -250,7 +284,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="11" class="cp-meta empty-pad">{% if is_today %}{% translate "Bu gün qonaq yoxdur." %}{% else %}{% translate "Bu tarix üçün qonaq yoxdur." %}{% endif %}</td></tr>
+      <tr><td colspan="{% if filter_status == 'inside' or filter_status == 'inside_overdue' %}12{% else %}11{% endif %}" class="cp-meta empty-pad">{% if filter_status == "inside_overdue" %}{% translate "24+ saat içəridə qonaq yoxdur." %}{% elif filter_status == "inside" %}{% translate "İçəridə qonaq yoxdur." %}{% elif is_today %}{% translate "Bu gün qonaq yoxdur." %}{% else %}{% translate "Bu tarix üçün qonaq yoxdur." %}{% endif %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -269,10 +303,17 @@
   const initialHostId = "{{ form.host.value|default:'' }}";
 
   function norm(s) {
-    return String(s || "")
-      .toLocaleLowerCase("az")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
+    return window.cpFoldSearch
+      ? cpFoldSearch(s)
+      : String(s || "")
+          .replace(/İ/g, "i")
+          .replace(/I/g, "i")
+          .replace(/ı/g, "i")
+          .toLocaleLowerCase("az")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
   }
 
   function makeCombobox({ select, search, list, getOptions, emptyText, required }) {

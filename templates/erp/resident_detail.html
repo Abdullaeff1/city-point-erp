@@ -1,6 +1,9 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
 {% block heading %}{{ company.name }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:residents' %}">{% translate "Rezidentlər" %}</a>
+{% endblock %}
 {% block content %}
 <div class="grid-4 mb-4">
   <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Sahə" %}</div><div style="font-weight:700;">{% for s in spaces %}{{ s.short_label }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</div></div>

@@ -1,10 +1,10 @@
 {% extends "security/base.html" %}
 {% load i18n %}
 {% block heading %}{% translate "Kart çoxvurma" %} #{{ alert.pk }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'security:alerts' %}">{% translate "Bildirişlər" %}</a>
+{% endblock %}
 {% block content %}
-<p class="cp-meta mb-3" style="margin-top:-8px;">
-  <a href="{% url 'security:alerts' %}">← {% translate "Bildirişlər" %}</a>
-</p>
 <div class="cp-card p-card mb-4">
   <div class="cp-meta">{% translate "Əməkdaş" %}</div>
   <p style="font-weight:600;">

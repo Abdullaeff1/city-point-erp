@@ -20,9 +20,10 @@
     <div class="cp-meta">{{ lbl_companies }}</div>
     <div class="cp-metric mt-2">{{ company_count }}</div>
   </a>
-  <a class="cp-card p-card cp-card-link" href="{% url 'security:companies' %}" style="min-width:148px;flex:1 1 148px;">
+  <a class="cp-card p-card cp-card-link" href="{% url 'security:employees' %}" style="min-width:148px;flex:1 1 148px;">
     <div class="cp-meta">{{ lbl_employees }}</div>
     <div class="cp-metric mt-2">{{ employee_count }}</div>
+    <div class="cp-meta mt-2">{% translate "hamısı" %} · {% translate "Bax" %} →</div>
   </a>
   <a class="cp-card p-card cp-card-link" href="{% url 'security:tickets' %}" style="min-width:148px;flex:1 1 148px;">
     <div class="cp-meta">{{ lbl_tickets }}</div>

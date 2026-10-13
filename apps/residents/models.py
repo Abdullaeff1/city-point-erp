@@ -15,7 +15,7 @@ class ResidentCompany(models.Model):
     portal_active = models.BooleanField(default=True)
     is_internal = models.BooleanField(
         default=False,
-        help_text="Operator / City Point özü — rezident siyahısına düşmür",
+        help_text="Operator-only şirkət — rezident siyahısına düşmür",
     )
     contact_email = models.EmailField(blank=True)
     contract_start = models.DateField(null=True, blank=True)

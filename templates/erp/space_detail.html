@@ -1,8 +1,11 @@
 {% extends "erp/base.html" %}
 {% load i18n cp_ui %}
 {% block heading %}{% blocktranslate with label=space.short_label %}Sahə {{ label }}{% endblocktranslate %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:spaces' %}">{% translate "Sahələr" %}</a>
+ · <span class="cp-code">{{ space.code }}</span>
+{% endblock %}
 {% block content %}
-<p class="cp-code mb-4" style="margin-top:-8px;">{{ space.code }}</p>
 <nav class="cp-tabs">
   <a class="cp-tab {% if tab == 'overview' %}is-active{% endif %}" href="?tab=overview">{% translate "Ümumi" %}</a>
   <a class="cp-tab {% if tab == 'tickets' %}is-active{% endif %}" href="?tab=tickets">{% translate "Müraciətlər" %}</a>

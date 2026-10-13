@@ -8,13 +8,25 @@ from apps.accounts.models import PortalInvite, Role, User
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ("email", "username", "role", "resident_company", "must_set_password", "is_active")
-    list_filter = ("role", "is_active", "must_set_password")
+    list_display = (
+        "email",
+        "username",
+        "role",
+        "resident_company",
+        "ticket_department",
+        "must_set_password",
+        "is_active",
+    )
+    list_filter = ("role", "is_active", "must_set_password", "ticket_department")
     search_fields = ("email", "username")
     ordering = ("email",)
     actions = ("send_portal_invite",)
+    autocomplete_fields = ("resident_company", "ticket_department")
     fieldsets = BaseUserAdmin.fieldsets + (
-        ("City Point", {"fields": ("role", "resident_company", "must_set_password")}),
+        (
+            "City Point",
+            {"fields": ("role", "resident_company", "ticket_department", "must_set_password")},
+        ),
     )
     add_fieldsets = (
         (
@@ -28,6 +40,7 @@ class UserAdmin(BaseUserAdmin):
                     "password2",
                     "role",
                     "resident_company",
+                    "ticket_department",
                     "must_set_password",
                 ),
             },

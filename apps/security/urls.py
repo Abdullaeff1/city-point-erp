@@ -31,6 +31,7 @@ urlpatterns = [
         name="employee_access_export",
     ),
     path("guests/", views.GuestsView.as_view(), name="guests"),
+    path("employees/", views.EmployeeListView.as_view(), name="employees"),
     path("employees/<int:pk>/access/", views.EmployeeAccessDetailView.as_view(), name="employee_access"),
     path("tickets/", views.TicketListView.as_view(), name="tickets"),
     path("tickets/<str:code>/", views.TicketDetailView.as_view(), name="ticket_detail"),

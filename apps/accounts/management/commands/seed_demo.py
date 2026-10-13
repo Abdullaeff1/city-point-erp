@@ -226,16 +226,21 @@ class Command(BaseCommand):
             "larger-office": subs["commercial-space:larger-office"],
         }
 
+        # Demo staff → ticket_department (Role ≠ dept in production; seed only).
+        from apps.tickets.models import TicketDepartment
+
+        dept_by_code = {d.code: d for d in TicketDepartment.objects.all()}
         staff_map = {
-            "admin": ("admin@citypoint.az", "Admin", Role.ADMIN, "admin123"),
-            "reception": ("reception@citypoint.az", "Reception", Role.RECEPTION, "reception123"),
-            "desk": ("desk@citypoint.az", "Service Desk", Role.SERVICE_DESK, "desk123"),
-            "fm": ("fm@citypoint.az", "Property FM", Role.PROPERTY_FM, "fm123"),
-            "manager": ("manager@citypoint.az", "Rəhbərlik", Role.MANAGEMENT, "manager123"),
-            "security": ("security@citypoint.az", "Təhlükəsizlik", Role.SECURITY, "security123"),
+            # uname: email, first_name, role, password, ticket_department_code|None
+            "admin": ("admin@citypoint.az", "Admin", Role.ADMIN, "admin123", None),
+            "reception": ("reception@citypoint.az", "Reception", Role.RECEPTION, "reception123", None),
+            "desk": ("desk@citypoint.az", "Service Desk", Role.SERVICE_DESK, "desk123", "servicedesk"),
+            "fm": ("fm@citypoint.az", "Property FM", Role.PROPERTY_FM, "fm123", "webservis"),
+            "manager": ("manager@citypoint.az", "Rəhbərlik", Role.MANAGEMENT, "manager123", None),
+            "security": ("security@citypoint.az", "Təhlükəsizlik", Role.SECURITY, "security123", "security"),
         }
         created_users = {}
-        for uname, (email, first, role, password) in staff_map.items():
+        for uname, (email, first, role, password, dept_code) in staff_map.items():
             user, _created = User.objects.get_or_create(
                 email=email,
                 defaults={
@@ -250,6 +255,8 @@ class Command(BaseCommand):
             user.is_staff = True
             if role == Role.ADMIN:
                 user.is_superuser = True
+            if dept_code and dept_code in dept_by_code:
+                user.ticket_department = dept_by_code[dept_code]
             user.set_password(password)
             user.save()
             created_users[uname] = user
@@ -264,7 +271,20 @@ class Command(BaseCommand):
         portal_user.save()
 
         desk = created_users["desk"]
+        fm = created_users["fm"]
+        security_user = created_users["security"]
         now = timezone.now()
+
+        def _seed_assignee_for(ticket):
+            """Assignee must be from the routed department (not always Service Desk)."""
+            code = getattr(ticket.department, "code", None)
+            if code in {"webservis", "teserrufat", "property"}:
+                return fm
+            if code == "security":
+                return security_user
+            if code == "servicedesk":
+                return desk
+            return None
 
         def upsert_ticket(code, cat_key, company, space, prio, status, desc, sla_hours, ticket_type=None):
             ttype = ticket_type or (
@@ -279,9 +299,7 @@ class Command(BaseCommand):
                     "company": company,
                     "space": space,
                     "requester": portal_user if company == asbc else None,
-                    "assignee": desk
-                    if status in {TicketStatus.IN_PROGRESS, TicketStatus.ACCEPTED, TicketStatus.ASSIGNED}
-                    else None,
+                    "assignee": None,
                     "priority": prio,
                     "status": status,
                     "description": desc,
@@ -289,6 +307,9 @@ class Command(BaseCommand):
                 },
             )
             route_ticket(ticket, actor=desk, note="seed", apply_default_priority=False)
+            if status in {TicketStatus.IN_PROGRESS, TicketStatus.ACCEPTED, TicketStatus.ASSIGNED}:
+                ticket.assignee = _seed_assignee_for(ticket)
+                ticket.save(update_fields=["assignee", "updated_at"])
             TicketMessage.objects.get_or_create(
                 ticket=ticket,
                 body=desc,

@@ -2,6 +2,9 @@
 {% load i18n %}
 {% block page_title %}{{ lease.code }}{% endblock %}
 {% block heading %}{{ lease.code }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:leases' %}">{% translate "İcarələr" %}</a>
+{% endblock %}
 {% block content %}
 <div class="grid gap-4" style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
   <div class="cp-card">

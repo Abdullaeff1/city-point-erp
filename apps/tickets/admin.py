@@ -37,6 +37,7 @@ class TicketSubcategoryAdmin(admin.ModelAdmin):
 @admin.register(TicketDepartment)
 class TicketDepartmentAdmin(admin.ModelAdmin):
     list_display = ("name", "code", "is_active")
+    search_fields = ("name", "code")
     prepopulated_fields = {"code": ("name",)}
 
 

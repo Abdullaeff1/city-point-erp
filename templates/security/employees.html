@@ -1,0 +1,144 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Aktiv əməkdaşlar" %}{% endblock %}
+{% block back_trail %}
+ · {% if q %}{% translate "Nəticə" %}: <strong>{{ employee_count }}</strong>
+ · {% translate "Aktiv cəmi" %}: {{ employee_total_active }}
+ {% else %}{% translate "Cəmi" %}: <strong>{{ employee_count }}</strong>{% endif %}
+{% endblock %}
+{% block content %}
+<div class="cp-card mb-4" style="padding:12px 20px;">
+  <form method="get" id="employees-search-form" class="flex gap-2" style="flex-wrap:wrap;align-items:end;margin:0;">
+    <label style="flex:1;min-width:220px;margin:0;">
+      <span class="cp-meta">{% translate "Axtarış" %}</span>
+      <input
+        class="cp-input mt-1"
+        type="search"
+        name="q"
+        id="employees-search"
+        value="{{ q }}"
+        autocomplete="off"
+        autofocus
+        placeholder="{% translate 'Ad, soyad, kart və ya şirkət…' %}"
+        aria-label="{% translate 'Ad, soyad, kart və ya şirkət axtarışı' %}"
+      >
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Axtar" %}</button>
+    {% if q %}
+    <a class="cp-btn-ghost" href="{% url 'security:employees' %}">{% translate "Təmizlə" %}</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Ad" %}</th>
+        <th>{% translate "Kart" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Səviyyə" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in employees %}
+      <tr class="is-clickable" onclick="window.location='/security/employees/{{ e.pk }}/access/?range=today&date={{ today|date:'Y-m-d' }}'">
+        <td><a href="/security/employees/{{ e.pk }}/access/?range=today&date={{ today|date:'Y-m-d' }}">{{ e.full_name }}</a></td>
+        <td class="cp-code">{{ e.card_number|default:"—" }}</td>
+        <td>{{ e.company.name }}</td>
+        <td>
+          <strong>{{ e.access_level }}</strong>
+          <span class="cp-meta">{{ e.get_access_level_display }}</span>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="4" class="cp-meta empty-pad">
+          {% if q %}{% translate "Axtarışa uyğun nəticə yoxdur." %}{% else %}{% translate "Aktiv əməkdaş yoxdur." %}{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="flex gap-2 section-pad" style="flex-wrap:wrap;align-items:center;justify-content:space-between;">
+    <p class="cp-meta" style="margin:0;">
+      {% translate "Səhifə" %} {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+    </p>
+    <div class="flex gap-2">
+      {% if page_obj.has_previous %}
+      <a class="cp-btn-ghost" href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q|urlencode }}{% endif %}">{% translate "Əvvəlki" %}</a>
+      {% endif %}
+      {% if page_obj.has_next %}
+      <a class="cp-btn-ghost" href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q|urlencode }}{% endif %}">{% translate "Növbəti" %}</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+<script>
+(function () {
+  var form = document.getElementById("employees-search-form");
+  var input = document.getElementById("employees-search");
+  if (!form || !input) return;
+  var CARET_KEY = "security-employees-search-caret";
+  var VAL_KEY = "security-employees-search-val";
+  var BASE = "{% url 'security:employees' %}";
+  var timer;
+
+  // URL trailing space itirə bilər — yazılan mətni sessionStorage-dan bərpa et
+  try {
+    var savedVal = sessionStorage.getItem(VAL_KEY);
+    if (savedVal != null) {
+      input.value = savedVal;
+      sessionStorage.removeItem(VAL_KEY);
+    }
+    var savedCaret = sessionStorage.getItem(CARET_KEY);
+    input.focus();
+    if (savedCaret != null) {
+      var pos = parseInt(savedCaret, 10);
+      sessionStorage.removeItem(CARET_KEY);
+      if (!isNaN(pos)) {
+        var at = Math.max(0, Math.min(pos, input.value.length));
+        input.setSelectionRange(at, at);
+      }
+    } else {
+      var end = input.value.length;
+      input.setSelectionRange(end, end);
+    }
+  } catch (e) {
+    input.focus();
+  }
+
+  function submitLive() {
+    var raw = input.value;
+    var pos = input.selectionStart;
+    if (pos == null) pos = raw.length;
+    try {
+      sessionStorage.setItem(VAL_KEY, raw);
+      sessionStorage.setItem(CARET_KEY, String(pos));
+    } catch (e) {}
+    // encodeURIComponent boşluğu %20 saxlayır (form.submit trailing space silə bilər)
+    window.location = BASE + "?q=" + encodeURIComponent(raw);
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    clearTimeout(timer);
+    submitLive();
+  });
+
+  input.addEventListener("input", function () {
+    clearTimeout(timer);
+    timer = setTimeout(submitLive, 280);
+  });
+
+  input.addEventListener("search", function () {
+    if (input.value === "") {
+      clearTimeout(timer);
+      submitLive();
+    }
+  });
+})();
+</script>
+{% endblock %}

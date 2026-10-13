@@ -1,10 +1,12 @@
 import secrets
+from datetime import timedelta
 
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext as _
 
+from apps.core.search import filter_text_search
 from apps.core.services import DomainError, Service
 from apps.reception.models import (
     Guest,
@@ -465,20 +467,51 @@ def visits_queryset_for_range(date_from, date_to):
     ).select_related("guest", "company", "host", "visit_type", "visitor_access")
 
 
+def inside_overdue_cutoff():
+    return timezone.now() - timedelta(hours=24)
+
+
+def inside_overdue_queryset():
+    """Guests still INSIDE whose check-in (or create) was more than 24h ago."""
+    cutoff = inside_overdue_cutoff()
+    return (
+        GuestVisit.objects.filter(status=VisitStatus.INSIDE)
+        .filter(
+            Q(check_in_at__lte=cutoff)
+            | Q(check_in_at__isnull=True, created_at__lte=cutoff)
+        )
+        .select_related("guest", "company", "host", "visit_type", "visitor_access")
+        .order_by("check_in_at", "created_at")
+    )
+
+
 def filter_visits(qs, *, q="", status="", company_id=None, id_not_returned=False):
     if q:
         qn = q.strip()
-        qs = qs.filter(
-            Q(guest__fin_code__icontains=normalize_fin(qn))
-            | Q(guest__first_name__icontains=qn)
-            | Q(guest__last_name__icontains=qn)
-            | Q(guest__full_name__icontains=qn)
-            | Q(company__name__icontains=qn)
-            | Q(host__full_name__icontains=qn)
-            | Q(invite_code__icontains=qn)
+        fin = normalize_fin(qn)
+        name_fields = (
+            "guest__first_name",
+            "guest__last_name",
+            "guest__full_name",
+            "company__name",
+            "host__full_name",
+            "invite_code",
         )
+        text_qs = filter_text_search(qs, qn, *name_fields)
+        if fin:
+            qs = qs.filter(
+                Q(guest__fin_code__icontains=fin) | Q(pk__in=text_qs.values("pk"))
+            )
+        else:
+            qs = text_qs
     if status == "inside":
         qs = qs.filter(status=VisitStatus.INSIDE)
+    elif status == "inside_overdue":
+        cutoff = inside_overdue_cutoff()
+        qs = qs.filter(status=VisitStatus.INSIDE).filter(
+            Q(check_in_at__lte=cutoff)
+            | Q(check_in_at__isnull=True, created_at__lte=cutoff)
+        )
     elif status == "checked_out":
         qs = qs.filter(status=VisitStatus.LEFT)
     elif status == "pre_registered":

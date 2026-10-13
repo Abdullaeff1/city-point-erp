@@ -26,7 +26,9 @@ DEPARTMENT_SLUG_ALIASES = {
 }
 
 # Operator / landlord departments — not tenant residents
-INTERNAL_COMPANY_SLUGS = {"city-point"}
+# City Point is a normal resident (reception / ERP list). Keep empty unless a
+# department must stay operator-only and hidden from the resident roster.
+INTERNAL_COMPANY_SLUGS: set[str] = set()
 
 _CARD_NOISE_RE = re.compile(
     r"(\b\d{3}\s?\d{3}\b|\bcard\s*\d+\b|\(\s*card[^)]*\)|\b0{5,}\d+\b)",
@@ -224,7 +226,7 @@ def _upsert_external(system: str, external_id: str, obj) -> ExternalIdentity:
 
 
 def _apply_company_flags(company: ResidentCompany, slug: str) -> list[str]:
-    """Mark City Point (operator) as internal — not a tenant resident."""
+    """Apply operator-only flags for slugs in INTERNAL_COMPANY_SLUGS."""
     fields = []
     internal = slug in INTERNAL_COMPANY_SLUGS
     if company.is_internal != internal:

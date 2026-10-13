@@ -55,6 +55,11 @@
       </form>
     </header>
     <div class="cp-content">
+      {% if request.resolver_match.url_name != 'home' %}
+      <p class="cp-meta mb-3" style="margin-top:-8px;">
+        <a href="{% url 'portal:home' %}">← {% translate "Əsas səhifə" %}</a>{% block back_trail %}{% endblock %}
+      </p>
+      {% endif %}
       {% block content %}{% endblock %}
     </div>
   </main>

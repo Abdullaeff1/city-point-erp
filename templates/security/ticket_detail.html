@@ -1,14 +1,16 @@
 {% extends "security/base.html" %}
 {% load i18n %}
 {% block heading %}{{ ticket.code }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'security:tickets' %}">{% translate "Ticketlər" %}</a>
+ · {{ ticket.subcategory.name|default:ticket.category }}
+{% endblock %}
 {% block content %}
-<p class="cp-meta mb-3" style="margin-top:-8px;">
-  <a href="{% url 'security:tickets' %}">← {% translate "Ticketlər" %}</a>
-  · {{ ticket.subcategory.name|default:ticket.category }}
-</p>
 <div class="cp-card p-card mb-4">
   <div class="cp-meta">{% translate "Şirkət" %}</div>
   <p style="font-weight:600;">{{ ticket.company.name }}</p>
+  <div class="cp-meta mt-3">{% translate "Status" %}</div>
+  <p class="mt-1">{% include "partials/status_badge.html" with value=ticket.status label=ticket.get_status_display %}</p>
   <div class="cp-meta mt-3">{% translate "Təsvir" %}</div>
   <p class="cp-body-text mt-2" style="white-space:pre-wrap;">{{ ticket.description }}</p>
   {% if ticket.related_employee %}
@@ -23,14 +25,61 @@
   {% endif %}
   {% endif %}
 </div>
-<div class="cp-card p-card">
+<div class="cp-card p-card mb-4">
   <div class="cp-section" style="font-size:16px;">{% translate "Əlavələr" %}</div>
   <ul class="mt-3 flex-col gap-2">
     {% for a in ticket.attachments.all %}
-    <li><a href="{{ a.file.url }}" target="_blank" rel="noopener">{{ a.file.name }}</a></li>
+    <li><a href="{% url 'ticket_attachment_download' a.pk %}" target="_blank" rel="noopener">{{ a.file.name }}</a></li>
     {% empty %}
     <li class="cp-meta">{% translate "Fayl yoxdur." %}</li>
     {% endfor %}
   </ul>
 </div>
+{% if can_mutate %}
+<div class="cp-card p-card mb-4 flex-col gap-2">
+  <div class="cp-section" style="font-size:16px;">{% translate "Əməliyyatlar" %}</div>
+  {% if ticket.next_status %}
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="advance"><button class="cp-btn">{% translate "Növbəti status" %} → {{ ticket.get_next_status_display }}</button></form>
+  {% endif %}
+  {% if ticket.status == "in_progress" or ticket.status == "accepted" or ticket.status == "assigned" %}
+  <form method="post" class="flex-col gap-2">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="waiting">
+    <input name="waiting_reason" class="cp-input" placeholder="{% translate 'Gözləmə səbəbi' %}" required>
+    <button class="cp-btn-ghost">{% translate "Gözləməyə al" %}</button>
+  </form>
+  {% endif %}
+  {% if ticket.status == "resolved" %}
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="close"><button class="cp-btn">{% translate "Bağla" %}</button></form>
+  {% endif %}
+  {% if ticket.status == "resolved" or ticket.status == "closed" %}
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="reopen"><button class="cp-btn-ghost">{% translate "Yenidən aç" %}</button></form>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="assign">
+    <label class="cp-meta">{% translate "Cavabdeh" %}</label>
+    <select name="assignee" class="cp-input mt-1">
+      <option value="">—</option>
+      {% for u in staff_users %}
+      <option value="{{ u.id }}" {% if ticket.assignee_id == u.id %}selected{% endif %}>{{ u.display_name }}</option>
+      {% endfor %}
+    </select>
+    <button class="cp-btn-ghost mt-2">{% translate "Təyin et" %}</button>
+  </form>
+</div>
+{% endif %}
+{% if status_events %}
+<div class="cp-card p-card">
+  <div class="cp-section" style="font-size:16px;">{% translate "Status tarixçəsi" %}</div>
+  <ul class="cp-timeline mt-3">
+    {% for e in status_events %}
+    <li>
+      <div class="cp-meta">{{ e.created_at|date:"d.m H:i" }}{% if e.actor %} · {{ e.actor.display_name }}{% endif %}</div>
+      <div>{{ e.get_to_status_display }}{% if e.note %} — {{ e.note }}{% endif %}</div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
 {% endblock %}

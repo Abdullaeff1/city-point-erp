@@ -1,10 +1,11 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
 {% block heading %}{{ company.name }} — {% translate "Ticketlər" %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:residents' %}">{% translate "Rezidentlər" %}</a>
+ · <a href="{% url 'erp:resident_detail' company.slug %}">{{ company.name }}</a>
+{% endblock %}
 {% block content %}
-<p class="cp-meta mb-3" style="margin-top:-8px;">
-  <a href="{% url 'erp:resident_detail' company.slug %}">← {{ company.name }}</a>
-</p>
 <div class="cp-tabs mb-3">
   <a class="cp-tab {% if tab == 'open' %}is-active{% endif %}" href="?tab=open">{% translate "Açıq" %}</a>
   <a class="cp-tab {% if tab == 'all' %}is-active{% endif %}" href="?tab=all">{% translate "Hamısı" %}</a>

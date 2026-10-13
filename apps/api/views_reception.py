@@ -216,12 +216,12 @@ def reception_guest_search(request):
     )
     guest = ReceptionService.find_guest_by_fin(fin)
     if not guest and fin:
+        from apps.core.search import filter_text_search
         from apps.reception.models import Guest
-        from django.db.models import Q
 
         q = fin.strip()
-        guest = Guest.objects.filter(
-            Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(full_name__icontains=q)
+        guest = filter_text_search(
+            Guest.objects.all(), q, "first_name", "last_name", "full_name"
         ).first()
     if not guest:
         return JsonResponse({"results": [], "count": 0})

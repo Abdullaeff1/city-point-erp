@@ -1,14 +1,12 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
 {% block heading %}{% translate "Binada olanlar" %}{% endblock %}
+{% block back_trail %}
+ · {{ today|date:"d.m.Y" }}
+ · {% translate "Cəmi" %}: <strong>{{ inside_total }}</strong>
+ ({{ employee_rows|length }} {% translate "əməkdaş" %} · {{ guest_rows|length }} {% translate "qonaq" %})
+{% endblock %}
 {% block content %}
-<p class="cp-meta mb-3" style="margin-top:-8px;">
-  <a href="{% url 'erp:dashboard' %}">← {% translate "İdarə paneli" %}</a>
-  · {{ today|date:"d.m.Y" }}
-  · {% translate "Cəmi" %}: <strong>{{ inside_total }}</strong>
-  ({{ employee_rows|length }} {% translate "əməkdaş" %} · {{ guest_rows|length }} {% translate "qonaq" %})
-</p>
-
 <div class="cp-card mb-4" style="padding:8px 0;">
   <div class="cp-section section-pad" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
     <span>{% translate "Əməkdaşlar (AxTrax)" %}</span>
@@ -96,16 +94,12 @@
   var meta = document.getElementById("people-inside-filter-meta");
   var countEl = document.getElementById("people-inside-visible-count");
 
-  function norm(s) {
-    return (s || "").toString().toLowerCase().replace(/\s+/g, " ").trim();
-  }
-
   function applyFilter() {
-    var q = norm(input.value);
+    var q = input.value;
     var visible = 0;
     rows.forEach(function (row) {
       var hay = [row.getAttribute("data-name"), row.getAttribute("data-card"), row.getAttribute("data-company")].join(" ");
-      var ok = !q || hay.indexOf(q) !== -1;
+      var ok = window.cpHaystackMatch ? cpHaystackMatch(hay, q) : !q;
       row.hidden = !ok;
       if (ok) visible += 1;
     });

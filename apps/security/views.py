@@ -8,6 +8,7 @@ from django.views.generic import TemplateView, View
 
 from apps.accounts.mixins import SecurityPortalMixin
 from apps.comms.models import Notification
+from apps.core.search import filter_text_search
 from apps.reception.models import GuestVisit, VisitStatus
 from apps.residents.access import (
     access_range_bounds,
@@ -27,7 +28,8 @@ from apps.residents.models import (
     ResidentEmployee,
     ShaftAccessAlert,
 )
-from apps.tickets.models import OPEN_STATUSES, Ticket
+from apps.tickets.access import tickets_visible_to
+from apps.tickets.models import OPEN_STATUSES, Ticket, TicketStatus
 
 RECENT_EVENTS_LIMIT = 80
 
@@ -102,11 +104,9 @@ class HomeView(SecurityPortalMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         companies = ResidentCompany.objects.filter(status="active").order_by("-is_internal", "name")
-        open_security = Ticket.objects.filter(
-            department__code="security",
-            status__in=OPEN_STATUSES,
-        ).count()
-        card_orders = Ticket.objects.filter(
+        visible = tickets_visible_to(self.request.user)
+        open_security = visible.filter(status__in=OPEN_STATUSES).count()
+        card_orders = visible.filter(
             subcategory__slug="card-order",
             status__in=OPEN_STATUSES,
         ).count()
@@ -180,6 +180,51 @@ class PeopleInsideView(SecurityPortalMixin, TemplateView):
                 "employee_rows": employees,
                 "guest_rows": guest_rows,
                 "inside_total": len(employees) + len(guest_rows),
+            }
+        )
+        return ctx
+
+
+class EmployeeListView(SecurityPortalMixin, TemplateView):
+    """Bütün aktiv əməkdaşlar — server axtarışı + səhifələmə."""
+
+    template_name = "security/employees.html"
+    page_size = 100
+
+    def get_context_data(self, **kwargs):
+        from django.core.paginator import Paginator
+
+        ctx = super().get_context_data(**kwargs)
+        # Trailing space saxlanılır — live axtarışda Space basanda kursor geriyə düşməsin
+        q = self.request.GET.get("q") or ""
+        q_filter = q.strip()
+        qs = (
+            ResidentEmployee.objects.filter(is_active=True)
+            .select_related("company")
+            .order_by("full_name", "id")
+        )
+        if q_filter:
+            qs = filter_text_search(
+                qs, q_filter, "full_name", "card_number", "company__name"
+            )
+        total = qs.count()
+        paginator = Paginator(qs, self.page_size)
+        try:
+            page_num = max(1, int(self.request.GET.get("page") or 1))
+        except (TypeError, ValueError):
+            page_num = 1
+        page = paginator.get_page(page_num)
+        ctx.update(
+            {
+                "employees": page.object_list,
+                "page_obj": page,
+                "paginator": paginator,
+                "employee_count": total,
+                "employee_total_active": ResidentEmployee.objects.filter(is_active=True).count()
+                if q_filter
+                else total,
+                "q": q,
+                "today": timezone.localdate(),
             }
         )
         return ctx
@@ -303,14 +348,20 @@ class CompanyListView(SecurityPortalMixin, TemplateView):
         matched_company_ids: set[int] | None = None
         if q:
             employee_hits = list(
-                ResidentEmployee.objects.filter(is_active=True)
-                .filter(Q(full_name__icontains=q) | Q(card_number__icontains=q))
+                filter_text_search(
+                    ResidentEmployee.objects.filter(is_active=True),
+                    q,
+                    "full_name",
+                    "card_number",
+                )
                 .select_related("company")
                 .order_by("full_name")[:80]
             )
             matched_company_ids = {e.company_id for e in employee_hits}
             matched_company_ids |= set(
-                ResidentCompany.objects.filter(name__icontains=q).values_list("id", flat=True)
+                filter_text_search(
+                    ResidentCompany.objects.all(), q, "name"
+                ).values_list("id", flat=True)
             )
 
         guest_inside_by_company = {
@@ -503,9 +554,11 @@ class TicketListView(SecurityPortalMixin, TemplateView):
     template_name = "security/tickets.html"
 
     def get_context_data(self, **kwargs):
+        from apps.tickets.access import tickets_visible_to
+
         ctx = super().get_context_data(**kwargs)
         tab = self.request.GET.get("tab", "open")
-        qs = Ticket.objects.filter(department__code="security").select_related(
+        qs = tickets_visible_to(self.request.user).select_related(
             "company", "subcategory", "related_employee", "queue", "assignee"
         )
         if tab == "card-orders":
@@ -520,8 +573,11 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
     template_name = "security/ticket_detail.html"
 
     def get_ticket(self):
+        from apps.tickets.access import tickets_visible_to
+
         return get_object_or_404(
-            Ticket.objects.select_related(
+            tickets_visible_to(self.request.user)
+            .select_related(
                 "company",
                 "subcategory",
                 "category",
@@ -529,12 +585,59 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
                 "department",
                 "queue",
                 "requester",
-            ).prefetch_related("attachments"),
+                "assignee",
+            )
+            .prefetch_related("attachments"),
             code=self.kwargs["code"],
-            department__code="security",
         )
 
     def get_context_data(self, **kwargs):
+        from apps.tickets.access import can_mutate_ticket, department_assignees
+
         ctx = super().get_context_data(**kwargs)
-        ctx["ticket"] = self.get_ticket()
+        ticket = self.get_ticket()
+        ctx["ticket"] = ticket
+        ctx["can_mutate"] = can_mutate_ticket(self.request.user, ticket)
+        ctx["staff_users"] = department_assignees(ticket)
+        ctx["status_events"] = ticket.status_events.select_related("actor")[:40]
         return ctx
+
+    def post(self, request, *args, **kwargs):
+        from django.contrib import messages
+
+        from apps.core.services import DomainError
+        from apps.tickets.services import (
+            advance_ticket_status,
+            assign_ticket,
+            set_ticket_status,
+        )
+
+        ticket = self.get_ticket()
+        action = request.POST.get("action")
+        try:
+            if action == "advance" and ticket.next_status:
+                advance_ticket_status(ticket, actor=request.user)
+            elif action == "waiting":
+                reason = request.POST.get("waiting_reason", "").strip()
+                set_ticket_status(
+                    ticket,
+                    TicketStatus.WAITING,
+                    actor=request.user,
+                    note=reason,
+                    waiting_reason=reason,
+                )
+            elif action == "close":
+                set_ticket_status(ticket, TicketStatus.CLOSED, actor=request.user)
+            elif action == "reopen":
+                set_ticket_status(
+                    ticket, TicketStatus.REOPENED, actor=request.user, note="reopened"
+                )
+            elif action == "assign":
+                assign_ticket(
+                    ticket,
+                    actor=request.user,
+                    assignee_id=request.POST.get("assignee") or None,
+                )
+        except DomainError as exc:
+            messages.error(request, str(exc))
+        return redirect("security:ticket_detail", code=ticket.code)

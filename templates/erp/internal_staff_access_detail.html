@@ -1,14 +1,14 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
 {% block heading %}{{ employee.full_name }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:internal_staff_access' %}?roster={% if employee.is_active %}active{% else %}former{% endif %}&date={{ date_from|date:'Y-m-d' }}">{% translate "CP İşçilər" %}</a>
+ · {% translate "Kart" %}: {{ employee.card_number|default:"—" }}
+ {% if not employee.is_active %}
+ · <strong>{% translate "Keçmiş işçi" %}</strong>{% if employee.deactivated_at %} · {% translate "çıxış" %}: {{ employee.deactivated_at|date:"d.m.Y" }}{% endif %}
+ {% endif %}
+{% endblock %}
 {% block content %}
-<p class="cp-meta mb-3" style="margin-top:-8px;">
-  <a href="{% url 'erp:internal_staff_access' %}?roster={% if employee.is_active %}active{% else %}former{% endif %}&date={{ date_from|date:'Y-m-d' }}">← {% translate "CP İşçilər" %}</a>
-  · {% translate "Kart" %}: {{ employee.card_number|default:"—" }}
-  {% if not employee.is_active %}
-  · <strong>{% translate "Keçmiş işçi" %}</strong>{% if employee.deactivated_at %} · {% translate "çıxış" %}: {{ employee.deactivated_at|date:"d.m.Y" }}{% endif %}
-  {% endif %}
-</p>
 
 <div class="cp-card p-card mb-4">
   <div class="cp-tabs" style="margin-bottom:12px;">

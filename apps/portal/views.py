@@ -122,7 +122,9 @@ class RequestDetailView(ResidentPortalMixin, TemplateView):
 
     def get_ticket(self):
         return get_object_or_404(
-            Ticket, code=self.kwargs["code"], company=self.request.user.resident_company
+            Ticket.objects.prefetch_related("attachments"),
+            code=self.kwargs["code"],
+            company=self.request.user.resident_company,
         )
 
     def get_context_data(self, **kwargs):

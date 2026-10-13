@@ -293,7 +293,10 @@ class GuestVisitForm(forms.Form):
     notes = forms.CharField(
         required=False,
         label=_("Qeyd"),
-        widget=forms.TextInput(attrs={"placeholder": _("Qısa qeyd")}),
+        max_length=500,
+        widget=forms.TextInput(
+            attrs={"placeholder": _("Qısa qeyd"), "maxlength": "500"}
+        ),
     )
     floor = forms.ModelChoiceField(queryset=Floor.objects.none(), required=False, label=_("Mərtəbə"))
     space = forms.ModelChoiceField(queryset=Space.objects.none(), required=False, label=_("Sahə"))

@@ -18,6 +18,7 @@ from apps.reception.export import visits_xlsx_http_response
 from apps.reception.services import (
     ReceptionService,
     filter_visits,
+    inside_overdue_queryset,
     today_visits_queryset,
     visits_queryset_for_range,
 )
@@ -34,12 +35,31 @@ from apps.residents.access import (
 from apps.residents.access_export import access_xlsx_http_response
 from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.rbac.services import user_has_permission
-from apps.tickets.models import CLOSED_STATUSES, OPEN_STATUSES, Ticket, TicketPriority, TicketStatus
+from apps.tickets.access import (
+    can_handoff_ticket,
+    can_mutate_ticket,
+    department_assignees,
+    tickets_visible_to,
+)
+from apps.tickets.models import (
+    CLOSED_STATUSES,
+    OPEN_STATUSES,
+    Ticket,
+    TicketDepartment,
+    TicketPriority,
+    TicketQueue,
+    TicketStatus,
+)
 from apps.tickets.services import (
     add_message,
     advance_ticket_status,
-    apply_sla,
+    assign_ticket,
+    attach_ticket_file,
     create_crm_opportunity_from_ticket,
+    create_work_order_from_ticket,
+    handoff_ticket,
+    set_enrichment_notes,
+    set_ticket_priority,
     set_ticket_status,
 )
 
@@ -56,8 +76,9 @@ class DashboardView(StaffRequiredMixin, TemplateView):
         sla_tickets = []
         breached = []
         sla_ticket = None
+        visible = tickets_visible_to(self.request.user)
         if show_tickets:
-            open_qs = Ticket.objects.filter(status__in=OPEN_STATUSES).select_related(
+            open_qs = visible.filter(status__in=OPEN_STATUSES).select_related(
                 "category", "company", "space"
             )
             open_list = list(open_qs)
@@ -70,7 +91,7 @@ class DashboardView(StaffRequiredMixin, TemplateView):
         people_inside_count = len(employees_inside) + guests_inside
         activities = []
         if show_tickets:
-            for t in Ticket.objects.order_by("-updated_at")[:5]:
+            for t in visible.order_by("-updated_at")[:5]:
                 activities.append({"at": t.updated_at, "text": f"{t.code} yeniləndi · {t.get_status_display()}"})
         for v in today_visits.filter(check_in_at__isnull=False).order_by("-check_in_at")[:4]:
             activities.append({"at": v.check_in_at, "text": f"Qonaq giriş etdi · {v.guest.display_name}"})
@@ -99,7 +120,7 @@ class DashboardView(StaffRequiredMixin, TemplateView):
                 "recent_open": open_list[:6],
                 "activities": activities[:8],
                 "unassigned": (
-                    Ticket.objects.filter(status=TicketStatus.SENT, assignee__isnull=True)[:5]
+                    visible.filter(status=TicketStatus.SENT, assignee__isnull=True)[:5]
                     if show_tickets
                     else []
                 ),
@@ -208,11 +229,23 @@ class ReceptionView(RoleRequiredMixin, FormView):
         status = self.request.GET.get("status", "")
         company_id = self.request.GET.get("company") or ""
         id_not_returned = self.request.GET.get("id_not_returned") == "1"
-        base = today_visits_queryset(selected_date)
+        day_base = today_visits_queryset(selected_date)
+        # "İçəridə indi" = bu gün hələ içəridə olanlar.
+        # "24+ saat" = köhnə / uzun müddət bağlanmamış INSIDE qeydləri.
+        if status == "inside_overdue":
+            base = inside_overdue_queryset()
+        elif status == "inside":
+            base = (
+                today_visits_queryset(selected_date)
+                .filter(status=VisitStatus.INSIDE)
+                .order_by("check_in_at", "created_at")
+            )
+        else:
+            base = day_base
         visits = filter_visits(
             base,
             q=q,
-            status=status,
+            status="" if status in {"inside", "inside_overdue"} else status,
             company_id=company_id or None,
             id_not_returned=id_not_returned,
         )
@@ -222,15 +255,18 @@ class ReceptionView(RoleRequiredMixin, FormView):
         export_preset, export_from, export_to = access_range_bounds(
             self.request, default_preset="today"
         )
+        inside_today_count = today_visits_queryset(today).filter(status=VisitStatus.INSIDE).count()
+        inside_overdue_count = inside_overdue_queryset().count()
         stats = {
-            "inside": GuestVisit.objects.filter(status=VisitStatus.INSIDE).count(),
+            "inside": inside_today_count,
+            "inside_overdue": inside_overdue_count,
             "today": today_visits_queryset(today).count(),
-            "day_total": base.count(),
-            "waiting": base.filter(
+            "day_total": day_base.count(),
+            "waiting": day_base.filter(
                 status__in=[VisitStatus.WAITING, VisitStatus.PRE_REGISTERED]
             ).count(),
-            "checked_out": base.filter(status=VisitStatus.LEFT).count(),
-            "no_show": base.filter(status=VisitStatus.NO_SHOW).count(),
+            "checked_out": day_base.filter(status=VisitStatus.LEFT).count(),
+            "no_show": day_base.filter(status=VisitStatus.NO_SHOW).count(),
             "id_pending": GuestVisit.objects.filter(
                 status=VisitStatus.RETURN_PENDING
             ).count()
@@ -397,7 +433,7 @@ class TicketListView(RoleRequiredMixin, ListView):
     allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
 
     def get_queryset(self):
-        qs = Ticket.objects.select_related(
+        qs = tickets_visible_to(self.request.user).select_related(
             "category",
             "subcategory",
             "company",
@@ -419,8 +455,6 @@ class TicketListView(RoleRequiredMixin, ListView):
             qs = qs.filter(assignee__isnull=True, status__in=OPEN_STATUSES)
         elif tab == "card-orders":
             qs = qs.filter(subcategory__slug="card-order")
-        if self.request.GET.get("department") == "security":
-            qs = qs.filter(department__code="security")
         return qs
 
     def get_context_data(self, **kwargs):
@@ -435,7 +469,8 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
 
     def get_ticket(self):
         return get_object_or_404(
-            Ticket.objects.select_related(
+            tickets_visible_to(self.request.user)
+            .select_related(
                 "category",
                 "subcategory",
                 "company",
@@ -445,7 +480,8 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
                 "department",
                 "opportunity",
                 "related_employee",
-            ).prefetch_related("attachments", "messages", "routing_events"),
+            )
+            .prefetch_related("attachments", "messages", "routing_events"),
             code=self.kwargs["code"],
         )
 
@@ -453,12 +489,16 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         ticket = self.get_ticket()
         ctx["ticket"] = ticket
-        ctx["staff_users"] = User.objects.filter(
-            role__in=[Role.SERVICE_DESK, Role.PROPERTY_FM, Role.ADMIN]
+        ctx["staff_users"] = department_assignees(ticket)
+        ctx["can_mutate"] = can_mutate_ticket(self.request.user, ticket)
+        ctx["can_handoff"] = can_handoff_ticket(self.request.user, ticket)
+        ctx["handoff_departments"] = TicketDepartment.objects.filter(is_active=True).order_by("name")
+        ctx["handoff_queues"] = TicketQueue.objects.filter(is_active=True).select_related(
+            "department"
         )
         ctx["status_events"] = ticket.status_events.select_related("actor")
         ctx["routing_events"] = ticket.routing_events.select_related(
-            "from_queue", "to_queue", "actor"
+            "from_queue", "to_queue", "from_department", "to_department", "actor"
         )
         ctx["priorities"] = TicketPriority.choices
         from apps.maintenance.models import WorkOrder
@@ -471,72 +511,80 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
     def post(self, request, *args, **kwargs):
         ticket = self.get_ticket()
         action = request.POST.get("action")
-        if action == "advance" and ticket.next_status:
-            advance_ticket_status(ticket, actor=request.user)
-        elif action == "waiting":
-            reason = request.POST.get("waiting_reason", "").strip()
-            set_ticket_status(
-                ticket, TicketStatus.WAITING, actor=request.user, note=reason, waiting_reason=reason
-            )
-        elif action == "close" and ticket.status == TicketStatus.RESOLVED:
-            set_ticket_status(ticket, TicketStatus.CLOSED, actor=request.user)
-        elif action == "reopen" and ticket.status in {
-            TicketStatus.RESOLVED,
-            TicketStatus.CLOSED,
-        }:
-            set_ticket_status(ticket, TicketStatus.REOPENED, actor=request.user, note="reopened")
-        elif action == "cancel" and ticket.is_open:
-            set_ticket_status(
-                ticket, TicketStatus.CANCELLED, actor=request.user, note=request.POST.get("note", "")
-            )
-        elif action == "assign":
-            assignee_id = request.POST.get("assignee")
-            ticket.assignee_id = assignee_id or None
-            ticket.save(update_fields=["assignee", "updated_at"])
-            if ticket.assignee_id and ticket.status == TicketStatus.SENT:
-                set_ticket_status(ticket, TicketStatus.ASSIGNED, actor=request.user, note="assigned")
-        elif action == "priority":
-            priority = request.POST.get("priority")
-            if priority in dict(TicketPriority.choices):
-                ticket.priority = priority
-                ticket.save(update_fields=["priority", "updated_at"])
-                apply_sla(ticket)
+        try:
+            if action == "advance" and ticket.next_status:
+                advance_ticket_status(ticket, actor=request.user)
+            elif action == "waiting":
+                reason = request.POST.get("waiting_reason", "").strip()
+                set_ticket_status(
+                    ticket,
+                    TicketStatus.WAITING,
+                    actor=request.user,
+                    note=reason,
+                    waiting_reason=reason,
+                )
+            elif action == "close":
+                set_ticket_status(ticket, TicketStatus.CLOSED, actor=request.user)
+            elif action == "reopen":
+                set_ticket_status(
+                    ticket, TicketStatus.REOPENED, actor=request.user, note="reopened"
+                )
+            elif action == "cancel":
+                set_ticket_status(
+                    ticket,
+                    TicketStatus.CANCELLED,
+                    actor=request.user,
+                    note=request.POST.get("note", ""),
+                )
+            elif action == "assign":
+                assign_ticket(
+                    ticket,
+                    actor=request.user,
+                    assignee_id=request.POST.get("assignee") or None,
+                )
+            elif action == "priority":
+                set_ticket_priority(
+                    ticket, actor=request.user, priority=request.POST.get("priority")
+                )
                 messages.success(request, "Prioritet yeniləndi.")
-        elif action == "enrich":
-            notes = request.POST.get("enrichment_notes", "").strip()
-            ticket.enrichment_notes = notes
-            ticket.save(update_fields=["enrichment_notes", "updated_at"])
-            messages.success(request, "Əlavə qeydlər saxlanıldı.")
-        elif action == "attach":
-            upload = request.FILES.get("file")
-            if upload:
-                from apps.tickets.models import TicketAttachment
-
-                TicketAttachment.objects.create(ticket=ticket, file=upload)
+            elif action == "enrich":
+                set_enrichment_notes(
+                    ticket,
+                    actor=request.user,
+                    notes=request.POST.get("enrichment_notes", "").strip(),
+                )
+                messages.success(request, "Əlavə qeydlər saxlanıldı.")
+            elif action == "attach":
+                attach_ticket_file(ticket, actor=request.user, upload=request.FILES.get("file"))
                 messages.success(request, "Fayl əlavə olundu.")
-        elif action == "create_wo":
-            from apps.maintenance.models import WorkOrder
-            from apps.maintenance.services import create_wo_from_ticket
-
-            if not ticket.wo_eligible:
-                messages.error(request, "Bu ticket üçün Work Order yaradıla bilməz.")
-            elif WorkOrder.objects.filter(ticket=ticket).exists():
-                messages.info(request, "Work Order artıq mövcuddur.")
-            else:
-                wo = create_wo_from_ticket(ticket)
+            elif action == "create_wo":
+                wo = create_work_order_from_ticket(ticket, actor=request.user)
                 messages.success(request, f"Work Order yaradıldı: {wo.code}")
-        elif action == "create_crm":
-            if not ticket.crm_eligible:
-                messages.error(request, "Bu ticket üçün CRM ötürülməsi uyğun deyil.")
-            elif ticket.opportunity_id:
-                messages.info(request, "CRM Opportunity artıq bağlıdır.")
-            else:
-                opp = create_crm_opportunity_from_ticket(ticket, actor=request.user)
-                messages.success(request, f"CRM Opportunity yaradıldı: {opp.title}")
-        elif action == "message":
-            body = request.POST.get("body", "").strip()
-            if body:
-                add_message(ticket, request.user, body, "CityPoint")
+            elif action == "create_crm":
+                if not ticket.crm_eligible:
+                    raise DomainError("Bu ticket üçün CRM ötürülməsi uyğun deyil.")
+                if ticket.opportunity_id:
+                    messages.info(request, "CRM Opportunity artıq bağlıdır.")
+                else:
+                    opp = create_crm_opportunity_from_ticket(ticket, actor=request.user)
+                    messages.success(request, f"CRM Opportunity yaradıldı: {opp.title}")
+            elif action == "handoff":
+                handoff_ticket(
+                    ticket,
+                    actor=request.user,
+                    department_id=request.POST.get("department"),
+                    queue_id=request.POST.get("queue") or None,
+                    note=request.POST.get("note", "").strip(),
+                )
+                messages.success(request, "Ticket digər şöbəyə yönləndirildi.")
+            elif action == "message":
+                body = request.POST.get("body", "").strip()
+                if body:
+                    add_message(
+                        ticket, request.user, body, "CityPoint", require_mutate=True
+                    )
+        except DomainError as exc:
+            messages.error(request, str(exc))
         return redirect("erp:ticket_detail", code=ticket.code)
 
 
@@ -578,9 +626,10 @@ class SpaceDetailView(RoleRequiredMixin, TemplateView):
         tab = self.request.GET.get("tab", "overview")
         ctx["space"] = space
         ctx["tab"] = tab
-        ctx["open_tickets"] = space.tickets.filter(status__in=OPEN_STATUSES)
-        ctx["ticket_history"] = space.tickets.filter(status__in=CLOSED_STATUSES)
-        ctx["all_tickets"] = space.tickets.select_related("category")[:20]
+        visible_space = tickets_visible_to(self.request.user).filter(space=space)
+        ctx["open_tickets"] = visible_space.filter(status__in=OPEN_STATUSES)
+        ctx["ticket_history"] = visible_space.filter(status__in=CLOSED_STATUSES)
+        ctx["all_tickets"] = visible_space.select_related("category")[:20]
         ctx["assets"] = space.assets.all()
         ctx["documents"] = space.documents.all()
         ctx["employees"] = (
@@ -869,7 +918,7 @@ class InternalStaffAccessView(RoleRequiredMixin, TemplateView):
     allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
 
     def get_company(self):
-        return get_object_or_404(ResidentCompany, slug="city-point", is_internal=True)
+        return get_object_or_404(ResidentCompany, slug="city-point")
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -913,7 +962,7 @@ class InternalStaffAccessExportView(RoleRequiredMixin, View):
     def get(self, request, pk=None):
         if not user_has_permission(request.user, "residents.export_access"):
             raise PermissionDenied("Export icazəsi yoxdur.")
-        company = get_object_or_404(ResidentCompany, slug="city-point", is_internal=True)
+        company = get_object_or_404(ResidentCompany, slug="city-point")
         _preset, date_from, date_to = access_range_bounds(request, default_preset="month")
         employee = None
         if pk is not None:
@@ -921,7 +970,6 @@ class InternalStaffAccessExportView(RoleRequiredMixin, View):
                 ResidentEmployee,
                 pk=pk,
                 company=company,
-                company__is_internal=True,
             )
         roster = (request.GET.get("roster") or "active").strip().lower()
         return access_xlsx_http_response(
@@ -942,7 +990,6 @@ class InternalStaffAccessDetailView(RoleRequiredMixin, TemplateView):
             ResidentEmployee,
             pk=self.kwargs["pk"],
             company__slug="city-point",
-            company__is_internal=True,
         )
 
     def get_context_data(self, **kwargs):
@@ -996,7 +1043,9 @@ class ReportsView(RoleRequiredMixin, TemplateView):
         from apps.property.models import CommercialStatus, Space
         from apps.warehouse.models import SKU, Stock
 
-        open_tickets = list(Ticket.objects.filter(status__in=OPEN_STATUSES))
+        open_tickets = list(
+            tickets_visible_to(self.request.user).filter(status__in=OPEN_STATUSES)
+        )
         spaces = Space.objects.all()
         vacant_m2 = sum(
             float(s.rentable_area_m2 or s.area_m2 or 0)

@@ -41,6 +41,14 @@ class User(AbstractUser):
         on_delete=models.SET_NULL,
         related_name="portal_users",
     )
+    ticket_department = models.ForeignKey(
+        "tickets.TicketDepartment",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="users",
+        help_text=_("Ticket şöbəsi — staff yalnız bu şöbənin ticketlərini görür"),
+    )
     must_set_password = models.BooleanField(
         default=False,
         help_text=_("Invite / admin reset sonrası ilk şifrə təyini tələb olunsun"),

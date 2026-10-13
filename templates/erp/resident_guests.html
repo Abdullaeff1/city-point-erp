@@ -1,10 +1,11 @@
 {% extends "erp/base.html" %}
 {% load i18n cp_ui %}
 {% block heading %}{{ company.name }} — {% translate "Qonaqlar" %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:residents' %}">{% translate "Rezidentlər" %}</a>
+ · <a href="{% url 'erp:resident_detail' company.slug %}?{{ guest_query }}">{{ company.name }}</a>
+{% endblock %}
 {% block content %}
-<p class="cp-meta mb-3" style="margin-top:-8px;">
-  <a href="{% url 'erp:resident_detail' company.slug %}?{{ guest_query }}">← {{ company.name }}</a>
-</p>
 <div class="cp-card p-card mb-4">
   <div class="cp-tabs" style="margin-bottom:12px;">
     <a class="cp-tab {% if preset == 'today' %}is-active{% endif %}" href="?range=today&date={% if single_day %}{{ date_from|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">{% translate "Günlük" %}</a>
