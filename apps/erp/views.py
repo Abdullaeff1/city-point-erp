@@ -638,14 +638,34 @@ class SpaceDetailView(RoleRequiredMixin, TemplateView):
         return ctx
 
 
-class ResidentListView(StaffRequiredMixin, ListView):
-    template_name = "erp/residents.html"
-    queryset = ResidentCompany.objects.filter(is_internal=False)
-    context_object_name = "companies"
-
-
 def _can_view_resident_ops(user) -> bool:
     return user.role in {Role.ADMIN, Role.MANAGEMENT}
+
+
+def _can_view_resident_guests(user) -> bool:
+    return user.role in {Role.ADMIN, Role.MANAGEMENT, Role.RECEPTION}
+
+
+class ResidentListView(StaffRequiredMixin, ListView):
+    template_name = "erp/residents.html"
+    context_object_name = "companies"
+
+    def get_queryset(self):
+        qs = ResidentCompany.objects.filter(is_internal=False)
+        if _can_view_resident_guests(self.request.user):
+            today = timezone.localdate()
+            qs = qs.annotate(
+                guest_today=Count(
+                    "guest_visits",
+                    filter=Q(guest_visits__scheduled_for=today),
+                )
+            )
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["can_view_resident_guests"] = _can_view_resident_guests(self.request.user)
+        return ctx
 
 
 def guest_period_query(preset, date_from, date_to) -> str:
@@ -697,19 +717,19 @@ class ResidentDetailView(StaffRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         company = get_object_or_404(ResidentCompany, slug=self.kwargs["slug"], is_internal=False)
         can_drill = _can_view_resident_ops(self.request.user)
+        can_guests = _can_view_resident_guests(self.request.user)
         ctx.update(
             {
                 "company": company,
                 "spaces": company.spaces.select_related("floor"),
-                "open_tickets": company.tickets.filter(status__in=OPEN_STATUSES),
                 "employees": company.employees.filter(is_active=True),
-                "latest_ticket": company.tickets.first(),
                 "can_view_resident_ops": can_drill,
+                "can_view_resident_guests": can_guests,
                 # alias kept for older template snippets
                 "can_view_employees": can_drill,
             }
         )
-        if can_drill:
+        if can_guests:
             today = timezone.localdate()
             period = resident_guest_period(company, self.request)
             ctx.update(
@@ -759,10 +779,10 @@ class ResidentTicketsView(RoleRequiredMixin, TemplateView):
 
 
 class ResidentGuestsView(RoleRequiredMixin, TemplateView):
-    """Şirkətin bugünkü qonaqları — Admin / Rəhbərlik."""
+    """Şirkətin qonaqları — Admin, Rəhbərlik, Reception."""
 
     template_name = "erp/resident_guests.html"
-    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.RECEPTION)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
