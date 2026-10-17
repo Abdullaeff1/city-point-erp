@@ -7,7 +7,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import Role
-from apps.reception.models import Guest, GuestVisit, VisitStatus
+from apps.reception.models import Guest, GuestVisit, VisitStatus, mask_fin
+from apps.rbac.services import seed_rbac_catalog
 from apps.residents.models import ResidentCompany
 
 User = get_user_model()
@@ -23,7 +24,9 @@ class ResidentGuestPeriodTests(TestCase):
         self.month_start = self.today.replace(day=1)
         self.outside_month = self.month_start - timedelta(days=10)
 
-        self.inside = self._visit("Inside", self.today, VisitStatus.INSIDE, check_in=True)
+        self.inside = self._visit(
+            "Inside", self.today, VisitStatus.INSIDE, check_in=True, fin_code="AA1234567"
+        )
         self.portal = self._visit(
             "Portal",
             self.today,
@@ -53,6 +56,9 @@ class ResidentGuestPeriodTests(TestCase):
         self.desk = self._user("desk", Role.SERVICE_DESK)
         self.detail = reverse("erp:resident_detail", args=[self.company.slug])
         self.guests = reverse("erp:resident_guests", args=[self.company.slug])
+        self.residents = reverse("erp:residents")
+        self.employees = reverse("erp:resident_employees", args=[self.company.slug])
+        self.tickets = reverse("erp:resident_tickets", args=[self.company.slug])
 
     def _user(self, name, role):
         return User.objects.create_user(
@@ -63,8 +69,8 @@ class ResidentGuestPeriodTests(TestCase):
             is_staff=True,
         )
 
-    def _visit(self, name, day, status, company=None, pre_registered=False, check_in=False):
-        guest = Guest.objects.create(first_name=name, last_name="Guest")
+    def _visit(self, name, day, status, company=None, pre_registered=False, check_in=False, fin_code=""):
+        guest = Guest.objects.create(first_name=name, last_name="Guest", fin_code=fin_code)
         return GuestVisit.objects.create(
             guest=guest,
             company=company or self.company,
@@ -111,29 +117,39 @@ class ResidentGuestPeriodTests(TestCase):
             self.assertEqual(len(guests.context["visits"]), guests.context["visit_total"])
             self.assertContains(detail, "Bugünkü qonaq")
             self.assertContains(detail, "Resepsiya qeydləri")
+            self.assertNotContains(detail, "Açıq ticket")
             self.assertContains(guests, "Portal Guest")
             self.assertNotContains(guests, "OtherCo Guest")
             self.assertNotContains(detail, "Portal Guest")
+            self.assertContains(detail, reverse("erp:resident_employees", args=[self.company.slug]))
+            residents = self.client.get(self.residents)
+            counts = {c.slug: c.guest_today for c in residents.context["companies"]}
+            self.assertEqual(counts[self.company.slug], detail.context["guest_today"])
+            self.assertEqual(counts[self.other.slug], 1)
 
-    def test_reception_sees_guest_counters(self):
-        expected = self._counts(self.today, self.today)
+    def test_reception_sees_guests_not_employee_or_ticket_ops(self):
+        seed_rbac_catalog()
         self.client.force_login(self.reception)
         detail = self.client.get(self.detail)
         guests = self.client.get(self.guests)
+        residents = self.client.get(self.residents)
         self.assertEqual(detail.status_code, 200)
-        self.assertEqual(guests.status_code, 200)
+        self.assertFalse(detail.context["can_view_resident_ops"])
+        self.assertTrue(detail.context["can_view_resident_guests"])
         self.assertEqual(detail.context["guest_today"], 4)
-        self.assertEqual(detail.context["guest_total"], expected["total"])
-        self.assertEqual(detail.context["guest_inside"], expected["inside"])
+        self.assertEqual(guests.status_code, 200)
+        self.assertEqual(guests.context["visit_total"], detail.context["guest_total"])
         self.assertContains(detail, "Resepsiya qeydləri")
-        self.assertContains(detail, "Dövr üzrə ziyarət")
-        self.assertContains(detail, "Bütün qeydlərə bax")
-        self.assertContains(guests, "Portal Guest")
-        self.assertNotContains(guests, "OtherCo Guest")
-        tickets = self.client.get(reverse("erp:resident_tickets", args=[self.company.slug]))
-        self.assertEqual(tickets.status_code, 403)
+        self.assertContains(guests, "AA1234567")
+        self.assertNotContains(guests, mask_fin("AA1234567"))
+        self.assertNotContains(detail, "Açıq ticket")
+        self.assertNotContains(detail, reverse("erp:resident_employees", args=[self.company.slug]))
+        counts = {c.slug: c.guest_today for c in residents.context["companies"]}
+        self.assertEqual(counts[self.company.slug], 4)
+        self.assertEqual(self.client.get(self.employees).status_code, 403)
+        self.assertEqual(self.client.get(self.tickets).status_code, 403)
 
-    def test_other_roles_cannot_see_guest_counters(self):
+    def test_fm_and_desk_cannot_see_guest_counters(self):
         for user in (self.fm, self.desk):
             self.client.force_login(user)
             detail = self.client.get(self.detail)
@@ -147,6 +163,10 @@ class ResidentGuestPeriodTests(TestCase):
             self.assertNotContains(detail, "Portal Guest")
             guests = self.client.get(self.guests)
             self.assertEqual(guests.status_code, 403)
+            residents = self.client.get(self.residents)
+            self.assertFalse(residents.context["can_view_resident_guests"])
+            self.assertNotContains(residents, "Bugünkü qonaq")
+            self.assertFalse(hasattr(residents.context["companies"][0], "guest_today"))
 
     def test_four_period_filters_and_current_status(self):
         self.client.force_login(self.admin)

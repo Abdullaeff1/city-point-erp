@@ -39,6 +39,7 @@
   >
     <strong>{{ c.name }}</strong>
     <span class="cp-meta">{{ c.get_status_display }}</span>
+    {% if can_view_resident_guests %}<span class="cp-meta">{% translate "Bugünkü qonaq" %} {{ c.guest_today }}</span>{% endif %}
   </a>
   {% empty %}
   <div class="cp-meta empty-pad" id="residents-empty-static">{% if q %}{% translate "Uyğun şirkət tapılmadı." %}{% else %}{% translate "Rezident yoxdur." %}{% endif %}</div>
