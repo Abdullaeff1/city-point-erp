@@ -166,6 +166,14 @@ STORAGES = {
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
+# Security floor plans — outside public /media/ (authenticated FileResponse only).
+PRIVATE_MEDIA_ROOT = Path(
+    os.environ.get("PRIVATE_MEDIA_ROOT", str(BASE_DIR / "var" / "private_media"))
+)
+SECURITY_PLAN_MAX_UPLOAD_MB = int(os.environ.get("SECURITY_PLAN_MAX_UPLOAD_MB", "40"))
+# DWG→DXF converter binary (empty = DWG unsupported until NetAdmin installs).
+SECURITY_DWG_CONVERTER = os.environ.get("SECURITY_DWG_CONVERTER", "").strip()
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "login"

@@ -2,12 +2,82 @@
 {% load i18n %}
 {% block heading %}{% translate "Rezidentlər" %}{% endblock %}
 {% block content %}
-<div class="cp-card" style="padding:8px 0;">
+<div class="cp-card mb-4" style="padding:12px 20px;">
+  <form method="get" id="residents-search-form" class="flex gap-2" style="flex-wrap:wrap;align-items:end;margin:0;">
+    <label style="flex:1;min-width:220px;margin:0;">
+      <span class="cp-meta">{% translate "Axtarış" %}</span>
+      <input
+        class="cp-input mt-1"
+        type="search"
+        name="q"
+        id="residents-search"
+        value="{{ q }}"
+        autocomplete="off"
+        placeholder="{% translate 'Şirkət adı…' %}"
+        aria-label="{% translate 'Şirkət axtarışı' %}"
+      >
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Axtar" %}</button>
+    {% if q %}
+    <a class="cp-btn-ghost" href="{% url 'erp:residents' %}">{% translate "Təmizlə" %}</a>
+    {% endif %}
+  </form>
+  <p class="cp-meta" style="margin:10px 0 0;" id="residents-filter-meta" {% if not q %}hidden{% endif %}>
+    {% translate "Göstərilir" %}: <strong id="residents-visible-count">{{ companies|length }}</strong>
+    {% if not q %}/ <span id="residents-total-count">{{ companies|length }}</span>{% endif %}
+  </p>
+</div>
+
+<div class="cp-card" style="padding:8px 0;" id="residents-list">
   {% for c in companies %}
-  <a href="{% url 'erp:resident_detail' c.slug %}" class="cp-list-row">
+  <a
+    href="{% url 'erp:resident_detail' c.slug %}"
+    class="cp-list-row resident-row"
+    data-name="{{ c.name }}"
+    data-slug="{{ c.slug }}"
+    data-email="{{ c.contact_email }}"
+  >
     <strong>{{ c.name }}</strong>
     <span class="cp-meta">{{ c.get_status_display }}</span>
   </a>
+  {% empty %}
+  <div class="cp-meta empty-pad" id="residents-empty-static">{% if q %}{% translate "Uyğun şirkət tapılmadı." %}{% else %}{% translate "Rezident yoxdur." %}{% endif %}</div>
   {% endfor %}
+  {% if companies and not q %}
+  <div class="cp-meta empty-pad" id="residents-empty-filter" hidden>{% translate "Uyğun şirkət tapılmadı." %}</div>
+  {% endif %}
 </div>
+{% if not q %}
+<script>
+(function () {
+  var input = document.getElementById("residents-search");
+  if (!input || typeof cpHaystackMatch !== "function") return;
+  var rows = Array.prototype.slice.call(document.querySelectorAll(".resident-row"));
+  var emptyFilter = document.getElementById("residents-empty-filter");
+  var meta = document.getElementById("residents-filter-meta");
+  var countEl = document.getElementById("residents-visible-count");
+  var timer;
+
+  function applyFilter() {
+    var q = input.value;
+    var visible = 0;
+    rows.forEach(function (row) {
+      var hay = [row.getAttribute("data-name"), row.getAttribute("data-slug"), row.getAttribute("data-email")].join(" ");
+      var ok = cpHaystackMatch(hay, q);
+      row.hidden = !ok;
+      row.style.display = ok ? "" : "none";
+      if (ok) visible += 1;
+    });
+    if (emptyFilter) emptyFilter.hidden = visible > 0 || !String(q || "").trim();
+    if (meta) meta.hidden = !String(q || "").trim();
+    if (countEl) countEl.textContent = String(visible);
+  }
+
+  input.addEventListener("input", function () {
+    clearTimeout(timer);
+    timer = setTimeout(applyFilter, 80);
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

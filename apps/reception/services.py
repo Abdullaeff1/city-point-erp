@@ -471,6 +471,18 @@ def inside_overdue_cutoff():
     return timezone.now() - timedelta(hours=24)
 
 
+def id_pending_queryset():
+    """Visits whose ID is still held or return is pending (matches the reception card)."""
+    return (
+        GuestVisit.objects.filter(
+            Q(status=VisitStatus.RETURN_PENDING)
+            | Q(id_document_held=True, status=VisitStatus.INSIDE)
+        )
+        .select_related("guest", "company", "host", "visit_type", "visitor_access")
+        .order_by("-updated_at", "-id")
+    )
+
+
 def inside_overdue_queryset():
     """Guests still INSIDE whose check-in (or create) was more than 24h ago."""
     cutoff = inside_overdue_cutoff()

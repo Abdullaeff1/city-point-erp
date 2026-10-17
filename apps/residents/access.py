@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 from django.utils import timezone
 
-from apps.residents.models import AccessEvent, AccessEventType
+from apps.residents.models import AccessEvent, AccessEventType, AccessResult
 
 
 def parse_date(value, fallback):
@@ -95,7 +95,11 @@ def build_employee_access_rows(employees, selected_date):
     present = 0
     for emp in employees:
         events = list(
-            emp.access_events.filter(occurred_at__gte=start_dt, occurred_at__lt=end_dt).order_by("occurred_at")
+            emp.access_events.filter(
+                result=AccessResult.GRANTED,
+                occurred_at__gte=start_dt,
+                occurred_at__lt=end_dt,
+            ).order_by("occurred_at")
         )
         in_at, out_at, status = attendance_for_day(events)
         if events:
@@ -122,6 +126,7 @@ def employee_attendance_days(employee, date_from, date_to):
     end_dt = timezone.make_aware(datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
     events = AccessEvent.objects.filter(
         employee=employee,
+        result=AccessResult.GRANTED,
         occurred_at__gte=start_dt,
         occurred_at__lt=end_dt,
     ).order_by("occurred_at")
@@ -151,6 +156,7 @@ def employee_day_flaps(employee, day):
     return list(
         AccessEvent.objects.filter(
             employee=employee,
+            result=AccessResult.GRANTED,
             occurred_at__gte=start_dt,
             occurred_at__lt=end_dt,
         ).order_by("occurred_at")
@@ -166,7 +172,11 @@ def currently_inside_employee_rows(selected_date=None):
     start_dt = timezone.make_aware(datetime.combine(selected_date, datetime.min.time()))
     end_dt = timezone.make_aware(datetime.combine(selected_date + timedelta(days=1), datetime.min.time()))
     events = (
-        AccessEvent.objects.filter(occurred_at__gte=start_dt, occurred_at__lt=end_dt)
+        AccessEvent.objects.filter(
+            result=AccessResult.GRANTED,
+            occurred_at__gte=start_dt,
+            occurred_at__lt=end_dt,
+        )
         .select_related("employee", "employee__company")
         .order_by("occurred_at")
     )

@@ -1,0 +1,87 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Cihazlar" %}{% endblock %}
+{% block content %}
+<form method="get" class="flex gap-2 mb-4" style="flex-wrap:wrap;align-items:center;">
+  <input class="cp-input" type="search" name="q" value="{{ q }}" placeholder="{% translate 'Axtar…' %}">
+  <select class="cp-input" name="type">
+    <option value="">{% translate "Tip" %}</option>
+    <option value="camera" {% if type == 'camera' %}selected{% endif %}>{% translate "Kamera" %}</option>
+    <option value="alarm_panel" {% if type == 'alarm_panel' %}selected{% endif %}>{% translate "Siqnal paneli" %}</option>
+    <option value="sensor" {% if type == 'sensor' %}selected{% endif %}>{% translate "Sensor" %}</option>
+    <option value="other" {% if type == 'other' %}selected{% endif %}>{% translate "Digər" %}</option>
+  </select>
+  <select class="cp-input" name="active">
+    <option value="">{% translate "Hamısı" %}</option>
+    <option value="1" {% if active == '1' %}selected{% endif %}>{% translate "Aktiv" %}</option>
+    <option value="0" {% if active == '0' %}selected{% endif %}>{% translate "Deaktiv" %}</option>
+  </select>
+  <button class="cp-btn" type="submit">{% translate "Filter" %}</button>
+</form>
+
+{% if can_edit and form %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="margin-top:0;">{% translate "Yeni cihaz" %}</div>
+  <form method="post" action="{% url 'security:device_create' %}" class="flex gap-3" style="flex-wrap:wrap;align-items:flex-end;">
+    {% csrf_token %}
+    <label>{% translate "Ad" %}<br>{{ form.name }}</label>
+    <label>{% translate "Tip" %}<br>{{ form.device_type }}</label>
+    <label>{% translate "IP" %}<br>{{ form.ip_address }}</label>
+    <label>{% translate "Qeyd" %}<br>{{ form.location_note }}</label>
+    <button type="submit" class="cp-btn-accent">{% translate "Əlavə et" %}</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="cp-card">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Ad" %}</th>
+        <th>{% translate "Tip" %}</th>
+        <th>{% translate "IP" %}</th>
+        <th>{% translate "Qeyd" %}</th>
+        <th>{% translate "Status" %}</th>
+        {% if can_edit %}<th></th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in devices %}
+      <tr>
+        <td>{{ d.name }}</td>
+        <td>{{ d.get_device_type_display }}</td>
+        <td class="cp-code">{{ d.ip_address|default:"—" }}</td>
+        <td>{{ d.location_note|default:"—" }}</td>
+        <td>{% if d.is_active %}{% translate "Aktiv" %}{% else %}{% translate "Deaktiv" %}{% endif %}</td>
+        {% if can_edit %}
+        <td>
+          <form method="post" action="{% url 'security:device_update' d.pk %}" class="flex gap-2" style="flex-wrap:wrap;align-items:center;">
+            {% csrf_token %}
+            <input class="cp-input" name="name" value="{{ d.name }}" style="width:120px;">
+            <select class="cp-input" name="device_type">
+              <option value="camera" {% if d.device_type == 'camera' %}selected{% endif %}>Kamera</option>
+              <option value="alarm_panel" {% if d.device_type == 'alarm_panel' %}selected{% endif %}>Siqnal</option>
+              <option value="sensor" {% if d.device_type == 'sensor' %}selected{% endif %}>Sensor</option>
+              <option value="other" {% if d.device_type == 'other' %}selected{% endif %}>Digər</option>
+            </select>
+            <input class="cp-input" name="ip_address" value="{{ d.ip_address|default_if_none:'' }}" style="width:110px;" placeholder="IP">
+            <input class="cp-input" name="location_note" value="{{ d.location_note }}" style="width:120px;">
+            <label><input type="checkbox" name="is_active" value="1" {% if d.is_active %}checked{% endif %}> {% translate "Aktiv" %}</label>
+            <button class="cp-btn-ghost" type="submit">{% translate "Saxla" %}</button>
+          </form>
+          {% if d.is_active %}
+          <form method="post" action="{% url 'security:device_deactivate' d.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button class="cp-btn-ghost" type="submit">{% translate "Deaktiv" %}</button>
+          </form>
+          {% endif %}
+        </td>
+        {% endif %}
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="cp-meta">{% translate "Cihaz yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

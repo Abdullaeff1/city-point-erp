@@ -106,6 +106,11 @@ class AccessEventType(models.TextChoices):
     OUT = "out", "Çıxış"
 
 
+class AccessResult(models.TextChoices):
+    GRANTED = "granted", "Uğurlu"
+    DENIED = "denied", "Uğursuz"
+
+
 class AccessEvent(models.Model):
     """Immutable attendance punch — retained indefinitely (AxTrax delete-proof archive).
 
@@ -115,10 +120,18 @@ class AccessEvent(models.Model):
 
     employee = models.ForeignKey(
         ResidentEmployee,
+        null=True,
+        blank=True,
         on_delete=models.PROTECT,
         related_name="access_events",
     )
     event_type = models.CharField(max_length=8, choices=AccessEventType.choices)
+    result = models.CharField(
+        max_length=16,
+        choices=AccessResult.choices,
+        default=AccessResult.GRANTED,
+        db_index=True,
+    )
     occurred_at = models.DateTimeField()
     # Denormalized archive fields (filled at sync time)
     employee_name = models.CharField(max_length=160, blank=True)

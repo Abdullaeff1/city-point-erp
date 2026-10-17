@@ -18,18 +18,18 @@
     <div class="cp-metric mt-2">{{ stats.inside_overdue|default:0 }}</div>
     <div class="cp-meta mt-2">{{ hint_inside_overdue }}</div>
   </a>
-  <div class="cp-card p-card" style="min-width:120px;flex:1 1 120px;">
+  <a class="cp-card p-card cp-card-link" href="?date={{ today|date:'Y-m-d' }}#journal-panel" style="min-width:120px;flex:1 1 120px;">
     <div class="cp-meta">{{ lbl_today }}</div>
     <div class="cp-metric mt-2">{{ stats.today }}</div>
-  </div>
-  <div class="cp-card p-card" style="min-width:120px;flex:1 1 120px;">
+  </a>
+  <a class="cp-card p-card cp-card-link" href="?date={{ today|date:'Y-m-d' }}&status=waiting#journal-panel" style="min-width:120px;flex:1 1 120px;">
     <div class="cp-meta">{{ lbl_waiting }}</div>
     <div class="cp-metric mt-2">{{ stats.waiting }}</div>
-  </div>
-  <div class="cp-card p-card" style="min-width:120px;flex:1 1 120px;">
+  </a>
+  <a class="cp-card p-card cp-card-link" href="?date={{ today|date:'Y-m-d' }}&status=id_pending#journal-panel" style="min-width:120px;flex:1 1 120px;">
     <div class="cp-meta">{{ lbl_id_pending }}</div>
     <div class="cp-metric mt-2">{{ stats.id_pending }}</div>
-  </div>
+  </a>
 </div>
 
 {% if can_export %}
@@ -77,6 +77,7 @@
             <option value="inside_overdue" {% if filter_status == "inside_overdue" %}selected{% endif %}>{% translate "24+ saat içəridə" %}</option>
             <option value="checked_out" {% if filter_status == "checked_out" %}selected{% endif %}>{% translate "Çıxış" %}</option>
             <option value="waiting" {% if filter_status == "waiting" %}selected{% endif %}>{% translate "Gözləyir / Pre-reg" %}</option>
+            <option value="id_pending" {% if filter_status == "id_pending" %}selected{% endif %}>{% translate "Vəsiqə gözləyir" %}</option>
             <option value="pre_registered" {% if filter_status == "pre_registered" %}selected{% endif %}>{% translate "Pre-reg" %}</option>
             <option value="cancelled" {% if filter_status == "cancelled" %}selected{% endif %}>{% translate "Ləğv" %}</option>
             <option value="no_show" {% if filter_status == "no_show" %}selected{% endif %}>{% translate "Gəlməyib" %}</option>
@@ -181,6 +182,10 @@
           {% translate "24+ saat içəridə olanlar" %}
         {% elif filter_status == "inside" %}
           {% translate "İçəridə indi" %}{% if not is_today %} · {{ selected_date|date:"d.m.Y" }}{% endif %}
+        {% elif filter_status == "id_pending" %}
+          {% translate "Vəsiqə gözləyir" %}
+        {% elif filter_status == "waiting" and is_today %}
+          {% translate "Bugünkü jurnal" %} · {% translate "Gözləyir / Pre-reg" %}
         {% elif is_today %}
           {% translate "Bugünkü jurnal" %}
         {% else %}
@@ -192,6 +197,8 @@
           {{ visits|length }} {% translate "qonaq" %} · {% translate "girişdən 24 saatdan çox" %}
         {% elif filter_status == "inside" %}
           {{ visits|length }} {% translate "qonaq" %} · {% translate "bu gün" %}
+        {% elif filter_status == "waiting" or filter_status == "id_pending" %}
+          {{ visits|length }} {% translate "qonaq" %}
         {% else %}
           {{ stats.day_total }} {% translate "qonaq" %}
         {% endif %}

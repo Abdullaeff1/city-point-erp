@@ -36,7 +36,7 @@ def connect():
 
 
 def fetch_granted_events(*, since_id: int, lookback_hours: int = 48, limit: int = 5000) -> list[dict]:
-    """Access-granted rows newer than the ERP cursor (same filter as the host poller)."""
+    """Granted (17) and denied (18, 33) rows newer than the ERP cursor."""
     sql = """
 SELECT TOP %d
   e.IdAutoEvents AS event_id,
@@ -45,11 +45,12 @@ SELECT TOP %d
   ISNULL(r.bReaderOut, 0) AS reader_out,
   e.IdReader AS reader_id,
   LTRIM(RTRIM(ISNULL(r.tDescReader, ''))) AS reader_name,
-  e.iEventType AS event_type
+  e.iEventType AS event_type,
+  LTRIM(RTRIM(ISNULL(CAST(e.iCardCode AS nvarchar(32)), ''))) AS card_code,
+  LTRIM(RTRIM(ISNULL(e.tFullName, ''))) AS full_name
 FROM tblEvents e
 LEFT JOIN tblReader r ON r.IdReader = e.IdReader
-WHERE e.iEventType = 17
-  AND e.IdEmpNum IS NOT NULL AND e.IdEmpNum <> 0
+WHERE e.iEventType IN (17, 18, 33)
   AND e.IdAutoEvents > %%s
   AND e.dtEventReal >= DATEADD(hour, -%%s, GETDATE())
   AND e.dtEventReal < '2100-01-01'
@@ -105,18 +106,56 @@ def _normalize_event_rows(raw_rows) -> list[dict]:
         if isinstance(occurred, datetime):
             occurred = occurred.isoformat()
         reader_id = raw.get("reader_id")
+        emp_raw = raw.get("employee_id")
         rows.append(
             {
                 "event_id": int(raw["event_id"]),
-                "employee_id": int(raw["employee_id"]),
+                "employee_id": 0 if emp_raw is None else int(emp_raw),
                 "occurred_at": occurred,
                 "reader_out": bool(raw.get("reader_out")),
                 "reader_id": None if reader_id is None else int(reader_id),
                 "reader_name": str(raw.get("reader_name") or ""),
                 "event_type": int(raw.get("event_type") or 0),
+                "card_code": str(raw.get("card_code") or "").strip(),
+                "full_name": str(raw.get("full_name") or "").strip(),
             }
         )
     return rows
+
+
+def fetch_denied_events_since(
+    since_dt: datetime,
+    *,
+    after_id: int = 0,
+    limit: int = 5000,
+) -> list[dict]:
+    """Denied access rows (types 18 and 33) from ``since_dt``, IdAutoEvents > after_id."""
+    sql = """
+SELECT TOP %d
+  e.IdAutoEvents AS event_id,
+  e.IdEmpNum AS employee_id,
+  e.dtEventReal AS occurred_at,
+  ISNULL(r.bReaderOut, 0) AS reader_out,
+  e.IdReader AS reader_id,
+  LTRIM(RTRIM(ISNULL(r.tDescReader, ''))) AS reader_name,
+  e.iEventType AS event_type,
+  LTRIM(RTRIM(ISNULL(CAST(e.iCardCode AS nvarchar(32)), ''))) AS card_code,
+  LTRIM(RTRIM(ISNULL(e.tFullName, ''))) AS full_name
+FROM tblEvents e
+LEFT JOIN tblReader r ON r.IdReader = e.IdReader
+WHERE e.iEventType IN (18, 33)
+  AND e.IdAutoEvents > %%s
+  AND e.dtEventReal >= %%s
+  AND e.dtEventReal < '2100-01-01'
+ORDER BY e.IdAutoEvents
+""" % int(limit)
+    conn = connect()
+    try:
+        cur = conn.cursor(as_dict=True)
+        cur.execute(sql, (int(after_id), since_dt))
+        return _normalize_event_rows(cur.fetchall())
+    finally:
+        conn.close()
 
 
 PEOPLE_SQL = """

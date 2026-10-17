@@ -8,7 +8,7 @@ from django.db import IntegrityError, transaction
 
 from apps.accounts.models import Role, User
 from apps.comms.services import notify_in_app
-from apps.residents.models import AccessEvent, ShaftAccessAlert
+from apps.residents.models import AccessEvent, AccessResult, ShaftAccessAlert
 
 # Real AxTrax leaf names: F1ShaftCooling, F5ShaftElectric, F7ShaftIT, …
 SHAFT_READER_RE = re.compile(r"F\d+SHAFT", re.IGNORECASE)
@@ -79,7 +79,11 @@ def backfill_shaft_alerts_for_day(day=None, *, notify: bool = False) -> list[Sha
     start = when.replace(hour=0, minute=0, second=0, microsecond=0)
     end = start + timedelta(days=1)
     events = (
-        AccessEvent.objects.filter(occurred_at__gte=start, occurred_at__lt=end)
+        AccessEvent.objects.filter(
+            result=AccessResult.GRANTED,
+            occurred_at__gte=start,
+            occurred_at__lt=end,
+        )
         .select_related("employee", "employee__company")
         .order_by("occurred_at")
     )

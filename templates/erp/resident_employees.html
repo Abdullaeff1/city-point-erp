@@ -4,7 +4,6 @@
 {% block back_trail %}
  · <a href="{% url 'erp:residents' %}">{% translate "Rezidentlər" %}</a>
  · <a href="{% url 'erp:resident_detail' company.slug %}">{{ company.name }}</a>
- · {% translate "Yalnız Admin və Rəhbərlik görə bilər." %}
 {% endblock %}
 {% block content %}
 <div class="cp-tabs mb-3">
@@ -28,6 +27,7 @@
   <div class="cp-card p-card-sm">{% translate "Gələn" %} <strong>{{ present }}</strong></div>
 </div>
 
+{% if can_export_access %}
 <div class="cp-card p-card mb-4">
   <p class="cp-meta mb-2">{% translate "Excel export — AxTrax üslubu (işə giriş / işdən çıxış)" %}</p>
   <div class="cp-tabs" style="margin-bottom:12px;">
@@ -50,6 +50,7 @@
   {% endif %}
   <a class="cp-btn" href="{% url 'erp:resident_access_export' company.slug %}?roster={{ roster }}&range={{ export_preset }}{% if export_preset == 'today' %}&date={{ export_from|date:'Y-m-d' }}{% elif export_preset == 'year' %}&year={{ export_from.year }}{% elif export_preset == 'custom' %}&from={{ export_from|date:'Y-m-d' }}&to={{ export_to|date:'Y-m-d' }}{% endif %}">{% translate "Excel yüklə" %}</a>
 </div>
+{% endif %}
 
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">

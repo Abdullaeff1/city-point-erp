@@ -40,12 +40,13 @@ class ResidentEmployeeAdmin(admin.ModelAdmin):
 
 @admin.register(AccessEvent)
 class AccessEventAdmin(admin.ModelAdmin):
-    list_display = ("employee", "employee_name", "event_type", "occurred_at", "card_number")
-    list_filter = ("event_type",)
+    list_display = ("employee", "employee_name", "event_type", "result", "occurred_at", "card_number")
+    list_filter = ("event_type", "result")
     search_fields = ("employee_name", "card_number", "employee__full_name")
     readonly_fields = (
         "employee",
         "event_type",
+        "result",
         "occurred_at",
         "employee_name",
         "card_number",

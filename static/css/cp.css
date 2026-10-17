@@ -251,6 +251,12 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
 .axtrax-events-table tbody tr.is-event-out td:first-child {
   box-shadow: inset 3px 0 0 #94a3b8;
 }
+.axtrax-events-table tbody tr.is-event-denied td:first-child {
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+.axtrax-events-table tbody tr.is-event-denied {
+  background: #fff7f7;
+}
 .axtrax-events-table tbody tr:hover {
   background: #f8fafc;
 }
@@ -661,6 +667,9 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
   text-decoration: none;
   color: inherit;
 }
+.cp-list-row[hidden] {
+  display: none !important;
+}
 .cp-list-row:hover { background: var(--cp-primary-soft); text-decoration: none; }
 
 .login-split { min-height: 100vh; display: grid; grid-template-columns: 1.05fr 0.95fr; }
@@ -732,6 +741,65 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
 .space-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .section-pad { padding: 16px 20px 8px; }
 .empty-pad { padding: 16px 20px; }
+
+/* Security floor plan viewer */
+.cp-plan-viewport {
+  position: relative;
+  overflow: hidden;
+  height: min(70vh, 640px);
+  background: #e8ecf1;
+  border: 1px solid var(--cp-border);
+  border-radius: 8px;
+  touch-action: none;
+  cursor: grab;
+}
+.cp-plan-viewport:active { cursor: grabbing; }
+.cp-plan-stage {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.cp-plan-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+.cp-plan-pins {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.cp-plan-pin {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--cp-accent, #c4a35a);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 0;
+}
+.cp-plan-pin[data-type="camera"] { background: #2563eb; }
+.cp-plan-pin[data-type="alarm_panel"],
+.cp-plan-pin[data-type="sensor"] { background: #dc2626; }
+.cp-plan-pin:focus {
+  outline: 2px solid var(--cp-primary);
+  outline-offset: 2px;
+}
+.cp-plan-panel {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--cp-border);
+  border-radius: 8px;
+  background: #fff;
+}
 
 @media (max-width: 1000px) {
   .grid-4, .grid-kpi, .grid-3, .grid-main, .grid-dash, .grid-2 { grid-template-columns: 1fr; }

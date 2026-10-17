@@ -71,11 +71,12 @@
           <th>{% translate "Kart" %}</th>
           <th>{% translate "Oxuyucu" %}</th>
           <th>{% translate "Hadisə" %}</th>
+          <th>{% translate "Nəticə" %}</th>
         </tr>
       </thead>
       <tbody id="axtrax-events-body">
         {% for e in recent_events %}
-        <tr class="{% if e.event_type == 'in' %}is-event-in{% else %}is-event-out{% endif %}">
+        <tr class="{% if e.result == 'denied' %}is-event-denied{% elif e.event_type == 'in' %}is-event-in{% else %}is-event-out{% endif %}">
           <td class="cp-code">{{ e.occurred_at|date:"d.m.Y H:i:s" }}</td>
           <td>
             {% if e.employee_id %}
@@ -94,9 +95,16 @@
             <span class="badge badge-muted">{% translate "Çıxış" %}</span>
             {% endif %}
           </td>
+          <td>
+            {% if e.result == "denied" %}
+            <span class="badge badge-danger">{% translate "Uğursuz" %}</span>
+            {% else %}
+            <span class="badge badge-resolved">{% translate "Uğurlu" %}</span>
+            {% endif %}
+          </td>
         </tr>
         {% empty %}
-        <tr id="axtrax-events-empty"><td colspan="6" class="cp-meta empty-pad">{% translate "Hələ event yoxdur." %}</td></tr>
+        <tr id="axtrax-events-empty"><td colspan="7" class="cp-meta empty-pad">{% translate "Hələ event yoxdur." %}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -128,7 +136,10 @@
     var badge = ev.is_in
       ? '<span class="badge badge-sent">' + esc(ev.event_label) + "</span>"
       : '<span class="badge badge-muted">' + esc(ev.event_label) + "</span>";
-    var cls = ev.is_in ? "is-event-in" : "is-event-out";
+    var resultBadge = ev.granted === false
+      ? '<span class="badge badge-danger">' + esc(ev.result_label || "Uğursuz") + "</span>"
+      : '<span class="badge badge-resolved">' + esc(ev.result_label || "Uğurlu") + "</span>";
+    var cls = ev.granted === false ? "is-event-denied" : (ev.is_in ? "is-event-in" : "is-event-out");
     return (
       '<tr class="' + cls + '" data-id="' + esc(ev.id) + '">' +
       '<td class="cp-code">' + esc(ev.occurred_at) + "</td>" +
@@ -137,6 +148,7 @@
       '<td class="cp-code">' + esc(ev.card_number || "—") + "</td>" +
       "<td>" + esc(ev.reader || "—") + "</td>" +
       "<td>" + badge + "</td>" +
+      "<td>" + resultBadge + "</td>" +
       "</tr>"
     );
   }
@@ -144,7 +156,7 @@
   function render(events, stamp) {
     if (!events || !events.length) {
       body.innerHTML =
-        '<tr id="axtrax-events-empty"><td colspan="6" class="cp-meta empty-pad">{% translate "Hələ event yoxdur." %}</td></tr>';
+        '<tr id="axtrax-events-empty"><td colspan="7" class="cp-meta empty-pad">{% translate "Hələ event yoxdur." %}</td></tr>';
     } else {
       body.innerHTML = events.map(rowHtml).join("");
     }

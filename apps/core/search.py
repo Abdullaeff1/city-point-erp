@@ -7,7 +7,8 @@ import re
 import unicodedata
 from functools import reduce
 
-from django.db.models import CharField, F, Func, Q, QuerySet
+from django.db.models import CharField, F, Func, Q, QuerySet, TextField, Value
+from django.db.models.functions import Cast, Coalesce
 
 # Map Azerbaijani/Turkish I variants to ASCII i before Unicode casefold.
 _AZ_I_MAP = str.maketrans({"İ": "i", "I": "i", "ı": "i"})
@@ -27,10 +28,15 @@ class SearchFold(Func):
 
     arity = 1
     output_field = CharField()
-    template = (
-        "lower(translate(COALESCE(%(expressions)s, ''), 'İIı', 'iii')"
-        ")"
-    )
+    template = "lower(translate(%(expressions)s, 'İIı', 'iii'))"
+
+    def __init__(self, expression, **extra):
+        # Always fold as text so inet/uuid fields never hit COALESCE(..., '').
+        text = Coalesce(
+            Cast(expression, output_field=TextField()),
+            Value("", output_field=TextField()),
+        )
+        super().__init__(text, **extra)
 
 
 def filter_text_search(qs: QuerySet, query: str, *fields: str) -> QuerySet:

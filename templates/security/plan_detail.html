@@ -1,0 +1,241 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{{ plan.title }}{% endblock %}
+{% block back_trail %} · <a href="{% url 'security:plans' %}">{% translate "Planlar" %}</a>{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3">
+  {{ plan.floor.building.name }} · {{ plan.floor.code }} · {{ plan.get_category_display }}
+</p>
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="margin-top:0;">{% translate "Revisionlar" %}</div>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>{% translate "Format" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th>{% translate "Aktiv" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in revisions %}
+      <tr {% if view_rev and r.pk == view_rev.pk %}style="background:rgba(15,23,42,0.04);"{% endif %}>
+        <td>r{{ r.revision_number }}</td>
+        <td>{{ r.source_format|upper }}</td>
+        <td>
+          {{ r.get_conversion_status_display }}
+          {% if r.conversion_error %}<div class="cp-meta">{{ r.conversion_error }}</div>{% endif %}
+        </td>
+        <td>{% if r.is_active %}✓{% else %}—{% endif %}</td>
+        <td class="flex gap-2" style="flex-wrap:wrap;">
+          <a class="cp-btn-ghost" href="{% url 'security:plan_detail' plan.pk %}?revision={{ r.pk }}">{% translate "Bax" %}</a>
+          <a class="cp-btn-ghost" href="{% url 'security:plan_source_download' plan.pk r.pk %}">{% translate "Orijinalı endir" %}</a>
+          {% if can_edit %}
+            {% if r.conversion_status == 'ready' and not r.is_active %}
+            <form method="post" action="{% url 'security:plan_revision_activate' plan.pk r.pk %}">{% csrf_token %}
+              <button class="cp-btn-accent" type="submit">{% translate "Aktivləşdir" %}</button>
+            </form>
+            {% endif %}
+            {% if r.conversion_status == 'failed' or r.conversion_status == 'unsupported' or r.conversion_status == 'pending' %}
+            <form method="post" action="{% url 'security:plan_revision_retry' plan.pk r.pk %}">{% csrf_token %}
+              <button class="cp-btn-ghost" type="submit">{% translate "Retry" %}</button>
+            </form>
+            {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if can_edit and revision_form %}
+  <form method="post" action="{% url 'security:plan_revision_upload' plan.pk %}" enctype="multipart/form-data" class="flex gap-3 mt-3" style="align-items:flex-end;">
+    {% csrf_token %}
+    <label>{% translate "Yeni revision" %}<br>{{ revision_form.source_file }}</label>
+    <button type="submit" class="cp-btn">{% translate "Yüklə" %}</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if show_viewer and view_rev %}
+<div class="cp-card p-card mb-4">
+  <div class="flex gap-3 mb-3" style="flex-wrap:wrap;align-items:center;justify-content:space-between;">
+    <div>
+      <div class="cp-section" style="margin:0;">{% translate "Viewer" %} · r{{ view_rev.revision_number }}</div>
+      <p class="cp-meta" style="margin:4px 0 0;">{% translate "Pan: sürüklə · Zoom: scroll · Pinlər SVG ilə birlikdə hərəkət edir" %}</p>
+    </div>
+    {% if can_edit %}
+    <div class="flex gap-2" style="align-items:center;flex-wrap:wrap;">
+      <label class="cp-meta">{% translate "Edit mode" %}
+        <input type="checkbox" id="cp-plan-edit-toggle">
+      </label>
+      <select id="cp-plan-device" class="cp-input" style="min-width:160px;">
+        <option value="">{% translate "Cihaz seç…" %}</option>
+        {% for d in devices %}
+        <option value="{{ d.pk }}" data-type="{{ d.device_type }}">{{ d.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="cp-plan-toolbar mb-2 flex gap-2" style="flex-wrap:wrap;">
+    <button type="button" class="cp-btn-ghost" data-filter="all">{% translate "Hamısı" %}</button>
+    <button type="button" class="cp-btn-ghost" data-filter="camera">{% translate "Kameralar" %}</button>
+    <button type="button" class="cp-btn-ghost" data-filter="signaling">{% translate "Siqnal" %}</button>
+    <button type="button" class="cp-btn-ghost" id="cp-plan-reset">{% translate "Reset zoom" %}</button>
+  </div>
+
+  <div class="cp-plan-viewport" id="cp-plan-viewport" tabindex="0">
+    <div class="cp-plan-stage" id="cp-plan-stage">
+      <img
+        class="cp-plan-svg"
+        id="cp-plan-svg"
+        src="{% url 'security:plan_svg' plan.pk view_rev.pk %}"
+        alt="{{ plan.title }}"
+        draggable="false"
+      >
+      <div class="cp-plan-pins" id="cp-plan-pins">
+        {% for pin in pins %}
+        <button
+          type="button"
+          class="cp-plan-pin"
+          style="left:{{ pin.x_pct }}%;top:{{ pin.y_pct }}%;"
+          data-type="{{ pin.device.device_type }}"
+          data-name="{{ pin.device.name }}"
+          data-ip="{{ pin.device.ip_address|default:'' }}"
+          data-note="{{ pin.note|default:pin.device.location_note }}"
+          data-pin-id="{{ pin.pk }}"
+          title="{{ pin.device.name }}"
+          aria-label="{{ pin.device.name }}"
+        ></button>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="cp-plan-panel" id="cp-plan-panel" hidden>
+    <div class="cp-section" style="margin:0;" id="cp-plan-panel-name"></div>
+    <p class="cp-meta" id="cp-plan-panel-meta"></p>
+    {% if can_edit %}
+    <form method="post" id="cp-plan-pin-delete" style="display:none;">
+      {% csrf_token %}
+      <button class="cp-btn-ghost" type="submit">{% translate "Pini sil" %}</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" id="cp-plan-pin-form" action="{% url 'security:plan_pin_upsert' plan.pk view_rev.pk %}" style="display:none;">
+  {% csrf_token %}
+  <input type="hidden" name="device" id="cp-pin-device">
+  <input type="hidden" name="x_pct" id="cp-pin-x">
+  <input type="hidden" name="y_pct" id="cp-pin-y">
+</form>
+
+<script>
+(function () {
+  const viewport = document.getElementById('cp-plan-viewport');
+  const stage = document.getElementById('cp-plan-stage');
+  const img = document.getElementById('cp-plan-svg');
+  const pins = document.getElementById('cp-plan-pins');
+  const panel = document.getElementById('cp-plan-panel');
+  const editToggle = document.getElementById('cp-plan-edit-toggle');
+  const deviceSel = document.getElementById('cp-plan-device');
+  const pinForm = document.getElementById('cp-plan-pin-form');
+  let scale = 1, tx = 0, ty = 0, dragging = false, lx = 0, ly = 0;
+
+  function apply() {
+    stage.style.transform = `translate(${tx}px,${ty}px) scale(${scale})`;
+  }
+  document.getElementById('cp-plan-reset')?.addEventListener('click', () => {
+    scale = 1; tx = 0; ty = 0; apply();
+  });
+  viewport.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    scale = Math.min(8, Math.max(0.4, scale * delta));
+    apply();
+  }, { passive: false });
+  viewport.addEventListener('pointerdown', (e) => {
+    if (editToggle && editToggle.checked) return;
+    dragging = true; lx = e.clientX; ly = e.clientY;
+    viewport.setPointerCapture(e.pointerId);
+  });
+  viewport.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    tx += e.clientX - lx; ty += e.clientY - ly;
+    lx = e.clientX; ly = e.clientY; apply();
+  });
+  viewport.addEventListener('pointerup', () => { dragging = false; });
+
+  function showPanel(btn) {
+    panel.hidden = false;
+    document.getElementById('cp-plan-panel-name').textContent = btn.dataset.name || '';
+    const parts = [btn.dataset.type || ''];
+    if (btn.dataset.ip) parts.push('IP: ' + btn.dataset.ip);
+    if (btn.dataset.note) parts.push(btn.dataset.note);
+    document.getElementById('cp-plan-panel-meta').textContent = parts.filter(Boolean).join(' · ');
+    const del = document.getElementById('cp-plan-pin-delete');
+    if (del) {
+      del.style.display = 'block';
+      del.action = `{% url 'security:plan_pin_delete' plan.pk view_rev.pk 0 %}`.replace('/0/delete/', '/' + btn.dataset.pinId + '/delete/');
+      del.onsubmit = () => confirm('{% translate "Pini silmək?" %}');
+    }
+  }
+  pins.querySelectorAll('.cp-plan-pin').forEach((btn) => {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); showPanel(btn); });
+    btn.addEventListener('focus', () => showPanel(btn));
+  });
+
+  document.querySelectorAll('.cp-plan-toolbar [data-filter]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const f = b.dataset.filter;
+      pins.querySelectorAll('.cp-plan-pin').forEach((p) => {
+        const t = p.dataset.type;
+        let ok = true;
+        if (f === 'camera') ok = t === 'camera';
+        if (f === 'signaling') ok = t === 'alarm_panel' || t === 'sensor';
+        p.style.display = ok ? '' : 'none';
+      });
+    });
+  });
+
+  if (editToggle && pinForm) {
+    stage.addEventListener('click', (e) => {
+      if (!editToggle.checked) return;
+      if (!deviceSel.value) { alert('{% translate "Əvvəlcə cihaz seçin" %}'); return; }
+      const rect = img.getBoundingClientRect();
+      if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      document.getElementById('cp-pin-device').value = deviceSel.value;
+      document.getElementById('cp-pin-x').value = x.toFixed(2);
+      document.getElementById('cp-pin-y').value = y.toFixed(2);
+      pinForm.submit();
+    });
+  }
+})();
+</script>
+{% else %}
+<div class="cp-card p-card">
+  <p class="cp-meta">
+    {% if view_rev %}
+      {% if view_rev.conversion_status == 'pending' or view_rev.conversion_status == 'processing' %}
+        {% translate "Conversion gözlənilir — worker işlədikdən sonra SVG görünəcək." %}
+      {% elif view_rev.conversion_status == 'unsupported' %}
+        {% translate "Bu format hələ dəstəklənmir (DWG converter yoxdur). DXF yükləyin və ya orijinalı endirin." %}
+      {% elif view_rev.conversion_status == 'failed' %}
+        {% translate "Conversion uğursuz oldu. Orijinal fayl saxlanılıb." %}
+        {% if view_rev.conversion_error %}<br>{{ view_rev.conversion_error }}{% endif %}
+      {% else %}
+        {% translate "Aktiv ready revision yoxdur — yoxlayıb aktivləşdirin." %}
+      {% endif %}
+    {% else %}
+      {% translate "Revision yoxdur." %}
+    {% endif %}
+  </p>
+</div>
+{% endif %}
+{% endblock %}

@@ -104,6 +104,8 @@ class SecurityPortalTests(TestCase):
         self.assertGreaterEqual(len(data["results"]), 1)
         self.assertEqual(data["results"][0]["employee"], "Event Person")
         self.assertTrue(data["results"][0]["is_in"])
+        self.assertTrue(data["results"][0]["granted"])
+        self.assertEqual(data["results"][0]["result_label"], "Uğurlu")
 
     def test_resident_blocked_from_security(self):
         self.client.force_login(self.resident)

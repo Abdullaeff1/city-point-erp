@@ -13,7 +13,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Role, User
 from apps.comms.services import notify_in_app
-from apps.residents.models import AccessEvent, RapidCardSwipeAlert, ResidentEmployee
+from apps.residents.models import AccessEvent, AccessResult, RapidCardSwipeAlert, ResidentEmployee
 
 WINDOW_SECONDS = 20
 MIN_SWIPES = 3
@@ -186,6 +186,7 @@ def detect_rapid_swipes_for_employees(
             e
             for e in AccessEvent.objects.filter(
                 employee_id=emp_id,
+                result=AccessResult.GRANTED,
                 occurred_at__gte=lookback_start,
                 occurred_at__lte=around + timedelta(seconds=5),
             ).order_by("occurred_at")

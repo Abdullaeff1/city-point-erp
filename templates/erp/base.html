@@ -22,7 +22,7 @@
       {% if nav_property or nav_residents or nav_parties or nav_leases or nav_fm %}
       <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
-      {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rezidentlər" %}</span><span class="badge badge-muted" style="margin-left:auto;">{{ resident_count }}</span></a>{% endif %}
+      {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' 'resident_employees' 'resident_employee_access' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rezidentlər" %}</span><span class="badge badge-muted" style="margin-left:auto;">{{ resident_count }}</span></a>{% endif %}
       {% if nav_parties %}<a class="{% nav_active 'parties' %}" href="{% url 'erp:parties' %}"><i data-lucide="building" width="18" height="18"></i><span class="cp-nav-text">{% translate "Parties" %}</span></a>{% endif %}
       {% if nav_leases %}<a class="{% nav_active 'leases' 'lease_detail' %}" href="{% url 'erp:leases' %}"><i data-lucide="file-signature" width="18" height="18"></i><span class="cp-nav-text">{% translate "İcarələr" %}</span></a>{% endif %}
       {% if nav_fm %}<a class="{% nav_active 'work_orders' %}" href="{% url 'erp:work_orders' %}"><i data-lucide="wrench" width="18" height="18"></i><span class="cp-nav-text">{% translate "İş sifarişləri" %}</span></a>{% endif %}
@@ -60,7 +60,7 @@
         </summary>
         <div class="cp-nav-group-body">
           {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
-          {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rezidentlər" %}</span><span class="badge badge-muted" style="margin-left:auto;">{{ resident_count }}</span></a>{% endif %}
+          {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' 'resident_employees' 'resident_employee_access' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rezidentlər" %}</span><span class="badge badge-muted" style="margin-left:auto;">{{ resident_count }}</span></a>{% endif %}
           {% if nav_leases %}<a class="{% nav_active 'leases' 'lease_detail' %}" href="{% url 'erp:leases' %}"><i data-lucide="file-signature" width="18" height="18"></i><span class="cp-nav-text">{% translate "İcarələr" %}</span></a>{% endif %}
           {% if nav_fm %}<a class="{% nav_active 'work_orders' %}" href="{% url 'erp:work_orders' %}"><i data-lucide="wrench" width="18" height="18"></i><span class="cp-nav-text">{% translate "İş sifarişləri" %}</span></a>{% endif %}
         </div>

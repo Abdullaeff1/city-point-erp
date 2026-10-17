@@ -18,6 +18,7 @@ from apps.reception.export import visits_xlsx_http_response
 from apps.reception.services import (
     ReceptionService,
     filter_visits,
+    id_pending_queryset,
     inside_overdue_queryset,
     today_visits_queryset,
     visits_queryset_for_range,
@@ -234,6 +235,8 @@ class ReceptionView(RoleRequiredMixin, FormView):
         # "24+ saat" = köhnə / uzun müddət bağlanmamış INSIDE qeydləri.
         if status == "inside_overdue":
             base = inside_overdue_queryset()
+        elif status == "id_pending":
+            base = id_pending_queryset()
         elif status == "inside":
             base = (
                 today_visits_queryset(selected_date)
@@ -245,7 +248,7 @@ class ReceptionView(RoleRequiredMixin, FormView):
         visits = filter_visits(
             base,
             q=q,
-            status="" if status in {"inside", "inside_overdue"} else status,
+            status="" if status in {"inside", "inside_overdue", "id_pending"} else status,
             company_id=company_id or None,
             id_not_returned=id_not_returned,
         )
@@ -262,17 +265,12 @@ class ReceptionView(RoleRequiredMixin, FormView):
             "inside_overdue": inside_overdue_count,
             "today": today_visits_queryset(today).count(),
             "day_total": day_base.count(),
-            "waiting": day_base.filter(
+            "waiting": today_visits_queryset(today).filter(
                 status__in=[VisitStatus.WAITING, VisitStatus.PRE_REGISTERED]
             ).count(),
             "checked_out": day_base.filter(status=VisitStatus.LEFT).count(),
             "no_show": day_base.filter(status=VisitStatus.NO_SHOW).count(),
-            "id_pending": GuestVisit.objects.filter(
-                status=VisitStatus.RETURN_PENDING
-            ).count()
-            + GuestVisit.objects.filter(
-                id_document_held=True, status=VisitStatus.INSIDE
-            ).count(),
+            "id_pending": id_pending_queryset().count(),
         }
         ctx.update(
             {
@@ -640,12 +638,42 @@ class SpaceDetailView(RoleRequiredMixin, TemplateView):
 
 class ResidentListView(StaffRequiredMixin, ListView):
     template_name = "erp/residents.html"
-    queryset = ResidentCompany.objects.filter(is_internal=False)
     context_object_name = "companies"
+
+    def get_queryset(self):
+        from apps.core.search import filter_text_search
+
+        qs = ResidentCompany.objects.filter(is_internal=False).order_by("name")
+        q = (self.request.GET.get("q") or "").strip()
+        if q:
+            qs = filter_text_search(qs, q, "name", "slug", "contact_email")
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["q"] = self.request.GET.get("q") or ""
+        return ctx
 
 
 def _can_view_resident_ops(user) -> bool:
+    """Ticket drill-down — Admin / Rəhbərlik."""
     return user.role in {Role.ADMIN, Role.MANAGEMENT}
+
+
+def _can_view_resident_guests(user) -> bool:
+    """Resepsiya qeydləri — Admin, Rəhbərlik və Reception."""
+    return user.role in {Role.ADMIN, Role.MANAGEMENT, Role.RECEPTION}
+
+
+def _can_view_resident_employees(user) -> bool:
+    """Şirkət əməkdaşları — rezident siyahısını görən ERP rolları."""
+    return user.role in {
+        Role.ADMIN,
+        Role.MANAGEMENT,
+        Role.RECEPTION,
+        Role.SERVICE_DESK,
+        Role.PROPERTY_FM,
+    }
 
 
 def guest_period_query(preset, date_from, date_to) -> str:
@@ -697,6 +725,7 @@ class ResidentDetailView(StaffRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         company = get_object_or_404(ResidentCompany, slug=self.kwargs["slug"], is_internal=False)
         can_drill = _can_view_resident_ops(self.request.user)
+        can_employees = _can_view_resident_employees(self.request.user)
         ctx.update(
             {
                 "company": company,
@@ -705,11 +734,11 @@ class ResidentDetailView(StaffRequiredMixin, TemplateView):
                 "employees": company.employees.filter(is_active=True),
                 "latest_ticket": company.tickets.first(),
                 "can_view_resident_ops": can_drill,
-                # alias kept for older template snippets
-                "can_view_employees": can_drill,
+                "can_view_resident_guests": _can_view_resident_guests(self.request.user),
+                "can_view_employees": can_employees,
             }
         )
-        if can_drill:
+        if ctx["can_view_resident_guests"]:
             today = timezone.localdate()
             period = resident_guest_period(company, self.request)
             ctx.update(
@@ -759,10 +788,10 @@ class ResidentTicketsView(RoleRequiredMixin, TemplateView):
 
 
 class ResidentGuestsView(RoleRequiredMixin, TemplateView):
-    """Şirkətin bugünkü qonaqları — Admin / Rəhbərlik."""
+    """Şirkətin qonaq qeydləri — Admin, Rəhbərlik və Reception."""
 
     template_name = "erp/resident_guests.html"
-    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.RECEPTION)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -795,11 +824,10 @@ class ResidentGuestsView(RoleRequiredMixin, TemplateView):
         return ctx
 
 
-class ResidentEmployeesAccessView(RoleRequiredMixin, TemplateView):
-    """Tenant şirkət işçiləri + giriş/çıxış — Admin / Rəhbərlik."""
+class ResidentEmployeesAccessView(StaffRequiredMixin, TemplateView):
+    """Tenant şirkət işçiləri + giriş/çıxış — bütün ERP staff (o cümlədən Reception)."""
 
     template_name = "erp/resident_employees.html"
-    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
 
     def get_company(self):
         return _resident_company(self.kwargs["slug"])
@@ -833,6 +861,9 @@ class ResidentEmployeesAccessView(RoleRequiredMixin, TemplateView):
                 "export_preset": export_preset,
                 "export_from": export_from,
                 "export_to": export_to,
+                "can_export_access": user_has_permission(
+                    self.request.user, "residents.export_access"
+                ),
             }
         )
         return ctx
@@ -866,9 +897,10 @@ class ResidentAccessExportView(RoleRequiredMixin, View):
         )
 
 
-class ResidentEmployeeAccessDetailView(RoleRequiredMixin, TemplateView):
+class ResidentEmployeeAccessDetailView(StaffRequiredMixin, TemplateView):
+    """Əməkdaş giriş/çıxış detal — bütün ERP staff (o cümlədən Reception)."""
+
     template_name = "erp/resident_employee_access_detail.html"
-    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
 
     def get_employee(self):
         return get_object_or_404(

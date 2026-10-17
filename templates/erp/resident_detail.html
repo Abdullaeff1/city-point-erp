@@ -12,21 +12,22 @@
     <div class="cp-meta">{% translate "Açıq ticket" %}</div>
     <div class="cp-metric" style="font-size:24px;">{{ open_tickets.count }}</div>
   </a>
+  {% else %}
+  <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Açıq ticket" %}</div><div class="cp-metric" style="font-size:24px;">{{ open_tickets.count }}</div></div>
+  {% endif %}
   <a class="cp-card p-card-sm" href="{% url 'erp:resident_employees' company.slug %}" style="text-decoration:none;color:inherit;display:block;">
     <div class="cp-meta">{% translate "Əməkdaşlar" %}</div>
     <div class="cp-metric" style="font-size:24px;">{{ employees.count }}</div>
   </a>
+  {% if can_view_resident_guests %}
   <a class="cp-card p-card-sm" href="{% url 'erp:resident_guests' company.slug %}?range=today&date={{ today|date:'Y-m-d' }}" style="text-decoration:none;color:inherit;display:block;">
     <div class="cp-meta">{% translate "Bugünkü qonaq" %}</div>
     <div class="cp-metric" style="font-size:24px;">{{ guest_today }}</div>
   </a>
-  {% else %}
-  <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Açıq ticket" %}</div><div class="cp-metric" style="font-size:24px;">{{ open_tickets.count }}</div></div>
-  <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Əməkdaşlar" %}</div><div class="cp-metric" style="font-size:24px;">{{ employees.count }}</div></div>
   {% endif %}
 </div>
 
-{% if can_view_resident_ops %}
+{% if can_view_resident_guests %}
 <div class="cp-card p-card mb-4">
   <div class="cp-section" style="margin-top:0;">{% translate "Resepsiya qeydləri" %}</div>
   <div class="cp-tabs" style="margin-bottom:12px;">

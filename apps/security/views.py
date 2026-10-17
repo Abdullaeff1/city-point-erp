@@ -22,6 +22,7 @@ from apps.residents.access_export import access_xlsx_http_response
 from apps.residents.models import (
     AccessEvent,
     AccessEventType,
+    AccessResult,
     AccessLevel,
     RapidCardSwipeAlert,
     ResidentCompany,
@@ -56,6 +57,10 @@ def _serialize_access_event(event: AccessEvent) -> dict:
             _("Giriş") if event.event_type == AccessEventType.IN else _("Çıxış")
         ),
         "is_in": event.event_type == AccessEventType.IN,
+        "granted": event.result != AccessResult.DENIED,
+        "result_label": str(
+            _("Uğurlu") if event.result != AccessResult.DENIED else _("Uğursuz")
+        ),
     }
 
 

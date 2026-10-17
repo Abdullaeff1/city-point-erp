@@ -1,0 +1,52 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Planlar" %}{% endblock %}
+{% block content %}
+{% if can_edit and upload_form %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="margin-top:0;">{% translate "Yeni plan yüklə" %}</div>
+  <p class="cp-meta mb-3">{% translate "DXF tövsiyə olunur. DWG converter quraşdırılmayıbsa unsupported status alınır." %}</p>
+  <form method="post" action="{% url 'security:plan_upload' %}" enctype="multipart/form-data" class="flex gap-3" style="flex-wrap:wrap;align-items:flex-end;">
+    {% csrf_token %}
+    <label>{% translate "Başlıq" %}<br>{{ upload_form.title }}</label>
+    <label>{% translate "Mərtəbə" %}<br>{{ upload_form.floor }}</label>
+    <label>{% translate "Kateqoriya" %}<br>{{ upload_form.category }}</label>
+    <label>{% translate "Fayl" %}<br>{{ upload_form.source_file }}</label>
+    <button type="submit" class="cp-btn-accent">{% translate "Yüklə" %}</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="cp-card">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Ad" %}</th>
+        <th>{% translate "Bina / mərtəbə" %}</th>
+        <th>{% translate "Kateqoriya" %}</th>
+        <th>{% translate "Aktiv revision" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.plan.title }}</td>
+        <td>{{ row.plan.floor.building.name }} · {{ row.plan.floor.code }}</td>
+        <td>{{ row.plan.get_category_display }}</td>
+        <td>{% if row.active %}r{{ row.active.revision_number }}{% else %}—{% endif %}</td>
+        <td>
+          {% with r=row.active|default:row.latest %}
+          {% if r %}{{ r.get_conversion_status_display }}{% if r.conversion_error %}<div class="cp-meta">{{ r.conversion_error }}</div>{% endif %}{% else %}—{% endif %}
+          {% endwith %}
+        </td>
+        <td><a class="cp-btn-ghost" href="{% url 'security:plan_detail' row.plan.pk %}">{% translate "Aç" %}</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="cp-meta">{% translate "Plan yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

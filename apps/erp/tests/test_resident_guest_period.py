@@ -115,8 +115,26 @@ class ResidentGuestPeriodTests(TestCase):
             self.assertNotContains(guests, "OtherCo Guest")
             self.assertNotContains(detail, "Portal Guest")
 
+    def test_reception_sees_guest_counters(self):
+        expected = self._counts(self.today, self.today)
+        self.client.force_login(self.reception)
+        detail = self.client.get(self.detail)
+        guests = self.client.get(self.guests)
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(guests.status_code, 200)
+        self.assertEqual(detail.context["guest_today"], 4)
+        self.assertEqual(detail.context["guest_total"], expected["total"])
+        self.assertEqual(detail.context["guest_inside"], expected["inside"])
+        self.assertContains(detail, "Resepsiya qeydləri")
+        self.assertContains(detail, "Dövr üzrə ziyarət")
+        self.assertContains(detail, "Bütün qeydlərə bax")
+        self.assertContains(guests, "Portal Guest")
+        self.assertNotContains(guests, "OtherCo Guest")
+        tickets = self.client.get(reverse("erp:resident_tickets", args=[self.company.slug]))
+        self.assertEqual(tickets.status_code, 403)
+
     def test_other_roles_cannot_see_guest_counters(self):
-        for user in (self.reception, self.fm, self.desk):
+        for user in (self.fm, self.desk):
             self.client.force_login(user)
             detail = self.client.get(self.detail)
             self.assertEqual(detail.status_code, 200)

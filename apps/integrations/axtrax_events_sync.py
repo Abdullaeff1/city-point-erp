@@ -13,10 +13,11 @@ from django.utils.dateparse import parse_datetime
 
 from apps.integrations.axtrax_people_sync import AXTRAX_SYSTEM
 from apps.integrations.models import ExternalIdentity, SyncLog, SyncStatus
-from apps.residents.models import AccessEvent, AccessEventType, ResidentEmployee
+from apps.residents.models import AccessEvent, AccessEventType, AccessResult, ResidentEmployee
 
 EVENT_CURSOR_KEY = "events_cursor"
 ACCESS_GRANTED_TYPE = 17
+ACCESS_DENIED_TYPES = {18, 33}
 
 
 def load_export(path: Path) -> dict:
@@ -89,6 +90,36 @@ def _event_type(reader_out) -> str:
     return AccessEventType.IN
 
 
+def _access_result(ax_type) -> str:
+    try:
+        code = int(ax_type or ACCESS_GRANTED_TYPE)
+    except (TypeError, ValueError):
+        code = ACCESS_GRANTED_TYPE
+    if code in ACCESS_DENIED_TYPES:
+        return AccessResult.DENIED
+    return AccessResult.GRANTED
+
+
+def _snapshot_name(row, employee) -> str:
+    if employee is not None:
+        return (employee.full_name or "")[:160]
+    raw = " ".join(str(row.get("full_name") or "").split())
+    if raw.lower().startswith("card"):
+        code = str(row.get("card_code") or "").strip()
+        return (f"Kart {code}" if code else "Naməlum kart")[:160]
+    head = raw.split("(Card", 1)[0].strip(" ,")
+    return (head or raw or "Naməlum kart")[:160]
+
+
+def _snapshot_card(row, employee) -> str:
+    code = str(row.get("card_code") or "").strip()
+    if code and code != "0":
+        return code[:32]
+    if employee is not None and employee.card_number:
+        return employee.card_number[:32]
+    return ""
+
+
 @transaction.atomic
 def sync_event_rows(
     rows: list,
@@ -96,9 +127,11 @@ def sync_event_rows(
     since_id: int | None = None,
     source: str = "export",
     detect_alerts: bool = True,
+    advance_cursor: bool = True,
 ) -> dict:
-    """Import already-fetched AxTrax access-granted rows."""
-    cursor = get_events_cursor() if since_id is None else int(since_id)
+    """Import already-fetched AxTrax access rows (granted and denied)."""
+    live_cursor = get_events_cursor()
+    cursor = live_cursor if since_id is None else int(since_id)
     emp_map = _employee_map()
     event_ct = ContentType.objects.get_for_model(AccessEvent)
 
@@ -114,7 +147,7 @@ def sync_event_rows(
         "rapid_swipe_alerts": 0,
         "shaft_access_alerts": 0,
     }
-    max_id = cursor
+    max_id = live_cursor
     created_events: list[AccessEvent] = []
 
     for row in rows:
@@ -133,21 +166,20 @@ def sync_event_rows(
             stats["skipped_existing"] += 1
             continue
 
-        employee_pk = emp_map.get(emp_num)
-        if not employee_pk:
+        result = _access_result(row.get("event_type"))
+        employee_pk = emp_map.get(emp_num) if emp_num else None
+        employee = None
+        if employee_pk:
+            employee = ResidentEmployee.objects.filter(pk=employee_pk).only(
+                "id", "full_name", "card_number"
+            ).first()
+        if result == AccessResult.GRANTED and employee is None:
             stats["skipped_unmapped"] += 1
             continue
 
         occurred_at = _parse_occurred_at(row.get("occurred_at"))
         if not occurred_at:
             stats["skipped_bad_time"] += 1
-            continue
-
-        employee = ResidentEmployee.objects.filter(pk=employee_pk).only(
-            "id", "full_name", "card_number"
-        ).first()
-        if not employee:
-            stats["skipped_unmapped"] += 1
             continue
 
         reader_id = None
@@ -158,12 +190,13 @@ def sync_event_rows(
                 reader_id = None
 
         event = AccessEvent.objects.create(
-            employee_id=employee.pk,
+            employee_id=employee.pk if employee else None,
             event_type=_event_type(row.get("reader_out")),
+            result=result,
             occurred_at=occurred_at,
-            employee_name=employee.full_name[:160],
-            card_number=(employee.card_number or "")[:32],
-            axtrax_employee_id=emp_num,
+            employee_name=_snapshot_name(row, employee),
+            card_number=_snapshot_card(row, employee),
+            axtrax_employee_id=emp_num or None,
             reader_id=reader_id,
             reader_name=(str(row.get("reader_name") or "").strip()[:255]),
         )
@@ -176,11 +209,12 @@ def sync_event_rows(
             last_status=SyncStatus.SUCCESS,
         )
         stats["created"] += 1
-        created_events.append(event)
+        if result == AccessResult.GRANTED:
+            created_events.append(event)
 
-    if max_id > cursor:
+    if advance_cursor and max_id > live_cursor:
         set_events_cursor(max_id, stats={"created": stats["created"]})
-    stats["cursor_after"] = max_id if max_id > cursor else cursor
+    stats["cursor_after"] = max_id if max_id > live_cursor else live_cursor
 
     if created_events and detect_alerts:
         from apps.residents.rapid_swipe import detect_rapid_swipes_after_sync
@@ -245,6 +279,37 @@ def backfill_events_from_date(since_date, *, batch_size: int = 5000) -> dict:
             "skipped_old",
         ):
             totals[key] += int(stats.get(key) or 0)
+        after_id = max(int(r["event_id"]) for r in rows)
+        if len(rows) < batch_size:
+            break
+    totals["after_id"] = after_id
+    return totals
+
+
+def backfill_denied_since(since_dt, *, batch_size: int = 5000) -> dict:
+    """Import denied access rows (types 18 and 33) even when the live cursor is ahead."""
+    from apps.integrations.axtrax_mssql import fetch_denied_events_since
+
+    if not hasattr(since_dt, "hour"):
+        since_dt = timezone.make_aware(datetime.combine(since_dt, datetime.min.time()))
+
+    after_id = 0
+    totals = {"batches": 0, "rows_fetched": 0, "created": 0, "skipped_existing": 0}
+    while True:
+        rows = fetch_denied_events_since(since_dt, after_id=after_id, limit=batch_size)
+        if not rows:
+            break
+        totals["batches"] += 1
+        totals["rows_fetched"] += len(rows)
+        stats = sync_event_rows(
+            rows,
+            since_id=0,
+            source="denied-backfill",
+            detect_alerts=False,
+            advance_cursor=False,
+        )
+        totals["created"] += int(stats.get("created") or 0)
+        totals["skipped_existing"] += int(stats.get("skipped_existing") or 0)
         after_id = max(int(r["event_id"]) for r in rows)
         if len(rows) < batch_size:
             break

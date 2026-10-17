@@ -102,13 +102,14 @@ class Command(BaseCommand):
         return {
             "occurred_at": timezone.localtime(e.occurred_at).isoformat(),
             "event_type": e.event_type,
-            "employee_name": e.employee_name or emp.full_name,
-            "card_number": e.card_number or emp.card_number,
+            "result": e.result,
+            "employee_name": e.employee_name or (emp.full_name if emp else ""),
+            "card_number": e.card_number or (emp.card_number if emp else ""),
             "axtrax_employee_id": e.axtrax_employee_id,
-            "company": emp.company.name if emp.company_id else "",
-            "employee_id": emp.pk,
-            "is_active": emp.is_active,
+            "company": emp.company.name if emp and emp.company_id else "",
+            "employee_id": emp.pk if emp else None,
+            "is_active": emp.is_active if emp else False,
             "deactivated_at": (
-                timezone.localtime(emp.deactivated_at).isoformat() if emp.deactivated_at else ""
+                timezone.localtime(emp.deactivated_at).isoformat() if emp and emp.deactivated_at else ""
             ),
         }

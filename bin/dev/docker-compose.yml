@@ -38,6 +38,7 @@ services:
     volumes:
       - ../..:/app
       - citypoint_media:/app/media
+      - citypoint_private_media:/app/var/private_media
     depends_on:
       db:
         condition: service_healthy
@@ -45,3 +46,4 @@ services:
 volumes:
   citypoint_pgdata:
   citypoint_media:
+  citypoint_private_media:

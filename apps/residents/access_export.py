@@ -13,7 +13,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from apps.residents.access import attendance_for_day, employee_roster_qs
-from apps.residents.models import AccessEvent, ResidentEmployee
+from apps.residents.models import AccessEvent, AccessResult, ResidentEmployee
 
 AZ_WEEKDAYS = (
     "Bazar ertəsi",
@@ -141,6 +141,7 @@ def load_company_day_attendance(
     end_dt = timezone.make_aware(datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
     events = AccessEvent.objects.filter(
         employee_id__in=emp_ids,
+        result=AccessResult.GRANTED,
         occurred_at__gte=start_dt,
         occurred_at__lt=end_dt,
     ).order_by("occurred_at", "id")
