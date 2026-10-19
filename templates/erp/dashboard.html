@@ -52,7 +52,7 @@
   </div>
 </div>
 {% endif %}
-<div class="grid-dash mb-4{% if not show_tickets %} grid-dash--single{% endif %}">
+<div class="grid-dash mb-4{% if show_tickets %} grid-dash--triple{% endif %}">
   {% if show_tickets %}
   <div class="cp-card" style="padding:8px 0;">
     <div class="cp-section section-pad">{% translate "Ticketlər" %}</div>
@@ -73,15 +73,15 @@
       </div>
     {% empty %}<p class="cp-meta empty-pad">{% translate "Qonaq yoxdur." %}</p>{% endfor %}
   </div>
-</div>
-<div class="cp-card p-card">
-  <div class="cp-section">{% translate "Son fəaliyyətlər" %}</div>
-  <ul class="flex-col gap-2 mt-3" style="list-style:none;padding:0;">
-    {% for a in activities %}
-      <li><span class="cp-meta">{{ a.at|date:"H:i" }}</span> {{ a.text }}</li>
-    {% empty %}
-      <li class="cp-meta">{% translate "Fəaliyyət yoxdur." %}</li>
-    {% endfor %}
-  </ul>
+  <div class="cp-card" style="padding:8px 0;">
+    <div class="cp-section section-pad">{% translate "Son fəaliyyətlər" %}</div>
+    <ul style="list-style:none;padding:0;margin:0;">
+      {% for a in activities %}
+        <li class="empty-pad" style="padding:10px 20px;"><span class="cp-meta">{{ a.at|date:"H:i" }}</span> {{ a.text }}</li>
+      {% empty %}
+        <li class="cp-meta empty-pad">{% translate "Fəaliyyət yoxdur." %}</li>
+      {% endfor %}
+    </ul>
+  </div>
 </div>
 {% endblock %}

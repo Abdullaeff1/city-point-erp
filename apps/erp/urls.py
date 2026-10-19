@@ -10,6 +10,26 @@ urlpatterns = [
     path("people-inside/<int:pk>/", views.PeopleInsideDetailView.as_view(), name="people_inside_detail"),
     path("reception/", views.ReceptionView.as_view(), name="reception"),
     path("reception/<int:pk>/status/", views.ReceptionStatusView.as_view(), name="reception_status"),
+    path(
+        "reception/guest-list/template/",
+        views.ReceptionGuestListTemplateView.as_view(),
+        name="reception_guest_list_template",
+    ),
+    path(
+        "reception/guest-list/preview/",
+        views.ReceptionGuestListPreviewView.as_view(),
+        name="reception_guest_list_preview",
+    ),
+    path(
+        "reception/guest-list/confirm/",
+        views.ReceptionGuestListConfirmView.as_view(),
+        name="reception_guest_list_confirm",
+    ),
+    path(
+        "reception/guest-list/<int:pk>/check-in/",
+        views.ReceptionGuestListCheckInView.as_view(),
+        name="reception_guest_list_check_in",
+    ),
     path("reception/guest-lookup/", views.ReceptionGuestLookupView.as_view(), name="reception_guest_lookup"),
     path("reception/export/", views.ReceptionExportView.as_view(), name="reception_export"),
     path("tickets/", views.TicketListView.as_view(), name="tickets"),

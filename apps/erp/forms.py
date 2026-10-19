@@ -262,6 +262,25 @@ class PortalGuestForm(forms.Form):
         return value
 
 
+FORGOTTEN_CARD_CODE = "forgotten-card"
+LEASE_AREA_CODE = "lease-area"
+MEETING_CODE = "meeting"
+TECHNICIAN_CODE = "technician"
+CITY_POINT_SLUG = "city-point"
+NO_HOST_VISIT_CODES = {FORGOTTEN_CARD_CODE, LEASE_AREA_CODE, MEETING_CODE, TECHNICIAN_CODE}
+
+
+class VisitTypeSelect(forms.Select):
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex=subindex, attrs=attrs)
+        instance = getattr(value, "instance", None)
+        if instance is not None and instance.code in NO_HOST_VISIT_CODES:
+            option["attrs"]["data-no-host"] = "1"
+        if instance is not None and instance.code == LEASE_AREA_CODE:
+            option["attrs"]["data-lock-company"] = CITY_POINT_SLUG
+        return option
+
+
 class GuestVisitForm(forms.Form):
     fin_code = forms.CharField(
         label=_("Seriya nömrəsi"),
@@ -278,6 +297,7 @@ class GuestVisitForm(forms.Form):
         queryset=VisitorType.objects.filter(is_active=True),
         label=_("Gəliş səbəbi"),
         empty_label=_("Seçin…"),
+        widget=VisitTypeSelect,
     )
     id_document_held = forms.BooleanField(
         required=False,
@@ -326,4 +346,13 @@ class GuestVisitForm(forms.Form):
             self.add_error("guest_card_number", _("Qonaq kartı nömrəsi tələb olunur."))
         if held and not (cleaned.get("fin_code") or "").strip():
             self.add_error("fin_code", _("Vəsiqə saxlanılanda seriya nömrəsi tələb olunur."))
+        visit_type = cleaned.get("visit_type")
+        if visit_type is not None and visit_type.code in NO_HOST_VISIT_CODES:
+            cleaned["host"] = None
+        if visit_type is not None and visit_type.code == LEASE_AREA_CODE:
+            company = ResidentCompany.objects.filter(slug=CITY_POINT_SLUG, status="active").first()
+            if company is None:
+                self.add_error("company", _("City Point şirkəti tapılmadı."))
+            else:
+                cleaned["company"] = company
         return cleaned

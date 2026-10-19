@@ -8,7 +8,6 @@ from apps.accounts.models import Role, User
 from apps.comms.models import Announcement, AnnouncementSeverity, Notification
 from apps.documents.models import Document
 from apps.property.models import Asset, Building, Contractor, Floor, Occupancy, Space
-from apps.reception.models import Guest, GuestVisit, VisitStatus
 from apps.residents.models import AccessEvent, AccessEventType, ResidentCompany, ResidentEmployee
 from apps.integrations.models import ExternalIdentity
 from apps.tickets.models import (
@@ -130,10 +129,6 @@ class Command(BaseCommand):
         else:
             default_asbc_host = None
 
-        tech_host, _ = ResidentEmployee.objects.update_or_create(
-            company=techco, card_number="AC-2201", defaults={"full_name": "R. Quliyev"}
-        )
-
         today = timezone.localdate()
         tz = timezone.get_current_timezone()
 
@@ -164,47 +159,6 @@ class Command(BaseCommand):
                     ),
                 ]
             )
-
-        if not GuestVisit.objects.filter(scheduled_for=today).exists():
-            from apps.reception.models import VisitorType
-
-            meeting = (
-                VisitorType.objects.filter(code="meeting").first()
-                or VisitorType.objects.filter(code="resident-meeting").first()
-            )
-            guest_rows = [
-                ("A. Məmmədov", "7A3B2C1D2K", asbc, default_asbc_host, f08, space801, VisitStatus.INSIDE, at_hour(10, 15), None),
-                ("L. Əliyeva", "1X2Y3Z4A5B", techco, tech_host, f05, None, VisitStatus.PRE_REGISTERED, None, None),
-                ("K. Orucov", "9K8J7H6G5F", asbc, default_asbc_host, f08, space801, VisitStatus.LEFT, at_hour(9, 40), at_hour(11, 10)),
-                ("T. Hüseynov", "5E4D3C2B1A", asbc, default_asbc_host, f08, space801, VisitStatus.LEFT, at_hour(9, 40), at_hour(10, 5)),
-                ("M. Rəhimova", "2M3N4P5Q6R", asbc, default_asbc_host, None, None, VisitStatus.WAITING, None, None),
-            ]
-            for name, fin, company, host, floor, space, status, cin, cout in guest_rows:
-                parts = name.split(None, 1)
-                guest, _ = Guest.objects.get_or_create(
-                    fin_code=fin,
-                    defaults={
-                        "first_name": parts[0],
-                        "last_name": parts[1] if len(parts) > 1 else "",
-                        "full_name": name,
-                    },
-                )
-                GuestVisit.objects.create(
-                    guest=guest,
-                    company=company,
-                    host=host,
-                    floor=floor,
-                    space=space,
-                    visit_type=meeting,
-                    location_note="Meeting R." if name == "M. Rəhimova" else "",
-                    status=status,
-                    scheduled_for=today,
-                    check_in_at=cin,
-                    check_out_at=cout,
-                    id_document_held=status == VisitStatus.INSIDE,
-                    pre_registered=status == VisitStatus.PRE_REGISTERED,
-                    invite_code="PRE-DEMO01" if status == VisitStatus.PRE_REGISTERED else "",
-                )
 
         tax = seed_ticket_taxonomy()
         cats = tax["categories"]

@@ -16,7 +16,27 @@
       <a class="{% nav_active 'guests' %}" href="{% url 'security:guests' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Qonaqlar" %}</span></a>
       <a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'security:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Ticketlər" %}</span></a>
       <a class="{% nav_active 'plans' 'plan_detail' 'plan_upload' %}" href="{% url 'security:plans' %}"><i data-lucide="map" width="18" height="18"></i><span class="cp-nav-text">{% translate "Planlar" %}</span></a>
-      <a class="{% nav_active 'devices' 'device_create' 'device_update' %}" href="{% url 'security:devices' %}"><i data-lucide="camera" width="18" height="18"></i><span class="cp-nav-text">{% translate "Cihazlar" %}</span></a>
+      {% with url_name=request.resolver_match.url_name %}
+      <details class="cp-nav-group cp-nav-menu" {% if url_name == 'devices' or url_name == 'device_create' or url_name == 'device_update' %}open{% endif %}>
+        <summary class="cp-nav-summary {% if url_name == 'devices' or url_name == 'device_create' or url_name == 'device_update' %}is-active{% endif %}">
+          <span class="cp-nav-summary-main">
+            <i data-lucide="cpu" width="18" height="18"></i>
+            <span class="cp-nav-text">{% translate "Cihazlar" %}</span>
+          </span>
+          <i data-lucide="chevron-down" class="cp-nav-chevron" width="14" height="14"></i>
+        </summary>
+        <div class="cp-nav-group-body">
+          <a class="{% nav_active 'devices' 'device_create' 'device_update' %}" href="{% url 'security:devices' %}">
+            <i data-lucide="camera" width="18" height="18"></i>
+            <span class="cp-nav-text">{% translate "Kameralar" %}</span>
+          </a>
+          <span class="cp-nav-soon" title="{% translate 'Sonradan əlavə olunacaq' %}">
+            <i data-lucide="bell-ring" width="18" height="18"></i>
+            <span class="cp-nav-text">{% translate "Siqnalizasiya" %}</span>
+          </span>
+        </div>
+      </details>
+      {% endwith %}
       {% include "partials/role_switch_nav.html" %}
     </nav>
     <div class="cp-user-bar">

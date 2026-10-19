@@ -86,7 +86,7 @@
             {% endif %}
           </td>
           <td>{{ e.employee.company.name|default:"—" }}</td>
-          <td class="cp-code">{{ e.card_number|default:e.employee.card_number|default:"—" }}</td>
+          <td class="cp-code">{% if e.employee.card_number %}{{ e.employee.card_number }}{% else %}{{ e.card_number|default:"—" }}{% endif %}</td>
           <td>{{ e.reader_name|default:"—" }}</td>
           <td>
             {% if e.event_type == "in" %}

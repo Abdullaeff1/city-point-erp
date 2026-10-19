@@ -6,8 +6,9 @@ REASON_TYPES = [
     ("forgotten-card", "Kartın unutmuş əməkdaş", 20),
     ("guest", "Qonaq", 30),
     ("lease-area", "İcarə sahə üçün", 40),
-    ("meeting", "İclas üçün", 50),
+    ("meeting", "Meeting room", 50),
     ("goods-handover", "Məhsul təhvil-təslimi üçün", 60),
+    ("technician", "Usta/texniki işçi", 70),
 ]
 
 LEGACY_CODES = {

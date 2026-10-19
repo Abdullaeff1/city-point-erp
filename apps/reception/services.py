@@ -234,6 +234,22 @@ class ReceptionService(Service):
 
     @classmethod
     @transaction.atomic
+    def check_in_list(cls, list_import, *, actor=None) -> int:
+        """Check in every still-waiting guest from one uploaded list. No ID is taken."""
+        visits = list(
+            GuestVisit.objects.select_for_update()
+            .filter(
+                list_import=list_import,
+                status__in=(VisitStatus.PRE_REGISTERED, VisitStatus.WAITING),
+            )
+            .order_by("pk")
+        )
+        for visit in visits:
+            cls.check_in_visit(visit, actor=actor, id_document_held=False)
+        return len(visits)
+
+    @classmethod
+    @transaction.atomic
     def check_out_visit(
         cls,
         visit: GuestVisit,

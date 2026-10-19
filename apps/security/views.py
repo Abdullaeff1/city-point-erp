@@ -41,7 +41,8 @@ def _serialize_access_event(event: AccessEvent) -> dict:
     company = ""
     if event.employee_id and event.employee.company_id:
         company = event.employee.company.name
-    card = event.card_number or (event.employee.card_number if event.employee_id else "") or ""
+    badge = (event.employee.card_number if event.employee_id else "") or ""
+    card = badge.strip() or (event.card_number or "").strip()
     return {
         "id": event.pk,
         "occurred_at": local.strftime("%d.%m.%Y %H:%M:%S"),

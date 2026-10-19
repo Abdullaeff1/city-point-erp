@@ -41,7 +41,7 @@ class ReceptionServiceTests(TestCase):
             company=self.other, full_name="Other Host", is_active=True
         )
         self.vtype, _ = VisitorType.objects.get_or_create(
-            code="meeting", defaults={"name": "İclas üçün", "sort_order": 50}
+            code="meeting", defaults={"name": "Meeting room", "sort_order": 50}
         )
         self.user = User.objects.create_user(
             username="reception_test",
@@ -137,6 +137,98 @@ class ReceptionServiceTests(TestCase):
             fin_code="abc12345xy", first_name="A", last_name="B", actor=self.user
         )
         self.assertEqual(g1.pk, g2.pk)
+
+    def test_forgotten_card_clears_host(self):
+        from apps.erp.forms import GuestVisitForm
+
+        forgotten, _ = VisitorType.objects.get_or_create(
+            code="forgotten-card",
+            defaults={"name": "Kartın unutmuş əməkdaş", "sort_order": 20},
+        )
+        form = GuestVisitForm(
+            data={
+                "first_name": "A",
+                "last_name": "B",
+                "company": self.company.pk,
+                "host": self.host.pk,
+                "visit_type": forgotten.pk,
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["host"])
+        rendered = str(form["visit_type"])
+        self.assertIn('data-no-host="1"', rendered)
+
+    def test_lease_area_sets_city_point_and_clears_host(self):
+        from apps.erp.forms import GuestVisitForm
+
+        city = ResidentCompany.objects.create(
+            name="City Point", slug="city-point", status="active"
+        )
+        lease, _ = VisitorType.objects.get_or_create(
+            code="lease-area",
+            defaults={"name": "İcarə sahə üçün", "sort_order": 40},
+        )
+        form = GuestVisitForm(
+            data={
+                "first_name": "A",
+                "last_name": "B",
+                "company": self.company.pk,
+                "host": self.host.pk,
+                "visit_type": lease.pk,
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["company"], city)
+        self.assertIsNone(form.cleaned_data["host"])
+        self.assertIn('data-lock-company="city-point"', str(form["visit_type"]))
+
+    def test_meeting_room_clears_host(self):
+        from apps.erp.forms import GuestVisitForm
+
+        form = GuestVisitForm(
+            data={
+                "first_name": "A",
+                "last_name": "B",
+                "company": self.company.pk,
+                "host": self.host.pk,
+                "visit_type": self.vtype.pk,
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["host"])
+        self.assertEqual(form.cleaned_data["company"], self.company)
+        rendered = str(form["visit_type"])
+        marker = f'value="{self.vtype.pk}"'
+        option = next(part for part in rendered.split("<option") if marker in part)
+        self.assertIn('data-no-host="1"', option)
+        self.assertNotIn("data-lock-company", option)
+
+    def test_technician_clears_host(self):
+        from apps.erp.forms import GuestVisitForm
+
+        technician, _ = VisitorType.objects.get_or_create(
+            code="technician",
+            defaults={"name": "Usta/texniki işçi", "sort_order": 70},
+        )
+        form = GuestVisitForm(
+            data={
+                "first_name": "A",
+                "last_name": "B",
+                "company": self.company.pk,
+                "host": self.host.pk,
+                "visit_type": technician.pk,
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["host"])
+        self.assertEqual(form.cleaned_data["company"], self.company)
+        rendered = str(form["visit_type"])
+        marker = f'value="{technician.pk}"'
+        option = next(part for part in rendered.split("<option") if marker in part)
+        self.assertIn("Usta/texniki işçi", option)
+        self.assertIn('data-no-host="1"', option)
+        self.assertNotIn("data-lock-company", option)
 
     def test_host_must_belong_to_company(self):
         with self.assertRaises(DomainError):
@@ -363,3 +455,123 @@ class ReceptionExcelExportTests(TestCase):
         self.assertIn("Bu həftə", body)
         self.assertIn("Bu ay", body)
         self.assertIn("Tarix aralığı", body)
+
+
+class GuestListImportTests(TestCase):
+    def setUp(self):
+        seed_rbac_catalog()
+        self.company = ResidentCompany.objects.create(name="Test Co", slug="list-co", status="active")
+        self.user = User.objects.create_user(
+            username="list_rec",
+            email="list-rec@test.az",
+            password="pass12345",
+            role=Role.RECEPTION,
+        )
+        self.client = Client()
+        self.client.login(email="list-rec@test.az", password="pass12345")
+
+    def _xlsx(self, rows):
+        from io import BytesIO
+
+        from openpyxl import Workbook
+
+        book = Workbook()
+        sheet = book.active
+        for row in rows:
+            sheet.append(row)
+        buffer = BytesIO()
+        book.save(buffer)
+        buffer.seek(0)
+        buffer.name = "qonaqlar.xlsx"
+        return buffer
+
+    def _docx_table(self, rows):
+        from io import BytesIO
+
+        from docx import Document
+
+        document = Document()
+        table = document.add_table(rows=len(rows), cols=len(rows[0]))
+        for r, row in enumerate(rows):
+            for c, value in enumerate(row):
+                table.rows[r].cells[c].text = value
+        buffer = BytesIO()
+        document.save(buffer)
+        buffer.seek(0)
+        buffer.name = "qonaqlar.docx"
+        return buffer
+
+    def test_excel_saves_preregistered_and_bulk_check_in_skips_id(self):
+        from apps.reception.guest_list_import import parse_guest_list_file, resolve_guest_rows
+        from apps.reception.models import GuestListImport
+
+        uploaded = self._xlsx(
+            [
+                ["Ad", "Soyad", "Şirkət", "Tarix"],
+                ["Aysel", "Məmmədova", "Test Co", "2026-01-02"],
+                ["Kamran", "Əliyev", "Nope Ltd", "2026-01-02"],
+            ]
+        )
+        parsed = parse_guest_list_file(uploaded)
+        rows = resolve_guest_rows(
+            parsed,
+            companies=ResidentCompany.objects.filter(status="active"),
+            scheduled_for=timezone.localdate(),
+        )
+        self.assertEqual(rows[0]["scheduled_for"], timezone.localdate().isoformat())
+        self.assertEqual(rows[1]["error"], "Şirkət tapılmadı.")
+
+        preview = self.client.post(
+            reverse("erp:reception_guest_list_preview"),
+            {"guest_list": self._xlsx(
+                [
+                    ["Ad", "Soyad", "Şirkət", "Tarix"],
+                    ["Aysel", "Məmmədova", "Test Co", "02.01.2026"],
+                    ["Kamran", "Əliyev", "Nope Ltd", "02.01.2026"],
+                ]
+            ), "list_date": timezone.localdate().isoformat()},
+        )
+        self.assertEqual(preview.status_code, 302)
+        page = self.client.get(preview.url)
+        body = page.content.decode()
+        self.assertIn("Aysel", body)
+        self.assertIn("Şirkət tapılmadı.", body)
+        self.assertIn("Jurnala yaz", body)
+
+        saved = self.client.post(reverse("erp:reception_guest_list_confirm"), {"action": "save"})
+        self.assertEqual(saved.status_code, 302)
+        journal = self.client.get(saved.url)
+        self.assertIn("Hamısını giriş et", journal.content.decode())
+        self.assertNotIn("Vəsiqə saxlanıldı (kart verildi)", journal.content.decode().split("Hamısını giriş et", 1)[-1])
+        visits = GuestVisit.objects.filter(list_import__isnull=False)
+        self.assertEqual(visits.count(), 1)
+        visit = visits.get()
+        self.assertEqual(visit.status, VisitStatus.PRE_REGISTERED)
+        self.assertEqual(visit.guest.first_name, "Aysel")
+        self.assertIsNone(visit.host_id)
+        self.assertFalse(visit.id_document_held)
+        self.assertEqual(visit.scheduled_for, timezone.localdate())
+
+        list_import = GuestListImport.objects.get()
+        checked = self.client.post(reverse("erp:reception_guest_list_check_in", args=[list_import.pk]))
+        self.assertEqual(checked.status_code, 302)
+        visit.refresh_from_db()
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
+        self.assertFalse(visit.id_document_held)
+        self.assertFalse(VisitorAccess.objects.filter(visit=visit).exists())
+        self.assertIsNotNone(visit.check_in_at)
+
+    def test_word_table_parses_names(self):
+        from apps.reception.guest_list_import import parse_guest_list_file
+
+        uploaded = self._docx_table(
+            [
+                ["Ad Soyad", "Şirkət", "Tarix"],
+                ["Nigar Həsənova", "Test Co", "19.10.2026"],
+            ]
+        )
+        parsed = parse_guest_list_file(uploaded)
+        self.assertEqual(parsed[0]["first_name"], "Nigar")
+        self.assertEqual(parsed[0]["last_name"], "Həsənova")
+        self.assertEqual(parsed[0]["company_name"], "Test Co")
+        self.assertEqual(parsed[0]["scheduled_for"].isoformat(), "2026-10-19")

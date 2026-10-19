@@ -13,7 +13,14 @@ from apps.core.services import DomainError
 from apps.documents.models import Document
 from apps.erp.forms import GuestVisitForm
 from apps.property.models import Floor, Space
-from apps.reception.models import GuestVisit, VisitStatus, mask_fin
+from apps.reception.guest_list_import import (
+    PREVIEW_SESSION_KEY,
+    commit_guest_list,
+    guest_list_template_response,
+    parse_guest_list_file,
+    resolve_guest_rows,
+)
+from apps.reception.models import GuestListImport, GuestVisit, VisitStatus, mask_fin
 from apps.reception.export import visits_xlsx_http_response
 from apps.reception.services import (
     ReceptionService,
@@ -298,6 +305,27 @@ class ReceptionView(RoleRequiredMixin, FormView):
                 "export_preset": export_preset,
                 "export_from": export_from,
                 "export_to": export_to,
+                "list_imports": (
+                    GuestListImport.objects.filter(scheduled_for=selected_date)
+                    .select_related("company")
+                    .annotate(
+                        guest_count=Count("visits"),
+                        waiting_count=Count(
+                            "visits",
+                            filter=Q(
+                                visits__status__in=[
+                                    VisitStatus.PRE_REGISTERED,
+                                    VisitStatus.WAITING,
+                                ]
+                            ),
+                        ),
+                    )
+                ),
+                "list_preview": self.request.session.get(PREVIEW_SESSION_KEY),
+                "can_create_visit": user_has_permission(
+                    self.request.user, "reception.create_visit"
+                ),
+                "can_check_in": user_has_permission(self.request.user, "reception.check_in"),
             }
         )
         return ctx
@@ -372,6 +400,112 @@ class ReceptionStatusView(RoleRequiredMixin, View):
         except DomainError as exc:
             messages.error(request, str(exc))
         return redirect("erp:reception")
+
+
+class ReceptionGuestListTemplateView(RoleRequiredMixin, View):
+    allowed_roles = (Role.RECEPTION,)
+
+    def get(self, request):
+        if not user_has_permission(request.user, "reception.create_visit"):
+            raise PermissionDenied("Qonaq yaratmaq icazəsi yoxdur.")
+        return guest_list_template_response()
+
+
+class ReceptionGuestListPreviewView(RoleRequiredMixin, View):
+    allowed_roles = (Role.RECEPTION,)
+
+    def post(self, request):
+        if not user_has_permission(request.user, "reception.create_visit"):
+            raise PermissionDenied("Qonaq yaratmaq icazəsi yoxdur.")
+        uploaded = request.FILES.get("guest_list")
+        if uploaded is None:
+            messages.error(request, "Fayl seçin.")
+            return redirect("erp:reception")
+        company_raw = (request.POST.get("list_company") or "").strip()
+        company_id = int(company_raw) if company_raw.isdigit() else None
+        scheduled_for = parse_date(request.POST.get("list_date"), None)
+        try:
+            parsed = parse_guest_list_file(uploaded)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect("erp:reception")
+        except Exception:
+            messages.error(request, "Fayl oxunmadı. Excel (.xlsx) və ya Word (.docx) göndərin.")
+            return redirect("erp:reception")
+        if not parsed:
+            messages.error(request, "Siyahıda ad tapılmadı.")
+            return redirect("erp:reception")
+        companies = ResidentCompany.objects.filter(status="active", is_internal=False)
+        rows = resolve_guest_rows(
+            parsed,
+            companies=companies,
+            company_id=company_id,
+            scheduled_for=scheduled_for,
+        )
+        request.session[PREVIEW_SESSION_KEY] = {
+            "filename": uploaded.name,
+            "rows": rows,
+        }
+        request.session.modified = True
+        ready = sum(1 for row in rows if not row["error"])
+        messages.success(request, f"{ready} nəfər yazılmağa hazırdır. Təsdiq edin.")
+        target = scheduled_for
+        if target is None:
+            for row in rows:
+                if row.get("scheduled_for"):
+                    target = parse_date(row["scheduled_for"], None)
+                    break
+        if target is None:
+            return redirect("erp:reception")
+        return redirect(f"{redirect('erp:reception').url}?date={target.isoformat()}")
+
+
+class ReceptionGuestListConfirmView(RoleRequiredMixin, View):
+    allowed_roles = (Role.RECEPTION,)
+
+    def post(self, request):
+        if not user_has_permission(request.user, "reception.create_visit"):
+            raise PermissionDenied("Qonaq yaratmaq icazəsi yoxdur.")
+        preview = request.session.get(PREVIEW_SESSION_KEY)
+        if request.POST.get("action") == "discard" or not preview:
+            request.session.pop(PREVIEW_SESSION_KEY, None)
+            if not preview:
+                messages.error(request, "Önizləmə tapılmadı. Siyahını yenidən yükləyin.")
+            return redirect("erp:reception")
+        created = commit_guest_list(
+            preview.get("rows") or [],
+            filename=preview.get("filename") or "",
+            actor=request.user,
+        )
+        request.session.pop(PREVIEW_SESSION_KEY, None)
+        count = sum(item.visits.count() for item in created)
+        if not count:
+            messages.error(request, "Yazılacaq qonaq yoxdur.")
+            return redirect("erp:reception")
+        messages.success(request, f"{count} qonaq jurnala yazıldı.")
+        return redirect(f"{redirect('erp:reception').url}?date={created[0].scheduled_for.isoformat()}")
+
+
+class ReceptionGuestListCheckInView(RoleRequiredMixin, View):
+    allowed_roles = (Role.RECEPTION,)
+
+    def post(self, request, pk):
+        if not user_has_permission(request.user, "reception.check_in"):
+            raise PermissionDenied()
+        list_import = get_object_or_404(GuestListImport, pk=pk)
+        if list_import.scheduled_for > timezone.localdate():
+            messages.error(request, "Giriş yalnız gəliş günü təsdiqlənir.")
+            return redirect(f"{redirect('erp:reception').url}?date={list_import.scheduled_for.isoformat()}")
+        try:
+            count = ReceptionService.check_in_list(list_import, actor=request.user)
+        except DomainError as exc:
+            messages.error(request, str(exc))
+            return redirect(f"{redirect('erp:reception').url}?date={list_import.scheduled_for.isoformat()}")
+        if count:
+            messages.success(request, f"{count} qonaq giriş etdi.")
+        else:
+            messages.error(request, "Gözləyən qonaq yoxdur.")
+        return redirect(f"{redirect('erp:reception').url}?date={list_import.scheduled_for.isoformat()}")
 
 
 class ReceptionGuestLookupView(RoleRequiredMixin, View):

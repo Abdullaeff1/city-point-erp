@@ -112,11 +112,12 @@ def _snapshot_name(row, employee) -> str:
 
 
 def _snapshot_card(row, employee) -> str:
+    """Store the printed badge (tIdentification), not AxTrax internal iCardCode."""
+    if employee is not None and (employee.card_number or "").strip():
+        return employee.card_number.strip()[:32]
     code = str(row.get("card_code") or "").strip()
     if code and code != "0":
         return code[:32]
-    if employee is not None and employee.card_number:
-        return employee.card_number[:32]
     return ""
 
 

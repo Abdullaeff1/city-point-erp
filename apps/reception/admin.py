@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from apps.reception.models import Guest, GuestVisit, VisitorAccess, VisitorType
+from apps.reception.models import Guest, GuestListImport, GuestVisit, VisitorAccess, VisitorType
 
 
 @admin.register(VisitorType)
@@ -47,9 +47,26 @@ class GuestVisitAdmin(admin.ModelAdmin):
         "invite_code",
         "company__name",
     )
-    raw_id_fields = ("guest", "company", "host", "space", "floor", "visit_type", "created_by", "created_by_portal_user")
+    raw_id_fields = (
+        "guest",
+        "company",
+        "host",
+        "space",
+        "floor",
+        "visit_type",
+        "created_by",
+        "created_by_portal_user",
+        "list_import",
+    )
     inlines = [VisitorAccessInline]
     readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(GuestListImport)
+class GuestListImportAdmin(admin.ModelAdmin):
+    list_display = ("company", "scheduled_for", "filename", "created_at")
+    list_filter = ("scheduled_for",)
+    raw_id_fields = ("company", "created_by")
 
 
 @admin.register(VisitorAccess)

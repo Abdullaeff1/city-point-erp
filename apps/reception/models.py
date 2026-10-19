@@ -100,6 +100,32 @@ normalize_id_serial = normalize_fin
 mask_id_serial = mask_fin
 
 
+class GuestListImport(models.Model):
+    """One uploaded guest list for a company on a date."""
+
+    company = models.ForeignKey(
+        "residents.ResidentCompany",
+        on_delete=models.CASCADE,
+        related_name="guest_list_imports",
+    )
+    scheduled_for = models.DateField()
+    filename = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="guest_list_imports",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.company} · {self.scheduled_for}"
+
+
 class GuestVisit(models.Model):
     guest = models.ForeignKey(Guest, on_delete=models.CASCADE, related_name="visits")
     company = models.ForeignKey(
@@ -145,6 +171,13 @@ class GuestVisit(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="created_guest_visits",
+    )
+    list_import = models.ForeignKey(
+        GuestListImport,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="visits",
     )
     id_document_held = models.BooleanField(default=False)
     id_document_returned_at = models.DateTimeField(null=True, blank=True)

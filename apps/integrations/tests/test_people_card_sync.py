@@ -173,3 +173,15 @@ class AxTraxPeopleCardSyncTests(TestCase):
         self.assertFalse(ali.is_active)
         self.assertEqual(ali.card_number, "")
         self.assertEqual(namik.card_number, "006001")
+
+
+class EventCardSnapshotTests(TestCase):
+    def test_event_stores_badge_not_internal_code(self):
+        from types import SimpleNamespace
+
+        from apps.integrations.axtrax_events_sync import _snapshot_card
+
+        employee = SimpleNamespace(card_number="006445")
+        self.assertEqual(_snapshot_card({"card_code": "25037"}, employee), "006445")
+        self.assertEqual(_snapshot_card({"card_code": "25037"}, None), "25037")
+        self.assertEqual(_snapshot_card({"card_code": "0"}, SimpleNamespace(card_number="")), "")

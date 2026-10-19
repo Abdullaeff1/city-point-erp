@@ -98,6 +98,36 @@
         </label>
         <button class="cp-btn" type="submit">{% translate "Filter" %}</button>
       </form>
+      {% if can_create_visit %}
+      <details class="walk-in-dropdown">
+        <summary class="cp-btn walk-in-toggle">{% translate "Qonaq siyahısı" %}</summary>
+        <div class="cp-card p-card walk-in-panel">
+          <form method="post" action="{% url 'erp:reception_guest_list_preview' %}" enctype="multipart/form-data" class="flex-col" style="gap:8px;">
+            {% csrf_token %}
+            <label>
+              <span class="cp-meta">{% translate "Excel və ya Word" %}</span>
+              <input class="cp-input mt-1" type="file" name="guest_list" accept=".xlsx,.docx" required>
+            </label>
+            <label>
+              <span class="cp-meta">{% translate "Şirkət" %}</span>
+              <select class="cp-input mt-1" name="list_company">
+                <option value="">{% translate "Fayldan götür" %}</option>
+                {% for c in companies %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </label>
+            <label>
+              <span class="cp-meta">{% translate "Tarix" %}</span>
+              <input class="cp-input mt-1" type="date" name="list_date">
+            </label>
+            <p class="cp-meta">{% translate "Şirkət və ya tarix boşdursa, fayldakı sütun istifadə olunur. Vəsiqə alınmır." %}</p>
+            <button class="cp-btn" type="submit">{% translate "Önizlə" %}</button>
+            <a class="cp-meta" href="{% url 'erp:reception_guest_list_template' %}">{% translate "Nümunə Excel" %}</a>
+          </form>
+        </div>
+      </details>
+      {% endif %}
       <details class="walk-in-dropdown" {% if form.errors %}open{% endif %}>
         <summary class="cp-btn walk-in-toggle">+ {% translate "Yeni qonaq" %}</summary>
         <div class="cp-card p-card walk-in-panel">
@@ -126,14 +156,14 @@
                 <select name="company" id="id_company" class="cp-input cp-combobox-select" required hidden>
                   <option value="">---------</option>
                   {% for c in form.fields.company.queryset %}
-                  <option value="{{ c.id }}" {% if form.company.value|stringformat:"s" == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+                  <option value="{{ c.id }}" data-slug="{{ c.slug }}" {% if form.company.value|stringformat:"s" == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
                   {% endfor %}
                 </select>
                 <ul class="cp-combobox-list" id="company-suggestions" role="listbox" hidden></ul>
               </div>
               {{ form.company.errors }}
             </label>
-            <label>
+            <label id="walk-in-host-wrap">
               <span class="cp-meta">{{ form.host.label }}</span>
               <div class="mt-1 cp-combobox" data-combobox="host">
                 <input
@@ -174,6 +204,44 @@
   </div>
 </div>
 
+{% if list_preview %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Siyahı önizləməsi" %}</div>
+  <p class="cp-meta mt-2">{{ list_preview.filename }}</p>
+  <ul class="mt-3" style="list-style:none;padding:0;margin:0;">
+    {% for row in list_preview.rows %}
+    <li class="empty-pad" style="padding:8px 0;">
+      <strong>{{ row.first_name }} {{ row.last_name }}</strong>
+      <span class="cp-meta"> · {{ row.company_name|default:"—" }}{% if row.scheduled_for %} · {{ row.scheduled_for }}{% endif %}</span>
+      {% if row.error %}<div class="cp-meta" style="color:var(--cp-danger);">{{ row.error }}</div>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="{% url 'erp:reception_guest_list_confirm' %}" class="flex gap-2 mt-3">
+    {% csrf_token %}
+    <button class="cp-btn" type="submit" name="action" value="save">{% translate "Jurnala yaz" %}</button>
+    <button class="cp-btn-ghost" type="submit" name="action" value="discard">{% translate "Ləğv et" %}</button>
+  </form>
+</div>
+{% endif %}
+{% if list_imports %}
+<div class="flex-col gap-3 mb-4">
+  {% for item in list_imports %}
+  <div class="cp-card p-card">
+    <div class="cp-section">{{ item.company.name }}</div>
+    <p class="cp-meta mt-2">{{ item.scheduled_for|date:"d.m.Y" }} · {{ item.guest_count }} {% translate "nəfər" %} · {{ item.waiting_count }} {% translate "gözləyir" %}{% if item.filename %} · {{ item.filename }}{% endif %}</p>
+    {% if can_check_in and item.waiting_count and item.scheduled_for <= today %}
+    <form method="post" action="{% url 'erp:reception_guest_list_check_in' item.pk %}" class="mt-3">
+      {% csrf_token %}
+      <button class="cp-btn" type="submit">{% translate "Hamısını giriş et" %}</button>
+    </form>
+    {% elif item.waiting_count %}
+    <p class="cp-meta mt-2">{% translate "Giriş gəliş günü bir düymə ilə təsdiqlənir. Vəsiqə alınmır." %}</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 <div class="cp-card mt-4 reception-journal" style="padding:8px 0;" id="journal-panel" data-refresh-url="{% url 'erp:reception' %}">
   <div class="flex gap-3 section-pad" style="flex-wrap:wrap;align-items:end;justify-content:space-between;">
     <div>
@@ -255,7 +323,15 @@
         <td class="cp-meta cp-note-cell"{% if v.notes %} title="{{ v.notes }}"{% endif %}>{% if v.notes %}<span class="cp-note-text">{{ v.notes }}</span>{% else %}—{% endif %}</td>
         <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
         <td>
-          {% if is_today or filter_status == "inside" or filter_status == "inside_overdue" %}
+          {% if v.list_import_id and v.status == "pre_registered" or v.list_import_id and v.status == "waiting" %}
+          <form method="post" action="{% url 'erp:reception_status' v.pk %}" class="flex gap-1" style="flex-wrap:wrap;">
+            {% csrf_token %}
+            <button class="cp-btn-ghost" name="action" value="cancel" style="padding:6px 10px;font-size:12px;">{% translate "Ləğv" %}</button>
+            {% if v.status == "pre_registered" %}
+            <button class="cp-btn-ghost" name="action" value="no_show" style="padding:6px 10px;font-size:12px;">{% translate "Gəlməyib" %}</button>
+            {% endif %}
+          </form>
+          {% elif is_today or filter_status == "inside" or filter_status == "inside_overdue" %}
             {% if v.status == "pre_registered" or v.status == "waiting" %}
           <details>
             <summary class="cp-btn" style="padding:6px 10px;font-size:12px;display:inline-block;">{% translate "Check-in" %}</summary>
@@ -406,15 +482,18 @@
     }
 
     search.addEventListener("focus", function () {
+      if (search.readOnly) return;
       render(search.value);
     });
     search.addEventListener("input", function () {
+      if (search.readOnly) return;
       select.value = "";
       active = 0;
       render(search.value);
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
     search.addEventListener("keydown", function (e) {
+      if (search.readOnly) return;
       const items = Array.from(list.querySelectorAll('[role="option"]'));
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -509,6 +588,40 @@
     });
   }
   refreshHosts(initialHostId);
+
+  function syncWalkInReason() {
+    const type = document.getElementById("id_visit_type");
+    const wrap = document.getElementById("walk-in-host-wrap");
+    if (!type) return;
+    const opt = type.options[type.selectedIndex];
+    const hide = !!(opt && opt.dataset.noHost === "1");
+    const lockSlug = opt && opt.dataset.lockCompany;
+    if (wrap) wrap.hidden = hide;
+    if (hide) {
+      if (hostSelect) hostSelect.value = "";
+      if (hostSearch) hostSearch.value = "";
+    }
+    if (lockSlug && companySelect) {
+      const companyOpt = Array.from(companySelect.options).find(function (o) {
+        return o.dataset.slug === lockSlug;
+      });
+      if (companyOpt) {
+        companySelect.value = companyOpt.value;
+        if (companySearch) {
+          companySearch.value = companyOpt.textContent.trim();
+          companySearch.readOnly = true;
+        }
+        companySelect.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    } else if (companySearch) {
+      companySearch.readOnly = false;
+    }
+  }
+  const visitType = document.getElementById("id_visit_type");
+  if (visitType) {
+    visitType.addEventListener("change", syncWalkInReason);
+    syncWalkInReason();
+  }
 
   function syncWalkInCardField() {
     const held = document.getElementById("id_id_document_held");
