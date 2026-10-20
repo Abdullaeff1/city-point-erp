@@ -42,12 +42,12 @@ def seed_ticket_taxonomy():
 
     queues = {}
     for code, name, dept in [
-        ("hvac", "HVAC Queue", "webservis"),
-        ("electric", "Elektrik Queue", "webservis"),
-        ("plumbing", "Santexnika Queue", "webservis"),
-        ("lift", "Lift Queue", "webservis"),
-        ("technical", "Texniki Queue", "webservis"),
-        ("cleaning", "Təmizlik Queue", "teserrufat"),
+        ("hvac", "HVAC Queue", "servicedesk"),
+        ("electric", "Elektrik Queue", "servicedesk"),
+        ("plumbing", "Santexnika Queue", "servicedesk"),
+        ("lift", "Lift Queue", "servicedesk"),
+        ("technical", "Texniki Queue", "servicedesk"),
+        ("cleaning", "Təmizlik Queue", "servicedesk"),
         ("security", "Təhlükəsizlik Queue", "security"),
         ("parking", "Parking Queue", "commercial"),
         ("leasing", "Leasing Queue", "commercial"),

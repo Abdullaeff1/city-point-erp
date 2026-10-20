@@ -130,7 +130,7 @@
         <button class="cp-btn-ghost mt-2">{% translate "Prioriteti dəyiş" %}</button>
       </form>
     </div>
-    <div><div class="cp-meta">{% translate "Təyin olunub" %}</div>{{ ticket.assignee.display_name|default:"—" }}</div>
+    <div><div class="cp-meta">{% translate "Təyin olunub" %}</div>{{ ticket.assigned_employee.full_name|default:"—" }}</div>
     <div><div class="cp-meta">{% translate "Yaradılıb" %}</div>{{ ticket.created_at|date:"d.m.Y H:i" }}</div>
     {% if ticket.space %}
       <div><div class="cp-meta">{% translate "Sahə" %}</div><a href="{% url 'erp:space_detail' ticket.space.code %}">{{ ticket.space.code }}</a></div>
@@ -152,49 +152,25 @@
     {% if ticket.status == "resolved" or ticket.status == "closed" %}
     <form method="post">{% csrf_token %}<input type="hidden" name="action" value="reopen"><button class="cp-btn-ghost w-full">{% translate "Yenidən aç" %}</button></form>
     {% endif %}
-    <form method="post">
+    <form method="post" id="assignee-form">
       {% csrf_token %}
       <input type="hidden" name="action" value="assign">
-      <label class="cp-meta">{% translate "Cavabdeh" %}</label>
-      <select name="assignee" class="cp-input mt-1">
-        <option value="">—</option>
-        {% for u in staff_users %}
-          <option value="{{ u.id }}" {% if ticket.assignee_id == u.id %}selected{% endif %}>{{ u.display_name }}</option>
-        {% endfor %}
-      </select>
+      <label class="cp-meta" for="assignee-search">{% translate "Cavabdeh" %}</label>
+      <div class="mt-1 cp-combobox">
+        <input
+          class="cp-input"
+          id="assignee-search"
+          type="search"
+          autocomplete="off"
+          placeholder="{% translate 'Əməkdaş adı…' %}"
+          value="{{ ticket.assigned_employee.full_name|default:'' }}"
+        >
+        <input type="hidden" name="assignee" id="assignee-id" value="{{ ticket.assigned_employee_id|default:'' }}">
+        <ul class="cp-combobox-list" id="assignee-suggestions" role="listbox" hidden data-empty="{% translate 'Tapılmadı' %}"></ul>
+      </div>
+      {{ assignee_choices|json_script:"assignee-data" }}
       <button class="cp-btn-ghost mt-2">{% translate "Təyin et" %}</button>
     </form>
-    <div>
-      <div class="cp-meta">Work Orders</div>
-      {% for wo in work_orders %}
-      <div class="mt-1">{{ wo.code }} · {{ wo.get_status_display }}</div>
-      {% empty %}
-      <div class="cp-meta mt-1">{% translate "Yoxdur" %}</div>
-      {% endfor %}
-      {% if wo_eligible %}
-      <form method="post" class="mt-2">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="create_wo">
-        <button class="cp-btn w-full">{% translate "WO yarat" %}</button>
-      </form>
-      {% else %}
-      <div class="cp-meta mt-2">{% translate "WO bu tip üçün uyğun deyil" %}</div>
-      {% endif %}
-    </div>
-    <div>
-      <div class="cp-meta">CRM</div>
-      {% if ticket.opportunity_id %}
-      <div class="mt-1">#{{ ticket.opportunity_id }} · {{ ticket.opportunity.title }}</div>
-      {% elif crm_eligible %}
-      <form method="post" class="mt-2">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="create_crm">
-        <button class="cp-btn w-full">{% translate "CRM-ə ötür" %}</button>
-      </form>
-      {% else %}
-      <div class="cp-meta mt-1">{% translate "CRM ötürülməsi yoxdur" %}</div>
-      {% endif %}
-    </div>
     {% if can_handoff %}
     <div>
       <div class="cp-meta">{% translate "Şöbəyə yönləndir" %}</div>
@@ -220,4 +196,124 @@
     {% endif %}
   </aside>
 </div>
+<script>
+(function () {
+  var search = document.getElementById("assignee-search");
+  var hidden = document.getElementById("assignee-id");
+  var list = document.getElementById("assignee-suggestions");
+  var dataEl = document.getElementById("assignee-data");
+  var form = document.getElementById("assignee-form");
+  if (!search || !hidden || !list || !dataEl || !form) return;
+  var people = [];
+  try { people = JSON.parse(dataEl.textContent || "[]"); } catch (e) { people = []; }
+
+  function norm(s) {
+    return window.cpFoldSearch
+      ? cpFoldSearch(s)
+      : String(s || "").toLocaleLowerCase("az");
+  }
+
+  people.sort(function (a, b) {
+    return norm(a.name).localeCompare(norm(b.name), "az");
+  });
+
+  var active = -1;
+
+  function render(q) {
+    var query = norm(q).trim();
+    var starts = [];
+    var contains = [];
+    people.forEach(function (person) {
+      var name = norm(person.name);
+      if (!query || name.indexOf(query) === 0) starts.push(person);
+      else if (name.indexOf(query) !== -1) contains.push(person);
+    });
+    var matched = starts.concat(contains);
+    list.innerHTML = "";
+    active = Math.min(active, matched.length - 1);
+    if (!matched.length) {
+      var empty = document.createElement("li");
+      empty.className = "cp-combobox-empty";
+      empty.textContent = list.getAttribute("data-empty") || "";
+      list.appendChild(empty);
+      list.hidden = false;
+      return;
+    }
+    matched.slice(0, 40).forEach(function (person, idx) {
+      var li = document.createElement("li");
+      li.setAttribute("role", "option");
+      li.textContent = person.name;
+      if (String(person.id) === String(hidden.value)) li.classList.add("is-selected");
+      if (idx === active) li.classList.add("is-active");
+      li.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        pick(person);
+      });
+      list.appendChild(li);
+    });
+    list.hidden = false;
+  }
+
+  function pick(person) {
+    hidden.value = String(person.id);
+    search.value = person.name;
+    list.hidden = true;
+    active = -1;
+  }
+
+  function syncHidden() {
+    var typed = norm(search.value).trim();
+    if (!typed) {
+      hidden.value = "";
+      return;
+    }
+    var exact = people.filter(function (person) { return norm(person.name) === typed; });
+    if (exact.length === 1) {
+      hidden.value = String(exact[0].id);
+      return;
+    }
+    var current = people.filter(function (person) { return String(person.id) === String(hidden.value); })[0];
+    if (!current || norm(current.name) !== typed) hidden.value = "";
+  }
+
+  search.addEventListener("focus", function () { render(search.value); });
+  search.addEventListener("input", function () {
+    active = -1;
+    hidden.value = "";
+    render(search.value);
+  });
+  search.addEventListener("keydown", function (e) {
+    var items = list.querySelectorAll("[role='option']");
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      active = Math.min(active + 1, items.length - 1);
+      render(search.value);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      active = Math.max(active - 1, 0);
+      render(search.value);
+    } else if (e.key === "Enter" && !list.hidden && active >= 0) {
+      var shown = people.filter(function (person) {
+        var name = norm(person.name);
+        var query = norm(search.value).trim();
+        return !query || name.indexOf(query) !== -1;
+      });
+      var starts = shown.filter(function (person) {
+        return norm(person.name).indexOf(norm(search.value).trim()) === 0;
+      });
+      var ordered = starts.concat(shown.filter(function (person) { return starts.indexOf(person) === -1; }));
+      if (ordered[active]) {
+        e.preventDefault();
+        pick(ordered[active]);
+      }
+    } else if (e.key === "Escape") {
+      list.hidden = true;
+    }
+  });
+  document.addEventListener("click", function (e) {
+    if (!form.contains(e.target)) list.hidden = true;
+  });
+  form.addEventListener("submit", syncHidden);
+})();
+</script>
 {% endblock %}

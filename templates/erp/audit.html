@@ -1,0 +1,34 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Audit" %}{% endblock %}
+{% block content %}
+{% for section in sections %}
+<section class="cp-card mb-4" style="padding:8px 0;" id="audit-{{ section.role|default:'other' }}">
+  <div class="cp-section" style="padding:12px 20px 0;">{{ section.label }}</div>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Vaxt" %}</th>
+        <th>{% translate "Əməkdaş" %}</th>
+        <th>{% translate "Əməliyyat" %}</th>
+        <th>{% translate "Obyekt" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in section.rows %}
+      <tr>
+        <td class="cp-meta">{{ row.at|date:"d.m.Y H:i" }}</td>
+        <td>{{ row.actor }}{% if row.email %}<br><span class="cp-meta">{{ row.email }}</span>{% endif %}</td>
+        <td>{{ row.action }}</td>
+        <td>{{ row.object }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="cp-meta empty-pad">{% translate "Qeyd yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% empty %}
+<div class="cp-card p-card"><p class="cp-meta">{% translate "Qeyd yoxdur." %}</p></div>
+{% endfor %}
+{% endblock %}

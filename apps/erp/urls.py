@@ -10,6 +10,7 @@ urlpatterns = [
     path("people-inside/<int:pk>/", views.PeopleInsideDetailView.as_view(), name="people_inside_detail"),
     path("reception/", views.ReceptionView.as_view(), name="reception"),
     path("reception/<int:pk>/status/", views.ReceptionStatusView.as_view(), name="reception_status"),
+    path("reception/<int:pk>/update/", views.ReceptionVisitUpdateView.as_view(), name="reception_visit_update"),
     path(
         "reception/guest-list/template/",
         views.ReceptionGuestListTemplateView.as_view(),
@@ -33,6 +34,7 @@ urlpatterns = [
     path("reception/guest-lookup/", views.ReceptionGuestLookupView.as_view(), name="reception_guest_lookup"),
     path("reception/export/", views.ReceptionExportView.as_view(), name="reception_export"),
     path("tickets/", views.TicketListView.as_view(), name="tickets"),
+    path("tickets/new/", views.TicketCreateView.as_view(), name="ticket_create"),
     path("tickets/<str:code>/", views.TicketDetailView.as_view(), name="ticket_detail"),
     path("spaces/", views.SpaceListView.as_view(), name="spaces"),
     path("spaces/<str:code>/", views.SpaceDetailView.as_view(), name="space_detail"),
@@ -88,11 +90,11 @@ urlpatterns = [
     path("leases/<str:code>/", views.LeaseDetailView.as_view(), name="lease_detail"),
     path("crm/leads/", views.CrmLeadListView.as_view(), name="crm_leads"),
     path("crm/offers/", views.CrmOfferListView.as_view(), name="crm_offers"),
-    path("work-orders/", views.WorkOrderListView.as_view(), name="work_orders"),
     path("warehouse/", views.WarehouseListView.as_view(), name="warehouse"),
     path("procurement/", views.ProcurementListView.as_view(), name="procurement"),
     path("billing/", views.BillingListView.as_view(), name="billing"),
     path("accounting/", views.AccountingListView.as_view(), name="accounting"),
     path("documents/", views.DocumentsView.as_view(), name="documents"),
     path("reports/", views.ReportsView.as_view(), name="reports"),
+    path("audit/", views.AuditLogView.as_view(), name="audit"),
 ]

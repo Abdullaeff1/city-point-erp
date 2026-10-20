@@ -31,8 +31,8 @@
 <div class="cp-card" style="padding:8px 0;" id="residents-list">
   {% for c in companies %}
   <a
-    href="{% url 'erp:resident_detail' c.slug %}"
-    class="cp-list-row resident-row"
+    href="{% if company_opens_tickets %}{% url 'erp:resident_tickets' c.slug %}?tab=all{% else %}{% url 'erp:resident_detail' c.slug %}{% endif %}"
+    class="cp-list-row resident-row{% if can_view_resident_guests %} resident-row--guests{% endif %}"
     data-name="{{ c.name }}"
     data-slug="{{ c.slug }}"
     data-email="{{ c.contact_email }}"
@@ -40,6 +40,7 @@
     <strong class="resident-name">{{ c.name }}</strong>
     <span class="cp-meta resident-status">{{ c.get_status_display }}</span>
     {% if can_view_resident_guests %}<span class="cp-meta resident-guests">{% translate "Bugünkü qonaq" %} {{ c.guest_today }}</span>{% endif %}
+    {% if can_view_resident_ticket_counts %}<span class="cp-meta resident-tickets">{{ c.ticket_count }} {% translate "ticket" %}</span>{% endif %}
   </a>
   {% empty %}
   <div class="cp-meta empty-pad" id="residents-empty-static">{% if q %}{% translate "Uyğun şirkət tapılmadı." %}{% else %}{% translate "Rezident yoxdur." %}{% endif %}</div>

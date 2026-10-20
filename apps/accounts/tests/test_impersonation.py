@@ -4,12 +4,14 @@ from django.urls import reverse
 
 from apps.accounts.impersonation import SESSION_IMPERSONATOR_ID
 from apps.accounts.models import Role
+from apps.rbac.services import seed_rbac_catalog
 
 User = get_user_model()
 
 
 class RoleSwitchTests(TestCase):
     def setUp(self):
+        seed_rbac_catalog()
         self.admin = User.objects.create_user(
             username="admin",
             email="admin@citypoint.az",
@@ -48,9 +50,10 @@ class RoleSwitchTests(TestCase):
         self.assertEqual(r["Location"], "/go/")
         session = self.client.session
         self.assertEqual(session.get(SESSION_IMPERSONATOR_ID), self.admin.pk)
-        # follow to confirm ERP as reception
-        r2 = self.client.get("/erp/")
+        # follow to confirm ERP as reception lands on the reception desk
+        r2 = self.client.get("/erp/", follow=True)
         self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r2.request["PATH_INFO"], "/erp/reception/")
         self.assertContains(r2, "ROLLAR")
         self.assertContains(r2, "Adminə qayıt")
         self.assertNotContains(r2, "cp-impersonation-banner")
@@ -71,6 +74,18 @@ class RoleSwitchTests(TestCase):
         r2 = self.client.get("/erp/")
         self.assertEqual(r2.status_code, 200)
         self.assertNotContains(r2, "Adminə qayıt")
+        self.assertNotContains(r2, "cp-nav-summary")
+        self.assertContains(r2, "İdarə paneli")
+
+    def test_service_desk_lands_on_tickets_without_dashboard(self):
+        self.client.force_login(self.desk)
+        res = self.client.get("/erp/", follow=True)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.request["PATH_INFO"], "/erp/tickets/")
+        self.assertContains(res, "ticket-tab")
+        self.assertContains(res, "SLA risk")
+        self.assertNotContains(res, "Kart sifarişləri")
+        self.assertNotContains(res, "İdarə paneli")
 
     def test_reception_cannot_start_switch(self):
         self.client.force_login(self.reception)

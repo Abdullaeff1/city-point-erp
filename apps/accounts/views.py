@@ -101,6 +101,10 @@ def post_login(request):
         return redirect("portal:home")
     if request.user.role == Role.SECURITY:
         return redirect("security:home")
+    if request.user.role == Role.RECEPTION:
+        return redirect("erp:reception")
+    if request.user.role == Role.SERVICE_DESK:
+        return redirect("erp:tickets")
     return redirect("erp:dashboard")
 
 

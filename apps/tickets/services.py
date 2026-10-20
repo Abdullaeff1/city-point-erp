@@ -315,6 +315,32 @@ def advance_ticket_status(ticket, actor=None):
     return set_ticket_status(ticket, nxt, actor=actor)
 
 
+def citypoint_ticket_assignees():
+    """Active City Point employees Service Desk can assign as the worker."""
+    from apps.residents.models import ResidentEmployee
+
+    return ResidentEmployee.objects.filter(
+        company__slug="city-point",
+        is_active=True,
+    ).order_by("full_name")
+
+
+def assign_ticket_employee(ticket, *, actor, employee_id=None):
+    """Assign a City Point employee. Department user accounts are not the worker list."""
+    if not can_mutate_ticket(actor, ticket):
+        raise DomainError(_("Ticket təyinatı üçün icazə yoxdur."))
+    employee = None
+    if employee_id:
+        employee = citypoint_ticket_assignees().filter(pk=employee_id).first()
+        if employee is None:
+            raise DomainError(_("Cavabdeh yalnız City Point əməkdaşı ola bilər."))
+    ticket.assigned_employee = employee
+    ticket.save(update_fields=["assigned_employee", "updated_at"])
+    if employee and ticket.status == TicketStatus.SENT:
+        set_ticket_status(ticket, TicketStatus.ASSIGNED, actor=actor, note="assigned")
+    return ticket
+
+
 def assign_ticket(ticket, *, actor, assignee_id=None):
     if not can_mutate_ticket(actor, ticket):
         raise DomainError(_("Ticket təyinatı üçün icazə yoxdur."))
@@ -377,6 +403,7 @@ def create_ticket_from_portal(
     space=None,
     priority_suggestion="",
     related_employee=None,
+    author_label="Siz",
 ):
     """Thin intake: route via subcategory rule, apply SLA, record created event."""
     with transaction.atomic():
@@ -397,7 +424,7 @@ def create_ticket_from_portal(
         ticket.save()
         route_ticket(ticket, actor=requester, note="created", apply_default_priority=True)
         record_status_event(ticket, TicketStatus.SENT, actor=requester, note="created")
-        add_message(ticket, requester, description, "Siz", require_mutate=False)
+        add_message(ticket, requester, description, author_label, require_mutate=False)
         from apps.core import events as bus
 
         bus.emit(
@@ -413,48 +440,51 @@ def create_ticket_from_portal(
         return ticket
 
 
-def create_crm_opportunity_from_ticket(ticket, actor=None):
-    """Manual CRM handoff for commercial-eligible tickets."""
-    if actor is not None and not can_mutate_ticket(actor, ticket):
-        raise DomainError(_("CRM ötürülməsi üçün icazə yoxdur."))
-    if ticket.opportunity_id:
-        return ticket.opportunity
-    from apps.crm.models import Opportunity, OpportunityStatus
-    from apps.parties.resolvers import party_for_company
-
-    party = party_for_company(ticket.company, ensure=True)
-
-    label = ticket.subcategory.name if ticket.subcategory_id else ticket.category.name
-    title = f"{ticket.code}: {label}"
-    opp = Opportunity.objects.create(
-        title=title[:200],
-        status=OpportunityStatus.OPEN,
-        party=party,
-        notes=ticket.description,
+def create_ticket_from_staff(
+    *,
+    actor,
+    company,
+    ticket_type,
+    category,
+    subcategory,
+    description,
+    space=None,
+    priority="",
+    assigned_employee=None,
+):
+    """Service Desk intake: same routing, plus an explicit priority and worker."""
+    ticket = create_ticket_from_portal(
+        company=company,
+        requester=actor,
+        ticket_type=ticket_type,
+        category=category,
+        subcategory=subcategory,
+        description=description,
+        space=space,
+        author_label="Service Desk",
     )
-    ticket.opportunity = opp
-    ticket.save(update_fields=["opportunity", "updated_at"])
-    record_status_event(
-        ticket,
-        ticket.status,
-        actor=actor,
-        from_status=ticket.status,
-        note=f"CRM Opportunity #{opp.pk}",
-    )
-    return opp
-
-
-def create_work_order_from_ticket(ticket, *, actor):
-    if not can_mutate_ticket(actor, ticket):
-        raise DomainError(_("Work Order yaratmaq icazəsi yoxdur."))
-    if not ticket.wo_eligible:
-        raise DomainError(_("Bu ticket üçün Work Order yaradıla bilməz."))
-    from apps.maintenance.models import WorkOrder
-    from apps.maintenance.services import create_wo_from_ticket
-
-    if WorkOrder.objects.filter(ticket=ticket).exists():
-        raise DomainError(_("Work Order artıq mövcuddur."))
-    return create_wo_from_ticket(ticket)
+    if priority:
+        ticket.priority = priority
+        ticket.save(update_fields=["priority", "updated_at"])
+        apply_sla(ticket)
+    if assigned_employee is not None:
+        ticket.assigned_employee = assigned_employee
+        ticket.save(update_fields=["assigned_employee", "updated_at"])
+        if ticket.status == TicketStatus.SENT and can_transition_to(ticket, TicketStatus.ASSIGNED):
+            if can_mutate_ticket(actor, ticket):
+                set_ticket_status(ticket, TicketStatus.ASSIGNED, actor=actor, note="assigned")
+            else:
+                previous = ticket.status
+                ticket.status = TicketStatus.ASSIGNED
+                ticket.save(update_fields=["status", "updated_at"])
+                record_status_event(
+                    ticket,
+                    TicketStatus.ASSIGNED,
+                    actor=actor,
+                    from_status=previous,
+                    note="assigned",
+                )
+    return ticket
 
 
 def allowed_staff_priorities():

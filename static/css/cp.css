@@ -180,9 +180,33 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
 }
 .grid-dash { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 16px; align-items: start; }
 .grid-dash--triple { grid-template-columns: 1.1fr 1fr 0.9fr; }
+.grid-dash--single { grid-template-columns: 1fr; }
 .p-card { padding: 20px; }
 .p-card-lg { padding: 24px; }
 .p-card-sm { padding: 16px 20px; }
+.ticket-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.ticket-tab {
+  padding: 10px 12px;
+  min-height: 0;
+}
+.ticket-tab .cp-meta:first-child {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.ticket-tab .cp-metric {
+  font-size: 22px;
+  margin-top: 6px;
+}
+.ticket-tab.is-active {
+  border-color: var(--cp-primary);
+  box-shadow: inset 0 0 0 1px var(--cp-primary);
+}
 
 .cp-title { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; color: var(--cp-primary-dark); margin: 0; }
 .cp-section { font-size: 18px; font-weight: 600; color: var(--cp-primary-dark); margin: 0; }
@@ -558,6 +582,70 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
 .cp-table tbody tr:last-child { border-bottom: 0; }
 .cp-table tbody tr.is-clickable { cursor: pointer; }
 .cp-table tbody tr.is-clickable:hover { background: rgba(15, 23, 42, 0.03); }
+.journal-actions { cursor: default; }
+dialog.guest-detail {
+  border: 0;
+  padding: 0;
+  border-radius: var(--cp-radius);
+  width: max-content;
+  min-width: min(760px, calc(100vw - 48px));
+  max-width: calc(100vw - 48px);
+  height: fit-content;
+  max-height: calc(100vh - 48px);
+  color: var(--cp-text);
+  background: var(--cp-surface);
+  box-shadow: 0 16px 40px rgba(12, 39, 69, 0.18);
+}
+.guest-detail::backdrop { background: rgba(12, 39, 69, 0.35); }
+.guest-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--cp-border);
+  white-space: nowrap;
+}
+.guest-detail-head strong { font-size: 16px; }
+.guest-detail-body {
+  padding: 14px 18px 18px;
+  overflow: auto;
+}
+.guest-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+.guest-detail-list > div {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 32px;
+  align-items: baseline;
+  white-space: nowrap;
+}
+.guest-detail-list dt {
+  margin: 0;
+  color: var(--cp-muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.guest-detail-list dd {
+  margin: 0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.guest-detail-reason { color: var(--cp-primary); }
+.guest-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px 18px;
+  white-space: normal;
+  min-width: min(560px, calc(100vw - 80px));
+}
+.guest-edit-form .cp-input { width: 100%; }
 .access-date-card .cp-input[type="date"] { min-width: 150px; }
 
 .cp-arrival-24h {
@@ -704,9 +792,12 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
 .cp-list-row:hover { background: var(--cp-primary-soft); text-decoration: none; }
 .resident-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 7.5rem minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 7.5rem minmax(7rem, auto);
   column-gap: 12px;
   justify-content: initial;
+}
+.resident-row--guests {
+  grid-template-columns: minmax(0, 1fr) 7.5rem minmax(0, 1fr) minmax(7rem, auto);
 }
 .resident-name {
   min-width: 0;
@@ -716,6 +807,7 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
 }
 .resident-status { text-align: center; }
 .resident-guests { text-align: right; }
+.resident-tickets { text-align: right; white-space: nowrap; }
 
 .login-split { min-height: 100vh; display: grid; grid-template-columns: 1.05fr 0.95fr; }
 .login-visual {
@@ -848,10 +940,12 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
 
 @media (max-width: 1000px) {
   .grid-4, .grid-kpi, .grid-3, .grid-main, .grid-dash, .grid-2 { grid-template-columns: 1fr; }
+  .ticket-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .cp-content { padding: 16px 20px 40px; }
   .cp-header { padding: 20px 20px 0; }
 }
 @media (max-width: 760px) {
+  .ticket-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .walk-in-dropdown {
     width: 100%;
   }

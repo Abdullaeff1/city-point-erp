@@ -7,11 +7,12 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 
+from apps.core.search import fold_search
 from apps.property.models import Floor, Space
 from apps.reception.models import VisitorType
 from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.tickets.models import Ticket, TicketCategory, TicketPriority, TicketSubcategory, TicketType
-from apps.tickets.services import allowed_resident_priorities
+from apps.tickets.services import allowed_resident_priorities, allowed_staff_priorities, citypoint_ticket_assignees
 
 # Portal guest arrival: 24h clock, no AM/PM; earliest hour 09:00.
 ARRIVAL_HOUR_CHOICES = [(f"{h:02d}", f"{h:02d}") for h in range(9, 24)]
@@ -202,6 +203,85 @@ class PortalTicketForm(forms.ModelForm):
         return cleaned
 
 
+class StaffTicketForm(forms.Form):
+    company = forms.ModelChoiceField(
+        queryset=ResidentCompany.objects.none(),
+        label=_("Şirkət"),
+    )
+    space = forms.ModelChoiceField(
+        queryset=Space.objects.none(),
+        required=False,
+        label=_("Sahə"),
+    )
+    ticket_type = forms.ChoiceField(choices=TicketType.choices, label=_("Müraciət tipi"))
+    category = forms.ModelChoiceField(
+        queryset=TicketCategory.objects.none(),
+        label=_("Problem"),
+    )
+    subcategory = forms.ModelChoiceField(
+        queryset=TicketSubcategory.objects.none(),
+        label=_("Alt problem"),
+    )
+    priority = forms.ChoiceField(
+        choices=[("", _("Avtomatik"))] + list(allowed_staff_priorities()),
+        required=False,
+        label=_("Prioritet"),
+    )
+    assigned_employee = forms.ModelChoiceField(
+        queryset=ResidentEmployee.objects.none(),
+        required=False,
+        label=_("Cavabdeh"),
+    )
+    description = forms.CharField(
+        label=_("Təsvir"),
+        widget=forms.Textarea(
+            attrs={"rows": 5, "placeholder": _("Problemi ətraflı yazın...")}
+        ),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["company"].queryset = ResidentCompany.objects.filter(status="active").order_by("name")
+        self.fields["space"].queryset = Space.objects.filter(resident__status="active").order_by("code")
+        self.fields["category"].queryset = TicketCategory.objects.filter(is_active=True).order_by(
+            "sort_order", "name"
+        )
+        self.fields["assigned_employee"].queryset = citypoint_ticket_assignees()
+        self.fields["ticket_type"].initial = TicketType.INCIDENT
+        category_id = self.data.get("category") if self.data else None
+        if category_id:
+            self.fields["subcategory"].queryset = TicketSubcategory.objects.filter(
+                is_active=True, category_id=category_id
+            )
+        else:
+            self.fields["subcategory"].queryset = TicketSubcategory.objects.filter(is_active=True)
+        for field in self.fields.values():
+            field.widget.attrs["class"] = "cp-input"
+        self.fields["company"].widget.attrs["hidden"] = True
+        self.fields["assigned_employee"].widget.attrs["hidden"] = True
+
+    def clean(self):
+        cleaned = super().clean()
+        company = cleaned.get("company")
+        space = cleaned.get("space")
+        category = cleaned.get("category")
+        subcategory = cleaned.get("subcategory")
+        description = (cleaned.get("description") or "").strip()
+        if space and company and space.resident_id != company.id:
+            self.add_error("space", _("Sahə seçilmiş şirkətə aid deyil."))
+        if subcategory and category and subcategory.category_id != category.id:
+            self.add_error("subcategory", _("Alt problem seçilmiş problemə aid deyil."))
+        if subcategory and subcategory.requires_description_min:
+            if len(description) < subcategory.requires_description_min:
+                self.add_error(
+                    "description",
+                    _("Bu problem üçün ən az %(n)s simvol yazın.")
+                    % {"n": subcategory.requires_description_min},
+                )
+        cleaned["description"] = description
+        return cleaned
+
+
 class PortalGuestForm(forms.Form):
     first_name = forms.CharField(label=_("Ad"), max_length=80)
     last_name = forms.CharField(label=_("Soyad"), max_length=80)
@@ -266,14 +346,27 @@ FORGOTTEN_CARD_CODE = "forgotten-card"
 LEASE_AREA_CODE = "lease-area"
 MEETING_CODE = "meeting"
 TECHNICIAN_CODE = "technician"
+PATIENT_CODE = "patient"
 CITY_POINT_SLUG = "city-point"
+PSYCHOLOGIST_SLUG_PREFIX = "psixoloq"
+PSYCHOLOGIST_HOST_NAME = "LEYLA TƏBRİZ ŞAMİLOVA"
 NO_HOST_VISIT_CODES = {FORGOTTEN_CARD_CODE, LEASE_AREA_CODE, MEETING_CODE, TECHNICIAN_CODE}
+
+
+def psychologist_host(company):
+    target = fold_search(PSYCHOLOGIST_HOST_NAME)
+    for employee in ResidentEmployee.objects.filter(company=company, is_active=True):
+        if fold_search(employee.full_name) == target:
+            return employee
+    return None
 
 
 class VisitTypeSelect(forms.Select):
     def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
         option = super().create_option(name, value, label, selected, index, subindex=subindex, attrs=attrs)
         instance = getattr(value, "instance", None)
+        if instance is not None:
+            option["attrs"]["data-code"] = instance.code
         if instance is not None and instance.code in NO_HOST_VISIT_CODES:
             option["attrs"]["data-no-host"] = "1"
         if instance is not None and instance.code == LEASE_AREA_CODE:
@@ -347,12 +440,25 @@ class GuestVisitForm(forms.Form):
         if held and not (cleaned.get("fin_code") or "").strip():
             self.add_error("fin_code", _("Vəsiqə saxlanılanda seriya nömrəsi tələb olunur."))
         visit_type = cleaned.get("visit_type")
-        if visit_type is not None and visit_type.code in NO_HOST_VISIT_CODES:
-            cleaned["host"] = None
         if visit_type is not None and visit_type.code == LEASE_AREA_CODE:
             company = ResidentCompany.objects.filter(slug=CITY_POINT_SLUG, status="active").first()
             if company is None:
                 self.add_error("company", _("City Point şirkəti tapılmadı."))
             else:
                 cleaned["company"] = company
+        company = cleaned.get("company")
+        if company is not None and (company.slug or "").startswith(PSYCHOLOGIST_SLUG_PREFIX):
+            patient = VisitorType.objects.filter(code=PATIENT_CODE, is_active=True).first()
+            if patient is None:
+                self.add_error("visit_type", _("Pasiyent gəliş səbəbi tapılmadı."))
+            else:
+                cleaned["visit_type"] = patient
+                visit_type = patient
+            host = psychologist_host(company)
+            if host is None:
+                self.add_error("host", _("Leyla Təbriz Şamilova tapılmadı."))
+            else:
+                cleaned["host"] = host
+        if visit_type is not None and visit_type.code in NO_HOST_VISIT_CODES:
+            cleaned["host"] = None
         return cleaned

@@ -1,17 +1,19 @@
 from django.contrib import messages
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
+from django.utils.translation import gettext as _
 from django.views.generic import FormView, ListView, TemplateView, View
 import json
 
+from apps.accounts.impersonation import can_start_impersonation, get_impersonator, is_impersonating
 from apps.accounts.mixins import RoleRequiredMixin, StaffRequiredMixin
 from apps.accounts.models import Role, User
 from apps.core.services import DomainError
 from apps.documents.models import Document
-from apps.erp.forms import GuestVisitForm
+from apps.erp.forms import GuestVisitForm, StaffTicketForm
 from apps.property.models import Floor, Space
 from apps.reception.guest_list_import import (
     PREVIEW_SESSION_KEY,
@@ -46,7 +48,7 @@ from apps.rbac.services import user_has_permission
 from apps.tickets.access import (
     can_handoff_ticket,
     can_mutate_ticket,
-    department_assignees,
+    can_view_ticket,
     tickets_visible_to,
 )
 from apps.tickets.models import (
@@ -57,14 +59,15 @@ from apps.tickets.models import (
     TicketPriority,
     TicketQueue,
     TicketStatus,
+    TicketSubcategory,
 )
 from apps.tickets.services import (
     add_message,
     advance_ticket_status,
-    assign_ticket,
+    assign_ticket_employee,
     attach_ticket_file,
-    create_crm_opportunity_from_ticket,
-    create_work_order_from_ticket,
+    citypoint_ticket_assignees,
+    create_ticket_from_staff,
     handoff_ticket,
     set_enrichment_notes,
     set_ticket_priority,
@@ -75,11 +78,19 @@ from apps.tickets.services import (
 class DashboardView(StaffRequiredMixin, TemplateView):
     template_name = "erp/dashboard.html"
 
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and request.user.role == Role.RECEPTION:
+            return redirect("erp:reception")
+        if request.user.is_authenticated and request.user.role == Role.SERVICE_DESK:
+            return redirect("erp:tickets")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         today = timezone.localdate()
         role = self.request.user.role
         show_tickets = role != Role.RECEPTION
+        show_guests = role != Role.SERVICE_DESK
         open_list = []
         sla_tickets = []
         breached = []
@@ -93,17 +104,22 @@ class DashboardView(StaffRequiredMixin, TemplateView):
             sla_tickets = [t for t in open_list if t.sla_risk]
             breached = [t for t in open_list if t.sla_breached]
             sla_ticket = breached[0] if breached else (sla_tickets[0] if sla_tickets else None)
-        today_visits = GuestVisit.objects.filter(scheduled_for=today).select_related("guest", "company")
-        guests_inside = today_visits.filter(status=VisitStatus.INSIDE).count()
-        employees_inside = currently_inside_employee_rows(today)
-        people_inside_count = len(employees_inside) + guests_inside
+        today_visits = GuestVisit.objects.none()
+        guests_inside = 0
+        employees_inside_count = 0
+        people_inside_count = 0
         activities = []
-        if show_tickets:
-            for t in visible.order_by("-updated_at")[:5]:
-                activities.append({"at": t.updated_at, "text": f"{t.code} yeniləndi · {t.get_status_display()}"})
-        for v in today_visits.filter(check_in_at__isnull=False).order_by("-check_in_at")[:4]:
-            activities.append({"at": v.check_in_at, "text": f"Qonaq giriş etdi · {v.guest.display_name}"})
-        activities.sort(key=lambda x: x["at"] or timezone.now(), reverse=True)
+        if show_guests:
+            today_visits = GuestVisit.objects.filter(scheduled_for=today).select_related("guest", "company")
+            guests_inside = today_visits.filter(status=VisitStatus.INSIDE).count()
+            employees_inside_count = len(currently_inside_employee_rows(today))
+            people_inside_count = employees_inside_count + guests_inside
+            if show_tickets:
+                for t in visible.order_by("-updated_at")[:5]:
+                    activities.append({"at": t.updated_at, "text": f"{t.code} yeniləndi · {t.get_status_display()}"})
+            for v in today_visits.filter(check_in_at__isnull=False).order_by("-check_in_at")[:4]:
+                activities.append({"at": v.check_in_at, "text": f"Qonaq giriş etdi · {v.guest.display_name}"})
+            activities.sort(key=lambda x: x["at"] or timezone.now(), reverse=True)
         axtrax = None
         if role in {Role.ADMIN, Role.MANAGEMENT}:
             from apps.integrations.axtrax_health import axtrax_sync_health
@@ -112,6 +128,7 @@ class DashboardView(StaffRequiredMixin, TemplateView):
         ctx.update(
             {
                 "show_tickets": show_tickets,
+                "show_guests": show_guests,
                 "guest_count": today_visits.count(),
                 "open_count": len(open_list),
                 "sla_risk_count": len(sla_tickets),
@@ -119,7 +136,7 @@ class DashboardView(StaffRequiredMixin, TemplateView):
                 "sla_ticket": sla_ticket,
                 "new_residents": ResidentCompany.objects.filter(status="active", is_internal=False).count(),
                 "people_inside_count": people_inside_count,
-                "employees_inside_count": len(employees_inside),
+                "employees_inside_count": employees_inside_count,
                 "guests_inside_count": guests_inside,
                 "waiting_guests": today_visits.filter(
                     status__in=[VisitStatus.WAITING, VisitStatus.PRE_REGISTERED]
@@ -265,6 +282,29 @@ class ReceptionView(RoleRequiredMixin, FormView):
         export_preset, export_from, export_to = access_range_bounds(
             self.request, default_preset="today"
         )
+        can_create_visit = user_has_permission(self.request.user, "reception.create_visit")
+        guest_edits = []
+        if can_create_visit:
+            for visit in visits:
+                try:
+                    credential = visit.visitor_access.credential or ""
+                except ObjectDoesNotExist:
+                    credential = ""
+                guest_edits.append(
+                    {
+                        "id": visit.pk,
+                        "name": visit.guest.display_name,
+                        "fin_code": visit.guest.fin_code if can_sensitive else "",
+                        "first_name": visit.guest.first_name,
+                        "last_name": visit.guest.last_name,
+                        "company_id": visit.company_id,
+                        "host_id": visit.host_id or "",
+                        "visit_type_id": visit.visit_type_id or "",
+                        "id_document_held": visit.id_document_held,
+                        "guest_card_number": credential,
+                        "notes": visit.notes or "",
+                    }
+                )
         inside_today_count = today_visits_queryset(today).filter(status=VisitStatus.INSIDE).count()
         inside_overdue_count = inside_overdue_queryset().count()
         stats = {
@@ -322,9 +362,8 @@ class ReceptionView(RoleRequiredMixin, FormView):
                     )
                 ),
                 "list_preview": self.request.session.get(PREVIEW_SESSION_KEY),
-                "can_create_visit": user_has_permission(
-                    self.request.user, "reception.create_visit"
-                ),
+                "guest_edits": guest_edits,
+                "can_create_visit": can_create_visit,
                 "can_check_in": user_has_permission(self.request.user, "reception.check_in"),
             }
         )
@@ -400,6 +439,49 @@ class ReceptionStatusView(RoleRequiredMixin, View):
         except DomainError as exc:
             messages.error(request, str(exc))
         return redirect("erp:reception")
+
+
+class ReceptionVisitUpdateView(RoleRequiredMixin, View):
+    allowed_roles = (Role.RECEPTION,)
+
+    def post(self, request, pk):
+        if not user_has_permission(request.user, "reception.create_visit"):
+            raise PermissionDenied("Qonaq məlumatını dəyişmək icazəsi yoxdur.")
+        visit = get_object_or_404(GuestVisit.objects.select_related("guest"), pk=pk)
+        form = GuestVisitForm(request.POST)
+        if not form.is_valid():
+            parts = [str(err) for errs in form.errors.values() for err in errs]
+            messages.error(request, " ".join(parts) or "Qonaq məlumatı yenilənmədi.")
+            return redirect(self._next(request))
+        fin_code = form.cleaned_data.get("fin_code") or ""
+        if not user_has_permission(request.user, "reception.view_sensitive_data"):
+            fin_code = visit.guest.fin_code
+        try:
+            ReceptionService.update_visit_details(
+                visit,
+                fin_code=fin_code,
+                first_name=form.cleaned_data["first_name"],
+                last_name=form.cleaned_data["last_name"],
+                company=form.cleaned_data["company"],
+                host=form.cleaned_data.get("host"),
+                visit_type=form.cleaned_data.get("visit_type"),
+                id_document_held=bool(form.cleaned_data.get("id_document_held")),
+                guest_card_number=form.cleaned_data.get("guest_card_number") or "",
+                notes=form.cleaned_data.get("notes") or "",
+                actor=request.user,
+            )
+        except DomainError as exc:
+            messages.error(request, str(exc))
+            return redirect(self._next(request))
+        messages.success(request, "Qonaq məlumatı yeniləndi.")
+        return redirect(self._next(request))
+
+    @staticmethod
+    def _next(request):
+        nxt = request.POST.get("next") or ""
+        if nxt.startswith("/erp/reception"):
+            return nxt
+        return "erp:reception"
 
 
 class ReceptionGuestListTemplateView(RoleRequiredMixin, View):
@@ -571,6 +653,7 @@ class TicketListView(RoleRequiredMixin, ListView):
             "company",
             "space",
             "assignee",
+            "assigned_employee",
             "queue",
             "department",
             "related_employee",
@@ -590,9 +673,90 @@ class TicketListView(RoleRequiredMixin, ListView):
         return qs
 
     def get_context_data(self, **kwargs):
+        from datetime import timedelta
+
         ctx = super().get_context_data(**kwargs)
-        ctx["tab"] = self.request.GET.get("tab", "all")
+        tab = self.request.GET.get("tab", "all")
+        base = tickets_visible_to(self.request.user)
+        open_qs = base.filter(status__in=OPEN_STATUSES)
+        risk_at = timezone.now() + timedelta(hours=4)
+        ctx["tab"] = tab
+        ctx["ticket_tabs"] = [
+            {"key": "all", "label": _("Hamısı"), "count": base.count()},
+            {"key": "open", "label": _("Açıq"), "count": open_qs.count()},
+            {
+                "key": "queue",
+                "label": _("Queue"),
+                "count": open_qs.filter(assignee__isnull=True).count(),
+            },
+            {
+                "key": "sla",
+                "label": _("SLA risk"),
+                "count": open_qs.filter(
+                    sla_due_at__isnull=False,
+                    sla_paused_at__isnull=True,
+                    sla_due_at__lte=risk_at,
+                ).count(),
+            },
+            {
+                "key": "mine",
+                "label": _("Mənim"),
+                "count": base.filter(assignee=self.request.user).count(),
+            },
+        ]
         return ctx
+
+
+class TicketCreateView(RoleRequiredMixin, FormView):
+    template_name = "erp/ticket_create.html"
+    form_class = StaffTicketForm
+    allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        form = ctx["form"]
+        ctx["companies"] = [
+            {"id": company.pk, "name": company.name}
+            for company in form.fields["company"].queryset
+        ]
+        ctx["assignees"] = [
+            {"id": employee.pk, "name": employee.full_name}
+            for employee in form.fields["assigned_employee"].queryset
+        ]
+        ctx["spaces"] = [
+            {
+                "id": space.pk,
+                "company_id": space.resident_id,
+                "name": space.code if not space.name else f"{space.code} · {space.name}",
+            }
+            for space in form.fields["space"].queryset
+        ]
+        ctx["subcategories"] = [
+            {"id": sub.pk, "category_id": sub.category_id, "name": sub.name}
+            for sub in TicketSubcategory.objects.filter(is_active=True).order_by("sort_order", "name")
+        ]
+        return ctx
+
+    def form_valid(self, form):
+        ticket = create_ticket_from_staff(
+            actor=self.request.user,
+            company=form.cleaned_data["company"],
+            ticket_type=form.cleaned_data["ticket_type"],
+            category=form.cleaned_data["category"],
+            subcategory=form.cleaned_data["subcategory"],
+            description=form.cleaned_data["description"],
+            space=form.cleaned_data.get("space"),
+            priority=form.cleaned_data.get("priority") or "",
+            assigned_employee=form.cleaned_data.get("assigned_employee"),
+        )
+        messages.success(self.request, f"{ticket.code} yaradıldı.")
+        if can_view_ticket(self.request.user, ticket):
+            return redirect("erp:ticket_detail", code=ticket.code)
+        messages.info(
+            self.request,
+            f"{ticket.code} {ticket.department} şöbəsinə yönləndirildi.",
+        )
+        return redirect("erp:tickets")
 
 
 class TicketDetailView(RoleRequiredMixin, TemplateView):
@@ -608,9 +772,9 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
                 "company",
                 "space",
                 "assignee",
+                "assigned_employee",
                 "queue",
                 "department",
-                "opportunity",
                 "related_employee",
             )
             .prefetch_related("attachments", "messages", "routing_events"),
@@ -621,8 +785,11 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         ticket = self.get_ticket()
         ctx["ticket"] = ticket
-        ctx["staff_users"] = department_assignees(ticket)
         ctx["can_mutate"] = can_mutate_ticket(self.request.user, ticket)
+        ctx["assignee_choices"] = [
+            {"id": employee.pk, "name": employee.full_name}
+            for employee in citypoint_ticket_assignees()
+        ]
         ctx["can_handoff"] = can_handoff_ticket(self.request.user, ticket)
         ctx["handoff_departments"] = TicketDepartment.objects.filter(is_active=True).order_by("name")
         ctx["handoff_queues"] = TicketQueue.objects.filter(is_active=True).select_related(
@@ -633,11 +800,6 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
             "from_queue", "to_queue", "from_department", "to_department", "actor"
         )
         ctx["priorities"] = TicketPriority.choices
-        from apps.maintenance.models import WorkOrder
-
-        ctx["work_orders"] = WorkOrder.objects.filter(ticket=ticket)
-        ctx["wo_eligible"] = ticket.wo_eligible
-        ctx["crm_eligible"] = ticket.crm_eligible
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -669,10 +831,10 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
                     note=request.POST.get("note", ""),
                 )
             elif action == "assign":
-                assign_ticket(
+                assign_ticket_employee(
                     ticket,
                     actor=request.user,
-                    assignee_id=request.POST.get("assignee") or None,
+                    employee_id=request.POST.get("assignee") or None,
                 )
             elif action == "priority":
                 set_ticket_priority(
@@ -689,17 +851,6 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
             elif action == "attach":
                 attach_ticket_file(ticket, actor=request.user, upload=request.FILES.get("file"))
                 messages.success(request, "Fayl əlavə olundu.")
-            elif action == "create_wo":
-                wo = create_work_order_from_ticket(ticket, actor=request.user)
-                messages.success(request, f"Work Order yaradıldı: {wo.code}")
-            elif action == "create_crm":
-                if not ticket.crm_eligible:
-                    raise DomainError("Bu ticket üçün CRM ötürülməsi uyğun deyil.")
-                if ticket.opportunity_id:
-                    messages.info(request, "CRM Opportunity artıq bağlıdır.")
-                else:
-                    opp = create_crm_opportunity_from_ticket(ticket, actor=request.user)
-                    messages.success(request, f"CRM Opportunity yaradıldı: {opp.title}")
             elif action == "handoff":
                 handoff_ticket(
                     ticket,
@@ -780,6 +931,11 @@ def _can_view_resident_guests(user) -> bool:
     return user.role in {Role.ADMIN, Role.MANAGEMENT, Role.RECEPTION}
 
 
+def _can_view_resident_ticket_counts(user) -> bool:
+    """Şirkət siyahısındakı ticket sayı — Admin və Service Desk."""
+    return user.role in {Role.ADMIN, Role.SERVICE_DESK}
+
+
 class ResidentListView(StaffRequiredMixin, ListView):
     template_name = "erp/residents.html"
     context_object_name = "companies"
@@ -791,12 +947,15 @@ class ResidentListView(StaffRequiredMixin, ListView):
         q = (self.request.GET.get("q") or "").strip()
         if q:
             qs = filter_text_search(qs, q, "name", "slug", "contact_email")
+        if _can_view_resident_ticket_counts(self.request.user):
+            qs = qs.annotate(ticket_count=Count("tickets", distinct=True))
         if _can_view_resident_guests(self.request.user):
             today = timezone.localdate()
             qs = qs.annotate(
                 guest_today=Count(
                     "guest_visits",
                     filter=Q(guest_visits__scheduled_for=today),
+                    distinct=True,
                 )
             )
         return qs
@@ -805,6 +964,8 @@ class ResidentListView(StaffRequiredMixin, ListView):
         ctx = super().get_context_data(**kwargs)
         ctx["q"] = self.request.GET.get("q") or ""
         ctx["can_view_resident_guests"] = _can_view_resident_guests(self.request.user)
+        ctx["can_view_resident_ticket_counts"] = _can_view_resident_ticket_counts(self.request.user)
+        ctx["company_opens_tickets"] = self.request.user.role == Role.SERVICE_DESK
         return ctx
 
 
@@ -897,17 +1058,17 @@ def _resident_company(slug):
 
 
 class ResidentTicketsView(RoleRequiredMixin, TemplateView):
-    """Şirkətin açıq ticket-ləri — Admin / Rəhbərlik."""
+    """Şirkətin ticket-ləri — Admin, Rəhbərlik və Service Desk."""
 
     template_name = "erp/resident_tickets.html"
-    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         company = _resident_company(self.kwargs["slug"])
         tab = self.request.GET.get("tab", "open")
         qs = company.tickets.select_related(
-            "category", "subcategory", "space", "assignee", "queue"
+            "category", "subcategory", "space", "assignee", "assigned_employee", "queue"
         ).order_by("-updated_at")
         if tab == "open":
             qs = qs.filter(status__in=OPEN_STATUSES)
@@ -1188,6 +1349,37 @@ class InternalStaffAccessDetailView(RoleRequiredMixin, TemplateView):
         return ctx
 
 
+class AuditLogView(StaffRequiredMixin, TemplateView):
+    """Staff actions grouped by role. Real admin only, including role preview."""
+
+    template_name = "erp/audit.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if not request.user.can_access_erp():
+            raise PermissionDenied("ERP yalnız əməkdaşlar üçündür.")
+        impersonator = get_impersonator(request)
+        allowed = request.user.role == Role.ADMIN or (
+            impersonator is not None and can_start_impersonation(impersonator)
+        )
+        if not allowed:
+            raise PermissionDenied("Bu bölməyə giriş icazəniz yoxdur.")
+        return super(StaffRequiredMixin, self).dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        from apps.audit.models import AuditLog
+        from apps.audit.present import audit_sections
+
+        ctx = super().get_context_data(**kwargs)
+        logs = AuditLog.objects.select_related("actor").order_by("-created_at")[:500]
+        highlight = None
+        if is_impersonating(self.request) and self.request.user.role != Role.ADMIN:
+            highlight = self.request.user.role
+        ctx["sections"] = audit_sections(logs, highlight_role=highlight)
+        return ctx
+
+
 class DocumentsView(StaffRequiredMixin, ListView):
     template_name = "erp/documents.html"
     queryset = Document.objects.select_related("company", "space")
@@ -1203,7 +1395,6 @@ class ReportsView(RoleRequiredMixin, TemplateView):
         from apps.billing.models import Invoice, InvoiceStatus
         from apps.crm.models import Lead, LeadStatus
         from apps.leases.models import Lease, LeaseStatus
-        from apps.maintenance.models import WorkOrder, WorkOrderStatus
         from apps.property.models import CommercialStatus, Space
         from apps.warehouse.models import SKU, Stock
 
@@ -1234,9 +1425,6 @@ class ReportsView(RoleRequiredMixin, TemplateView):
                     status__in=[LeaseStatus.ACTIVE, LeaseStatus.EXPIRING]
                 ).count(),
                 "crm_new_leads": Lead.objects.filter(status=LeadStatus.NEW).count(),
-                "open_wo": WorkOrder.objects.exclude(
-                    status__in=[WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED]
-                ).count(),
                 "low_stock_count": len(low_stock),
                 "receivable_count": Invoice.objects.filter(
                     status__in=[InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE]
@@ -1329,27 +1517,6 @@ class CrmOfferListView(StaffRequiredMixin, ListView):
             messages.success(request, f"Lease draft: {lease.code}")
             return redirect("erp:lease_detail", code=lease.code)
         return redirect("erp:crm_offers")
-
-
-class WorkOrderListView(StaffRequiredMixin, ListView):
-    template_name = "erp/work_orders.html"
-    context_object_name = "work_orders"
-
-    def get_queryset(self):
-        from apps.maintenance.models import WorkOrder
-
-        return WorkOrder.objects.select_related("space", "ticket", "asset").order_by("-created_at")
-
-    def post(self, request, *args, **kwargs):
-        from apps.maintenance.models import WorkOrder
-        from apps.maintenance.services import WorkOrderService
-
-        wo = get_object_or_404(WorkOrder, pk=request.POST.get("wo_id"))
-        status = request.POST.get("status")
-        if status:
-            WorkOrderService.set_status(wo, status, actor=request.user)
-            messages.success(request, f"{wo.code} → {status}")
-        return redirect("erp:work_orders")
 
 
 class WarehouseListView(StaffRequiredMixin, TemplateView):

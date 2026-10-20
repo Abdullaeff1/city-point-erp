@@ -371,8 +371,6 @@ class Command(BaseCommand):
         from apps.crm.services import convert_offer_to_lease_draft
         from apps.leases.models import Lease, LeaseStatus
         from apps.leases.services import activate_lease, next_lease_code
-        from apps.maintenance.models import WorkOrder, WorkOrderPriority, WorkOrderStatus
-        from apps.maintenance.services import create_wo_from_ticket, next_wo_code
         from apps.parties.services import PartyService
         from apps.procurement.models import POStatus, PRStatus, PurchaseOrder, PurchaseRequest
         from apps.property.models import ParkingSpot, ParkingZone, UtilityMeter, UtilityType
@@ -459,20 +457,6 @@ class Command(BaseCommand):
         )
         if lease_asbc.status != LeaseStatus.ACTIVE:
             activate_lease(lease_asbc)
-
-        open_ticket = Ticket.objects.filter(status__in=["sent", "accepted", "in_progress"]).first()
-        if open_ticket and not WorkOrder.objects.filter(ticket=open_ticket).exists():
-            create_wo_from_ticket(open_ticket)
-        WorkOrder.objects.get_or_create(
-            code="WO-1099",
-            defaults={
-                "title": "HVAC filter change",
-                "description": "Scheduled PM",
-                "status": WorkOrderStatus.OPEN,
-                "priority": WorkOrderPriority.NORMAL,
-                "space": space801,
-            },
-        )
 
         wh, _ = Warehouse.objects.get_or_create(code="MAIN", defaults={"name": "Main store"})
         sku_filter, _ = SKU.objects.get_or_create(

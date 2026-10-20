@@ -1,0 +1,219 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Yeni ticket" %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:tickets' %}">{% translate "Service Desk" %}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card" style="max-width:760px;">
+  <form method="post" class="flex-col gap-3" id="staff-ticket-form">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+    <div class="badge badge-urgent">{{ form.non_field_errors }}</div>
+    {% endif %}
+
+    <div class="grid-2">
+      <div>
+        <label class="cp-meta" for="company-search">{% translate "Şirkət" %}</label>
+        <div class="mt-1 cp-combobox">
+          <input class="cp-input" id="company-search" type="search" autocomplete="off" placeholder="{% translate 'Şirkət adı…' %}">
+          {{ form.company }}
+          <ul class="cp-combobox-list" id="company-suggestions" role="listbox" hidden data-empty="{% translate 'Tapılmadı' %}"></ul>
+        </div>
+        {{ form.company.errors }}
+      </div>
+      <label>
+        <span class="cp-meta">{% translate "Sahə" %}</span>
+        <div class="mt-1">{{ form.space }}</div>
+        {{ form.space.errors }}
+      </label>
+    </div>
+
+    <div class="grid-2">
+      <label>
+        <span class="cp-meta">{% translate "Müraciət tipi" %}</span>
+        <div class="mt-1">{{ form.ticket_type }}</div>
+        {{ form.ticket_type.errors }}
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Prioritet" %}</span>
+        <div class="mt-1">{{ form.priority }}</div>
+        {{ form.priority.errors }}
+      </label>
+    </div>
+
+    <div class="grid-2">
+      <label>
+        <span class="cp-meta">{% translate "Problem" %}</span>
+        <div class="mt-1">{{ form.category }}</div>
+        {{ form.category.errors }}
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Alt problem" %}</span>
+        <div class="mt-1">{{ form.subcategory }}</div>
+        {{ form.subcategory.errors }}
+      </label>
+    </div>
+
+    <div>
+      <label class="cp-meta" for="assignee-search">{% translate "Cavabdeh" %}</label>
+      <div class="mt-1 cp-combobox">
+        <input class="cp-input" id="assignee-search" type="search" autocomplete="off" placeholder="{% translate 'Əməkdaş adı…' %}">
+        {{ form.assigned_employee }}
+        <ul class="cp-combobox-list" id="assignee-suggestions" role="listbox" hidden data-empty="{% translate 'Tapılmadı' %}"></ul>
+      </div>
+      {{ form.assigned_employee.errors }}
+    </div>
+
+    <label>
+      <span class="cp-meta">{% translate "Təsvir" %}</span>
+      <div class="mt-1">{{ form.description }}</div>
+      {{ form.description.errors }}
+    </label>
+
+    <button class="cp-btn" type="submit">{% translate "Yarat" %}</button>
+  </form>
+</div>
+{{ companies|json_script:"company-data" }}
+{{ assignees|json_script:"assignee-data" }}
+{{ spaces|json_script:"space-data" }}
+{{ subcategories|json_script:"subcategory-data" }}
+<script>
+(function () {
+  function read(id) {
+    var el = document.getElementById(id);
+    try { return JSON.parse(el && el.textContent || "[]"); } catch (e) { return []; }
+  }
+  function norm(s) {
+    return window.cpFoldSearch ? cpFoldSearch(s) : String(s || "").toLocaleLowerCase("az");
+  }
+  function bindSearch(inputId, selectId, listId, items) {
+    var search = document.getElementById(inputId);
+    var select = document.getElementById(selectId);
+    var list = document.getElementById(listId);
+    if (!search || !select || !list) return;
+    var people = items.slice().sort(function (a, b) {
+      return norm(a.name).localeCompare(norm(b.name), "az");
+    });
+    var active = -1;
+    function selectedName() {
+      var id = select.value;
+      var hit = people.filter(function (item) { return String(item.id) === String(id); })[0];
+      return hit ? hit.name : "";
+    }
+    if (select.value) search.value = selectedName();
+    function render(q) {
+      var query = norm(q).trim();
+      var starts = [];
+      var contains = [];
+      people.forEach(function (item) {
+        var name = norm(item.name);
+        if (!query || name.indexOf(query) === 0) starts.push(item);
+        else if (name.indexOf(query) !== -1) contains.push(item);
+      });
+      var matched = starts.concat(contains).slice(0, 40);
+      list.innerHTML = "";
+      if (!matched.length) {
+        var empty = document.createElement("li");
+        empty.className = "cp-combobox-empty";
+        empty.textContent = list.getAttribute("data-empty") || "";
+        list.appendChild(empty);
+        list.hidden = false;
+        return;
+      }
+      matched.forEach(function (item, idx) {
+        var li = document.createElement("li");
+        li.setAttribute("role", "option");
+        li.textContent = item.name;
+        if (String(item.id) === String(select.value)) li.classList.add("is-selected");
+        if (idx === active) li.classList.add("is-active");
+        li.addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          select.value = String(item.id);
+          search.value = item.name;
+          list.hidden = true;
+          active = -1;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        list.appendChild(li);
+      });
+      list.hidden = false;
+    }
+    function sync() {
+      var typed = norm(search.value).trim();
+      if (!typed) { select.value = ""; return; }
+      var exact = people.filter(function (item) { return norm(item.name) === typed; });
+      select.value = exact.length === 1 ? String(exact[0].id) : "";
+    }
+    search.addEventListener("focus", function () { render(search.value); });
+    search.addEventListener("input", function () { active = -1; select.value = ""; render(search.value); });
+    document.addEventListener("click", function (e) {
+      if (!search.parentElement.contains(e.target)) list.hidden = true;
+    });
+    return sync;
+  }
+
+  var companies = read("company-data");
+  var assignees = read("assignee-data");
+  var spaces = read("space-data");
+  var subs = read("subcategory-data");
+  var syncCompany = bindSearch("company-search", "id_company", "company-suggestions", companies);
+  var syncAssignee = bindSearch("assignee-search", "id_assigned_employee", "assignee-suggestions", assignees);
+
+  var company = document.getElementById("id_company");
+  var space = document.getElementById("id_space");
+  var category = document.getElementById("id_category");
+  var subcategory = document.getElementById("id_subcategory");
+
+  function refillSpaces() {
+    if (!space) return;
+    var current = space.value;
+    var cid = company ? company.value : "";
+    space.innerHTML = "";
+    var blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = "—";
+    space.appendChild(blank);
+    spaces.forEach(function (item) {
+      if (cid && String(item.company_id) !== String(cid)) return;
+      if (!cid) return;
+      var opt = document.createElement("option");
+      opt.value = String(item.id);
+      opt.textContent = item.name;
+      if (String(item.id) === String(current)) opt.selected = true;
+      space.appendChild(opt);
+    });
+  }
+  function refillSubs() {
+    if (!category || !subcategory) return;
+    var current = subcategory.value;
+    var cid = category.value;
+    subcategory.innerHTML = "";
+    var blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = "—";
+    subcategory.appendChild(blank);
+    subs.forEach(function (item) {
+      if (String(item.category_id) !== String(cid)) return;
+      var opt = document.createElement("option");
+      opt.value = String(item.id);
+      opt.textContent = item.name;
+      if (String(item.id) === String(current)) opt.selected = true;
+      subcategory.appendChild(opt);
+    });
+  }
+  if (company) company.addEventListener("change", refillSpaces);
+  if (category) category.addEventListener("change", refillSubs);
+  refillSpaces();
+  refillSubs();
+
+  var form = document.getElementById("staff-ticket-form");
+  if (form) {
+    form.addEventListener("submit", function () {
+      if (syncCompany) syncCompany();
+      if (syncAssignee) syncAssignee();
+    });
+  }
+})();
+</script>
+{% endblock %}

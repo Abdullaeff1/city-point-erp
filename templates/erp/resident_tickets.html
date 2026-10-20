@@ -32,7 +32,7 @@
         <td>{{ t.category }}{% if t.subcategory %}<br><span class="cp-meta">{{ t.subcategory.name }}</span>{% endif %}</td>
         <td>{{ t.space.short_label|default:"—" }}</td>
         <td>{% include "partials/priority_badge.html" with value=t.priority label=t.get_priority_display %}</td>
-        <td>{{ t.assignee.display_name|default:"—" }}</td>
+        <td>{{ t.assigned_employee.full_name|default:"—" }}</td>
         <td>
           {% if t.is_open and t.sla_due_at %}
             <span class="{% if t.sla_breached %}badge badge-urgent{% elif t.sla_risk %}badge badge-progress{% else %}badge badge-muted{% endif %}">

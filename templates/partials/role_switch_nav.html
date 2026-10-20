@@ -1,11 +1,10 @@
-{% load i18n %}
+{% load i18n cp_ui %}
+{% if nav_audit and is_impersonating %}
+<a class="{% nav_active 'audit' %}" href="{% url 'erp:audit' %}"><i data-lucide="scroll-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Audit" %}</span></a>
+{% endif %}
 {% if nav_role_switch %}
-<details class="cp-nav-group" {% if is_impersonating %}open{% endif %}>
-  <summary class="cp-nav-summary">
-    <span class="cp-nav-summary-label">{% translate "ROLLAR" %}</span>
-    <i data-lucide="chevron-down" class="cp-nav-chevron" width="14" height="14"></i>
-  </summary>
-  <div class="cp-nav-group-body">
+<div class="cp-nav-label">{% translate "ROLLAR" %}</div>
+<div class="cp-nav-group-body">
     {% if is_impersonating and impersonator %}
     <form method="post" action="{% url 'accounts:stop_role_preview' %}" class="cp-nav-role-form">
       {% csrf_token %}
@@ -24,6 +23,5 @@
       </button>
     </form>
     {% endfor %}
-  </div>
-</details>
+</div>
 {% endif %}

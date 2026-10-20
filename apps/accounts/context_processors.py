@@ -1,5 +1,6 @@
 from apps.accounts.impersonation import (
     actor_can_switch_roles,
+    can_start_impersonation,
     get_impersonator,
     is_impersonating,
     list_role_switch_targets,
@@ -55,9 +56,16 @@ def role_context(request):
         "nav_internal_access": is_adminish,
         "nav_leases": is_adminish or role == Role.PROPERTY_FM,
         "nav_crm": is_adminish,
-        "nav_fm": is_adminish or role in {Role.PROPERTY_FM, Role.SERVICE_DESK},
         "nav_supply": is_adminish,
         "nav_finance": is_adminish,
+        "nav_audit": bool(
+            user
+            and user.is_authenticated
+            and (
+                role == Role.ADMIN
+                or (impersonator and can_start_impersonation(impersonator))
+            )
+        ),
         "nav_role_switch": can_switch,
         "role_switch_targets": role_targets,
         "is_impersonating": impersonating,

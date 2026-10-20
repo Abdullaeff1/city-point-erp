@@ -2,13 +2,16 @@
 {% load i18n cp_ui %}
 {% block heading %}{% translate "Service Desk" %}{% endblock %}
 {% block content %}
-<div class="flex gap-2 mb-4" style="flex-wrap:wrap;">
-  <a class="badge {% if tab == 'all' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=all">{% translate "Hamısı" %}</a>
-  <a class="badge {% if tab == 'open' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=open">{% translate "Açıq" %}</a>
-  <a class="badge {% if tab == 'queue' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=queue">{% translate "Queue" %}</a>
-  <a class="badge {% if tab == 'sla' %}badge-progress{% else %}badge-muted{% endif %}" href="?tab=sla">{% translate "SLA risk" %}</a>
-  <a class="badge {% if tab == 'mine' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=mine">{% translate "Mənim" %}</a>
-  <a class="badge {% if tab == 'card-orders' %}badge-sent{% else %}badge-muted{% endif %}" href="?tab=card-orders">{% translate "Kart sifarişləri" %}</a>
+<div class="flex gap-2 mb-4" style="justify-content:flex-end;">
+  <a class="cp-btn" href="{% url 'erp:ticket_create' %}">{% translate "Yeni ticket" %}</a>
+</div>
+<div class="ticket-tabs mb-4">
+  {% for item in ticket_tabs %}
+  <a class="cp-card cp-card-link ticket-tab{% if tab == item.key %} is-active{% endif %}" href="?tab={{ item.key }}">
+    <div class="cp-meta">{{ item.label }}</div>
+    <div class="cp-metric">{% if item.count < 10 %}0{% endif %}{{ item.count }}</div>
+  </a>
+  {% endfor %}
 </div>
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
@@ -35,7 +38,7 @@
         <td>{{ t.queue.name|default:"—" }}</td>
         <td>{{ t.space.short_label|default:"—" }}</td>
         <td>{% include "partials/priority_badge.html" with value=t.priority label=t.get_priority_display %}</td>
-        <td>{{ t.assignee.display_name|default:"—" }}</td>
+        <td>{{ t.assigned_employee.full_name|default:"—" }}</td>
         <td>
           {% if t.is_open and t.sla_due_at %}
             <span class="{% if t.sla_breached %}badge badge-urgent{% elif t.sla_risk %}badge badge-progress{% else %}badge badge-muted{% endif %}">

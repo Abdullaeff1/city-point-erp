@@ -214,6 +214,14 @@ class Ticket(models.Model):
         on_delete=models.SET_NULL,
         related_name="assigned_tickets",
     )
+    assigned_employee = models.ForeignKey(
+        "residents.ResidentEmployee",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="assigned_service_tickets",
+        help_text="Service Desk-in təyin etdiyi City Point əməkdaşı",
+    )
     priority = models.CharField(
         max_length=16, choices=TicketPriority.choices, default=TicketPriority.NORMAL
     )

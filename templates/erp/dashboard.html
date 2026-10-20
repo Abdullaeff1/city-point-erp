@@ -2,12 +2,14 @@
 {% load i18n cp_ui %}
 {% block heading %}{% translate "İdarə paneli" %}{% endblock %}
 {% block content %}
-<div class="grid-kpi mb-5{% if not show_tickets %} grid-kpi--compact{% endif %}">
+<div class="grid-kpi mb-5{% if not show_tickets or not show_guests %} grid-kpi--compact{% endif %}">
+  {% if show_guests %}
   <div class="cp-card p-card-sm">
     <div class="cp-meta">{% translate "QONAQLAR" %}</div>
     <div class="cp-metric mt-2">{% if guest_count < 10 %}0{% endif %}{{ guest_count }}</div>
     <div class="cp-meta mt-2">{% translate "bu gün" %}</div>
   </div>
+  {% endif %}
   {% if show_tickets %}
   <div class="cp-card p-card-sm">
     <div class="cp-meta">{% translate "AÇIQ TICKET" %}</div>
@@ -31,11 +33,13 @@
     <div class="cp-metric mt-2">{{ new_residents }}</div>
     <div class="cp-meta mt-2">{% translate "aktiv" %}</div>
   </div>
+  {% if show_guests %}
   <a class="cp-card p-card-sm cp-card-link" href="{% url 'erp:people_inside' %}">
     <div class="cp-meta">{% translate "İÇƏRİDƏ" %}</div>
     <div class="cp-metric mt-2">{% if people_inside_count < 10 %}0{% endif %}{{ people_inside_count }}</div>
     <div class="cp-meta mt-2">{% translate "indi binada" %} · {% translate "Bax" %} →</div>
   </a>
+  {% endif %}
 </div>
 {% if axtrax_health %}
 <div class="cp-card p-card-sm mb-4">
@@ -52,7 +56,7 @@
   </div>
 </div>
 {% endif %}
-<div class="grid-dash mb-4{% if show_tickets %} grid-dash--triple{% endif %}">
+<div class="grid-dash mb-4{% if show_tickets and show_guests %} grid-dash--triple{% elif show_tickets %} grid-dash--single{% endif %}">
   {% if show_tickets %}
   <div class="cp-card" style="padding:8px 0;">
     <div class="cp-section section-pad">{% translate "Ticketlər" %}</div>
@@ -64,6 +68,7 @@
     {% empty %}<p class="cp-meta empty-pad">{% translate "Açıq ticket yoxdur." %}</p>{% endfor %}
   </div>
   {% endif %}
+  {% if show_guests %}
   <div class="cp-card" style="padding:8px 0;">
     <div class="cp-section section-pad">{% translate "Bugünkü qonaqlar" %}</div>
     {% for v in today_visits %}
@@ -73,6 +78,8 @@
       </div>
     {% empty %}<p class="cp-meta empty-pad">{% translate "Qonaq yoxdur." %}</p>{% endfor %}
   </div>
+  {% endif %}
+  {% if show_guests %}
   <div class="cp-card" style="padding:8px 0;">
     <div class="cp-section section-pad">{% translate "Son fəaliyyətlər" %}</div>
     <ul style="list-style:none;padding:0;margin:0;">
@@ -83,5 +90,6 @@
       {% endfor %}
     </ul>
   </div>
+  {% endif %}
 </div>
 {% endblock %}

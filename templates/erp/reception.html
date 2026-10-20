@@ -310,9 +310,9 @@
     </thead>
     <tbody>
       {% for v in visits %}
-      <tr>
+      <tr class="is-clickable" data-guest-detail="{{ v.pk }}">
         {% if filter_status == "inside" or filter_status == "inside_overdue" %}<td>{{ v.scheduled_for|date:"d.m.Y" }}</td>{% endif %}
-        <td>{{ v.guest.display_name }}</td>
+        <td class="guest-name">{{ v.guest.display_name }}</td>
         <td class="cp-code">{% if can_sensitive %}{{ v.guest.fin_code|default:"—" }}{% else %}{{ v.guest.fin_code|mask_fin_filter }}{% endif %}</td>
         <td>{{ v.company.name }}</td>
         <td>{{ v.host.full_name|default:"—" }}</td>
@@ -322,7 +322,7 @@
         <td>{% if v.visitor_access %}{% if v.visitor_access.credential %}<span class="cp-code">{{ v.visitor_access.credential }}</span> · {% endif %}{{ v.visitor_access.get_status_display }}{% else %}—{% endif %}</td>
         <td class="cp-meta cp-note-cell"{% if v.notes %} title="{{ v.notes }}"{% endif %}>{% if v.notes %}<span class="cp-note-text">{{ v.notes }}</span>{% else %}—{% endif %}</td>
         <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
-        <td>
+        <td class="journal-actions">
           {% if v.list_import_id and v.status == "pre_registered" or v.list_import_id and v.status == "waiting" %}
           <form method="post" action="{% url 'erp:reception_status' v.pk %}" class="flex gap-1" style="flex-wrap:wrap;">
             {% csrf_token %}
@@ -371,6 +371,94 @@
       {% endfor %}
     </tbody>
   </table>
+  <div id="guest-detail-sources" hidden>
+    {% for v in visits %}
+    <div id="guest-detail-src-{{ v.pk }}">
+      <dl class="guest-detail-list">
+        <div>
+          <dt>{% translate "Seriya nömrəsi" %}</dt>
+          <dd class="cp-code">{% if can_sensitive %}{{ v.guest.fin_code|default:"—" }}{% else %}{{ v.guest.fin_code|mask_fin_filter }}{% endif %}</dd>
+        </div>
+        <div><dt>{% translate "Ad" %}</dt><dd>{{ v.guest.first_name|default:"—" }}</dd></div>
+        <div><dt>{% translate "Soyad" %}</dt><dd>{{ v.guest.last_name|default:"—" }}</dd></div>
+        <div><dt>{% translate "Şirkət" %}</dt><dd>{{ v.company.name }}</dd></div>
+        <div><dt>{% translate "Host" %}</dt><dd>{{ v.host.full_name|default:"—" }}</dd></div>
+        <div>
+          <dt>{% translate "Gəliş səbəbi" %}</dt>
+          <dd class="guest-detail-reason">{{ v.visit_type.name|default:"—" }}</dd>
+        </div>
+        <div>
+          <dt>{% translate "Şəxsiyyət vəsiqəsi saxlanıldı (qonaq kartı verildi)" %}</dt>
+          <dd>{% if v.id_document_held %}{% translate "Bəli" %}{% else %}{% translate "Xeyr" %}{% endif %}</dd>
+        </div>
+        <div>
+          <dt>{% translate "Qonaq kartı №" %}</dt>
+          <dd class="cp-code">{% if v.visitor_access and v.visitor_access.credential %}{{ v.visitor_access.credential }}{% else %}—{% endif %}</dd>
+        </div>
+        <div><dt>{% translate "Qeyd" %}</dt><dd>{{ v.notes|default:"—" }}</dd></div>
+      </dl>
+    </div>
+    {% endfor %}
+  </div>
+  <dialog id="guest-detail-dialog" class="guest-detail">
+    <div class="guest-detail-head">
+      <strong id="guest-detail-title"></strong>
+      <button type="button" class="cp-btn-ghost" id="guest-detail-close">{% translate "Bağla" %}</button>
+    </div>
+    <div id="guest-detail-body" class="guest-detail-body"></div>
+    {% if can_create_visit %}
+    {{ guest_edits|json_script:"guest-edit-data" }}
+    <form method="post" id="guest-edit-form" class="guest-edit-form" hidden data-action-template="{% url 'erp:reception_visit_update' 0 %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+      <label>
+        <span class="cp-meta">{% translate "Seriya nömrəsi" %}</span>
+        <input class="cp-input mt-1" id="edit-fin" name="fin_code" autocomplete="off" {% if not can_sensitive %}readonly{% endif %}>
+      </label>
+      <div class="flex gap-2">
+        <label class="flex-1"><span class="cp-meta">{% translate "Ad" %}</span><input class="cp-input mt-1" id="edit-first" name="first_name" required></label>
+        <label class="flex-1"><span class="cp-meta">{% translate "Soyad" %}</span><input class="cp-input mt-1" id="edit-last" name="last_name" required></label>
+      </div>
+      <label>
+        <span class="cp-meta">{% translate "Şirkət" %}</span>
+        <select class="cp-input mt-1" id="edit-company" name="company" required>
+          <option value="">---------</option>
+          {% for c in form.fields.company.queryset %}
+          <option value="{{ c.id }}" data-slug="{{ c.slug }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label id="edit-host-wrap">
+        <span class="cp-meta">{% translate "Host" %}</span>
+        <select class="cp-input mt-1" id="edit-host" name="host">
+          <option value="">---------</option>
+        </select>
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Gəliş səbəbi" %}</span>
+        <select class="cp-input mt-1" id="edit-visit-type" name="visit_type" required>
+          <option value="">{% translate "Seçin…" %}</option>
+          {% for t in form.fields.visit_type.queryset %}
+          <option value="{{ t.pk }}" data-code="{{ t.code }}">{{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="cp-meta" style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" id="edit-held" name="id_document_held">
+        {% translate "Şəxsiyyət vəsiqəsi saxlanıldı (qonaq kartı verildi)" %}
+      </label>
+      <label id="edit-card-wrap" hidden>
+        <span class="cp-meta">{% translate "Qonaq kartı №" %}</span>
+        <input class="cp-input mt-1" id="edit-card" name="guest_card_number" autocomplete="off">
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Qeyd" %}</span>
+        <input class="cp-input mt-1" id="edit-notes" name="notes" maxlength="500">
+      </label>
+      <button class="cp-btn" type="submit">{% translate "Yadda saxla" %}</button>
+    </form>
+    {% endif %}
+  </dialog>
 </div>
 
 <script>
@@ -582,9 +670,35 @@
     hostBox.refresh(preferId);
   }
 
+  function syncWalkInCompany() {
+    const type = document.getElementById("id_visit_type");
+    if (!type || !companySelect) return;
+    const companyOpt = companySelect.options[companySelect.selectedIndex];
+    const slug = (companyOpt && companyOpt.dataset.slug) || "";
+    const lockPatient = slug.indexOf("psixoloq") === 0;
+    if (lockPatient) {
+      const patient = Array.from(type.options).find(function (o) {
+        return o.dataset.code === "patient";
+      });
+      if (patient) type.value = patient.value;
+      const hostName = norm("LEYLA TƏBRİZ ŞAMİLOVA");
+      const host = hosts.find(function (h) {
+        return String(h.company_id) === String(companySelect.value) && norm(h.full_name) === hostName;
+      });
+      if (host) hostBox.refresh(String(host.id));
+      if (hostSearch) hostSearch.readOnly = true;
+    } else if (hostSearch) {
+      hostSearch.readOnly = false;
+    }
+    type.style.pointerEvents = lockPatient ? "none" : "";
+    type.tabIndex = lockPatient ? -1 : 0;
+    type.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
   if (companySelect) {
     companySelect.addEventListener("change", function () {
       refreshHosts("");
+      syncWalkInCompany();
     });
   }
   refreshHosts(initialHostId);
@@ -606,12 +720,13 @@
         return o.dataset.slug === lockSlug;
       });
       if (companyOpt) {
+        const changed = companySelect.value !== companyOpt.value;
         companySelect.value = companyOpt.value;
         if (companySearch) {
           companySearch.value = companyOpt.textContent.trim();
           companySearch.readOnly = true;
         }
-        companySelect.dispatchEvent(new Event("change", { bubbles: true }));
+        if (changed) companySelect.dispatchEvent(new Event("change", { bubbles: true }));
       }
     } else if (companySearch) {
       companySearch.readOnly = false;
@@ -620,7 +735,7 @@
   const visitType = document.getElementById("id_visit_type");
   if (visitType) {
     visitType.addEventListener("change", syncWalkInReason);
-    syncWalkInReason();
+    syncWalkInCompany();
   }
 
   function syncWalkInCardField() {
@@ -660,15 +775,45 @@
     sync();
   });
 
-  const walkIn = document.querySelector(".walk-in-dropdown");
-  if (walkIn) {
-    document.addEventListener("click", function (e) {
-      if (!walkIn.open) return;
-      if (walkIn.contains(e.target)) return;
-      walkIn.open = false;
+  function panelSnapshot(root) {
+    const parts = [];
+    root.querySelectorAll("input, select, textarea").forEach(function (el) {
+      if (el.name === "csrfmiddlewaretoken") return;
+      const key = el.id || el.name;
+      if (!key) return;
+      if (el.type === "checkbox" || el.type === "radio") {
+        parts.push(key + "=" + (el.checked ? "1" : "0"));
+      } else {
+        parts.push(key + "=" + (el.value || ""));
+      }
     });
+    return parts.join("\n");
+  }
+
+  function bindOutsideClose(panel, allowClose) {
+    if (!panel) return;
+    document.addEventListener("click", function (e) {
+      if (!panel.open) return;
+      if (panel.contains(e.target)) return;
+      if (allowClose && !allowClose()) return;
+      panel.open = false;
+    });
+  }
+
+  const walkInForm = document.getElementById("walk-in-form");
+  const walkIn = walkInForm ? walkInForm.closest(".walk-in-dropdown") : null;
+  const guestList = document.querySelector(".walk-in-dropdown");
+  if (guestList && guestList !== walkIn) {
+    bindOutsideClose(guestList);
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape" && walkIn.open) walkIn.open = false;
+      if (e.key === "Escape" && guestList.open) guestList.open = false;
+    });
+  }
+  if (walkIn) {
+    const baseline = {% if form.errors %}null{% else %}panelSnapshot(walkIn){% endif %};
+    bindOutsideClose(walkIn, function () {
+      if (baseline === null) return false;
+      return panelSnapshot(walkIn) === baseline;
     });
   }
 
@@ -688,6 +833,126 @@
           if (last && !last.value) last.value = data.last_name || "";
         }
       }, 350);
+    });
+  }
+
+  const guestDialog = document.getElementById("guest-detail-dialog");
+  const guestDetailTitle = document.getElementById("guest-detail-title");
+  const guestDetailBody = document.getElementById("guest-detail-body");
+  const guestEditForm = document.getElementById("guest-edit-form");
+  const guestEditNode = document.getElementById("guest-edit-data");
+  const guestEditRows = guestEditNode ? JSON.parse(guestEditNode.textContent) : [];
+  const editNoHost = { "forgotten-card": 1, "lease-area": 1, meeting: 1, technician: 1 };
+
+  function fillEditHosts(companyId, hostId) {
+    const select = document.getElementById("edit-host");
+    if (!select) return;
+    select.innerHTML = '<option value="">---------</option>';
+    hosts
+      .filter(function (h) { return String(h.company_id) === String(companyId); })
+      .forEach(function (h) {
+        const opt = document.createElement("option");
+        opt.value = h.id;
+        opt.textContent = h.full_name;
+        if (String(h.id) === String(hostId || "")) opt.selected = true;
+        select.appendChild(opt);
+      });
+  }
+
+  function syncEditRules() {
+    const company = document.getElementById("edit-company");
+    const type = document.getElementById("edit-visit-type");
+    const host = document.getElementById("edit-host");
+    const held = document.getElementById("edit-held");
+    const cardWrap = document.getElementById("edit-card-wrap");
+    if (!company || !type || !host) return;
+    const companyOpt = company.options[company.selectedIndex];
+    const slug = (companyOpt && companyOpt.dataset.slug) || "";
+    const lockPatient = slug.indexOf("psixoloq") === 0;
+    if (lockPatient) {
+      const patient = Array.from(type.options).find(function (o) { return o.dataset.code === "patient"; });
+      if (patient) type.value = patient.value;
+      const hostName = norm("LEYLA TƏBRİZ ŞAMİLOVA");
+      const match = hosts.find(function (h) {
+        return String(h.company_id) === String(company.value) && norm(h.full_name) === hostName;
+      });
+      if (match) fillEditHosts(company.value, match.id);
+    }
+    const code = (type.options[type.selectedIndex] && type.options[type.selectedIndex].dataset.code) || "";
+    if (code === "lease-area") {
+      const city = Array.from(company.options).find(function (o) { return o.dataset.slug === "city-point"; });
+      if (city && company.value !== city.value) {
+        company.value = city.value;
+        fillEditHosts(city.value, "");
+      }
+      company.style.pointerEvents = "none";
+    } else {
+      company.style.pointerEvents = "";
+    }
+    const hideHost = !!editNoHost[code];
+    if (hideHost) host.value = "";
+    host.style.pointerEvents = hideHost || lockPatient ? "none" : "";
+    type.style.pointerEvents = lockPatient ? "none" : "";
+    if (cardWrap && held) cardWrap.hidden = !held.checked;
+  }
+
+  function openGuestDetail(id) {
+    const record = guestEditRows.find(function (row) { return String(row.id) === String(id); });
+    if (guestEditForm && record) {
+      if (guestDetailBody) guestDetailBody.hidden = true;
+      guestEditForm.hidden = false;
+      guestEditForm.action = guestEditForm.dataset.actionTemplate.replace("/0/", "/" + id + "/");
+      document.getElementById("edit-fin").value = record.fin_code || "";
+      document.getElementById("edit-first").value = record.first_name || "";
+      document.getElementById("edit-last").value = record.last_name || "";
+      document.getElementById("edit-company").value = String(record.company_id || "");
+      document.getElementById("edit-visit-type").value = record.visit_type_id ? String(record.visit_type_id) : "";
+      document.getElementById("edit-held").checked = !!record.id_document_held;
+      document.getElementById("edit-card").value = record.guest_card_number || "";
+      document.getElementById("edit-notes").value = record.notes || "";
+      fillEditHosts(record.company_id, record.host_id);
+      syncEditRules();
+      guestDetailTitle.textContent = record.name || "";
+    } else {
+      const src = document.getElementById("guest-detail-src-" + id);
+      if (!src || !guestDialog) return;
+      if (guestEditForm) guestEditForm.hidden = true;
+      if (guestDetailBody) {
+        guestDetailBody.hidden = false;
+        guestDetailBody.innerHTML = src.innerHTML;
+      }
+      const row = document.querySelector('tr[data-guest-detail="' + id + '"]');
+      const nameCell = row && row.querySelector(".guest-name");
+      guestDetailTitle.textContent = nameCell ? nameCell.textContent.trim() : "";
+    }
+    if (!guestDialog) return;
+    if (typeof guestDialog.showModal === "function") guestDialog.showModal();
+    else guestDialog.setAttribute("open", "");
+  }
+  const editCompany = document.getElementById("edit-company");
+  const editType = document.getElementById("edit-visit-type");
+  const editHeld = document.getElementById("edit-held");
+  if (editCompany) {
+    editCompany.addEventListener("change", function () {
+      fillEditHosts(editCompany.value, "");
+      syncEditRules();
+    });
+  }
+  if (editType) editType.addEventListener("change", syncEditRules);
+  if (editHeld) editHeld.addEventListener("change", syncEditRules);
+  document.querySelectorAll("tr[data-guest-detail]").forEach(function (row) {
+    row.addEventListener("click", function (e) {
+      if (e.target.closest(".journal-actions")) return;
+      openGuestDetail(row.dataset.guestDetail);
+    });
+  });
+  document.getElementById("guest-detail-close")?.addEventListener("click", function () {
+    if (guestDialog && guestDialog.close) guestDialog.close();
+    else if (guestDialog) guestDialog.removeAttribute("open");
+  });
+  if (guestDialog) {
+    guestDialog.addEventListener("click", function (e) {
+      if (e.target === guestDialog && guestDialog.close) guestDialog.close();
     });
   }
 

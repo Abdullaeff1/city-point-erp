@@ -1,22 +1,6 @@
 from django.contrib import admin
 
-from apps.maintenance.models import Inspection, MaintenancePlan, WorkOrder
-
-
-@admin.register(WorkOrder)
-class WorkOrderAdmin(admin.ModelAdmin):
-    list_display = (
-        "code",
-        "title",
-        "status",
-        "priority",
-        "space",
-        "assigned_to",
-        "scheduled_for",
-        "created_at",
-    )
-    list_filter = ("status", "priority", "billable")
-    search_fields = ("code", "title")
+from apps.maintenance.models import Inspection, MaintenancePlan
 
 
 @admin.register(MaintenancePlan)

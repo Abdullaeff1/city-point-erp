@@ -7,7 +7,7 @@ from apps.accounts.models import Role
 from apps.comms.models import Notification
 from apps.comms.services import notify_in_app
 from apps.core.services import DomainError
-from apps.residents.models import ResidentCompany
+from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.tickets.access import (
     can_access_ticket_attachment,
     can_mutate_ticket,
@@ -25,6 +25,7 @@ from apps.tickets.models import (
 from apps.tickets.seed_taxonomy import seed_ticket_taxonomy
 from apps.tickets.services import (
     assign_ticket,
+    assign_ticket_employee,
     create_ticket_from_portal,
     handoff_ticket,
     set_ticket_status,
@@ -44,6 +45,7 @@ class TicketDepartmentAccessTests(TestCase):
         )
         self.sec_dept = TicketDepartment.objects.get(code="security")
         self.fm_dept = TicketDepartment.objects.get(code="webservis")
+        self.desk_dept = TicketDepartment.objects.get(code="servicedesk")
         self.admin = User.objects.create_user(
             username="admin1",
             email="admin@test.az",
@@ -63,6 +65,13 @@ class TicketDepartmentAccessTests(TestCase):
             password="Pass12345!",
             role=Role.PROPERTY_FM,
             ticket_department=self.fm_dept,
+        )
+        self.desk_user = User.objects.create_user(
+            username="desk1",
+            email="desk@test.az",
+            password="Pass12345!",
+            role=Role.SERVICE_DESK,
+            ticket_department=self.desk_dept,
         )
         self.no_dept = User.objects.create_user(
             username="nodesk",
@@ -109,13 +118,34 @@ class TicketDepartmentAccessTests(TestCase):
         self.assertTrue(can_view_ticket(self.admin, self.fm_ticket))
         self.assertTrue(can_view_ticket(self.sec_user, self.sec_ticket))
         self.assertFalse(can_view_ticket(self.sec_user, self.fm_ticket))
-        self.assertTrue(can_view_ticket(self.fm_user, self.fm_ticket))
+        self.assertEqual(self.fm_ticket.department_id, self.desk_dept.pk)
+        self.assertTrue(can_view_ticket(self.desk_user, self.fm_ticket))
+        self.assertFalse(can_view_ticket(self.fm_user, self.fm_ticket))
         self.assertFalse(can_view_ticket(self.fm_user, self.sec_ticket))
         self.assertEqual(tickets_visible_to(self.no_dept).count(), 0)
         self.assertFalse(can_view_ticket(self.no_dept, self.sec_ticket))
 
+    def test_technical_and_cleaning_route_to_service_desk(self):
+        cleaning = TicketSubcategory.objects.get(slug="office-cleaning")
+        ticket = create_ticket_from_portal(
+            company=self.company_a,
+            requester=self.resident_a,
+            ticket_type="incident",
+            category=cleaning.category,
+            subcategory=cleaning,
+            description="Lobby needs cleaning",
+        )
+        self.assertEqual(ticket.department.code, "servicedesk")
+        self.assertEqual(ticket.queue.code, "cleaning")
+        self.assertTrue(can_view_ticket(self.desk_user, ticket))
+        self.assertFalse(can_view_ticket(self.fm_user, ticket))
+        self.assertTrue(
+            tickets_visible_to(self.desk_user).filter(pk__in=[ticket.pk, self.fm_ticket.pk]).count(),
+            2,
+        )
+
     def test_erp_list_and_detail_scoped(self):
-        self.client.force_login(self.fm_user)
+        self.client.force_login(self.desk_user)
         resp = self.client.get(reverse("erp:tickets"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, self.fm_ticket.code)
@@ -179,6 +209,69 @@ class TicketDepartmentAccessTests(TestCase):
         )
         self.sec_ticket.refresh_from_db()
         self.assertEqual(self.sec_ticket.status, TicketStatus.WAITING)
+
+    def test_service_desk_assigns_citypoint_employee_by_name(self):
+        city = ResidentCompany.objects.create(
+            name="City Point", slug="city-point", is_internal=True
+        )
+        worker = ResidentEmployee.objects.create(company=city, full_name="Anar Texnik")
+        outsider = ResidentEmployee.objects.create(
+            company=self.company_a, full_name="Basqa Adam"
+        )
+        assign_ticket_employee(self.fm_ticket, actor=self.desk_user, employee_id=worker.pk)
+        self.fm_ticket.refresh_from_db()
+        self.assertEqual(self.fm_ticket.assigned_employee_id, worker.pk)
+        self.assertEqual(self.fm_ticket.status, TicketStatus.ASSIGNED)
+        with self.assertRaises(DomainError):
+            assign_ticket_employee(
+                self.fm_ticket, actor=self.desk_user, employee_id=outsider.pk
+            )
+
+        self.client.force_login(self.desk_user)
+        page = self.client.get(reverse("erp:ticket_detail", kwargs={"code": self.fm_ticket.code}))
+        self.assertContains(page, 'id="assignee-search"')
+        self.assertContains(page, "Anar Texnik")
+        self.assertNotContains(page, "Basqa Adam")
+        saved = self.client.post(
+            reverse("erp:ticket_detail", kwargs={"code": self.fm_ticket.code}),
+            {"action": "assign", "assignee": str(worker.pk)},
+        )
+        self.assertEqual(saved.status_code, 302)
+        self.fm_ticket.refresh_from_db()
+        self.assertEqual(self.fm_ticket.assigned_employee_id, worker.pk)
+
+    def test_service_desk_creates_detailed_ticket(self):
+        city = ResidentCompany.objects.create(
+            name="City Point", slug="city-point", is_internal=True
+        )
+        worker = ResidentEmployee.objects.create(company=city, full_name="Kamran Usta")
+        sub = TicketSubcategory.objects.get(slug="electric")
+        self.client.force_login(self.desk_user)
+        form_page = self.client.get(reverse("erp:ticket_create"))
+        self.assertEqual(form_page.status_code, 200)
+        self.assertContains(form_page, "id_category")
+        self.assertContains(form_page, "id_company")
+        response = self.client.post(
+            reverse("erp:ticket_create"),
+            {
+                "company": self.company_a.pk,
+                "ticket_type": "incident",
+                "category": sub.category_id,
+                "subcategory": sub.pk,
+                "priority": TicketPriority.HIGH,
+                "assigned_employee": worker.pk,
+                "description": "Koridorda işıq yanmır.",
+            },
+        )
+        ticket = Ticket.objects.get(description="Koridorda işıq yanmır.")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("erp:ticket_detail", kwargs={"code": ticket.code}))
+        self.assertEqual(ticket.company_id, self.company_a.pk)
+        self.assertEqual(ticket.subcategory_id, sub.pk)
+        self.assertEqual(ticket.assigned_employee_id, worker.pk)
+        self.assertEqual(ticket.priority, TicketPriority.HIGH)
+        self.assertEqual(ticket.department.code, "servicedesk")
+        self.assertEqual(ticket.status, TicketStatus.ASSIGNED)
 
     def test_assignee_must_be_same_dept(self):
         with self.assertRaises(DomainError):

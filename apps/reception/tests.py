@@ -84,6 +84,47 @@ class ReceptionServiceTests(TestCase):
         self.assertFalse(visit.id_document_held)
         self.assertEqual(visit.visit_type.code, "courier")
 
+    def test_update_visit_adds_serial_without_changing_times(self):
+        courier, _ = VisitorType.objects.get_or_create(
+            code="courier", defaults={"name": "Kuryer", "sort_order": 10}
+        )
+        visit = ReceptionService.register_walk_in(
+            fin_code="",
+            first_name="Seid",
+            last_name="Abdullayev",
+            company=self.company,
+            host=self.host,
+            visit_type=courier,
+            id_document_held=False,
+            notes="köhnə",
+            actor=self.user,
+        )
+        check_in = visit.check_in_at
+        client = Client()
+        client.login(email="reception@test.az", password="x")
+        page = client.get(reverse("erp:reception"))
+        self.assertContains(page, "Yadda saxla")
+        res = client.post(
+            reverse("erp:reception_visit_update", args=[visit.pk]),
+            {
+                "fin_code": "ZZ998877",
+                "first_name": "Seid",
+                "last_name": "Abdullayev",
+                "company": self.company.pk,
+                "host": self.host.pk,
+                "visit_type": courier.pk,
+                "notes": "yeniləndi",
+            },
+        )
+        self.assertEqual(res.status_code, 302)
+        visit.refresh_from_db()
+        visit.guest.refresh_from_db()
+        self.assertEqual(visit.guest.fin_code, "ZZ998877")
+        self.assertEqual(visit.notes, "yeniləndi")
+        self.assertEqual(visit.host_id, self.host.pk)
+        self.assertEqual(visit.check_in_at, check_in)
+        self.assertIsNone(visit.check_out_at)
+
     def test_walk_in_without_id_ok(self):
         visit = ReceptionService.register_walk_in(
             fin_code="7A3B2C1D2K",
@@ -229,6 +270,91 @@ class ReceptionServiceTests(TestCase):
         self.assertIn("Usta/texniki işçi", option)
         self.assertIn('data-no-host="1"', option)
         self.assertNotIn("data-lock-company", option)
+
+    def test_new_employee_keeps_host(self):
+        from apps.erp.forms import GuestVisitForm
+
+        new_employee, _ = VisitorType.objects.get_or_create(
+            code="new-employee",
+            defaults={"name": "Yeni Əməkdaş", "sort_order": 90},
+        )
+        form = GuestVisitForm(
+            data={
+                "first_name": "A",
+                "last_name": "B",
+                "company": self.company.pk,
+                "host": self.host.pk,
+                "visit_type": new_employee.pk,
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["host"], self.host)
+        self.assertEqual(form.cleaned_data["visit_type"], new_employee)
+        rendered = str(form["visit_type"])
+        marker = f'value="{new_employee.pk}"'
+        option = next(part for part in rendered.split("<option") if marker in part)
+        self.assertIn("Yeni Əməkdaş", option)
+        self.assertNotIn("data-no-host", option)
+
+    def test_interview_keeps_host(self):
+        from apps.erp.forms import GuestVisitForm
+
+        interview, _ = VisitorType.objects.get_or_create(
+            code="interview",
+            defaults={"name": "Müsahibə", "sort_order": 100, "is_active": True},
+        )
+        if not interview.is_active or interview.name != "Müsahibə":
+            interview.name = "Müsahibə"
+            interview.is_active = True
+            interview.save(update_fields=["name", "is_active"])
+        form = GuestVisitForm(
+            data={
+                "first_name": "A",
+                "last_name": "B",
+                "company": self.company.pk,
+                "host": self.host.pk,
+                "visit_type": interview.pk,
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["host"], self.host)
+        self.assertEqual(form.cleaned_data["visit_type"], interview)
+        rendered = str(form["visit_type"])
+        marker = f'value="{interview.pk}"'
+        option = next(part for part in rendered.split("<option") if marker in part)
+        self.assertIn("Müsahibə", option)
+        self.assertNotIn("data-no-host", option)
+
+    def test_psychologist_company_sets_patient(self):
+        from apps.erp.forms import GuestVisitForm
+
+        psy = ResidentCompany.objects.create(
+            name="PSİXOLOQ", slug="psixoloq-ax40", status="active"
+        )
+        patient, _ = VisitorType.objects.get_or_create(
+            code="patient",
+            defaults={"name": "Pasiyent", "sort_order": 80},
+        )
+        leyla = ResidentEmployee.objects.create(
+            company=psy, full_name="LEYLA TƏBRİZ ŞAMİLOVA", is_active=True
+        )
+        form = GuestVisitForm(
+            data={
+                "first_name": "A",
+                "last_name": "B",
+                "company": psy.pk,
+                "host": self.host.pk,
+                "visit_type": self.vtype.pk,
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["company"], psy)
+        self.assertEqual(form.cleaned_data["visit_type"], patient)
+        self.assertEqual(form.cleaned_data["host"], leyla)
+        rendered = str(form["visit_type"])
+        marker = f'value="{patient.pk}"'
+        option = next(part for part in rendered.split("<option") if marker in part)
+        self.assertIn('data-code="patient"', option)
 
     def test_host_must_belong_to_company(self):
         with self.assertRaises(DomainError):
@@ -452,6 +578,12 @@ class ReceptionExcelExportTests(TestCase):
         self.assertEqual(res.status_code, 200)
         body = res.content.decode("utf-8", "replace")
         self.assertIn("Excel yüklə", body)
+        self.assertIn('data-guest-detail=', body)
+        self.assertIn("guest-detail-reason", body)
+        self.assertRegex(body, r'guest-detail-reason">\s*Kuryer')
+        self.assertIn("Kuryer Test", body)
+        self.assertNotIn("E-poçt", body)
+        self.assertNotIn("Mərtəbə", body)
         self.assertIn("Bu həftə", body)
         self.assertIn("Bu ay", body)
         self.assertIn("Tarix aralığı", body)

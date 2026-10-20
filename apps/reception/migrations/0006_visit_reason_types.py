@@ -9,6 +9,9 @@ REASON_TYPES = [
     ("meeting", "Meeting room", 50),
     ("goods-handover", "Məhsul təhvil-təslimi üçün", 60),
     ("technician", "Usta/texniki işçi", 70),
+    ("patient", "Pasiyent", 80),
+    ("new-employee", "Yeni Əməkdaş", 90),
+    ("interview", "Müsahibə", 100),
 ]
 
 LEGACY_CODES = {

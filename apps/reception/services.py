@@ -27,12 +27,22 @@ def _audit(action: str, actor=None, entity=None, old=None, new=None):
     try:
         from apps.audit.services import log_action
 
+        payload = dict(new or {})
+        if entity is not None:
+            guest = getattr(entity, "guest", None)
+            if guest is not None:
+                payload.setdefault("guest", str(guest))
+            elif entity.__class__.__name__ == "Guest":
+                payload.setdefault("guest", str(entity))
+            company = getattr(entity, "company", None)
+            if company is not None:
+                payload.setdefault("company", str(company))
         log_action(
             action=action,
             actor=actor,
             entity=entity,
             old_values=old,
-            new_values=new,
+            new_values=payload or None,
             source="reception",
         )
     except Exception:
@@ -160,6 +170,83 @@ class ReceptionService(Service):
             actor=actor,
             entity=visit,
             new={"status": visit.status, "id_held": visit.id_document_held},
+        )
+        return visit
+
+    @classmethod
+    @transaction.atomic
+    def update_visit_details(
+        cls,
+        visit: GuestVisit,
+        *,
+        fin_code: str = "",
+        first_name: str = "",
+        last_name: str = "",
+        company,
+        host=None,
+        visit_type=None,
+        id_document_held: bool = False,
+        guest_card_number: str = "",
+        notes: str = "",
+        actor=None,
+    ) -> GuestVisit:
+        """Correct guest details. Check-in and check-out times stay as recorded."""
+        visit = GuestVisit.objects.select_for_update().select_related("guest").get(pk=visit.pk)
+        cls.require(visit.status != VisitStatus.CANCELLED, "Ləğv olunmuş ziyarət dəyişdirilə bilməz.")
+        held = bool(id_document_held)
+        card = (guest_card_number or "").strip()
+        fin = normalize_fin(fin_code)
+        first = (first_name or "").strip()
+        last = (last_name or "").strip()
+        cls.require(bool(first and last), "Ad və soyad tələb olunur.")
+        cls.require(company is not None, "Şirkət seçilməlidir.")
+        if held:
+            cls.require(bool(fin), "Seriya nömrəsi tələb olunur.")
+            cls.require(bool(card), "Qonaq kartı nömrəsi tələb olunur.")
+        if host is not None:
+            cls.require(host.company_id == company.id, "Host seçilmiş şirkətə aid deyil.")
+            cls.require(host.is_active, "Host aktiv deyil.")
+
+        guest = visit.guest
+        if fin:
+            taken = Guest.objects.filter(fin_code=fin, is_active=True).exclude(pk=guest.pk).exists()
+            cls.require(not taken, "Bu seriya nömrəsi başqa qonağa aiddir.")
+        guest.fin_code = fin
+        guest.first_name = first
+        guest.last_name = last
+        guest.full_name = f"{first} {last}".strip()
+        guest.save()
+
+        visit.company = company
+        visit.host = host
+        visit.visit_type = visit_type
+        visit.id_document_held = held
+        visit.notes = notes or ""
+        if held:
+            visit.id_override_reason = ""
+        visit.save(
+            update_fields=[
+                "company",
+                "host",
+                "visit_type",
+                "id_document_held",
+                "notes",
+                "id_override_reason",
+                "updated_at",
+            ]
+        )
+        if held:
+            create_visitor_access(visit, credential=card)
+        else:
+            access = VisitorAccess.objects.filter(visit=visit).first()
+            if access and access.credential:
+                access.credential = ""
+                access.save(update_fields=["credential"])
+        _audit(
+            "visit.updated",
+            actor=actor,
+            entity=visit,
+            new={"id_held": visit.id_document_held},
         )
         return visit
 
@@ -471,7 +558,7 @@ def revoke_visitor_access(visit: GuestVisit) -> None:
 def today_visits_queryset(day=None):
     day = day or timezone.localdate()
     return GuestVisit.objects.filter(scheduled_for=day).select_related(
-        "guest", "company", "host", "visit_type", "visitor_access"
+        "guest", "company", "host", "visit_type", "visitor_access", "floor", "space"
     )
 
 
@@ -480,7 +567,7 @@ def visits_queryset_for_range(date_from, date_to):
     return GuestVisit.objects.filter(
         scheduled_for__gte=date_from,
         scheduled_for__lte=date_to,
-    ).select_related("guest", "company", "host", "visit_type", "visitor_access")
+    ).select_related("guest", "company", "host", "visit_type", "visitor_access", "floor", "space")
 
 
 def inside_overdue_cutoff():
@@ -494,7 +581,7 @@ def id_pending_queryset():
             Q(status=VisitStatus.RETURN_PENDING)
             | Q(id_document_held=True, status=VisitStatus.INSIDE)
         )
-        .select_related("guest", "company", "host", "visit_type", "visitor_access")
+        .select_related("guest", "company", "host", "visit_type", "visitor_access", "floor", "space")
         .order_by("-updated_at", "-id")
     )
 
@@ -508,7 +595,7 @@ def inside_overdue_queryset():
             Q(check_in_at__lte=cutoff)
             | Q(check_in_at__isnull=True, created_at__lte=cutoff)
         )
-        .select_related("guest", "company", "host", "visit_type", "visitor_access")
+        .select_related("guest", "company", "host", "visit_type", "visitor_access", "floor", "space")
         .order_by("check_in_at", "created_at")
     )
 

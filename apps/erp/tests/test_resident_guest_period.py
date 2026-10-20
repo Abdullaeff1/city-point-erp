@@ -10,6 +10,7 @@ from apps.accounts.models import Role
 from apps.reception.models import Guest, GuestVisit, VisitStatus, mask_fin
 from apps.rbac.services import seed_rbac_catalog
 from apps.residents.models import ResidentCompany
+from apps.tickets.models import Ticket, TicketCategory
 
 User = get_user_model()
 
@@ -250,6 +251,36 @@ class ResidentGuestPeriodTests(TestCase):
             guests_custom,
             escape(f"{self.detail}?{guests_custom.context['guest_query']}"),
         )
+
+    def test_residents_list_shows_ticket_count(self):
+        category = TicketCategory.objects.create(name="Ümumi", slug="umumi-count")
+        Ticket.objects.create(code="TK-T1", category=category, company=self.company)
+        Ticket.objects.create(code="TK-T2", category=category, company=self.company)
+        expected = self.company.tickets.count()
+        self.client.force_login(self.desk)
+        desk = self.client.get(self.residents)
+        self.assertContains(desk, f"{expected} ticket")
+        self.assertContains(desk, "0 ticket")
+
+        self.client.force_login(self.admin)
+        admin = self.client.get(self.residents)
+        self.assertContains(admin, f"{expected} ticket")
+
+        for user in (self.reception, self.management):
+            self.client.force_login(user)
+            hidden = self.client.get(self.residents)
+            self.assertNotContains(hidden, "resident-tickets")
+            self.assertContains(hidden, "Bugünkü qonaq")
+
+        tickets_url = reverse("erp:resident_tickets", args=[self.company.slug])
+        self.assertContains(desk, f"{tickets_url}?tab=all")
+        self.client.force_login(self.desk)
+        opened = self.client.get(tickets_url + "?tab=all")
+        self.assertEqual(opened.status_code, 200)
+        self.assertContains(opened, "TK-T1")
+        self.assertContains(opened, "TK-T2")
+        self.client.force_login(self.fm)
+        self.assertEqual(self.client.get(tickets_url).status_code, 403)
 
     def test_legacy_date_query_still_selects_that_day(self):
         self.client.force_login(self.admin)
