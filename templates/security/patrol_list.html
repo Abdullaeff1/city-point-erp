@@ -1,0 +1,33 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Mərtəbə yoxlaması" %}{% endblock %}
+{% block content %}
+<div class="flex gap-2 mb-4 patrol-actions" style="align-items:center;justify-content:space-between;">
+  <p class="cp-meta" style="margin:0;">{% translate "Hər gecə bir vərəqdir: axşam 20:00 və 22:00, səhər 00:00–06:00." %}</p>
+  {% if can_edit %}
+  <a class="cp-btn" href="{% url 'security:patrol_create' %}">{% translate "Yeni yoxlama" %}</a>
+  {% endif %}
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Gecə" %}</th>
+        <th>{% translate "Vəziyyət" %}</th>
+        <th>{% translate "Mərtəbələr" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td><a href="{% url 'security:patrol_detail' row.sheet.pk %}">{{ row.sheet.night_date|date:"d.m.Y" }}</a></td>
+        <td>{{ row.sheet.get_status_display }}</td>
+        <td>{% if row.floors %}{{ row.floors|join:", " }}{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="cp-meta">{% translate "Hələ yoxlama vərəqi yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

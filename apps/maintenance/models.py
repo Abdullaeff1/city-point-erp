@@ -5,11 +5,11 @@ from django.utils.translation import gettext_lazy as _
 
 
 class WorkOrderStatus(models.TextChoices):
-    OPEN = "open", _("Open")
-    ASSIGNED = "assigned", _("Assigned")
-    IN_PROGRESS = "in_progress", _("In progress")
-    COMPLETED = "completed", _("Completed")
-    CANCELLED = "cancelled", _("Cancelled")
+    OPEN = "open", _("Açıq")
+    ASSIGNED = "assigned", _("Təyin edilib")
+    IN_PROGRESS = "in_progress", _("İcradadır")
+    COMPLETED = "completed", _("Tamamlanıb")
+    CANCELLED = "cancelled", _("Ləğv")
 
 
 class WorkOrderPriority(models.TextChoices):
@@ -86,6 +86,7 @@ class WorkOrder(models.Model):
     billable = models.BooleanField(default=False)
     material_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     labor_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    resident_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     scheduled_for = models.DateField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
@@ -95,6 +96,49 @@ class WorkOrder(models.Model):
 
     def __str__(self):
         return self.code
+
+
+class CostLineKind(models.TextChoices):
+    MATERIAL = "material", _("Material")
+    LABOR = "labor", _("İşçilik")
+
+
+class CostLineSource(models.TextChoices):
+    MANUAL = "manual", _("Əl ilə")
+    WAREHOUSE = "warehouse", _("Anbar")
+    PROCUREMENT = "procurement", _("Satınalma")
+
+
+class WorkOrderCostLine(models.Model):
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name="cost_lines")
+    kind = models.CharField(max_length=16, choices=CostLineKind.choices)
+    source = models.CharField(max_length=16, choices=CostLineSource.choices, default=CostLineSource.MANUAL)
+    description = models.CharField(max_length=255)
+    qty = models.DecimalField(max_digits=14, decimal_places=3, default=1)
+    unit = models.CharField(max_length=16, default="ədəd")
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    warehouse_issue_line = models.OneToOneField(
+        "warehouse.WarehouseIssueLine",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cost_line",
+    )
+    po_line = models.OneToOneField(
+        "procurement.POLine",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="cost_line",
+    )
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["kind", "sort_order", "id"]
+
+    def __str__(self):
+        return self.description
 
 
 class MaintenancePlan(models.Model):

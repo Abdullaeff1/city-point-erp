@@ -42,9 +42,44 @@ _HEADER_ALIASES = {
 
 
 def _norm_header(value) -> str:
-    text = str(value or "").strip().casefold()
-    text = text.replace("ı", "i").replace("İ", "i")
+    text = str(value or "").strip().replace("İ", "i").replace("I", "i")
+    text = text.casefold()
+    for src, dst in (
+        ("ı", "i"),
+        ("ə", "e"),
+        ("ö", "o"),
+        ("ü", "u"),
+        ("ş", "s"),
+        ("ç", "c"),
+        ("ğ", "g"),
+    ):
+        text = text.replace(src, dst)
+    for char in "/,;:|-":
+        text = text.replace(char, " ")
     return " ".join(text.split())
+
+
+def _header_field(header) -> str:
+    text = _norm_header(header)
+    if not text:
+        return ""
+    exact = _HEADER_ALIASES.get(text)
+    if exact:
+        return exact
+    tokens = set(text.split())
+    if "soyad" in tokens and ({"ad", "adi"} & tokens):
+        return "full_name"
+    if text in {"ad", "adi"}:
+        return "first_name"
+    if text == "soyad":
+        return "last_name"
+    if any(word in text for word in ("teskilat", "sirket", "company", "organization")):
+        return "company"
+    if tokens & {"tarix", "date", "gun"}:
+        return "date"
+    if tokens & {"telefon", "phone", "tel"}:
+        return "phone"
+    return ""
 
 
 def _cell_text(value) -> str:
@@ -85,20 +120,51 @@ def _split_full_name(full_name: str) -> tuple[str, str]:
 def _map_headers(headers: Iterable) -> dict[int, str]:
     mapped = {}
     for index, header in enumerate(headers):
-        key = _HEADER_ALIASES.get(_norm_header(header))
+        key = _header_field(header)
         if key and key not in mapped.values():
             mapped[index] = key
     return mapped
 
 
-def _rows_from_mapped(table_rows: list[list]) -> list[dict]:
+def _find_header(table_rows: list[list]) -> tuple[int, dict[int, str]]:
+    for index, row in enumerate(table_rows[:20]):
+        mapping = _map_headers(row)
+        if "first_name" in mapping.values() or "full_name" in mapping.values():
+            return index, mapping
+    raise ValueError("Başlıq sətri tanınmadı. Ad və ya Ad Soyad sütunu lazımdır.")
+
+
+def _expanded_rows(sheet) -> list[list]:
+    rows = [list(row) for row in sheet.iter_rows(values_only=True)]
+    width = max((len(row) for row in rows), default=0)
+    for row in rows:
+        if len(row) < width:
+            row.extend([None] * (width - len(row)))
+    for merged in sheet.merged_cells.ranges:
+        top = rows[merged.min_row - 1][merged.min_col - 1]
+        for row_index in range(merged.min_row - 1, merged.max_row):
+            for col_index in range(merged.min_col - 1, min(merged.max_col, width)):
+                rows[row_index][col_index] = top
+    return rows
+
+
+def _header_block_end(sheet, header_row: int, name_col: int) -> int:
+    end = header_row
+    for merged in sheet.merged_cells.ranges:
+        if not (merged.min_col - 1 <= name_col <= merged.max_col - 1):
+            continue
+        if merged.min_row - 1 <= header_row <= merged.max_row - 1:
+            end = max(end, merged.max_row - 1)
+    return end
+
+
+def _rows_from_mapped(table_rows: list[list], *, data_start: int | None = None) -> list[dict]:
     if not table_rows:
         return []
-    mapping = _map_headers(table_rows[0])
-    if "first_name" not in mapping.values() and "full_name" not in mapping.values():
-        raise ValueError("Başlıq sətri tanınmadı. Ad və ya Ad Soyad sütunu lazımdır.")
+    header_index, mapping = _find_header(table_rows)
+    start = header_index + 1 if data_start is None else data_start
     parsed = []
-    for raw in table_rows[1:]:
+    for raw in table_rows[start:]:
         if not any(_cell_text(cell) for cell in raw):
             continue
         item = {"first_name": "", "last_name": "", "company_name": "", "phone": "", "scheduled_for": None}
@@ -128,13 +194,18 @@ def _rows_from_mapped(table_rows: list[list]) -> list[dict]:
 
 
 def parse_xlsx(file_obj) -> list[dict]:
-    workbook = load_workbook(file_obj, read_only=True, data_only=True)
+    workbook = load_workbook(file_obj, data_only=True)
     try:
         sheet = workbook.active
-        rows = [list(row) for row in sheet.iter_rows(values_only=True)]
+        rows = _expanded_rows(sheet)
+        header_index, mapping = _find_header(rows)
+        name_col = next(
+            index for index, key in mapping.items() if key in {"first_name", "full_name"}
+        )
+        data_start = _header_block_end(sheet, header_index, name_col) + 1
+        return _rows_from_mapped(rows, data_start=data_start)
     finally:
         workbook.close()
-    return _rows_from_mapped(rows)
 
 
 def parse_docx(file_obj) -> list[dict]:
@@ -181,27 +252,30 @@ def resolve_guest_rows(rows, *, companies, company_id=None, scheduled_for=None) 
     override = by_id.get(company_id) if company_id else None
     resolved = []
     for row in rows:
+        file_company = (row.get("company_name") or "").strip()
         item = {
             "first_name": (row.get("first_name") or "").strip(),
             "last_name": (row.get("last_name") or "").strip(),
             "phone": (row.get("phone") or "").strip(),
             "company_id": None,
-            "company_name": (row.get("company_name") or "").strip(),
+            "company_name": "",
+            "note": "",
             "scheduled_for": None,
             "error": "",
         }
+        matched = by_name.get(file_company.casefold()) if file_company else None
         if override is not None:
             item["company_id"] = override.pk
             item["company_name"] = override.name
-        elif item["company_name"]:
-            match = by_name.get(item["company_name"].casefold())
-            if match is None:
-                item["error"] = "Şirkət tapılmadı."
-            else:
-                item["company_id"] = match.pk
-                item["company_name"] = match.name
+        elif matched is not None:
+            item["company_id"] = matched.pk
+            item["company_name"] = matched.name
+        elif file_company:
+            item["error"] = "Şirkət seçilməyib."
         else:
             item["error"] = "Şirkət seçilməyib."
+        if file_company and matched is None:
+            item["note"] = file_company
 
         if scheduled_for is not None:
             item["scheduled_for"] = scheduled_for.isoformat()
@@ -255,7 +329,8 @@ def commit_guest_list(rows, *, filename: str, actor=None) -> list[GuestListImpor
                 portal_user=actor if getattr(actor, "is_authenticated", False) else None,
             )
             visit.list_import = list_import
-            visit.save(update_fields=["list_import"])
+            visit.notes = (row.get("note") or "")[:500]
+            visit.save(update_fields=["list_import", "notes"])
         created.append(list_import)
     return created
 

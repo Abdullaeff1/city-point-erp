@@ -1,6 +1,6 @@
 from django.urls import path
 
-from apps.security import views, views_plans
+from apps.security import views, views_patrol, views_plans
 
 app_name = "security"
 
@@ -44,6 +44,10 @@ urlpatterns = [
         views_plans.PlanPinDeleteView.as_view(),
         name="plan_pin_delete",
     ),
+    path("patrol/", views_patrol.PatrolListView.as_view(), name="patrol_list"),
+    path("patrol/new/", views_patrol.PatrolCreateView.as_view(), name="patrol_create"),
+    path("patrol/<int:pk>/", views_patrol.PatrolDetailView.as_view(), name="patrol_detail"),
+    path("patrol/<int:pk>/word/", views_patrol.PatrolWordExportView.as_view(), name="patrol_word"),
     path("devices/", views_plans.DeviceListView.as_view(), name="devices"),
     path("devices/create/", views_plans.DeviceCreateView.as_view(), name="device_create"),
     path("devices/<int:pk>/update/", views_plans.DeviceUpdateView.as_view(), name="device_update"),

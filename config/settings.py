@@ -173,6 +173,8 @@ PRIVATE_MEDIA_ROOT = Path(
 SECURITY_PLAN_MAX_UPLOAD_MB = int(os.environ.get("SECURITY_PLAN_MAX_UPLOAD_MB", "40"))
 # DWG→DXF converter binary (empty = DWG unsupported until NetAdmin installs).
 SECURITY_DWG_CONVERTER = os.environ.get("SECURITY_DWG_CONVERTER", "").strip()
+# Before this Baku wall-clock time, a new patrol sheet defaults to yesterday's night.
+FLOOR_PATROL_NIGHT_CUTOFF = os.environ.get("FLOOR_PATROL_NIGHT_CUTOFF", "08:00")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"

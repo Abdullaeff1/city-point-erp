@@ -487,6 +487,30 @@ def create_ticket_from_staff(
     return ticket
 
 
+def create_work_order_from_ticket(ticket, *, actor, contractor_id=None):
+    """Open a job for a contractor without moving the ticket to another department."""
+    if not can_mutate_ticket(actor, ticket):
+        raise DomainError(_("İş sifarişi yaratmaq icazəsi yoxdur."))
+    from apps.maintenance.services import create_wo_from_ticket
+    from apps.property.models import Contractor
+
+    with transaction.atomic():
+        wo = create_wo_from_ticket(ticket)
+        title = ticket.code
+        if ticket.subcategory_id:
+            title = f"{ticket.code} — {ticket.subcategory.name}"
+        wo.title = title[:200]
+        update = ["title"]
+        if contractor_id:
+            contractor = Contractor.objects.filter(pk=contractor_id).first()
+            if contractor is None:
+                raise DomainError(_("Podratçı tapılmadı."))
+            wo.contractor = contractor
+            update.append("contractor")
+        wo.save(update_fields=update)
+    return wo
+
+
 def allowed_staff_priorities():
     return TicketPriority.choices
 

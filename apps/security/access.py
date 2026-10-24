@@ -11,6 +11,18 @@ def can_view_security_plans(user) -> bool:
     return user.role in {Role.SECURITY, Role.ADMIN, Role.MANAGEMENT}
 
 
+def can_view_floor_patrol(user) -> bool:
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    return user.role in {Role.SECURITY, Role.ADMIN, Role.MANAGEMENT}
+
+
+def can_edit_floor_patrol(user) -> bool:
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    return user.role in {Role.SECURITY, Role.ADMIN}
+
+
 def can_edit_security_plans(user) -> bool:
     """Upload, activate, pin/device mutate — Security + Admin only."""
     if not user or not getattr(user, "is_authenticated", False):

@@ -16,6 +16,7 @@
       <a class="{% nav_active 'guests' %}" href="{% url 'security:guests' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Qonaqlar" %}</span></a>
       <a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'security:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Ticketlər" %}</span></a>
       <a class="{% nav_active 'plans' 'plan_detail' 'plan_upload' %}" href="{% url 'security:plans' %}"><i data-lucide="map" width="18" height="18"></i><span class="cp-nav-text">{% translate "Planlar" %}</span></a>
+      <a class="{% nav_active 'patrol_list' 'patrol_create' 'patrol_detail' %}" href="{% url 'security:patrol_list' %}"><i data-lucide="clipboard-check" width="18" height="18"></i><span class="cp-nav-text">{% translate "Yoxlama" %}</span></a>
       {% with url_name=request.resolver_match.url_name %}
       <details class="cp-nav-group cp-nav-menu" {% if url_name == 'devices' or url_name == 'device_create' or url_name == 'device_update' %}open{% endif %}>
         <summary class="cp-nav-summary {% if url_name == 'devices' or url_name == 'device_create' or url_name == 'device_update' %}is-active{% endif %}">

@@ -20,6 +20,7 @@ from apps.tickets.models import (
     TicketDepartment,
     TicketPriority,
     TicketStatus,
+    TicketCategory,
     TicketSubcategory,
 )
 from apps.tickets.seed_taxonomy import seed_ticket_taxonomy
@@ -35,6 +36,58 @@ User = get_user_model()
 
 
 class TicketDepartmentAccessTests(TestCase):
+    def test_fire_is_security_and_repair_is_under_technical(self):
+        seed_ticket_taxonomy()
+        fire = TicketSubcategory.objects.get(slug="fire", is_active=True)
+        self.assertEqual(fire.category.slug, "security")
+        self.assertEqual(fire.name, "Yanğın sistemi")
+        self.assertEqual(fire.routing_rule.department.code, "security")
+        cargo = TicketSubcategory.objects.get(slug="cargo", category__slug="security")
+        event = TicketSubcategory.objects.get(slug="event", category__slug="security")
+        self.assertEqual(cargo.name, "Yük daşıma")
+        self.assertEqual(event.name, "Tədbir")
+        self.assertEqual(cargo.routing_rule.department.code, "security")
+        self.assertEqual(event.routing_rule.department.code, "security")
+        repair = TicketSubcategory.objects.get(slug="repair", category__slug="technical")
+        partition = TicketSubcategory.objects.get(slug="new-partition", category__slug="technical")
+        self.assertEqual(repair.name, "Təmir")
+        self.assertEqual(partition.name, "Yeni Bölgü")
+        self.assertEqual(repair.routing_rule.department.code, "servicedesk")
+        self.assertEqual(partition.routing_rule.department.code, "servicedesk")
+        self.assertFalse(
+            TicketSubcategory.objects.filter(slug="repair-new-partition", is_active=True).exists()
+        )
+        self.assertFalse(
+            TicketSubcategory.objects.filter(category__slug="technical", slug="fire", is_active=True).exists()
+        )
+        self.assertFalse(
+            TicketSubcategory.objects.filter(
+                category__slug="commercial-space",
+                slug__in=("additional-office", "different-floor"),
+                is_active=True,
+            ).exists()
+        )
+        matter = TicketSubcategory.objects.get(slug="lease-matter", category__slug="lease")
+        agreement = TicketSubcategory.objects.get(slug="additional-agreement", category__slug="lease")
+        self.assertEqual(matter.name, "Müqavilə ilə bağlı")
+        self.assertEqual(agreement.name, "Əlavə razılaşma")
+        self.assertFalse(
+            TicketSubcategory.objects.filter(category__slug="lease", slug="lease-question", is_active=True).exists()
+        )
+        self.assertEqual(matter.routing_rule.department.code, "property")
+        self.assertEqual(agreement.routing_rule.department.code, "property")
+        rent = TicketSubcategory.objects.get(slug="rent-payment", category__slug="billing")
+        extras = TicketSubcategory.objects.get(slug="extra-services-payment", category__slug="billing")
+        deposit = TicketSubcategory.objects.get(slug="deposit", category__slug="billing")
+        self.assertEqual(rent.name, "İcarə ödənişi")
+        self.assertEqual(extras.name, "Əlavə xidmətlər ödənişi")
+        self.assertEqual(deposit.name, "Depozit")
+        self.assertEqual(rent.routing_rule.department.code, "accounting")
+        for category in TicketCategory.objects.filter(is_active=True):
+            last = category.subcategories.filter(is_active=True).order_by("sort_order", "name").last()
+            self.assertIsNotNone(last, category.slug)
+            self.assertEqual(last.name, "Digər", category.slug)
+
     def setUp(self):
         seed_ticket_taxonomy()
         self.company_a = ResidentCompany.objects.create(

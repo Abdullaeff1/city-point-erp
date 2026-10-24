@@ -276,8 +276,11 @@ class ReceptionServiceTests(TestCase):
 
         new_employee, _ = VisitorType.objects.get_or_create(
             code="new-employee",
-            defaults={"name": "Yeni Əməkdaş", "sort_order": 90},
+            defaults={"name": "Əməkdaş", "sort_order": 90},
         )
+        if new_employee.name != "Əməkdaş":
+            new_employee.name = "Əməkdaş"
+            new_employee.save(update_fields=["name"])
         form = GuestVisitForm(
             data={
                 "first_name": "A",
@@ -293,8 +296,17 @@ class ReceptionServiceTests(TestCase):
         rendered = str(form["visit_type"])
         marker = f'value="{new_employee.pk}"'
         option = next(part for part in rendered.split("<option") if marker in part)
-        self.assertIn("Yeni Əməkdaş", option)
+        self.assertIn("Əməkdaş", option)
+        self.assertNotIn("Yeni Əməkdaş", option)
         self.assertNotIn("data-no-host", option)
+
+    def test_kassa_and_document_reasons_are_choices(self):
+        from apps.erp.forms import GuestVisitForm
+
+        rendered = str(GuestVisitForm()["visit_type"])
+        self.assertIn("Kassa", rendered)
+        self.assertIn("Sənəd ilə bağlı", rendered)
+        self.assertNotIn("Yeni Əməkdaş", rendered)
 
     def test_interview_keeps_host(self):
         from apps.erp.forms import GuestVisitForm
@@ -441,6 +453,53 @@ class ReceptionServiceTests(TestCase):
             visit, actor=self.user, id_returned=False, allow_return_pending=True
         )
         self.assertEqual(pending.status, VisitStatus.RETURN_PENDING)
+
+    def test_bulk_checkout_only_overdue_inside(self):
+        from datetime import timedelta
+
+        overdue = ReceptionService.register_walk_in(
+            fin_code="",
+            first_name="Old",
+            last_name="Guest",
+            company=self.company,
+            actor=self.user,
+        )
+        overdue.check_in_at = timezone.now() - timedelta(hours=25)
+        overdue.save(update_fields=["check_in_at"])
+        held = ReceptionService.register_walk_in(
+            fin_code="AA3304624",
+            first_name="Seid",
+            last_name="Abdullayev",
+            company=self.company,
+            id_document_held=True,
+            guest_card_number="GK-OLD",
+            actor=self.user,
+        )
+        held.check_in_at = timezone.now() - timedelta(hours=30)
+        held.save(update_fields=["check_in_at"])
+        fresh = ReceptionService.register_walk_in(
+            fin_code="",
+            first_name="New",
+            last_name="Guest",
+            company=self.company,
+            actor=self.user,
+        )
+        client = Client()
+        client.login(email="reception@test.az", password="x")
+        page = client.get(reverse("erp:reception") + "?status=inside_overdue")
+        self.assertContains(page, "Hamısını çıxış et")
+        today = client.get(reverse("erp:reception"))
+        self.assertNotContains(today, "Hamısını çıxış et")
+        res = client.post(reverse("erp:reception_overdue_checkout"))
+        self.assertEqual(res.status_code, 302)
+        overdue.refresh_from_db()
+        held.refresh_from_db()
+        fresh.refresh_from_db()
+        self.assertEqual(overdue.status, VisitStatus.LEFT)
+        self.assertEqual(held.status, VisitStatus.LEFT)
+        self.assertFalse(held.id_document_held)
+        self.assertIsNotNone(held.id_document_returned_at)
+        self.assertEqual(fresh.status, VisitStatus.INSIDE)
 
 
 class ReceptionPermissionTests(TestCase):
@@ -651,7 +710,9 @@ class GuestListImportTests(TestCase):
             scheduled_for=timezone.localdate(),
         )
         self.assertEqual(rows[0]["scheduled_for"], timezone.localdate().isoformat())
-        self.assertEqual(rows[1]["error"], "Şirkət tapılmadı.")
+        self.assertEqual(rows[1]["error"], "Şirkət seçilməyib.")
+        self.assertEqual(rows[1]["note"], "Nope Ltd")
+        self.assertEqual(rows[1]["company_name"], "")
 
         preview = self.client.post(
             reverse("erp:reception_guest_list_preview"),
@@ -667,7 +728,8 @@ class GuestListImportTests(TestCase):
         page = self.client.get(preview.url)
         body = page.content.decode()
         self.assertIn("Aysel", body)
-        self.assertIn("Şirkət tapılmadı.", body)
+        self.assertIn("Şirkət seçilməyib.", body)
+        self.assertIn("Nope Ltd", body)
         self.assertIn("Jurnala yaz", body)
 
         saved = self.client.post(reverse("erp:reception_guest_list_confirm"), {"action": "save"})
@@ -707,3 +769,59 @@ class GuestListImportTests(TestCase):
         self.assertEqual(parsed[0]["last_name"], "Həsənova")
         self.assertEqual(parsed[0]["company_name"], "Test Co")
         self.assertEqual(parsed[0]["scheduled_for"].isoformat(), "2026-10-19")
+
+    def test_release_sheet_reads_combined_name_and_shared_date(self):
+        from datetime import datetime
+        from io import BytesIO
+
+        from openpyxl import Workbook
+
+        from apps.reception.guest_list_import import parse_guest_list_file
+
+        book = Workbook()
+        sheet = book.active
+        sheet.append(["Say", "Adı/Soyad, Atasının adı", "Təmsil etdiyi təşkilatın adı", "Gün/Saat"])
+        sheet.append([None, None, None, None])
+        sheet.append([1, "Kamran Məcidov", "Xalq Kapital QSC", datetime(2026, 10, 23)])
+        sheet.append([2, "Bağırov Orxan", "Invest Az", None])
+        sheet.merge_cells("B1:B2")
+        sheet.merge_cells("D3:D4")
+        buffer = BytesIO()
+        book.save(buffer)
+        buffer.seek(0)
+        buffer.name = "buraxilis.xlsx"
+        parsed = parse_guest_list_file(buffer)
+        self.assertEqual(
+            [(row["first_name"], row["last_name"], row["company_name"]) for row in parsed],
+            [
+                ("Kamran", "Məcidov", "Xalq Kapital QSC"),
+                ("Bağırov", "Orxan", "Invest Az"),
+            ],
+        )
+        self.assertTrue(all(row["scheduled_for"].isoformat() == "2026-10-23" for row in parsed))
+
+    def test_outside_company_is_written_in_the_note(self):
+        from datetime import date
+
+        from apps.reception.guest_list_import import commit_guest_list, resolve_guest_rows
+        from apps.reception.models import GuestVisit
+
+        rows = resolve_guest_rows(
+            [
+                {
+                    "first_name": "Kamran",
+                    "last_name": "Məcidov",
+                    "company_name": "Xalq Kapital QSC",
+                    "scheduled_for": date(2026, 10, 23),
+                }
+            ],
+            companies=ResidentCompany.objects.filter(status="active"),
+            company_id=self.company.pk,
+        )
+        self.assertEqual(rows[0]["company_name"], "Test Co")
+        self.assertEqual(rows[0]["note"], "Xalq Kapital QSC")
+        self.assertEqual(rows[0]["error"], "")
+        commit_guest_list(rows, filename="buraxilis.xlsx", actor=self.user)
+        visit = GuestVisit.objects.get()
+        self.assertEqual(visit.company_id, self.company.pk)
+        self.assertEqual(visit.notes, "Xalq Kapital QSC")

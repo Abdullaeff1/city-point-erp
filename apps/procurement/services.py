@@ -51,6 +51,29 @@ class ProcurementService(Service):
 
     @classmethod
     @transaction.atomic
+    def create_pr_for_work_order(cls, wo, *, actor, description, qty) -> PurchaseRequest:
+        text = (description or "").strip()
+        cls.require(text, "Satınalma təsviri boş ola bilməz.")
+        amount = Decimal(str(qty or "1"))
+        cls.require(amount > 0, "Miqdar sıfırdan böyük olmalıdır.")
+        pr = PurchaseRequest.objects.create(
+            code=_next_code("PR", PurchaseRequest),
+            title=f"{wo.code}: {text}"[:200],
+            status=PRStatus.SUBMITTED,
+            requested_by=actor,
+            source=PRSource.WO,
+            work_order=wo,
+        )
+        PRLine.objects.create(
+            pr=pr,
+            description=text[:255],
+            qty=amount,
+            unit="pcs",
+        )
+        return pr
+
+    @classmethod
+    @transaction.atomic
     def approve_pr(cls, pr: PurchaseRequest, *, actor=None) -> PurchaseRequest:
         cls.require(pr.status in {PRStatus.DRAFT, PRStatus.SUBMITTED}, "PR təsdiq üçün uyğun deyil.")
         req = ApprovalService.request(workflow_code="procurement.pr", requested_by=actor, entity=pr)
@@ -77,7 +100,6 @@ class ProcurementService(Service):
                 description=line.description,
                 sku=line.sku,
                 qty=line.qty,
-                unit=line.unit,
             )
         pr.status = PRStatus.ORDERED
         pr.save(update_fields=["status"])
@@ -104,5 +126,9 @@ class ProcurementService(Service):
             line.save(update_fields=["received_qty"])
         po.status = POStatus.RECEIVED
         po.save(update_fields=["status"])
+        if po.pr_id and po.pr.work_order_id:
+            from apps.maintenance.costs import sync_procurement_cost
+
+            sync_procurement_cost(po.pr.work_order)
         bus.emit(bus.PO_RECEIVED, payload={"po_id": po.pk, "code": po.code}, actor=actor)
         return po

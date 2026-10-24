@@ -1,0 +1,218 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Mərtəbə yoxlaması" %}{% endblock %}
+{% block content %}
+<h2 class="patrol-doc-title">{% translate "Gecə vaxtı mühafizə xidmətləri tərəfindən mərtəbələrin yoxlanılması" %}</h2>
+<p class="cp-meta patrol-sheet-meta">{{ sheet.night_date|date:"d.m.Y" }} · {{ sheet.get_status_display }}</p>
+{% if errors %}
+<div class="cp-card p-card-sm mb-3 no-print">
+  {% for error in errors %}<p style="margin:0 0 4px;">{{ error }}</p>{% endfor %}
+</div>
+{% endif %}
+<form method="post" id="patrol-form">
+  {% csrf_token %}
+
+  {% for block in floor_blocks %}
+  <section class="cp-card patrol-floor mb-4">
+    <div class="patrol-floor-head">
+      <h3>{% translate "Mərtəbə" %} {{ block.floor }}</h3>
+      {% if can_edit %}
+      <button class="cp-btn-ghost no-print" type="submit" name="action" value="remove:{{ block.floor }}">{% translate "Mərtəbəni çıxar" %}</button>
+      {% endif %}
+    </div>
+    <table class="cp-table patrol-table">
+      <thead>
+        <tr>
+          <th>{% translate "Tarix" %}</th>
+          <th>{% translate "Tur" %}</th>
+          <th>{% translate "Başladı" %}</th>
+          <th>{% translate "Yekunlaşdı" %}</th>
+          <th>{% translate "Yoxlayan şəxs" %}</th>
+          <th>{% translate "Qeyd" %}</th>
+          <th>{% translate "Vəziyyət" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in block.rounds %}
+        <tr>
+          <td>{{ row.date|date:"d.m.Y" }}</td>
+          <td>{{ row.slot }}</td>
+          <td>
+            {% if can_edit %}
+            <input class="patrol-clock" type="text" inputmode="numeric" maxlength="5" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" placeholder="20:32" title="24 saatlıq, məsələn 20:32" name="{{ row.prefix }}__started" value="{{ row.started }}" autocomplete="off">
+            {% else %}{{ row.started|default:"—" }}{% endif %}
+          </td>
+          <td>
+            {% if can_edit %}
+            <input class="patrol-clock" type="text" inputmode="numeric" maxlength="5" pattern="([01][0-9]|2[0-3]):[0-5][0-9]" placeholder="20:33" title="24 saatlıq, məsələn 20:33" id="{{ row.prefix }}-ended" name="{{ row.prefix }}__ended" value="{{ row.ended }}" autocomplete="off" {% if row.missed %}disabled{% endif %}>
+            <label class="patrol-missed"><input type="checkbox" name="{{ row.prefix }}__missed" value="1" data-patrol-missed="{{ row.prefix }}-ended" {% if row.missed %}checked{% endif %}> YOX</label>
+            {% elif row.missed %}YOX{% else %}{{ row.ended|default:"—" }}{% endif %}
+          </td>
+          <td>
+            {% if can_edit %}
+            {% include "security/_patrol_inspector.html" with field_name=row.inspector_field selected=row.inspector_selected legacy=row.inspector_legacy inspectors=inspectors %}
+            {% else %}{{ row.inspector|default:"—" }}{% endif %}
+          </td>
+          <td>
+            {% if can_edit %}
+            <input type="text" name="{{ row.prefix }}__note" value="{{ row.note }}" maxlength="240">
+            {% else %}{{ row.note|default:"—" }}{% endif %}
+          </td>
+          <td>{{ row.status_label }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% empty %}
+  <p class="cp-meta">{% translate "Bu vərəqdə hələ mərtəbə turu yoxdur." %}</p>
+  {% endfor %}
+
+  <section class="cp-card patrol-summary mb-4">
+    <h3>YOXLANILDI</h3>
+    <p class="cp-meta patrol-month-label">{{ sheet.night_date|date:"F Y" }}</p>
+    <div class="patrol-summary-scroll">
+      <table class="cp-table patrol-table patrol-month">
+        <thead>
+          <tr>
+            <th>{% translate "Tarix" %}</th>
+            <th colspan="{{ floor_codes|length }}">{% translate "Mərtəbələr" %}</th>
+          </tr>
+          <tr>
+            <th></th>
+            {% for code in floor_codes %}<th class="patrol-mark-head">{{ code }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in month_rows %}
+          <tr{% if row.current %} class="patrol-month-current"{% endif %}>
+            <td class="patrol-month-date">{{ row.date|date:"d.m.Y" }}</td>
+            {% for cell in row.cells %}
+            <td class="patrol-mark-cell{% if cell.checked %} is-checked{% endif %}" data-date="{{ row.date|date:'Y-m-d' }}" data-floor="{{ cell.floor }}">{% if cell.checked %}X{% endif %}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {% if can_edit %}
+  <div class="patrol-actions flex gap-2 mb-4" style="flex-wrap:wrap;align-items:center;">
+    {% if available_floors %}
+    <select name="floor_code">
+      <option value="">{% translate "Mərtəbə" %}</option>
+      {% for code in available_floors %}<option value="{{ code }}">{{ code }}</option>{% endfor %}
+    </select>
+    <button class="cp-btn" type="submit" name="action" value="add_floor">{% translate "Mərtəbə əlavə et" %}</button>
+    {% endif %}
+    <button class="cp-btn" type="submit" name="action" value="save">{% translate "Hamısını saxla" %}</button>
+    {% if sheet.status != "closed" %}
+    <button class="cp-btn" type="submit" name="action" value="close">{% translate "Gecəni bağla" %}</button>
+    {% else %}
+    <button class="cp-btn" type="submit" name="action" value="reopen">{% translate "Yenidən aç" %}</button>
+    {% endif %}
+    <button class="cp-btn-ghost" type="button" onclick="window.print()">{% translate "Çap" %}</button>
+    <a class="cp-btn-ghost" href="{% url 'security:patrol_word' sheet.pk %}" data-skip-leave>{% translate "Word" %}</a>
+  </div>
+  {% else %}
+  <p class="no-print">
+    <button class="cp-btn-ghost" type="button" onclick="window.print()">{% translate "Çap" %}</button>
+    <a class="cp-btn-ghost" href="{% url 'security:patrol_word' sheet.pk %}">{% translate "Word" %}</a>
+  </p>
+  {% endif %}
+</form>
+{% if can_edit %}
+<dialog id="patrol-leave" class="patrol-leave">
+  <div class="patrol-leave-body">
+    <p>{% translate "Saxlanmamış məlumat var." %}</p>
+    <p class="cp-meta">{% translate "Səhifədən çıxsanız, bu dəyişikliklər yadda saxlanılmayacaq." %}</p>
+    <div class="flex gap-2">
+      <button class="cp-btn" type="button" data-patrol-stay>{% translate "Səhifədə qal" %}</button>
+      <button class="cp-btn-ghost" type="button" data-patrol-leave>{% translate "Yenə də çıx" %}</button>
+    </div>
+  </div>
+</dialog>
+{% endif %}
+<script>
+document.querySelectorAll("[data-patrol-missed]").forEach((box) => {
+  const end = document.getElementById(box.dataset.patrolMissed);
+  if (!end) return;
+  const sync = () => {
+    end.disabled = box.checked;
+    if (box.checked) end.value = "";
+  };
+  box.addEventListener("change", sync);
+});
+document.querySelectorAll(".patrol-clock").forEach((input) => {
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Backspace" && event.key !== "Delete") return;
+    if (input.selectionStart !== input.selectionEnd) return;
+    if (!input.value.endsWith(":") || input.selectionStart !== input.value.length) return;
+    event.preventDefault();
+    input.value = input.value.replace(/\D/g, "").slice(0, -1);
+  });
+  input.addEventListener("input", () => {
+    const digits = input.value.replace(/\D/g, "").slice(0, 4);
+    const next = digits.length >= 2 ? digits.slice(0, 2) + ":" + digits.slice(2) : digits;
+    if (input.value !== next) input.value = next;
+  });
+});
+{% if can_edit %}
+(() => {
+  const form = document.getElementById("patrol-form");
+  const dialog = document.getElementById("patrol-leave");
+  if (!form || !dialog) return;
+  let dirty = false;
+  let leaving = false;
+  let pending = null;
+  form.addEventListener("input", () => { dirty = true; });
+  form.addEventListener("change", () => { dirty = true; });
+  form.addEventListener("submit", () => { leaving = true; dirty = false; });
+  const closeDialog = (allow) => {
+    dialog.close();
+    const next = pending;
+    pending = null;
+    if (allow && next) {
+      leaving = true;
+      dirty = false;
+      next();
+    }
+  };
+  dialog.addEventListener("cancel", () => { pending = null; });
+  dialog.querySelector("[data-patrol-stay]").addEventListener("click", () => closeDialog(false));
+  dialog.querySelector("[data-patrol-leave]").addEventListener("click", () => closeDialog(true));
+  const ask = (go) => {
+    if (!dirty || leaving) {
+      go();
+      return;
+    }
+    pending = go;
+    if (!dialog.open) dialog.showModal();
+  };
+  document.addEventListener("click", (event) => {
+    const link = event.target.closest("a[href]");
+    if (!link || link.hasAttribute("data-skip-leave") || link.target === "_blank") return;
+    const href = link.getAttribute("href") || "";
+    if (!href || href.startsWith("#")) return;
+    if (!dirty || leaving) return;
+    event.preventDefault();
+    event.stopPropagation();
+    ask(() => { window.location.href = link.href; });
+  }, true);
+  document.addEventListener("submit", (event) => {
+    if (event.target === form || !dirty || leaving) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const target = event.target;
+    ask(() => target.submit());
+  }, true);
+  window.addEventListener("beforeunload", (event) => {
+    if (!dirty || leaving) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+})();
+{% endif %}
+</script>
+{% endblock %}

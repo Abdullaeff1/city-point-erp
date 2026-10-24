@@ -1,6 +1,12 @@
 from django.urls import path
 
 from apps.erp import views
+from apps.erp.work_orders import (
+    WorkOrderDetailView,
+    WorkOrderImportView,
+    WorkOrderListView,
+    WorkOrderSheetTemplateView,
+)
 
 app_name = "erp"
 
@@ -10,6 +16,11 @@ urlpatterns = [
     path("people-inside/<int:pk>/", views.PeopleInsideDetailView.as_view(), name="people_inside_detail"),
     path("reception/", views.ReceptionView.as_view(), name="reception"),
     path("reception/<int:pk>/status/", views.ReceptionStatusView.as_view(), name="reception_status"),
+    path(
+        "reception/overdue/checkout/",
+        views.ReceptionOverdueCheckoutView.as_view(),
+        name="reception_overdue_checkout",
+    ),
     path("reception/<int:pk>/update/", views.ReceptionVisitUpdateView.as_view(), name="reception_visit_update"),
     path(
         "reception/guest-list/template/",
@@ -90,6 +101,18 @@ urlpatterns = [
     path("leases/<str:code>/", views.LeaseDetailView.as_view(), name="lease_detail"),
     path("crm/leads/", views.CrmLeadListView.as_view(), name="crm_leads"),
     path("crm/offers/", views.CrmOfferListView.as_view(), name="crm_offers"),
+    path("work-orders/", WorkOrderListView.as_view(), name="work_orders"),
+    path(
+        "work-orders/<str:code>/sheet-template/",
+        WorkOrderSheetTemplateView.as_view(),
+        name="work_order_sheet_template",
+    ),
+    path(
+        "work-orders/<str:code>/import/",
+        WorkOrderImportView.as_view(),
+        name="work_order_import",
+    ),
+    path("work-orders/<str:code>/", WorkOrderDetailView.as_view(), name="work_order_detail"),
     path("warehouse/", views.WarehouseListView.as_view(), name="warehouse"),
     path("procurement/", views.ProcurementListView.as_view(), name="procurement"),
     path("billing/", views.BillingListView.as_view(), name="billing"),

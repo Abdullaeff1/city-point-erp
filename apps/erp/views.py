@@ -3,6 +3,7 @@ from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 from django.db.models import Count, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
 from django.views.generic import FormView, ListView, TemplateView, View
@@ -68,6 +69,7 @@ from apps.tickets.services import (
     attach_ticket_file,
     citypoint_ticket_assignees,
     create_ticket_from_staff,
+    create_work_order_from_ticket,
     handoff_ticket,
     set_enrichment_notes,
     set_ticket_priority,
@@ -365,6 +367,7 @@ class ReceptionView(RoleRequiredMixin, FormView):
                 "guest_edits": guest_edits,
                 "can_create_visit": can_create_visit,
                 "can_check_in": user_has_permission(self.request.user, "reception.check_in"),
+                "can_check_out": user_has_permission(self.request.user, "reception.check_out"),
             }
         )
         return ctx
@@ -392,6 +395,25 @@ class ReceptionView(RoleRequiredMixin, FormView):
             return self.form_invalid(form)
         messages.success(self.request, "Giriş qeydə alındı.")
         return redirect("erp:reception")
+
+
+class ReceptionOverdueCheckoutView(RoleRequiredMixin, View):
+    allowed_roles = (Role.RECEPTION,)
+
+    def post(self, request):
+        if not user_has_permission(request.user, "reception.check_out"):
+            raise PermissionDenied()
+        qs = filter_visits(
+            inside_overdue_queryset(),
+            q=(request.POST.get("q") or "").strip(),
+            company_id=request.POST.get("company") or None,
+        )
+        count = ReceptionService.check_out_visits(list(qs), actor=request.user)
+        if count:
+            messages.success(request, f"{count} qonaq çıxış etdi.")
+        else:
+            messages.error(request, "Çıxış ediləcək qonaq yoxdur.")
+        return redirect(f"{reverse('erp:reception')}?status=inside_overdue")
 
 
 class ReceptionStatusView(RoleRequiredMixin, View):
@@ -732,7 +754,7 @@ class TicketCreateView(RoleRequiredMixin, FormView):
             for space in form.fields["space"].queryset
         ]
         ctx["subcategories"] = [
-            {"id": sub.pk, "category_id": sub.category_id, "name": sub.name}
+            {"id": sub.pk, "category_id": sub.category_id, "name": sub.name, "sort": sub.sort_order}
             for sub in TicketSubcategory.objects.filter(is_active=True).order_by("sort_order", "name")
         ]
         return ctx
@@ -800,6 +822,10 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
             "from_queue", "to_queue", "from_department", "to_department", "actor"
         )
         ctx["priorities"] = TicketPriority.choices
+        ctx["work_orders"] = ticket.work_orders.select_related("contractor").order_by("-created_at")
+        from apps.property.models import Contractor
+
+        ctx["contractors"] = Contractor.objects.order_by("name")
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -860,6 +886,14 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
                     note=request.POST.get("note", "").strip(),
                 )
                 messages.success(request, "Ticket digər şöbəyə yönləndirildi.")
+            elif action == "create_wo":
+                wo = create_work_order_from_ticket(
+                    ticket,
+                    actor=request.user,
+                    contractor_id=request.POST.get("contractor") or None,
+                )
+                messages.success(request, f"{wo.code} yaradıldı. Ticket öz şöbəsində qalır.")
+                return redirect("erp:work_order_detail", code=wo.code)
             elif action == "message":
                 body = request.POST.get("body", "").strip()
                 if body:
@@ -1527,24 +1561,62 @@ class WarehouseListView(StaffRequiredMixin, TemplateView):
 
         ctx = super().get_context_data(**kwargs)
         stocks = list(Stock.objects.select_related("sku", "warehouse", "bin"))
+        from apps.warehouse.models import IssueStatus, WarehouseIssue
+        from apps.warehouse.services import can_confirm_warehouse_issue
+
         ctx.update(
             {
                 "skus": SKU.objects.all()[:50],
                 "stocks": stocks[:50],
                 "movements": StockMovement.objects.select_related("sku", "warehouse")[:20],
                 "low_stock": [s for s in stocks if s.quantity <= (s.sku.reorder_level or 0)],
+                "open_issues": WarehouseIssue.objects.filter(status=IssueStatus.OPEN)
+                .select_related("work_order", "warehouse")
+                .prefetch_related("lines__sku"),
+                "can_confirm_issue": can_confirm_warehouse_issue(self.request.user),
             }
         )
         return ctx
 
     def post(self, request, *args, **kwargs):
         from apps.procurement.services import ProcurementService
-        from apps.warehouse.models import Stock
+        from apps.warehouse.models import Stock, WarehouseIssue
+        from apps.warehouse.services import can_confirm_warehouse_issue, confirm_issue
+        from apps.core.services import DomainError
 
-        if request.POST.get("action") == "create_pr":
+        action = request.POST.get("action")
+        if action == "create_pr":
             stock = get_object_or_404(Stock, pk=request.POST.get("stock_id"))
             pr = ProcurementService.create_pr_from_low_stock(stock=stock, requested_by=request.user)
             messages.success(request, f"PR yaradıldı: {pr.code}")
+        elif action == "confirm_issue":
+            if not can_confirm_warehouse_issue(request.user):
+                from django.core.exceptions import PermissionDenied
+
+                raise PermissionDenied("Anbar çıxışını yalnız anbar təsdiqləyir.")
+            issue = get_object_or_404(WarehouseIssue, pk=request.POST.get("issue_id"))
+            posted = []
+            missing = False
+            for line in issue.lines.all():
+                raw_qty = request.POST.get(f"issued_qty_{line.pk}")
+                if raw_qty is None or str(raw_qty).strip() == "":
+                    missing = True
+                    break
+                posted.append(
+                    {
+                        "id": line.pk,
+                        "issued_qty": str(raw_qty).replace(",", "."),
+                        "unit_cost": str(request.POST.get(f"unit_cost_{line.pk}") or "0").replace(",", "."),
+                    }
+                )
+            if missing:
+                messages.error(request, "Hər sətir üçün faktiki miqdar yazılmalıdır.")
+                return redirect("erp:warehouse")
+            try:
+                confirm_issue(issue, actor=request.user, lines=posted)
+                messages.success(request, f"{issue.code} üzrə çıxış təsdiqləndi.")
+            except (DomainError, ValueError) as exc:
+                messages.error(request, str(exc))
         return redirect("erp:warehouse")
 
 
@@ -1556,7 +1628,7 @@ class ProcurementListView(StaffRequiredMixin, TemplateView):
 
         ctx = super().get_context_data(**kwargs)
         ctx["prs"] = PurchaseRequest.objects.all()[:30]
-        ctx["pos"] = PurchaseOrder.objects.select_related("supplier_party")[:30]
+        ctx["pos"] = PurchaseOrder.objects.select_related("supplier_party", "pr").prefetch_related("lines")[:30]
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -1573,6 +1645,27 @@ class ProcurementListView(StaffRequiredMixin, TemplateView):
             pr = get_object_or_404(PurchaseRequest, pk=request.POST.get("pr_id"))
             po = ProcurementService.create_po_from_pr(pr)
             messages.success(request, f"PO: {po.code}")
+        elif action == "set_line_price":
+            from decimal import Decimal, InvalidOperation
+
+            from apps.maintenance.costs import sync_procurement_cost
+            from apps.procurement.models import POLine
+
+            line = get_object_or_404(POLine.objects.select_related("po__pr"), pk=request.POST.get("line_id"))
+            raw = str(request.POST.get("unit_price") or "0").strip().replace(" ", "").replace(",", ".")
+            try:
+                price = Decimal(raw)
+            except InvalidOperation:
+                messages.error(request, "Qiymət rəqəm olmalıdır.")
+                return redirect("erp:procurement")
+            if price < 0:
+                messages.error(request, "Qiymət mənfi ola bilməz.")
+                return redirect("erp:procurement")
+            line.unit_price = price.quantize(Decimal("0.01"))
+            line.save(update_fields=["unit_price"])
+            if line.po.pr_id and line.po.pr.work_order_id:
+                sync_procurement_cost(line.po.pr.work_order)
+            messages.success(request, "Satınalma qiyməti saxlanıldı.")
         elif action == "receive_po":
             po = get_object_or_404(PurchaseOrder, pk=request.POST.get("po_id"))
             wh = Warehouse.objects.first()

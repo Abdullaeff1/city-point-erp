@@ -37,6 +37,7 @@
       <div class="cp-nav-label">{% translate "ƏMƏLİYYAT" %}</div>
       {% if nav_reception %}<a class="{% nav_active 'reception' %}" href="{% url 'erp:reception' %}"><i data-lucide="door-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Qəbul" %}</span></a>{% endif %}
       {% if nav_tickets %}<a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'erp:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Service Desk" %}</span></a>{% endif %}
+      {% if nav_tickets %}<a class="{% nav_active 'work_orders' 'work_order_detail' %}" href="{% url 'erp:work_orders' %}"><i data-lucide="wrench" width="18" height="18"></i><span class="cp-nav-text">{% translate "İş sifarişləri" %}</span></a>{% endif %}
       {% endif %}
 
       {% if nav_property or nav_residents or nav_leases %}

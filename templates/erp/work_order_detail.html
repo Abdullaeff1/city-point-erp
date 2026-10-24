@@ -1,0 +1,295 @@
+{% extends "erp/base.html" %}
+{% load i18n l10n %}
+{% block page_title %}{{ wo.code }}{% endblock %}
+{% block heading %}{{ wo.code }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:work_orders' %}">{% translate "İş sifarişləri" %}</a>
+{% endblock %}
+{% block content %}
+<div class="wo-page">
+  <div class="cp-card p-card wo-card">
+    <h2 class="cp-section">{{ wo.title }}</h2>
+    {% if wo.description %}<p class="cp-body-text">{{ wo.description }}</p>{% endif %}
+    <div class="wo-head">
+      <div>
+        <div class="cp-meta">{% translate "Ticket" %}</div>
+        <div class="mt-1">
+          {% if wo.ticket %}
+          <a href="{% url 'erp:ticket_detail' wo.ticket.code %}">{{ wo.ticket.code }}</a>
+          · {{ wo.ticket.department|default:"—" }}
+          {% else %}—{% endif %}
+        </div>
+      </div>
+      <form method="post" class="flex-col gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="save">
+        <label class="cp-meta" for="contractor">{% translate "Podratçı şirkət" %}</label>
+        <select class="cp-input" id="contractor" name="contractor">
+          <option value="">—</option>
+          {% for c in contractors %}
+          <option value="{{ c.id }}" {% if wo.contractor_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        <button class="cp-btn">{% translate "Saxla" %}</button>
+      </form>
+      <form method="post" class="flex-col gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="status">
+        <label class="cp-meta" for="wo-status">{% translate "Status" %}</label>
+        <select class="cp-input" id="wo-status" name="status">
+          {% for value, label in statuses %}
+          <option value="{{ value }}" {% if wo.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button class="cp-btn-ghost">{% translate "Statusu yenilə" %}</button>
+      </form>
+    </div>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="cp-card p-card wo-card" id="cost-sheet">
+    {% csrf_token %}
+    <h2 class="cp-section">{% translate "Material" %}</h2>
+    <p class="cp-meta">{% translate "Sətirləri bir-bir yazın və ya Excel yükləyin. Fayl əvvəlcə yoxlamaya açılır. Anbar və satınalmadan gələn sətirlərin adı və miqdarı kilidlidir." %}</p>
+    <div class="wo-import">
+      <a class="cp-btn-ghost" href="{% url 'erp:work_order_sheet_template' wo.code %}?kind=material">{% translate "Nümunə Excel" %}</a>
+      <input class="cp-input" type="file" name="material_file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+      <button class="cp-btn-ghost" type="submit" name="action" value="import_material">{% translate "Excel yüklə" %}</button>
+    </div>
+    <div class="wo-sheet-scroll">
+      <table class="wo-sheet" id="material-sheet">
+        <thead>
+          <tr>
+            <th>{% translate "Ad" %}</th>
+            <th>{% translate "Miqdar" %}</th>
+            <th>{% translate "Vahid" %}</th>
+            <th>{% translate "Qiymət" %}</th>
+            <th>{% translate "Məbləğ" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in material_lines %}
+          <tr>
+            <td>
+              <input type="hidden" name="material_id" value="{{ line.id }}">
+              <input class="cp-input" name="material_description" value="{{ line.description }}" {% if line.source != "manual" %}readonly{% endif %}>
+              {% if line.source != "manual" %}<div class="cp-meta">{{ line.get_source_display }}</div>{% endif %}
+            </td>
+            <td class="wo-num"><input class="cp-input" name="material_qty" data-qty value="{{ line.qty|unlocalize }}" {% if line.source != "manual" %}readonly{% endif %}></td>
+            <td class="wo-unit"><input class="cp-input" name="material_unit" value="{{ line.unit }}" {% if line.source != "manual" %}readonly{% endif %}></td>
+            <td class="wo-num"><input class="cp-input" name="material_price" data-price value="{{ line.unit_price|unlocalize }}" inputmode="decimal"></td>
+            <td class="wo-num" data-amount>{{ line.amount }}</td>
+          </tr>
+          {% endfor %}
+          {% for _ in blank_rows %}
+          <tr>
+            <td><input type="hidden" name="material_id" value=""><input class="cp-input" name="material_description" placeholder="{% translate 'Material' %}"></td>
+            <td class="wo-num"><input class="cp-input" name="material_qty" data-qty value="" inputmode="decimal"></td>
+            <td class="wo-unit"><input class="cp-input" name="material_unit" value="ədəd"></td>
+            <td class="wo-num"><input class="cp-input" name="material_price" data-price value="" inputmode="decimal"></td>
+            <td class="wo-num" data-amount></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button type="button" class="cp-btn-ghost mt-2" data-add-row="material-sheet" data-prefix="material">{% translate "Material sətri əlavə et" %}</button>
+
+    <h2 class="cp-section mt-3">{% translate "İşçilik" %}</h2>
+    <div class="wo-import">
+      <a class="cp-btn-ghost" href="{% url 'erp:work_order_sheet_template' wo.code %}?kind=labor">{% translate "Nümunə Excel" %}</a>
+      <input class="cp-input" type="file" name="labor_file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+      <button class="cp-btn-ghost" type="submit" name="action" value="import_labor">{% translate "Excel yüklə" %}</button>
+    </div>
+    <div class="wo-sheet-scroll">
+      <table class="wo-sheet" id="labor-sheet">
+        <thead>
+          <tr>
+            <th>{% translate "Meyar" %}</th>
+            <th>{% translate "Miqdar" %}</th>
+            <th>{% translate "Vahid" %}</th>
+            <th>{% translate "Qiymət" %}</th>
+            <th>{% translate "Məbləğ" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in labor_lines %}
+          <tr>
+            <td><input type="hidden" name="labor_id" value="{{ line.id }}"><input class="cp-input" name="labor_description" value="{{ line.description }}"></td>
+            <td class="wo-num"><input class="cp-input" name="labor_qty" data-qty value="{{ line.qty|unlocalize }}" inputmode="decimal"></td>
+            <td class="wo-unit"><input class="cp-input" name="labor_unit" value="{{ line.unit }}"></td>
+            <td class="wo-num"><input class="cp-input" name="labor_price" data-price value="{{ line.unit_price|unlocalize }}" inputmode="decimal"></td>
+            <td class="wo-num" data-amount>{{ line.amount }}</td>
+          </tr>
+          {% endfor %}
+          {% for _ in blank_rows %}
+          <tr>
+            <td><input type="hidden" name="labor_id" value=""><input class="cp-input" name="labor_description" placeholder="{% translate 'İşçilik' %}"></td>
+            <td class="wo-num"><input class="cp-input" name="labor_qty" data-qty value="" inputmode="decimal"></td>
+            <td class="wo-unit"><input class="cp-input" name="labor_unit" value="saat"></td>
+            <td class="wo-num"><input class="cp-input" name="labor_price" data-price value="" inputmode="decimal"></td>
+            <td class="wo-num" data-amount></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button type="button" class="cp-btn-ghost mt-2" data-add-row="labor-sheet" data-prefix="labor">{% translate "İşçilik sətri əlavə et" %}</button>
+
+    <div class="wo-totals">
+      <div><div class="cp-meta">{% translate "Material cəmi" %}</div><div class="cp-metric" id="material-total">{{ material_total }}</div></div>
+      <div><div class="cp-meta">{% translate "İşçilik cəmi" %}</div><div class="cp-metric" id="labor-total">{{ labor_total }}</div></div>
+      <div><div class="cp-meta">{% translate "Formallaşan yekun" %}</div><div class="cp-metric" id="formed-total">{{ formed_total }}</div></div>
+      <div>
+        <label class="cp-meta" for="resident-amount">{% translate "Rezidentə təqdim olunacaq məbləğ" %}</label>
+        <input class="cp-input mt-1" id="resident-amount" name="resident_amount" inputmode="decimal" value="{% if wo.resident_amount is not None %}{{ wo.resident_amount|unlocalize }}{% endif %}">
+        <label class="cp-meta mt-2"><input type="checkbox" name="billable" value="1" {% if wo.billable %}checked{% endif %}> {% translate "Bu məbləğ rezidentə hesablansın" %}</label>
+      </div>
+    </div>
+    <button class="cp-btn mt-3" type="submit" name="action" value="sheet">{% translate "Cədvəli saxla" %}</button>
+    {% if charges %}
+    <div class="mt-3">
+      <div class="cp-meta">{% translate "Yazılmış xərc" %}</div>
+      {% for charge in charges %}<div class="mt-1">{{ charge.description }} · {{ charge.amount }} {{ charge.currency }}</div>{% endfor %}
+    </div>
+    {% endif %}
+  </form>
+
+  <div class="wo-split">
+    <div class="cp-card p-card wo-card">
+      <h3 class="cp-section">{% translate "Anbar çıxışı" %}</h3>
+      <p class="cp-meta">{% translate "Tələb açıq sənəd yaradır. Anbar faktiki miqdarı yazandan sonra çıxış təsdiqlənir." %}</p>
+      {% for issue in issues %}
+      <div class="wo-issue">
+        <div><strong>{{ issue.code }}</strong> · {{ issue.warehouse.code }} · {{ issue.get_status_display }}</div>
+        {% if issue.status == "open" %}<div class="cp-meta">{% translate "Açıq — anbardar təsdiqi gözlənilir" %}</div>{% endif %}
+        <table class="cp-table">
+          <thead><tr><th>{% translate "Məhsul" %}</th><th>{% translate "Tələb" %}</th><th>{% translate "Faktiki" %}</th></tr></thead>
+          <tbody>
+            {% for line in issue.lines.all %}
+            <tr>
+              <td>{{ line.sku.code }} — {{ line.sku.name }}</td>
+              <td>{{ line.requested_qty }}</td>
+              <td>{{ line.issued_qty|default:"—" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% empty %}<p class="cp-meta mt-2">{% translate "Çıxış sənədi yoxdur." %}</p>{% endfor %}
+      {% if skus and warehouses %}
+      <form method="post" class="flex-col gap-2 mt-3">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="issue">
+        <select class="cp-input" name="sku" required>
+          <option value="">{% translate "Məhsul" %}</option>
+          {% for sku in skus %}<option value="{{ sku.id }}">{{ sku.code }} — {{ sku.name }}</option>{% endfor %}
+        </select>
+        <select class="cp-input" name="warehouse" required>
+          {% for w in warehouses %}<option value="{{ w.id }}">{{ w.code }} — {{ w.name }}</option>{% endfor %}
+        </select>
+        <input class="cp-input" name="quantity" inputmode="decimal" placeholder="{% translate 'Tələb olunan miqdar' %}" required>
+        <button class="cp-btn-ghost">{% translate "Açıq çıxış sənədi" %}</button>
+      </form>
+      {% else %}
+      <p class="cp-meta mt-2">{% translate "Anbar və ya məhsul hələ yoxdur." %}</p>
+      {% endif %}
+    </div>
+    <div class="cp-card p-card wo-card">
+      <h3 class="cp-section">{% translate "Satınalma" %}</h3>
+      <p class="cp-meta">{% translate "Satınalma prosesindəki status, qiymət və qəbul miqdarı burada görünür. Qiymət yazılanda material siyahısına düşür." %}</p>
+      <table class="cp-table">
+        <thead>
+          <tr>
+            <th>{% translate "Tələb" %}</th>
+            <th>{% translate "Status" %}</th>
+            <th>{% translate "Miqdar" %}</th>
+            <th>{% translate "Qiymət" %}</th>
+            <th>{% translate "Qəbul" %}</th>
+            <th>{% translate "Məbləğ" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in purchase_rows %}
+          <tr>
+            <td>{{ row.pr.code }} · {{ row.description }}{% if row.po %}<div class="cp-meta">{{ row.po.code }}</div>{% endif %}</td>
+            <td>{{ row.pr.get_status_display }}</td>
+            <td>{{ row.requested_qty }}</td>
+            <td>{% if row.priced %}{{ row.unit_price }}{% else %}{% translate "qiymət satınalmada yoxdur" %}{% endif %}</td>
+            <td>{% if row.po %}{{ row.received_qty }}{% else %}—{% endif %}</td>
+            <td>{% if row.priced %}{{ row.amount }}{% else %}—{% endif %}</td>
+          </tr>
+          {% empty %}<tr><td colspan="6">{% translate "Satınalma yoxdur." %}</td></tr>{% endfor %}
+        </tbody>
+      </table>
+      <form method="post" class="flex-col gap-2 mt-3">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="purchase">
+        <input class="cp-input" name="description" placeholder="{% translate 'Alınacaq məhsul' %}" required>
+        <input class="cp-input" name="qty" value="1" inputmode="decimal">
+        <button class="cp-btn-ghost">{% translate "Satınalma tələbi" %}</button>
+      </form>
+    </div>
+  </div>
+</div>
+<template id="sheet-row">
+  <tr>
+    <td><input type="hidden" data-id><input class="cp-input" data-description></td>
+    <td class="wo-num"><input class="cp-input" data-qty value="" inputmode="decimal"></td>
+    <td class="wo-unit"><input class="cp-input" data-unit value=""></td>
+    <td class="wo-num"><input class="cp-input" data-price value="" inputmode="decimal"></td>
+    <td class="wo-num" data-amount></td>
+  </tr>
+</template>
+<script>
+(function () {
+  function parseNum(value) {
+    var text = String(value || "").trim().replace(/\s/g, "").replace(",", ".");
+    var number = parseFloat(text);
+    return isNaN(number) ? 0 : number;
+  }
+  function rowAmount(row) {
+    var qty = row.querySelector("[data-qty]");
+    var price = row.querySelector("[data-price]");
+    var cell = row.querySelector("[data-amount]");
+    if (!qty || !price || !cell) return 0;
+    var amount = parseNum(qty.value) * parseNum(price.value);
+    cell.textContent = amount ? amount.toFixed(2) : "";
+    return amount > 0 ? amount : 0;
+  }
+  function sumSheet(id) {
+    var table = document.getElementById(id);
+    if (!table) return 0;
+    var total = 0;
+    table.querySelectorAll("tbody tr").forEach(function (row) { total += rowAmount(row); });
+    return total;
+  }
+  function refresh() {
+    var material = sumSheet("material-sheet");
+    var labor = sumSheet("labor-sheet");
+    var materialNode = document.getElementById("material-total");
+    var laborNode = document.getElementById("labor-total");
+    var formed = document.getElementById("formed-total");
+    if (materialNode) materialNode.textContent = material.toFixed(2);
+    if (laborNode) laborNode.textContent = labor.toFixed(2);
+    if (formed) formed.textContent = (material + labor).toFixed(2);
+  }
+  document.querySelectorAll("[data-add-row]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var table = document.getElementById(button.getAttribute("data-add-row"));
+      var prefix = button.getAttribute("data-prefix");
+      var tpl = document.getElementById("sheet-row");
+      var row = tpl.content.firstElementChild.cloneNode(true);
+      row.querySelector("[data-id]").name = prefix + "_id";
+      row.querySelector("[data-description]").name = prefix + "_description";
+      row.querySelector("[data-qty]").name = prefix + "_qty";
+      row.querySelector("[data-unit]").name = prefix + "_unit";
+      row.querySelector("[data-unit]").value = prefix === "labor" ? "saat" : "ədəd";
+      row.querySelector("[data-price]").name = prefix + "_price";
+      table.querySelector("tbody").appendChild(row);
+    });
+  });
+  var sheet = document.getElementById("cost-sheet");
+  if (sheet) sheet.addEventListener("input", refresh);
+})();
+</script>
+{% endblock %}

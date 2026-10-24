@@ -52,18 +52,19 @@ class WorkOrderService(Service):
         if status == WorkOrderStatus.COMPLETED:
             wo.completed_at = timezone.now()
             update.append("completed_at")
-            if wo.billable and (wo.labor_cost or wo.material_cost):
+            amount = wo.resident_amount
+            if wo.billable and amount and amount > 0:
                 party = wo.party
                 if not party and wo.ticket_id and wo.ticket.company_id:
                     party = party_for_company(wo.ticket.company, ensure=True)
-                if party:
-                    amount = (wo.labor_cost or 0) + (wo.material_cost or 0)
+                if party and not wo.charges.filter(source=ChargeSource.WORK_ORDER).exists():
                     Charge.objects.create(
                         party=party,
                         space=wo.space,
                         source=ChargeSource.WORK_ORDER,
-                        description=f"WO {wo.code}",
+                        description=f"İş sifarişi {wo.code}",
                         amount=amount,
+                        work_order=wo,
                     )
             bus.emit(
                 bus.WORK_ORDER_CLOSED,

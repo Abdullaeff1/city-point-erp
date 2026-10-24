@@ -20,6 +20,7 @@ from apps.security.access import can_edit_security_plans, can_view_security_plan
 from apps.security.forms import DeviceForm, PlanUploadForm, RevisionUploadForm
 from apps.security.models import (
     ConversionStatus,
+    DeviceStatus,
     SecurityDevice,
     SecurityDevicePin,
     SecurityFloorPlan,
@@ -304,9 +305,11 @@ class DeviceListView(PlanAccessMixin, TemplateView):
             qs = qs.filter(device_type=dtype)
         active = self.request.GET.get("active")
         if active == "1":
-            qs = qs.filter(is_active=True)
+            qs = qs.filter(status=DeviceStatus.ACTIVE)
         elif active == "0":
-            qs = qs.filter(is_active=False)
+            qs = qs.filter(status=DeviceStatus.INACTIVE)
+        elif active == "fault":
+            qs = qs.filter(status=DeviceStatus.FAULTY)
         if q:
             # Cast inet → text before SearchFold (avoids PostgreSQL inet COALESCE error).
             from django.db.models import CharField
@@ -362,7 +365,7 @@ class DeviceUpdateView(PlanAccessMixin, PlanEditRequiredMixin, View):
                 device_type=form.cleaned_data["device_type"],
                 ip_address=form.cleaned_data.get("ip_address"),
                 location_note=form.cleaned_data.get("location_note") or "",
-                is_active=form.cleaned_data.get("is_active", True),
+                status=form.cleaned_data.get("status") or DeviceStatus.ACTIVE,
             )
         except DomainError as exc:
             messages.error(request, str(exc))

@@ -15,6 +15,7 @@ from apps.core.services import DomainError
 from apps.property.models import Building, Floor
 from apps.security.models import (
     ConversionStatus,
+    DeviceStatus,
     DeviceType,
     PlanCategory,
     SecurityDevice,
@@ -243,6 +244,27 @@ class SecurityFloorPlanTests(TestCase):
         )
         self.assertEqual(rev2.pins.count(), 0)
         self.assertEqual(rev.pins.count(), 1)
+
+    def test_faulty_status_is_saved_from_the_edit_form(self):
+        device = SecurityDevice.objects.create(name="Cam-fault", device_type=DeviceType.CAMERA)
+        self.client.force_login(self.security)
+        response = self.client.post(
+            reverse("security:device_update", args=[device.pk]),
+            {
+                "name": "Cam-fault",
+                "device_type": DeviceType.CAMERA,
+                "ip_address": "",
+                "location_note": "",
+                "status": DeviceStatus.FAULTY,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        device.refresh_from_db()
+        self.assertEqual(device.status, DeviceStatus.FAULTY)
+        self.assertFalse(device.is_active)
+        page = self.client.get(reverse("security:devices"))
+        self.assertContains(page, 'name="status"')
+        self.assertContains(page, "Nasaz")
 
     def test_management_cannot_place_pin(self):
         plan, rev = self._upload_dxf()

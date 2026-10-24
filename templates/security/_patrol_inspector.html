@@ -1,0 +1,10 @@
+{% load i18n %}
+<select class="patrol-inspector" name="{{ field_name }}">
+  <option value="">{% translate "Seçin" %}</option>
+  {% if legacy %}
+  <option value="{{ legacy }}" selected>{{ legacy }}</option>
+  {% endif %}
+  {% for person in inspectors %}
+  <option value="{{ person.id }}" {% if selected == person.id|stringformat:"s" %}selected{% endif %}>{{ person.name }}</option>
+  {% endfor %}
+</select>

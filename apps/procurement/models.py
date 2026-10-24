@@ -41,6 +41,13 @@ class PurchaseRequest(models.Model):
     )
     source = models.CharField(max_length=24, choices=PRSource.choices, default=PRSource.MANUAL)
     notes = models.TextField(blank=True)
+    work_order = models.ForeignKey(
+        "maintenance.WorkOrder",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="purchase_requests",
+    )
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 
     class Meta:

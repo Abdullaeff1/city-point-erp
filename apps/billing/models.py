@@ -54,6 +54,13 @@ class Charge(models.Model):
         on_delete=models.SET_NULL,
         related_name="charges",
     )
+    work_order = models.ForeignKey(
+        "maintenance.WorkOrder",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="charges",
+    )
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 
     class Meta:

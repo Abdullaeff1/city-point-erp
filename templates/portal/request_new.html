@@ -66,8 +66,14 @@
     opt0.value = "";
     opt0.textContent = "---------";
     sub.appendChild(opt0);
-    Object.keys(map).forEach(function (id) {
-      if (String(map[id].category_id) !== String(cid)) return;
+    Object.keys(map).filter(function (id) {
+      return String(map[id].category_id) === String(cid);
+    }).sort(function (a, b) {
+      var aOther = map[a].name === "Digər";
+      var bOther = map[b].name === "Digər";
+      if (aOther !== bOther) return aOther ? 1 : -1;
+      return (map[a].sort || 0) - (map[b].sort || 0);
+    }).forEach(function (id) {
       var o = document.createElement("option");
       o.value = id;
       o.textContent = map[id].name;

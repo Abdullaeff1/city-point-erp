@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from apps.maintenance.models import Inspection, MaintenancePlan
+from apps.maintenance.models import Inspection, MaintenancePlan, WorkOrder
+
+
+@admin.register(WorkOrder)
+class WorkOrderAdmin(admin.ModelAdmin):
+    list_display = ("code", "title", "status", "contractor", "ticket", "billable", "created_at")
+    list_filter = ("status", "billable")
+    search_fields = ("code", "title")
 
 
 @admin.register(MaintenancePlan)

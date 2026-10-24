@@ -1,6 +1,9 @@
 from django.contrib import admin
 
 from apps.security.models import (
+    FloorPatrolMark,
+    FloorPatrolRound,
+    FloorPatrolSheet,
     SecurityDevice,
     SecurityDevicePin,
     SecurityFloorPlan,
@@ -47,8 +50,8 @@ class SecurityFloorPlanRevisionAdmin(admin.ModelAdmin):
 
 @admin.register(SecurityDevice)
 class SecurityDeviceAdmin(admin.ModelAdmin):
-    list_display = ("name", "device_type", "ip_address", "is_active", "updated_at")
-    list_filter = ("device_type", "is_active")
+    list_display = ("name", "device_type", "ip_address", "status", "updated_at")
+    list_filter = ("device_type", "status")
     search_fields = ("name", "ip_address", "location_note")
 
 
@@ -56,3 +59,21 @@ class SecurityDeviceAdmin(admin.ModelAdmin):
 class SecurityDevicePinAdmin(admin.ModelAdmin):
     list_display = ("device", "revision", "x_pct", "y_pct", "updated_at")
     list_filter = ("revision__plan",)
+
+
+class PatrolRoundInline(admin.TabularInline):
+    model = FloorPatrolRound
+    extra = 0
+
+
+@admin.register(FloorPatrolSheet)
+class FloorPatrolSheetAdmin(admin.ModelAdmin):
+    list_display = ("night_date", "status", "updated_at")
+    list_filter = ("status",)
+    inlines = [PatrolRoundInline]
+
+
+@admin.register(FloorPatrolMark)
+class FloorPatrolMarkAdmin(admin.ModelAdmin):
+    list_display = ("sheet", "floor_code", "row_index", "inspector_name")
+    list_filter = ("floor_code",)

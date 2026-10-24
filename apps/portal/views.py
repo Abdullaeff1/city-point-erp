@@ -78,8 +78,10 @@ class RequestCreateView(ResidentPortalMixin, FormView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         mapping = {
-            str(s.id): {"category_id": s.category_id, "name": s.name}
-            for s in TicketSubcategory.objects.filter(is_active=True).only("id", "category_id", "name")
+            str(s.id): {"category_id": s.category_id, "name": s.name, "sort": s.sort_order}
+            for s in TicketSubcategory.objects.filter(is_active=True)
+            .order_by("sort_order", "name")
+            .only("id", "category_id", "name", "sort_order")
         }
         ctx["subcategory_map_json"] = json.dumps(mapping, ensure_ascii=False)
         return ctx

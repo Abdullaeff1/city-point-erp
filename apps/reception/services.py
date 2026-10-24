@@ -386,6 +386,20 @@ class ReceptionService(Service):
         return visit
 
     @classmethod
+    def check_out_visits(cls, visits, *, actor=None) -> int:
+        """Check out every still-inside visit. Held IDs are marked returned."""
+        pks = [visit.pk for visit in visits]
+        count = 0
+        with transaction.atomic():
+            for pk in pks:
+                visit = GuestVisit.objects.get(pk=pk)
+                if visit.status != VisitStatus.INSIDE:
+                    continue
+                cls.check_out_visit(visit, actor=actor, id_returned=True)
+                count += 1
+        return count
+
+    @classmethod
     @transaction.atomic
     def cancel_visit(cls, visit: GuestVisit, *, actor=None) -> GuestVisit:
         visit = GuestVisit.objects.select_for_update().get(pk=visit.pk)

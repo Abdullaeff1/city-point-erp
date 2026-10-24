@@ -171,6 +171,25 @@
       {{ assignee_choices|json_script:"assignee-data" }}
       <button class="cp-btn-ghost mt-2">{% translate "Təyin et" %}</button>
     </form>
+    {% if can_mutate %}
+    <div>
+      <div class="cp-meta">{% translate "İş sifarişi" %}</div>
+      {% for wo in work_orders %}
+      <div class="mt-1"><a href="{% url 'erp:work_order_detail' wo.code %}">{{ wo.code }}</a> · {{ wo.get_status_display }}{% if wo.contractor %} · {{ wo.contractor.name }}{% endif %}</div>
+      {% empty %}<div class="cp-meta mt-1">{% translate "Hələ yoxdur." %}</div>{% endfor %}
+      <form method="post" class="flex-col gap-2 mt-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create_wo">
+        <select class="cp-input" name="contractor">
+          <option value="">{% translate "Podratçı (istəyə bağlı)" %}</option>
+          {% for c in contractors %}
+          <option value="{{ c.id }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        <button class="cp-btn w-full">{% translate "İş sifarişi yarat" %}</button>
+      </form>
+    </div>
+    {% endif %}
     {% if can_handoff %}
     <div>
       <div class="cp-meta">{% translate "Şöbəyə yönləndir" %}</div>

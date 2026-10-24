@@ -1,0 +1,62 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{% translate "Excel yoxlaması" %}{% endblock %}
+{% block heading %}{% translate "Excel yoxlaması" %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:work_order_detail' wo.code %}">{{ wo.code }}</a>
+{% endblock %}
+{% block content %}
+<div class="wo-page">
+  <div class="cp-card p-card">
+    <p class="cp-meta">{% translate "Saxlamadan əvvəl sətirləri yoxlayın. Söndürülən sətir yazılmır. Bölmənin növünü dəyişmək olar." %}</p>
+    {% if preview.sheets|length > 1 %}
+    <div class="wo-import">
+      {% for item in preview.sheets %}
+      <a class="cp-btn-ghost {% if forloop.counter0 == sheet_index %}is-active{% endif %}" href="?sheet={{ forloop.counter0 }}">{{ item.name }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <form method="post" class="mt-3">
+      {% csrf_token %}
+      <input type="hidden" name="sheet" value="{{ sheet_index }}">
+      {% for block in sheet.blocks %}
+      <section class="wo-issue">
+        <div class="wo-import">
+          <strong>{{ block.title|default:"Siyahı" }}</strong>
+          <select class="cp-input" name="kind-{{ forloop.counter0 }}">
+            {% for value, label in kinds %}
+            <option value="{{ value }}" {% if block.kind == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <table class="cp-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>{% translate "Ad" %}</th>
+              <th>{% translate "Miqdar" %}</th>
+              <th>{% translate "Vahid" %}</th>
+              <th>{% translate "Qiymət" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in block.rows %}
+            <tr>
+              <td><input type="checkbox" name="use" value="{{ forloop.parentloop.counter0 }}:{{ forloop.counter0 }}" checked></td>
+              <td>{{ row.description }}</td>
+              <td>{{ row.qty }}</td>
+              <td>{{ row.unit }}</td>
+              <td>{{ row.unit_price }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+      {% empty %}
+      <p class="cp-meta">{% translate "Bu vərəqdə sətir yoxdur." %}</p>
+      {% endfor %}
+      <button class="cp-btn mt-3" type="submit">{% translate "Seçilənləri əlavə et" %}</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

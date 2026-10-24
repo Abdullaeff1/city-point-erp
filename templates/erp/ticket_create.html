@@ -193,8 +193,14 @@
     blank.value = "";
     blank.textContent = "—";
     subcategory.appendChild(blank);
-    subs.forEach(function (item) {
-      if (String(item.category_id) !== String(cid)) return;
+    subs.filter(function (item) {
+      return String(item.category_id) === String(cid);
+    }).sort(function (a, b) {
+      var aOther = a.name === "Digər";
+      var bOther = b.name === "Digər";
+      if (aOther !== bOther) return aOther ? 1 : -1;
+      return (a.sort || 0) - (b.sort || 0);
+    }).forEach(function (item) {
       var opt = document.createElement("option");
       opt.value = String(item.id);
       opt.textContent = item.name;

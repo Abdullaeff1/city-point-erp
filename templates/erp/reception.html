@@ -121,7 +121,7 @@
               <span class="cp-meta">{% translate "Tarix" %}</span>
               <input class="cp-input mt-1" type="date" name="list_date">
             </label>
-            <p class="cp-meta">{% translate "Şirkət və ya tarix boşdursa, fayldakı sütun istifadə olunur. Vəsiqə alınmır." %}</p>
+            <p class="cp-meta">{% translate "Binada olmayan təşkilat jurnalda şirkət olmur, həmin adamın qeydinə yazılır. Şirkəti siyahıdan seçin." %}</p>
             <button class="cp-btn" type="submit">{% translate "Önizlə" %}</button>
             <a class="cp-meta" href="{% url 'erp:reception_guest_list_template' %}">{% translate "Nümunə Excel" %}</a>
           </form>
@@ -212,7 +212,7 @@
     {% for row in list_preview.rows %}
     <li class="empty-pad" style="padding:8px 0;">
       <strong>{{ row.first_name }} {{ row.last_name }}</strong>
-      <span class="cp-meta"> · {{ row.company_name|default:"—" }}{% if row.scheduled_for %} · {{ row.scheduled_for }}{% endif %}</span>
+      <span class="cp-meta"> · {{ row.company_name|default:"—" }}{% if row.note %} · {% translate "Qeyd" %}: {{ row.note }}{% endif %}{% if row.scheduled_for %} · {{ row.scheduled_for }}{% endif %}</span>
       {% if row.error %}<div class="cp-meta" style="color:var(--cp-danger);">{{ row.error }}</div>{% endif %}
     </li>
     {% endfor %}
@@ -263,6 +263,14 @@
       <p class="cp-meta" style="margin:4px 0 0;">
         {% if filter_status == "inside_overdue" %}
           {{ visits|length }} {% translate "qonaq" %} · {% translate "girişdən 24 saatdan çox" %}
+          {% if can_check_out and visits %}
+          <form method="post" action="{% url 'erp:reception_overdue_checkout' %}" class="mt-2" onsubmit="return confirm('{% translate "Siyahıdakı bütün qonaqlar çıxış etsin?" %}');">
+            {% csrf_token %}
+            {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+            {% if filter_company %}<input type="hidden" name="company" value="{{ filter_company }}">{% endif %}
+            <button class="cp-btn" type="submit">{% translate "Hamısını çıxış et" %}</button>
+          </form>
+          {% endif %}
         {% elif filter_status == "inside" %}
           {{ visits|length }} {% translate "qonaq" %} · {% translate "bu gün" %}
         {% elif filter_status == "waiting" or filter_status == "id_pending" %}

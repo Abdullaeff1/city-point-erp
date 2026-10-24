@@ -37,20 +37,19 @@ class RevisionUploadForm(forms.Form):
 class DeviceForm(forms.ModelForm):
     class Meta:
         model = SecurityDevice
-        fields = ("name", "device_type", "ip_address", "location_note", "is_active")
+        fields = ("name", "device_type", "ip_address", "location_note", "status")
         labels = {
             "name": _("Ad"),
             "device_type": _("Tip"),
             "ip_address": _("IP"),
             "location_note": _("Qeyd"),
-            "is_active": _("Aktiv"),
+            "status": _("Status"),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name, field in self.fields.items():
-            if name != "is_active":
-                field.widget.attrs.setdefault("class", "cp-input")
+        for field in self.fields.values():
+            field.widget.attrs.setdefault("class", "cp-input")
 
 
 class PinPlaceForm(forms.Form):

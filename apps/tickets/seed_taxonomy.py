@@ -73,8 +73,9 @@ def seed_ticket_taxonomy():
                 ("plumbing", "Santexnika / Su", "plumbing", TicketPriority.HIGH, True, False, 0),
                 ("lift", "Lift", "lift", TicketPriority.HIGH, True, False, 0),
                 ("generator", "Generator", "technical", TicketPriority.HIGH, True, False, 0),
-                ("fire", "Yanğın sistemi", "technical", TicketPriority.CRITICAL, True, False, 0),
-                ("technical-other", "Digər texniki", "technical", TicketPriority.NORMAL, True, False, 20),
+                ("repair", "Təmir", "technical", TicketPriority.NORMAL, True, False, 0),
+                ("new-partition", "Yeni Bölgü", "technical", TicketPriority.NORMAL, True, False, 0),
+                ("technical-other", "Digər", "technical", TicketPriority.NORMAL, True, False, 20),
             ],
         ),
         (
@@ -98,6 +99,10 @@ def seed_ticket_taxonomy():
                 ("suspicious", "Şübhəli hal", "security", TicketPriority.HIGH, False, False, 0),
                 ("access-fault", "Access problemi (nasazlıq)", "security", TicketPriority.HIGH, True, False, 0),
                 ("card-order", "Yeni əməkdaş — kart sifarişi", "security", TicketPriority.NORMAL, False, False, 0),
+                ("fire", "Yanğın sistemi", "security", TicketPriority.CRITICAL, True, False, 0),
+                ("cargo", "Yük daşıma", "security", TicketPriority.NORMAL, False, False, 0),
+                ("event", "Tədbir", "security", TicketPriority.NORMAL, False, False, 0),
+                ("security-other", "Digər", "security", TicketPriority.NORMAL, False, False, 20),
             ],
         ),
         (
@@ -108,6 +113,7 @@ def seed_ticket_taxonomy():
                 ("parking-issue", "Parking problemi", "parking", TicketPriority.NORMAL, False, False, 0),
                 ("parking-change", "Mövcud parking dəyişiklik", "parking", TicketPriority.NORMAL, False, True, 0),
                 ("parking-extra", "Əlavə parking tələbi", "parking", TicketPriority.NORMAL, False, True, 0),
+                ("parking-other", "Digər", "parking", TicketPriority.NORMAL, False, False, 20),
             ],
         ),
         (
@@ -117,10 +123,9 @@ def seed_ticket_taxonomy():
             [
                 ("larger-office", "Daha böyük ofis", "leasing", TicketPriority.NORMAL, False, True, 0),
                 ("smaller-office", "Daha kiçik ofis", "leasing", TicketPriority.NORMAL, False, True, 0),
-                ("additional-office", "Əlavə sahə", "leasing", TicketPriority.NORMAL, False, True, 0),
                 ("office-relocation", "Ofis dəyişdirilməsi", "leasing", TicketPriority.NORMAL, False, True, 0),
-                ("different-floor", "Başqa mərtəbə", "leasing", TicketPriority.NORMAL, False, True, 0),
                 ("new-space", "Yeni sahə", "leasing", TicketPriority.NORMAL, False, True, 0),
+                ("space-other", "Digər", "leasing", TicketPriority.NORMAL, False, True, 20),
             ],
         ),
         (
@@ -128,11 +133,13 @@ def seed_ticket_taxonomy():
             "Lease / Contract",
             60,
             [
-                ("lease-question", "Müqavilə sualı", "contract", TicketPriority.NORMAL, False, False, 0),
                 ("amendment", "Amendment", "contract", TicketPriority.NORMAL, False, False, 0),
                 ("renewal", "Renewal", "contract", TicketPriority.NORMAL, False, False, 0),
                 ("termination", "Termination", "contract", TicketPriority.HIGH, False, False, 0),
                 ("lease-document", "Müqavilə sənədi", "contract", TicketPriority.NORMAL, False, False, 0),
+                ("lease-matter", "Müqavilə ilə bağlı", "contract", TicketPriority.NORMAL, False, False, 0),
+                ("additional-agreement", "Əlavə razılaşma", "contract", TicketPriority.NORMAL, False, False, 0),
+                ("lease-other", "Digər", "contract", TicketPriority.NORMAL, False, False, 20),
             ],
         ),
         (
@@ -144,7 +151,11 @@ def seed_ticket_taxonomy():
                 ("payment", "Ödəniş", "ar", TicketPriority.NORMAL, False, False, 0),
                 ("service-charge", "Service charge", "ar", TicketPriority.NORMAL, False, False, 0),
                 ("debt", "Borc", "ar", TicketPriority.HIGH, False, False, 0),
+                ("rent-payment", "İcarə ödənişi", "ar", TicketPriority.NORMAL, False, False, 0),
+                ("extra-services-payment", "Əlavə xidmətlər ödənişi", "ar", TicketPriority.NORMAL, False, False, 0),
+                ("deposit", "Depozit", "ar", TicketPriority.NORMAL, False, False, 0),
                 ("billing-other", "Hesablaşma sualı", "ar", TicketPriority.NORMAL, False, False, 0),
+                ("billing-diger", "Digər", "ar", TicketPriority.NORMAL, False, False, 20),
             ],
         ),
         (
@@ -154,7 +165,7 @@ def seed_ticket_taxonomy():
             [
                 ("certificate", "Arayış", "docs", TicketPriority.LOW, False, False, 0),
                 ("document-request", "Sənəd tələbi", "docs", TicketPriority.LOW, False, False, 0),
-                ("admin-other", "Digər inzibati", "docs", TicketPriority.NORMAL, False, False, 20),
+                ("admin-other", "Digər", "docs", TicketPriority.NORMAL, False, False, 20),
             ],
         ),
         (
@@ -181,7 +192,7 @@ def seed_ticket_taxonomy():
                 slug=sub_slug,
                 defaults={
                     "name": sub_name,
-                    "sort_order": (i + 1) * 10,
+                    "sort_order": 1000 if sub_name == "Digər" else (i + 1) * 10,
                     "is_active": True,
                     "requires_description_min": min_desc,
                 },
@@ -216,4 +227,41 @@ def seed_ticket_taxonomy():
         )
         cats[legacy_slug] = legacy_cat
 
+    _retire_technical_fire(cats, subs)
+    _retire_combined_repair(cats, subs)
+    TicketSubcategory.objects.filter(
+        category=cats["commercial-space"],
+        slug__in=("additional-office", "different-floor"),
+    ).update(is_active=False)
+    TicketSubcategory.objects.filter(category=cats["lease"], slug="lease-question").update(
+        is_active=False
+    )
     return {"categories": cats, "subcategories": subs, "queues": queues, "departments": depts}
+
+
+def _retire_technical_fire(cats, subs):
+    """Older seeds kept Yanğın sistemi under Texniki. Tickets now belong to Təhlükəsizlik."""
+    from apps.tickets.models import Ticket
+
+    current = subs.get("security:fire")
+    old = TicketSubcategory.objects.filter(category=cats["technical"], slug="fire").first()
+    if old is None or current is None or old.pk == current.pk:
+        return
+    Ticket.objects.filter(subcategory=old).update(subcategory=current, category=cats["security"])
+    old.is_active = False
+    old.save(update_fields=["is_active"])
+
+
+def _retire_combined_repair(cats, subs):
+    """The first version stored Təmir and Yeni Bölgü as one choice."""
+    from apps.tickets.models import Ticket
+
+    repair = subs.get("technical:repair")
+    combined = TicketSubcategory.objects.filter(
+        category=cats["technical"], slug="repair-new-partition"
+    ).first()
+    if combined is None or repair is None or combined.pk == repair.pk:
+        return
+    Ticket.objects.filter(subcategory=combined).update(subcategory=repair)
+    combined.is_active = False
+    combined.save(update_fields=["is_active"])

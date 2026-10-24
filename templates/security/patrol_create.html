@@ -1,0 +1,23 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Yeni yoxlama" %}{% endblock %}
+{% block content %}
+{% if errors %}
+<div class="cp-card p-card-sm mb-3">
+  {% for error in errors %}<p style="margin:0 0 4px;">{{ error }}</p>{% endfor %}
+</div>
+{% endif %}
+<form method="post" class="cp-card p-card">
+  {% csrf_token %}
+  <label class="cp-meta">{% translate "Gecənin tarixi" %}
+    <input class="mt-1" type="date" name="night_date" value="{{ night_date }}" required style="display:block;">
+  </label>
+  <p class="cp-meta mt-3">{% translate "Bu gecə yoxlanacaq mərtəbələr" %}</p>
+  <div class="patrol-floor-picks">
+    {% for code in floors %}
+    <label><input type="checkbox" name="floors" value="{{ code }}" {% if code in selected %}checked{% endif %}> {{ code }}</label>
+    {% endfor %}
+  </div>
+  <button class="cp-btn mt-4" type="submit">{% translate "Vərəqi aç" %}</button>
+</form>
+{% endblock %}

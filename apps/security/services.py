@@ -18,6 +18,7 @@ from apps.core.services import DomainError, Service
 from apps.security.access import can_edit_security_plans, device_allowed_on_plan
 from apps.security.models import (
     ConversionStatus,
+    DeviceStatus,
     SecurityDevice,
     SecurityDevicePin,
     SecurityFloorPlan,
@@ -222,7 +223,7 @@ class SecurityDeviceService(Service):
     def update_device(*, user, device: SecurityDevice, **fields):
         Service.require(can_edit_security_plans(user), "Cihaz yeniləməyə icazəniz yoxdur.")
         old = {"name": device.name, "type": device.device_type, "ip": str(device.ip_address or "")}
-        for key in ("name", "device_type", "ip_address", "location_note", "is_active"):
+        for key in ("name", "device_type", "ip_address", "location_note", "status"):
             if key in fields and fields[key] is not None:
                 setattr(device, key, fields[key])
         if "name" in fields and fields["name"] is not None:
@@ -233,7 +234,11 @@ class SecurityDeviceService(Service):
             actor=user,
             entity=device,
             old_values=old,
-            new_values={"name": device.name, "type": device.device_type, "active": device.is_active},
+            new_values={
+                "name": device.name,
+                "type": device.device_type,
+                "status": device.status,
+            },
             source=AUDIT_SOURCE,
         )
         return device
@@ -242,7 +247,7 @@ class SecurityDeviceService(Service):
     @transaction.atomic
     def deactivate_device(*, user, device: SecurityDevice, request=None):
         return SecurityDeviceService.update_device(
-            user=user, device=device, is_active=False
+            user=user, device=device, status=DeviceStatus.INACTIVE
         )
 
 
@@ -260,7 +265,7 @@ class SecurityPinService(Service):
         request=None,
     ):
         Service.require(can_edit_security_plans(user), "Pin yerləşdirməyə icazəniz yoxdur.")
-        Service.require(device.is_active, "Deaktiv cihaz pinlənə bilməz.")
+        Service.require(device.is_active, "Yalnız aktiv cihaz pinlənə bilər.")
         Service.require(
             device_allowed_on_plan(revision.plan, device),
             "Bu cihaz tipi plan kateqoriyasına uyğun deyil.",

@@ -15,6 +15,7 @@
     <option value="">{% translate "Hamısı" %}</option>
     <option value="1" {% if active == '1' %}selected{% endif %}>{% translate "Aktiv" %}</option>
     <option value="0" {% if active == '0' %}selected{% endif %}>{% translate "Deaktiv" %}</option>
+    <option value="fault" {% if active == 'fault' %}selected{% endif %}>{% translate "Nasaz" %}</option>
   </select>
   <button class="cp-btn" type="submit">{% translate "Filter" %}</button>
 </form>
@@ -52,36 +53,84 @@
         <td>{{ d.get_device_type_display }}</td>
         <td class="cp-code">{{ d.ip_address|default:"—" }}</td>
         <td>{{ d.location_note|default:"—" }}</td>
-        <td>{% if d.is_active %}{% translate "Aktiv" %}{% else %}{% translate "Deaktiv" %}{% endif %}</td>
+        <td>{{ d.get_status_display }}</td>
         {% if can_edit %}
-        <td>
-          <form method="post" action="{% url 'security:device_update' d.pk %}" class="flex gap-2" style="flex-wrap:wrap;align-items:center;">
-            {% csrf_token %}
-            <input class="cp-input" name="name" value="{{ d.name }}" style="width:120px;">
-            <select class="cp-input" name="device_type">
-              <option value="camera" {% if d.device_type == 'camera' %}selected{% endif %}>Kamera</option>
-              <option value="alarm_panel" {% if d.device_type == 'alarm_panel' %}selected{% endif %}>Siqnal</option>
-              <option value="sensor" {% if d.device_type == 'sensor' %}selected{% endif %}>Sensor</option>
-              <option value="other" {% if d.device_type == 'other' %}selected{% endif %}>Digər</option>
-            </select>
-            <input class="cp-input" name="ip_address" value="{{ d.ip_address|default_if_none:'' }}" style="width:110px;" placeholder="IP">
-            <input class="cp-input" name="location_note" value="{{ d.location_note }}" style="width:120px;">
-            <label><input type="checkbox" name="is_active" value="1" {% if d.is_active %}checked{% endif %}> {% translate "Aktiv" %}</label>
-            <button class="cp-btn-ghost" type="submit">{% translate "Saxla" %}</button>
-          </form>
-          {% if d.is_active %}
-          <form method="post" action="{% url 'security:device_deactivate' d.pk %}" style="display:inline;">
-            {% csrf_token %}
-            <button class="cp-btn-ghost" type="submit">{% translate "Deaktiv" %}</button>
-          </form>
-          {% endif %}
+        <td class="device-actions">
+          <button class="cp-btn-ghost" type="button" data-device-edit="device-edit-{{ d.pk }}" aria-expanded="false">{% translate "Redaktə" %}</button>
         </td>
         {% endif %}
       </tr>
+      {% if can_edit %}
+      <tr class="device-edit-row" id="device-edit-{{ d.pk }}" hidden>
+        <td colspan="6">
+          <div class="device-edit-panel">
+            <form method="post" action="{% url 'security:device_update' d.pk %}" class="device-edit-fields">
+              {% csrf_token %}
+              <label>{% translate "Ad" %}
+                <input class="cp-input" name="name" value="{{ d.name }}" maxlength="160" required>
+              </label>
+              <label>{% translate "Tip" %}
+                <select class="cp-input" name="device_type">
+                  <option value="camera" {% if d.device_type == 'camera' %}selected{% endif %}>{% translate "Kamera" %}</option>
+                  <option value="alarm_panel" {% if d.device_type == 'alarm_panel' %}selected{% endif %}>{% translate "Siqnal paneli" %}</option>
+                  <option value="sensor" {% if d.device_type == 'sensor' %}selected{% endif %}>{% translate "Sensor" %}</option>
+                  <option value="other" {% if d.device_type == 'other' %}selected{% endif %}>{% translate "Digər" %}</option>
+                </select>
+              </label>
+              <label>{% translate "IP" %}
+                <input class="cp-input" name="ip_address" value="{{ d.ip_address|default_if_none:'' }}" placeholder="IP" inputmode="decimal">
+              </label>
+              <label>{% translate "Qeyd" %}
+                <input class="cp-input" name="location_note" value="{{ d.location_note }}" maxlength="255">
+              </label>
+              <label>{% translate "Status" %}
+                <select class="cp-input" name="status">
+                  <option value="active" {% if d.status == 'active' %}selected{% endif %}>{% translate "Aktiv" %}</option>
+                  <option value="inactive" {% if d.status == 'inactive' %}selected{% endif %}>{% translate "Deaktiv" %}</option>
+                  <option value="faulty" {% if d.status == 'faulty' %}selected{% endif %}>{% translate "Nasaz" %}</option>
+                </select>
+              </label>
+              <div class="device-edit-actions">
+                <button class="cp-btn" type="submit">{% translate "Saxla" %}</button>
+                <button class="cp-btn-ghost" type="button" data-device-close="device-edit-{{ d.pk }}">{% translate "Bağla" %}</button>
+              </div>
+            </form>
+            {% if d.is_active %}
+            <form method="post" action="{% url 'security:device_deactivate' d.pk %}">
+              {% csrf_token %}
+              <button class="cp-btn-ghost" type="submit">{% translate "Deaktiv et" %}</button>
+            </form>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% endif %}
       {% empty %}
       <tr><td colspan="6" class="cp-meta">{% translate "Cihaz yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+{% if can_edit %}
+<script>
+document.querySelectorAll("[data-device-edit]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const row = document.getElementById(button.dataset.deviceEdit);
+    const willOpen = row.hidden;
+    document.querySelectorAll(".device-edit-row").forEach((item) => { item.hidden = true; });
+    document.querySelectorAll("[data-device-edit]").forEach((item) => item.setAttribute("aria-expanded", "false"));
+    row.hidden = !willOpen;
+    button.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    if (willOpen) row.querySelector("input[name='name']").focus();
+  });
+});
+document.querySelectorAll("[data-device-close]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.getElementById(button.dataset.deviceClose).hidden = true;
+    const opener = document.querySelector('[data-device-edit="' + button.dataset.deviceClose + '"]');
+    if (opener) opener.setAttribute("aria-expanded", "false");
+  });
+});
+</script>
+{% endif %}
 {% endblock %}

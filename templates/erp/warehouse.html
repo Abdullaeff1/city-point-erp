@@ -1,12 +1,41 @@
 {% extends "erp/base.html" %}
+{% load l10n %}
 {% block page_title %}Warehouse{% endblock %}
 {% block heading %}Warehouse{% endblock %}
 {% block content %}
 {% if low_stock %}
 <div class="badge badge-urgent mb-4" style="display:block;padding:10px 12px;border-radius:10px;">Low stock: {{ low_stock|length }}</div>
 {% endif %}
+{% if open_issues %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">Açıq çıxış sənədləri</h3>
+  <p class="cp-meta">Faktiki miqdarı yazın. Tələbdən az ola bilər. Təsdiqdən sonra anbar azalır.</p>
+  {% for issue in open_issues %}
+  <form method="post" class="wo-issue">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="confirm_issue">
+    <input type="hidden" name="issue_id" value="{{ issue.id }}">
+    <div><strong>{{ issue.code }}</strong> · {{ issue.work_order.code }} · {{ issue.warehouse.code }}</div>
+    <table class="cp-table">
+      <thead><tr><th>Məhsul</th><th>Tələb</th><th>Faktiki</th><th>Vahid qiymət</th></tr></thead>
+      <tbody>
+        {% for line in issue.lines.all %}
+        <tr>
+          <td>{{ line.sku.code }} — {{ line.sku.name }}</td>
+          <td>{{ line.requested_qty }}</td>
+          <td>{% if can_confirm_issue %}<input class="cp-input" name="issued_qty_{{ line.id }}" value="{{ line.requested_qty|unlocalize }}" inputmode="decimal">{% else %}{{ line.requested_qty }}{% endif %}</td>
+          <td>{% if can_confirm_issue %}<input class="cp-input" name="unit_cost_{{ line.id }}" value="{{ line.unit_cost|unlocalize }}" inputmode="decimal">{% else %}{{ line.unit_cost }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if can_confirm_issue %}<button class="cp-btn mt-2">Çıxışı təsdiqlə</button>{% else %}<p class="cp-meta">Təsdiq anbar üçündür.</p>{% endif %}
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
 <div class="grid gap-4" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-  <div class="cp-card">
+  <div class="cp-card p-card">
     <h3 class="cp-section">Stock</h3>
     <table class="cp-table">
       <thead><tr><th>SKU</th><th>Anbar</th><th>Miqdar</th></tr></thead>
@@ -17,7 +46,7 @@
       </tbody>
     </table>
   </div>
-  <div class="cp-card">
+  <div class="cp-card p-card">
     <h3 class="cp-section">Son hərəkətlər</h3>
     <table class="cp-table">
       <thead><tr><th>SKU</th><th>Tip</th><th>Miqdar</th></tr></thead>
