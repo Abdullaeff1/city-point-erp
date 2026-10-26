@@ -3,6 +3,7 @@ from django.contrib import admin
 from apps.property.models import (
     Asset,
     Building,
+    BuildingAsset,
     Contractor,
     Floor,
     MeterReading,
@@ -44,6 +45,13 @@ class SpaceAdmin(admin.ModelAdmin):
 @admin.register(Asset)
 class AssetAdmin(admin.ModelAdmin):
     list_display = ("name", "space", "asset_code")
+
+
+@admin.register(BuildingAsset)
+class BuildingAssetAdmin(admin.ModelAdmin):
+    list_display = ("name", "category", "floor", "location", "last_inspected_on", "next_inspection_on", "is_active")
+    list_filter = ("category", "is_active")
+    search_fields = ("name", "code", "location")
 
 
 @admin.register(Contractor)

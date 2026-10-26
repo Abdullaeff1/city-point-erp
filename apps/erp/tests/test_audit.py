@@ -75,17 +75,31 @@ class AdminAuditLogTests(TestCase):
         self.client.force_login(self.admin)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
-        sections = {item["role"]: item for item in response.context["sections"]}
-        reception = sections[Role.RECEPTION]
+        rows = response.context["rows"]
+        times = [row["at"] for row in rows]
+        self.assertEqual(times, sorted(times, reverse=True))
+        self.assertIn(Role.RECEPTION, {row["role"] for row in rows})
+        self.assertIn(Role.SERVICE_DESK, {row["role"] for row in rows})
         by_guest = {
             row["object"]: row["actor"]
-            for row in reception["rows"]
+            for row in rows
             if row["action"] == "Qəbul etdi"
         }
         self.assertEqual(by_guest["Nigar Əliyeva · Ryumka MMC"], "Aygün Məmmədova")
         self.assertEqual(by_guest["Tural Həsənov · Ryumka MMC"], "Elçin Quliyev")
-        self.assertEqual(response.context["sections"][0]["role"], Role.RECEPTION)
+        self.assertNotContains(response, 'id="audit-reception"')
+        self.assertContains(response, 'id="audit-log"')
         self.assertContains(response, 'href="/erp/audit/"')
+
+    def test_role_filter_shows_only_that_department(self):
+        self.client.force_login(self.admin)
+        response = self.client.get(self.url + "?role=reception")
+        self.assertEqual(response.status_code, 200)
+        rows = response.context["rows"]
+        self.assertTrue(rows)
+        self.assertTrue(all(row["role"] == Role.RECEPTION for row in rows))
+        self.assertNotContains(response, "Ticket yaratdı")
+        self.assertContains(response, "Aygün Məmmədova")
 
     def test_domain_check_in_is_not_shown_twice(self):
         log_action(
@@ -100,13 +114,16 @@ class AdminAuditLogTests(TestCase):
         self.assertIn("visit.check_in", actions)
         self.assertNotIn(VISITOR_CHECKED_IN, actions)
 
-    def test_impersonated_role_section_is_first(self):
+    def test_impersonated_admin_still_sees_one_timeline(self):
         self.client.force_login(self.admin)
         self.client.post(reverse("accounts:switch_role", args=[Role.SERVICE_DESK]))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["sections"][0]["role"], Role.SERVICE_DESK)
-        self.assertTrue(response.context["sections"][0]["highlighted"])
+        rows = response.context["rows"]
+        times = [row["at"] for row in rows]
+        self.assertEqual(times, sorted(times, reverse=True))
+        self.assertIn(Role.RECEPTION, {row["role"] for row in rows})
+        self.assertIn(Role.SERVICE_DESK, {row["role"] for row in rows})
         self.assertContains(response, 'href="/erp/audit/"')
 
     def test_receptionist_cannot_open_audit(self):

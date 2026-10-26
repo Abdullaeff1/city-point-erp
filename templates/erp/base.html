@@ -16,11 +16,13 @@
       {% if nav_reception %}<a class="{% nav_active 'reception' %}" href="{% url 'erp:reception' %}"><i data-lucide="door-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Qəbul" %}</span></a>{% endif %}
       {% if nav_tickets %}
       <div class="cp-nav-label">{% translate "ƏMƏLİYYAT" %}</div>
-      <a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'erp:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Service Desk" %}</span></a>
+      <a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'erp:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Ticketlər" %}</span></a>
       {% endif %}
+      <a class="{% nav_active 'alerts' %}" href="{% url 'erp:alerts' %}"><i data-lucide="bell" width="18" height="18"></i><span class="cp-nav-text">{% translate "Bildirişlər" %}</span>{% if unread_alerts %}<span class="badge badge-muted" style="margin-left:auto;background:var(--cp-accent);color:var(--cp-primary-dark);">{{ unread_alerts }}</span>{% endif %}</a>
       {% if nav_property or nav_residents or nav_parties or nav_leases %}
       <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
+      {% if nav_property or user.role == "service_desk" %}<a class="{% nav_active 'building_assets' %}" href="{% url 'erp:building_assets' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "Biznes mərkəzi" %}</span></a>{% endif %}
       {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' 'resident_employees' 'resident_employee_access' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rezidentlər" %}</span><span class="badge badge-muted" style="margin-left:auto;">{{ resident_count }}</span></a>{% endif %}
       {% if nav_parties %}<a class="{% nav_active 'parties' %}" href="{% url 'erp:parties' %}"><i data-lucide="building" width="18" height="18"></i><span class="cp-nav-text">{% translate "Parties" %}</span></a>{% endif %}
       {% if nav_leases %}<a class="{% nav_active 'leases' 'lease_detail' %}" href="{% url 'erp:leases' %}"><i data-lucide="file-signature" width="18" height="18"></i><span class="cp-nav-text">{% translate "İcarələr" %}</span></a>{% endif %}
@@ -36,13 +38,15 @@
       {% if nav_reception or nav_tickets %}
       <div class="cp-nav-label">{% translate "ƏMƏLİYYAT" %}</div>
       {% if nav_reception %}<a class="{% nav_active 'reception' %}" href="{% url 'erp:reception' %}"><i data-lucide="door-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Qəbul" %}</span></a>{% endif %}
-      {% if nav_tickets %}<a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'erp:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Service Desk" %}</span></a>{% endif %}
+      {% if nav_tickets %}<a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'erp:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Ticketlər" %}</span></a>{% endif %}
+      <a class="{% nav_active 'alerts' %}" href="{% url 'erp:alerts' %}"><i data-lucide="bell" width="18" height="18"></i><span class="cp-nav-text">{% translate "Bildirişlər" %}</span>{% if unread_alerts %}<span class="badge badge-muted" style="margin-left:auto;background:var(--cp-accent);color:var(--cp-primary-dark);">{{ unread_alerts }}</span>{% endif %}</a>
       {% if nav_tickets %}<a class="{% nav_active 'work_orders' 'work_order_detail' %}" href="{% url 'erp:work_orders' %}"><i data-lucide="wrench" width="18" height="18"></i><span class="cp-nav-text">{% translate "İş sifarişləri" %}</span></a>{% endif %}
       {% endif %}
 
       {% if nav_property or nav_residents or nav_leases %}
       <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
+      {% if nav_property or user.role == "service_desk" %}<a class="{% nav_active 'building_assets' %}" href="{% url 'erp:building_assets' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "Biznes mərkəzi" %}</span></a>{% endif %}
       {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' 'resident_employees' 'resident_employee_access' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rezidentlər" %}</span><span class="badge badge-muted" style="margin-left:auto;">{{ resident_count }}</span></a>{% endif %}
       {% if nav_leases %}<a class="{% nav_active 'leases' 'lease_detail' %}" href="{% url 'erp:leases' %}"><i data-lucide="file-signature" width="18" height="18"></i><span class="cp-nav-text">{% translate "İcarələr" %}</span></a>{% endif %}
       {% endif %}
@@ -119,7 +123,7 @@
         {% if user.role == "reception" %}
         <a href="{% url 'erp:reception' %}">← {% translate "Qəbul" %}</a>
         {% elif user.role == "service_desk" %}
-        <a href="{% url 'erp:tickets' %}">← {% translate "Service Desk" %}</a>
+        <a href="{% url 'erp:tickets' %}">← {% translate "Ticketlər" %}</a>
         {% else %}
         <a href="{% url 'erp:dashboard' %}">← {% translate "İdarə paneli" %}</a>
         {% endif %}

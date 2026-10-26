@@ -1,0 +1,128 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Biznes mərkəzi" %}{% endblock %}
+{% block content %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Əlavə et" %}</div>
+  <p class="cp-meta mt-2">{% translate "City Point-ə aid cihaz və mallar. Son baxış yazılanda növbəti baxış bir ay sonra düşür." %}</p>
+  <form method="post" class="grid-2 mt-3" style="align-items:end;">
+    {% csrf_token %}
+    <label>
+      <span class="cp-meta">{% translate "Ad" %}</span>
+      <input class="cp-input mt-1" name="name" required maxlength="160">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Kod" %}</span>
+      <input class="cp-input mt-1" name="code" maxlength="64">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Kateqoriya" %}</span>
+      <select class="cp-input mt-1" name="category">
+        {% for value, label in categories %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Mərtəbə" %}</span>
+      <select class="cp-input mt-1" name="floor">
+        <option value="">—</option>
+        {% for floor in floors %}
+        <option value="{{ floor.pk }}">{{ floor.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Yer" %}</span>
+      <input class="cp-input mt-1" name="location" maxlength="160" placeholder="{% translate 'Texniki otaq' %}">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Say" %}</span>
+      <input class="cp-input mt-1" name="quantity" type="number" min="1" value="1">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Son baxış" %}</span>
+      <input class="cp-input mt-1" name="last_inspected_on" type="date">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Qeyd" %}</span>
+      <input class="cp-input mt-1" name="notes">
+    </label>
+    <div>
+      <button class="cp-btn" type="submit">{% translate "Əlavə et" %}</button>
+    </div>
+  </form>
+  <form method="post" enctype="multipart/form-data" class="flex gap-2 mt-4" style="flex-wrap:wrap;align-items:end;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="import">
+    <label style="flex:1;min-width:220px;">
+      <span class="cp-meta">{% translate "Excel və ya Word" %}</span>
+      <input class="cp-input mt-1" type="file" name="asset_file" accept=".xlsx,.docx" required>
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Fayldan əlavə et" %}</button>
+    <a class="cp-btn-ghost" href="?template=1">{% translate "Nümunə Excel" %}</a>
+  </form>
+</div>
+{% if import_preview %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Fayl önizləməsi" %}</div>
+  <p class="cp-meta mt-2">{{ import_preview|length }} {% translate "avadanlıq" %}</p>
+  <ul class="mt-3" style="list-style:none;padding:0;margin:0;">
+    {% for row in import_preview %}
+    <li class="empty-pad" style="padding:8px 0;">
+      <strong>{{ row.name }}</strong>
+      <span class="cp-meta"> · {{ row.category_label }}{% if row.code %} · {{ row.code }}{% endif %}{% if row.floor_label %} · {{ row.floor_label }}{% endif %}{% if row.location %} · {{ row.location }}{% endif %}{% if row.last_inspected_on %} · {{ row.last_inspected_on }}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  <form method="post" class="flex gap-2 mt-3">
+    {% csrf_token %}
+    <button class="cp-btn" type="submit" name="action" value="import_save">{% translate "Siyahıya yaz" %}</button>
+    <button class="cp-btn-ghost" type="submit" name="action" value="import_cancel">{% translate "Ləğv et" %}</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="cp-card" style="padding:8px 0;">
+  {% for asset in assets %}
+  <form id="asset-{{ asset.pk }}" method="post" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="action" value="update">
+    <input type="hidden" name="asset_id" value="{{ asset.pk }}">
+  </form>
+  {% endfor %}
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Ad" %}</th>
+        <th>{% translate "Kateqoriya" %}</th>
+        <th>{% translate "Yer" %}</th>
+        <th>{% translate "Say" %}</th>
+        <th>{% translate "Son baxış" %}</th>
+        <th>{% translate "Növbəti baxış" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for asset in assets %}
+      <tr>
+        <td><input class="cp-input" name="name" value="{{ asset.name }}" required maxlength="160" form="asset-{{ asset.pk }}"></td>
+        <td>{{ asset.get_category_display }}{% if asset.code %}<div class="cp-meta">{{ asset.code }}</div>{% endif %}</td>
+        <td>
+          <div class="cp-meta">{% if asset.floor %}{{ asset.floor.name }}{% else %}—{% endif %}</div>
+          <input class="cp-input mt-1" name="location" value="{{ asset.location }}" maxlength="160" form="asset-{{ asset.pk }}">
+        </td>
+        <td>{{ asset.quantity }}</td>
+        <td><input class="cp-input" type="date" name="last_inspected_on" value="{% if asset.last_inspected_on %}{{ asset.last_inspected_on|date:'Y-m-d' }}{% endif %}" form="asset-{{ asset.pk }}"></td>
+        <td>
+          <input class="cp-input" type="date" name="next_inspection_on" value="{% if asset.next_inspection_on %}{{ asset.next_inspection_on|date:'Y-m-d' }}{% endif %}" form="asset-{{ asset.pk }}" {% if asset.inspection_due %}style="color:var(--cp-danger);font-weight:700;"{% endif %}>
+        </td>
+        <td><button class="cp-btn-ghost" type="submit" form="asset-{{ asset.pk }}" style="padding:6px 10px;">{% translate "Saxla" %}</button></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="cp-meta empty-pad">{% translate "Avadanlıq yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

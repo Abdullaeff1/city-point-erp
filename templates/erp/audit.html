@@ -2,33 +2,41 @@
 {% load i18n %}
 {% block heading %}{% translate "Audit" %}{% endblock %}
 {% block content %}
-{% for section in sections %}
-<section class="cp-card mb-4" style="padding:8px 0;" id="audit-{{ section.role|default:'other' }}">
-  <div class="cp-section" style="padding:12px 20px 0;">{{ section.label }}</div>
+<form method="get" class="cp-card p-card mb-4" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+  <label>
+    <span class="cp-meta">{% translate "Şöbə" %}</span>
+    <select class="cp-input mt-1" name="role" onchange="this.form.submit()">
+      <option value="">{% translate "Hamısı" %}</option>
+      {% for code, label in role_choices %}
+      <option value="{{ code }}" {% if role == code %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+</form>
+<section class="cp-card mb-4" style="padding:8px 0;" id="audit-log">
   <table class="cp-table">
     <thead>
       <tr>
         <th>{% translate "Vaxt" %}</th>
+        <th>{% translate "Şöbə" %}</th>
         <th>{% translate "Əməkdaş" %}</th>
         <th>{% translate "Əməliyyat" %}</th>
         <th>{% translate "Obyekt" %}</th>
       </tr>
     </thead>
     <tbody>
-      {% for row in section.rows %}
+      {% for row in rows %}
       <tr>
         <td class="cp-meta">{{ row.at|date:"d.m.Y H:i" }}</td>
+        <td>{{ row.role_label }}</td>
         <td>{{ row.actor }}{% if row.email %}<br><span class="cp-meta">{{ row.email }}</span>{% endif %}</td>
         <td>{{ row.action }}</td>
         <td>{{ row.object }}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="4" class="cp-meta empty-pad">{% translate "Qeyd yoxdur." %}</td></tr>
+      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Qeyd yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </section>
-{% empty %}
-<div class="cp-card p-card"><p class="cp-meta">{% translate "Qeyd yoxdur." %}</p></div>
-{% endfor %}
 {% endblock %}

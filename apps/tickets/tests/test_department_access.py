@@ -42,6 +42,10 @@ class TicketDepartmentAccessTests(TestCase):
         self.assertEqual(fire.category.slug, "security")
         self.assertEqual(fire.name, "Yanğın sistemi")
         self.assertEqual(fire.routing_rule.department.code, "security")
+        card_related = TicketSubcategory.objects.get(slug="card-related", category__slug="security")
+        self.assertEqual(card_related.name, "Kartla bağlı")
+        self.assertEqual(card_related.routing_rule.department.code, "security")
+        self.assertLess(card_related.sort_order, 1000)
         cargo = TicketSubcategory.objects.get(slug="cargo", category__slug="security")
         event = TicketSubcategory.objects.get(slug="event", category__slug="security")
         self.assertEqual(cargo.name, "Yük daşıma")
@@ -59,6 +63,11 @@ class TicketDepartmentAccessTests(TestCase):
         )
         self.assertFalse(
             TicketSubcategory.objects.filter(category__slug="technical", slug="fire", is_active=True).exists()
+        )
+        self.assertFalse(
+            TicketSubcategory.objects.filter(
+                category__slug="security", slug="access-fault", is_active=True
+            ).exists()
         )
         self.assertFalse(
             TicketSubcategory.objects.filter(
@@ -196,6 +205,50 @@ class TicketDepartmentAccessTests(TestCase):
             tickets_visible_to(self.desk_user).filter(pk__in=[ticket.pk, self.fm_ticket.pk]).count(),
             2,
         )
+
+    def test_portal_intake_holds_ticket_for_service_desk(self):
+        parking = TicketSubcategory.objects.get(slug="parking-extra")
+        ticket = create_ticket_from_portal(
+            company=self.company_a,
+            requester=self.resident_a,
+            ticket_type="incident",
+            category=parking.category,
+            subcategory=parking,
+            description="Extra parking from the resident portal",
+            service_desk_intake=True,
+        )
+        self.assertEqual(ticket.department.code, "servicedesk")
+        self.assertEqual(ticket.queue.code, "general")
+        self.assertTrue(can_view_ticket(self.desk_user, ticket))
+        self.assertFalse(can_view_ticket(self.sec_user, ticket))
+
+        electric = create_ticket_from_portal(
+            company=self.company_a,
+            requester=self.resident_a,
+            ticket_type="incident",
+            category=self.fm_sub.category,
+            subcategory=self.fm_sub,
+            description="Electric fault reported from the portal",
+            service_desk_intake=True,
+        )
+        self.assertEqual(electric.department.code, "servicedesk")
+        self.assertEqual(electric.queue.code, "electric")
+
+        self.client.force_login(self.resident_a)
+        resp = self.client.post(
+            reverse("portal:request_new"),
+            {
+                "ticket_type": "incident",
+                "category": self.sec_sub.category_id,
+                "subcategory": self.sec_sub.pk,
+                "description": "Lobby incident from ASBC portal",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        created = Ticket.objects.get(description="Lobby incident from ASBC portal")
+        self.assertEqual(created.department.code, "servicedesk")
+        self.assertEqual(created.queue.code, "general")
+        self.assertTrue(can_view_ticket(self.desk_user, created))
 
     def test_erp_list_and_detail_scoped(self):
         self.client.force_login(self.desk_user)
@@ -335,22 +388,36 @@ class TicketDepartmentAccessTests(TestCase):
         self.sec_ticket.refresh_from_db()
         self.assertEqual(self.sec_ticket.assignee_id, self.sec_user.pk)
 
-    def test_handoff_admin_only(self):
+    def test_holding_department_can_handoff(self):
         with self.assertRaises(DomainError):
             handoff_ticket(
                 self.sec_ticket,
-                actor=self.sec_user,
-                department_id=self.fm_dept.pk,
+                actor=self.desk_user,
+                department_id=self.desk_dept.pk,
+            )
+        with self.assertRaises(DomainError):
+            handoff_ticket(
+                self.sec_ticket,
+                actor=self.resident_a,
+                department_id=self.desk_dept.pk,
             )
         handoff_ticket(
             self.sec_ticket,
-            actor=self.admin,
-            department_id=self.fm_dept.pk,
-            note="move to FM",
+            actor=self.sec_user,
+            department_id=self.desk_dept.pk,
+            note="wrong category",
         )
         self.sec_ticket.refresh_from_db()
-        self.assertEqual(self.sec_ticket.department_id, self.fm_dept.pk)
-        self.assertTrue(self.sec_ticket.routing_events.filter(note="move to FM").exists())
+        self.assertEqual(self.sec_ticket.department_id, self.desk_dept.pk)
+        self.assertIsNone(self.sec_ticket.assignee_id)
+        self.assertIsNone(self.sec_ticket.assigned_employee_id)
+        self.assertTrue(self.sec_ticket.routing_events.filter(note="wrong category").exists())
+        with self.assertRaises(DomainError):
+            handoff_ticket(
+                self.sec_ticket,
+                actor=self.desk_user,
+                department_id=self.desk_dept.pk,
+            )
 
     def test_resident_cannot_mutate_status(self):
         self.assertFalse(can_mutate_ticket(self.resident_a, self.sec_ticket))

@@ -790,6 +790,12 @@ dialog.guest-detail {
   display: none !important;
 }
 .cp-list-row:hover { background: var(--cp-primary-soft); text-decoration: none; }
+.cp-table tr.cp-click-row { position: relative; cursor: pointer; }
+.cp-table a.cp-stretch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
 .resident-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 7.5rem minmax(7rem, auto);

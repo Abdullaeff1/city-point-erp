@@ -3,7 +3,7 @@
 {% block heading %}{% blocktranslate with label=space.short_label %}Sahə {{ label }}{% endblocktranslate %}{% endblock %}
 {% block back_trail %}
  · <a href="{% url 'erp:spaces' %}">{% translate "Sahələr" %}</a>
- · <span class="cp-code">{{ space.code }}</span>
+ · <span class="cp-code">{{ space.area_code }}</span>
 {% endblock %}
 {% block content %}
 <nav class="cp-tabs">
@@ -14,7 +14,7 @@
   <a class="cp-tab {% if tab == 'assets' %}is-active{% endif %}" href="?tab=assets">{% translate "Aktivlər" %}</a>
   <span class="cp-tab is-disabled">{% translate "Texniki plan" %}</span>
   <span class="cp-tab is-disabled">DWG</span>
-  <span class="cp-tab is-disabled">Maintenance</span>
+  <span class="cp-tab is-disabled">{% translate "Maintenance" %}</span>
 </nav>
 
 {% if tab == 'overview' or not tab %}
@@ -23,7 +23,7 @@
     <div class="cp-title">{{ space.short_label }}</div>
     <p class="mt-2">{{ space.area_m2 }} m² · {{ space.floor.name }}</p>
     <p class="mt-2"><span class="cp-meta">{% translate "Rezident" %}:</span> {% if space.resident %}{{ space.resident.name }}{% else %}{% translate "Boş" %}{% endif %}</p>
-    <p class="cp-meta mt-2">Access {{ space.access_zone }} · {{ space.get_occupancy_display }} · {{ space.cost_center }}</p>
+    <p class="cp-meta mt-2">{% translate "Access" %} {{ space.access_zone }} · {{ space.get_occupancy_display }} · {{ space.cost_center }}</p>
   </div>
   <div class="cp-card p-card">
     <div>{% translate "Açıq ticket" %}: <strong>{{ open_tickets.count }}</strong></div>

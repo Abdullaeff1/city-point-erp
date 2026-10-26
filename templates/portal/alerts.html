@@ -5,9 +5,8 @@
 <div class="grid-2">
   <div class="cp-card p-card">
     <div class="cp-section">{% translate "Bildirişlər" %}</div>
-    <ul class="flex-col gap-3 mt-3" style="list-style:none;padding:0;">
-      {% for n in notifications %}<li>{{ n.message }} <span class="cp-meta">{{ n.created_at|date:"d.m H:i" }}</span></li>
-      {% empty %}<li class="cp-meta">{% translate "Bildiriş yoxdur." %}</li>{% endfor %}
+    <ul class="mt-3" style="list-style:none;padding:0;margin-bottom:0;">
+      {% include "partials/notification_list.html" %}
     </ul>
   </div>
   <div class="cp-card p-card">

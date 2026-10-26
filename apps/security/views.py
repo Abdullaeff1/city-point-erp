@@ -239,8 +239,15 @@ class EmployeeListView(SecurityPortalMixin, TemplateView):
 class AlertListView(SecurityPortalMixin, TemplateView):
     template_name = "security/alerts.html"
 
+    def get(self, request, *args, **kwargs):
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return super().get(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
+        from apps.comms.links import user_notifications
+
         ctx = super().get_context_data(**kwargs)
+        ctx["notifications"] = user_notifications(self.request.user, namespace="security")
         kind = self.kwargs.get("kind") or self.request.GET.get("kind") or "rapid"
         if kind not in {"rapid", "shaft"}:
             kind = "rapid"

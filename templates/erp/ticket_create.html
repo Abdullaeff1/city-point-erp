@@ -2,7 +2,7 @@
 {% load i18n %}
 {% block heading %}{% translate "Yeni ticket" %}{% endblock %}
 {% block back_trail %}
- · <a href="{% url 'erp:tickets' %}">{% translate "Service Desk" %}</a>
+ · <a href="{% url 'erp:tickets' %}">{% translate "Ticketlər" %}</a>
 {% endblock %}
 {% block content %}
 <div class="cp-card p-card" style="max-width:760px;">
@@ -96,6 +96,7 @@
       return norm(a.name).localeCompare(norm(b.name), "az");
     });
     var active = -1;
+    var shown = [];
     function selectedName() {
       var id = select.value;
       var hit = people.filter(function (item) { return String(item.id) === String(id); })[0];
@@ -112,6 +113,8 @@
         else if (name.indexOf(query) !== -1) contains.push(item);
       });
       var matched = starts.concat(contains).slice(0, 40);
+      shown = matched;
+      if (active >= matched.length) active = matched.length - 1;
       list.innerHTML = "";
       if (!matched.length) {
         var empty = document.createElement("li");
@@ -129,15 +132,18 @@
         if (idx === active) li.classList.add("is-active");
         li.addEventListener("mousedown", function (e) {
           e.preventDefault();
-          select.value = String(item.id);
-          search.value = item.name;
-          list.hidden = true;
-          active = -1;
-          select.dispatchEvent(new Event("change", { bubbles: true }));
+          choose(item);
         });
         list.appendChild(li);
       });
       list.hidden = false;
+    }
+    function choose(item) {
+      select.value = String(item.id);
+      search.value = item.name;
+      list.hidden = true;
+      active = -1;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
     }
     function sync() {
       var typed = norm(search.value).trim();
@@ -146,7 +152,30 @@
       select.value = exact.length === 1 ? String(exact[0].id) : "";
     }
     search.addEventListener("focus", function () { render(search.value); });
-    search.addEventListener("input", function () { active = -1; select.value = ""; render(search.value); });
+    search.addEventListener("input", function () {
+      select.value = "";
+      active = norm(search.value).trim() ? 0 : -1;
+      render(search.value);
+    });
+    search.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (!shown.length) return;
+        active = Math.min(active + 1, shown.length - 1);
+        render(search.value);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (!shown.length) return;
+        active = Math.max(active - 1, 0);
+        render(search.value);
+      } else if (e.key === "Enter" && !list.hidden && shown.length && norm(search.value).trim()) {
+        var idx = active >= 0 && active < shown.length ? active : 0;
+        e.preventDefault();
+        choose(shown[idx]);
+      } else if (e.key === "Escape") {
+        list.hidden = true;
+      }
+    });
     document.addEventListener("click", function (e) {
       if (!search.parentElement.contains(e.target)) list.hidden = true;
     });

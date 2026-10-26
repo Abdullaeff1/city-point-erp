@@ -1,3 +1,7 @@
+import calendar
+from datetime import date
+from decimal import Decimal
+
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -96,11 +100,28 @@ class Space(models.Model):
     public_description = models.TextField(blank=True)
 
     def __str__(self):
-        return self.code
+        return self.area_code
 
     @property
     def short_label(self):
-        return self.name or self.code.split("-")[-1]
+        return self.area_code
+
+    @property
+    def area_code(self):
+        """Company-facing space label: CP/F10/232."""
+        raw = (self.floor.code or "").upper()
+        if raw.startswith("F"):
+            raw = raw[1:]
+        try:
+            floor_no = str(int(raw))
+        except (TypeError, ValueError):
+            floor_no = raw or "?"
+        area = Decimal(str(self.area_m2 or "0"))
+        if area == area.to_integral_value():
+            area_text = str(int(area))
+        else:
+            area_text = format(area.normalize(), "f")
+        return f"CP/F{floor_no}/{area_text}"
 
 
 class Asset(models.Model):
@@ -110,6 +131,68 @@ class Asset(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class BuildingAssetCategory(models.TextChoices):
+    HVAC = "hvac", _("HVAC")
+    LIFT = "lift", _("Lift")
+    ELECTRIC = "electric", _("Elektrik")
+    FIRE = "fire", _("Yanğın")
+    PUMP = "pump", _("Nasos")
+    FURNITURE = "furniture", _("Mebel")
+    OTHER = "other", _("Digər")
+
+
+def add_one_month(value: date) -> date:
+    month = value.month + 1
+    year = value.year
+    if month > 12:
+        month = 1
+        year += 1
+    day = min(value.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+class BuildingAsset(models.Model):
+    """City Point equipment and goods kept in the building, inspected monthly."""
+
+    name = models.CharField(max_length=160)
+    code = models.CharField(max_length=64, blank=True)
+    category = models.CharField(
+        max_length=24,
+        choices=BuildingAssetCategory.choices,
+        default=BuildingAssetCategory.OTHER,
+    )
+    floor = models.ForeignKey(
+        Floor,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="building_assets",
+    )
+    location = models.CharField(max_length=160, blank=True)
+    quantity = models.PositiveIntegerField(default=1)
+    notes = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    last_inspected_on = models.DateField(null=True, blank=True)
+    next_inspection_on = models.DateField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["category", "name"]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if self.last_inspected_on and not self.next_inspection_on:
+            self.next_inspection_on = add_one_month(self.last_inspected_on)
+        super().save(*args, **kwargs)
+
+    @property
+    def inspection_due(self) -> bool:
+        if not self.next_inspection_on:
+            return False
+        return self.next_inspection_on <= timezone.localdate()
 
 
 class Contractor(models.Model):

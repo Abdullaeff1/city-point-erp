@@ -2,7 +2,7 @@
 {% load i18n cp_ui %}
 {% block heading %}{{ ticket.code }}{% endblock %}
 {% block back_trail %}
- · <a href="{% url 'erp:tickets' %}">{% translate "Service Desk" %}</a>
+ · <a href="{% url 'erp:tickets' %}">{% translate "Ticketlər" %}</a>
  · {{ ticket.get_ticket_type_display }} · {{ ticket.category }}{% if ticket.subcategory %} / {{ ticket.subcategory.name }}{% endif %}
  · <span class="cp-code">{{ ticket.space.code|default:"—" }}</span>
 {% endblock %}
@@ -192,20 +192,23 @@
     {% endif %}
     {% if can_handoff %}
     <div>
-      <div class="cp-meta">{% translate "Şöbəyə yönləndir" %}</div>
+      <div class="cp-meta">{% translate "Başqa şöbəyə yönləndir" %}</div>
+      <p class="cp-meta">{% translate "Rezident səhv kateqoriya seçibsə, ticketi düzgün şöbəyə göndərin." %}</p>
       <form method="post" class="flex-col gap-2 mt-2">
         {% csrf_token %}
         <input type="hidden" name="action" value="handoff">
-        <select name="department" class="cp-input" required>
+        <select name="department" id="handoff-department" class="cp-input" required>
           <option value="">—</option>
           {% for d in handoff_departments %}
-          <option value="{{ d.id }}" {% if ticket.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+          {% if d.id != ticket.department_id %}
+          <option value="{{ d.id }}">{{ d.name }}</option>
+          {% endif %}
           {% endfor %}
         </select>
-        <select name="queue" class="cp-input">
+        <select name="queue" id="handoff-queue" class="cp-input">
           <option value="">— {% translate "Queue (istəyə bağlı)" %}</option>
           {% for q in handoff_queues %}
-          <option value="{{ q.id }}" data-dept="{{ q.department_id }}">{{ q.department.name }} / {{ q.name }}</option>
+          <option value="{{ q.id }}" data-dept="{{ q.department_id }}" hidden disabled>{{ q.name }}</option>
           {% endfor %}
         </select>
         <input name="note" class="cp-input" placeholder="{% translate 'Səbəb' %}">
@@ -216,6 +219,24 @@
   </aside>
 </div>
 <script>
+(function () {
+  var dept = document.getElementById("handoff-department");
+  var queue = document.getElementById("handoff-queue");
+  if (!dept || !queue) return;
+  function syncQueues() {
+    var id = dept.value;
+    Array.prototype.forEach.call(queue.options, function (opt) {
+      if (!opt.value) return;
+      var match = id && opt.getAttribute("data-dept") === id;
+      opt.hidden = !match;
+      opt.disabled = !match;
+    });
+    var selected = queue.options[queue.selectedIndex];
+    if (selected && selected.disabled) queue.value = "";
+  }
+  dept.addEventListener("change", syncQueues);
+  syncQueues();
+})();
 (function () {
   var search = document.getElementById("assignee-search");
   var hidden = document.getElementById("assignee-id");
@@ -237,6 +258,7 @@
   });
 
   var active = -1;
+  var shown = [];
 
   function render(q) {
     var query = norm(q).trim();
@@ -247,9 +269,10 @@
       if (!query || name.indexOf(query) === 0) starts.push(person);
       else if (name.indexOf(query) !== -1) contains.push(person);
     });
-    var matched = starts.concat(contains);
+    var matched = starts.concat(contains).slice(0, 40);
+    shown = matched;
+    if (active >= matched.length) active = matched.length - 1;
     list.innerHTML = "";
-    active = Math.min(active, matched.length - 1);
     if (!matched.length) {
       var empty = document.createElement("li");
       empty.className = "cp-combobox-empty";
@@ -258,7 +281,7 @@
       list.hidden = false;
       return;
     }
-    matched.slice(0, 40).forEach(function (person, idx) {
+    matched.forEach(function (person, idx) {
       var li = document.createElement("li");
       li.setAttribute("role", "option");
       li.textContent = person.name;
@@ -297,34 +320,25 @@
 
   search.addEventListener("focus", function () { render(search.value); });
   search.addEventListener("input", function () {
-    active = -1;
     hidden.value = "";
+    active = norm(search.value).trim() ? 0 : -1;
     render(search.value);
   });
   search.addEventListener("keydown", function (e) {
-    var items = list.querySelectorAll("[role='option']");
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      active = Math.min(active + 1, items.length - 1);
+      if (!shown.length) return;
+      active = Math.min(active + 1, shown.length - 1);
       render(search.value);
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      if (!shown.length) return;
       active = Math.max(active - 1, 0);
       render(search.value);
-    } else if (e.key === "Enter" && !list.hidden && active >= 0) {
-      var shown = people.filter(function (person) {
-        var name = norm(person.name);
-        var query = norm(search.value).trim();
-        return !query || name.indexOf(query) !== -1;
-      });
-      var starts = shown.filter(function (person) {
-        return norm(person.name).indexOf(norm(search.value).trim()) === 0;
-      });
-      var ordered = starts.concat(shown.filter(function (person) { return starts.indexOf(person) === -1; }));
-      if (ordered[active]) {
-        e.preventDefault();
-        pick(ordered[active]);
-      }
+    } else if (e.key === "Enter" && !list.hidden && shown.length && norm(search.value).trim()) {
+      var idx = active >= 0 && active < shown.length ? active : 0;
+      e.preventDefault();
+      pick(shown[idx]);
     } else if (e.key === "Escape") {
       list.hidden = true;
     }

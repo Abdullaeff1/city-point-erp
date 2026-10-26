@@ -44,7 +44,7 @@ msgid "Çıxış"
 msgstr "Çıxış"
 
 msgid "Business Center"
-msgstr "Business Center"
+msgstr "Biznes mərkəzi"
 
 msgid "İDARƏETMƏ"
 msgstr "İDARƏETMƏ"
@@ -122,7 +122,7 @@ msgid "bu gün"
 msgstr "bu gün"
 
 msgid "AÇIQ TICKET"
-msgstr "AÇIQ TICKET"
+msgstr "AÇIQ MÜRACİƏT"
 
 msgid "aktiv"
 msgstr "aktiv"
@@ -131,7 +131,7 @@ msgid "SLA RİSKİ"
 msgstr "SLA RİSKİ"
 
 msgid "Kritik həddə ticket yoxdur"
-msgstr "Kritik həddə ticket yoxdur"
+msgstr "Kritik həddə müraciət yoxdur"
 
 msgid "Bax"
 msgstr "Bax"
@@ -143,7 +143,7 @@ msgid "Ticketlər"
 msgstr "Ticketlər"
 
 msgid "Açıq ticket yoxdur."
-msgstr "Açıq ticket yoxdur."
+msgstr "Açıq müraciət yoxdur."
 
 msgid "Bugünkü qonaqlar"
 msgstr "Bugünkü qonaqlar"
@@ -203,7 +203,7 @@ msgid "Əmlak"
 msgstr "Əmlak"
 
 msgid "Building overview"
-msgstr "Building overview"
+msgstr "Bina icmalı"
 
 msgid "mərtəbə"
 msgstr "mərtəbə"
@@ -236,10 +236,10 @@ msgid "Texniki plan"
 msgstr "Texniki plan"
 
 msgid "Açıq ticket"
-msgstr "Açıq ticket"
+msgstr "Açıq müraciət"
 
 msgid "Ticket yoxdur."
-msgstr "Ticket yoxdur."
+msgstr "Müraciət yoxdur."
 
 msgid "Sənəd yoxdur."
 msgstr "Sənəd yoxdur."
@@ -278,7 +278,7 @@ msgid "Çıxış qeydə alındı."
 msgstr "Çıxış qeydə alındı."
 
 msgid "Bu qonağın çıxışını yalnız reception bağlaya bilər (vəsiqə və ya qonaq kartı)."
-msgstr "Bu qonağın çıxışını yalnız reception bağlaya bilər (vəsiqə və ya qonaq kartı)."
+msgstr "Bu qonağın çıxışını yalnız qəbul bağlaya bilər (vəsiqə və ya qonaq kartı)."
 
 msgid "Şifrə"
 msgstr "Şifrə"
@@ -293,7 +293,7 @@ msgid "Açıq"
 msgstr "Açıq"
 
 msgid "SLA risk"
-msgstr "SLA risk"
+msgstr "SLA riski"
 
 msgid "Mənim"
 msgstr "Mənim"
@@ -419,7 +419,7 @@ msgid "Problemi qısa təsvir edin..."
 msgstr "Problemi qısa təsvir edin..."
 
 msgid "Host"
-msgstr "Host"
+msgstr "Qarşılayan"
 
 msgid "Qeyd"
 msgstr "Qeyd"
@@ -440,7 +440,7 @@ msgid "CRM"
 msgstr "CRM"
 
 msgid "Lidlər"
-msgstr "Lidlər"
+msgstr "Potensial müştərilər"
 
 msgid "Təkliflər"
 msgstr "Təkliflər"
@@ -461,7 +461,7 @@ msgid "MALİYYƏ"
 msgstr "MALİYYƏ"
 
 msgid "Billing"
-msgstr "Billing"
+msgstr "Hesablaşma"
 
 msgid "Mühasibat"
 msgstr "Mühasibat"
@@ -473,28 +473,28 @@ msgid "Bu gün"
 msgstr "Bu gün"
 
 msgid "Gözləyir / Pre-reg"
-msgstr "Gözləyir / Pre-reg"
+msgstr "Gözləyir / Əvvəlcədən"
 
 msgid "Vəsiqə gözləyir"
 msgstr "Vəsiqə gözləyir"
 
 msgid "Pre-reg"
-msgstr "Pre-reg"
+msgstr "Əvvəlcədən"
 
 msgid "Gəlməyib"
 msgstr "Gəlməyib"
 
 msgid "Filter"
-msgstr "Filter"
+msgstr "Filtr"
 
 msgid "Access"
-msgstr "Access"
+msgstr "Keçid"
 
 msgid "Check-in"
-msgstr "Check-in"
+msgstr "İçəri al"
 
 msgid "ID qəbul"
-msgstr "ID qəbul"
+msgstr "Vəsiqə qəbulu"
 
 msgid "Vəsiqə saxlanıldı (kart verildi)"
 msgstr "Vəsiqə saxlanıldı (kart verildi)"
@@ -539,10 +539,10 @@ msgid "Çıxış edib"
 msgstr "Çıxış edib"
 
 msgid "Parties"
-msgstr "Parties"
+msgstr "Tərəflər"
 
 msgid "Export CSV"
-msgstr "Export CSV"
+msgstr "CSV ixrac"
 
 msgid "Bu tarix üçün qonaq yoxdur."
 msgstr "Bu tarix üçün qonaq yoxdur."
@@ -551,22 +551,421 @@ msgid "Uyğun qonaq tapılmadı."
 msgstr "Uyğun qonaq tapılmadı."
 
 msgid "Qonaq / seriya / şirkət / host…"
-msgstr "Qonaq / seriya / şirkət / host…"
+msgstr "Qonaq / seriya / şirkət / qarşılayan…"
 
 msgid "Şirkət axtar…"
 msgstr "Şirkət axtar…"
 
 msgid "Host axtar…"
-msgstr "Host axtar…"
+msgstr "Qarşılayan axtar…"
 
 msgid "Şirkət tapılmadı"
 msgstr "Şirkət tapılmadı"
 
 msgid "Host tapılmadı"
-msgstr "Host tapılmadı"
+msgstr "Qarşılayan tapılmadı"
 
 msgid "qonaq"
 msgstr "qonaq"
 
 msgid "Jurnal"
 msgstr "Jurnal"
+
+msgid "Queue"
+msgstr "Növbə"
+
+msgid "Queue (istəyə bağlı)"
+msgstr "Növbə (istəyə bağlı)"
+
+msgid "Şöbə / Queue"
+msgstr "Şöbə / Növbə"
+
+msgid "Yeni ticket"
+msgstr "Yeni müraciət"
+
+msgid "Ticket"
+msgstr "Müraciət"
+
+msgid "İş sifarişi yoxdur. Ticketdən yaradın."
+msgstr "İş sifarişi yoxdur. Müraciətdən yaradın."
+
+msgid "Events sync OK"
+msgstr "Hadisələr sinxrondur"
+
+msgid "Events sync stale / yoxdur — poller yoxlayın"
+msgstr "Hadisə sinxronu köhnəlib və ya yoxdur — sinxron prosesini yoxlayın"
+
+msgid "AxTrax sync"
+msgstr "AxTrax sinxronu"
+
+msgid "cursor"
+msgstr "sinxron mövqeyi"
+
+msgid "last sync"
+msgstr "son sinxron"
+
+msgid "last event"
+msgstr "son hadisə"
+
+msgid "Səviyyə AxTraxNG access group-dan oxunur (əl ilə dəyişilmir)."
+msgstr "Səviyyə AxTraxNG keçid qrupundan oxunur (əl ilə dəyişilmir)."
+
+msgid "Occupancy %"
+msgstr "Doluluq %"
+
+msgid "Vacant m²"
+msgstr "Boş sahə, m²"
+
+msgid "CRM new leads"
+msgstr "Yeni CRM müraciətləri"
+
+msgid "Low stock"
+msgstr "Az qalıq"
+
+msgid "Low stock:"
+msgstr "Az qalıq:"
+
+msgid "Receivables"
+msgstr "Debitor borclar"
+
+msgid "Warehouse"
+msgstr "Anbar"
+
+msgid "Procurement"
+msgstr "Satınalma"
+
+msgid "Purchase Requests"
+msgstr "Satınalma sorğuları"
+
+msgid "Purchase Orders"
+msgstr "Satınalma sifarişləri"
+
+msgid "Stock"
+msgstr "Anbar qalığı"
+
+msgid "Leases"
+msgstr "İcarələr"
+
+msgid "Party"
+msgstr "Tərəf"
+
+msgid "Lease yoxdur."
+msgstr "İcarə yoxdur."
+
+msgid "CRM Leads"
+msgstr "CRM müraciətləri"
+
+msgid "Lead yoxdur."
+msgstr "Müraciət yoxdur."
+
+msgid "CRM Offers"
+msgstr "CRM təklifləri"
+
+msgid "Offers"
+msgstr "Təkliflər"
+
+msgid "Offer yoxdur."
+msgstr "Təklif yoxdur."
+
+msgid "Lease"
+msgstr "İcarə"
+
+msgid "Flags"
+msgstr "Göstəricilər"
+
+msgid "Activate"
+msgstr "Aktiv et"
+
+msgid "Terminate"
+msgstr "Xitam ver"
+
+msgid "Accounting"
+msgstr "Mühasibat"
+
+msgid "Chart of Accounts"
+msgstr "Hesablar planı"
+
+msgid "Journal"
+msgstr "Jurnal"
+
+msgid "Posted"
+msgstr "Köçürülüb"
+
+msgid "Invoices"
+msgstr "Fakturalar"
+
+msgid "Charges"
+msgstr "Ödənişlər"
+
+msgid "Maintenance"
+msgstr "Texniki xidmət"
+
+msgid "Reception"
+msgstr "Qəbul"
+
+msgid "Property / FM"
+msgstr "Əmlak / FM"
+
+msgid "Vacant"
+msgstr "Boş"
+
+msgid "Reserved"
+msgstr "Rezerv"
+
+msgid "Contracted"
+msgstr "Müqaviləli"
+
+msgid "Available"
+msgstr "Hazır"
+
+msgid "Blocked"
+msgstr "Dayandırılıb"
+
+msgid "Resident"
+msgstr "Rezident"
+
+msgid "Employee"
+msgstr "Əməkdaş"
+
+msgid "Visitor"
+msgstr "Qonaq"
+
+msgid "Temporary"
+msgstr "Müvəqqəti"
+
+msgid "Electric"
+msgstr "Elektrik"
+
+msgid "Water"
+msgstr "Su"
+
+msgid "Gas"
+msgstr "Qaz"
+
+msgid "Other"
+msgstr "Digər"
+
+msgid "Low"
+msgstr "Aşağı"
+
+msgid "High"
+msgstr "Yüksək"
+
+msgid "Daily"
+msgstr "Gündəlik"
+
+msgid "Weekly"
+msgstr "Həftəlik"
+
+msgid "Monthly"
+msgstr "Aylıq"
+
+msgid "Quarterly"
+msgstr "Rüblük"
+
+msgid "Yearly"
+msgstr "İllik"
+
+msgid "Meter"
+msgstr "Sayğac"
+
+msgid "Material"
+msgstr "Material"
+
+msgid "Draft"
+msgstr "Qaralama"
+
+msgid "Submitted"
+msgstr "Göndərilib"
+
+msgid "Approved"
+msgstr "Təsdiqlənib"
+
+msgid "Rejected"
+msgstr "Rədd edilib"
+
+msgid "Ordered"
+msgstr "Sifariş edilib"
+
+msgid "Manual"
+msgstr "Əl ilə"
+
+msgid "Work order"
+msgstr "İş sifarişi"
+
+msgid "Department"
+msgstr "Şöbə"
+
+msgid "Sent"
+msgstr "Göndərilib"
+
+msgid "Partial"
+msgstr "Qismən"
+
+msgid "Received"
+msgstr "Qəbul edilib"
+
+msgid "Closed"
+msgstr "Bağlanıb"
+
+msgid "Cancelled"
+msgstr "Ləğv edilib"
+
+msgid "Receipt"
+msgstr "Mədaxil"
+
+msgid "Issue"
+msgstr "Məxaric"
+
+msgid "Return"
+msgstr "Qaytarma"
+
+msgid "Transfer"
+msgstr "Köçürmə"
+
+msgid "Adjustment"
+msgstr "Düzəliş"
+
+msgid "Reservation"
+msgstr "Rezerv"
+
+msgid "Release"
+msgstr "Buraxılış"
+
+msgid "Rent"
+msgstr "İcarə"
+
+msgid "Service charge"
+msgstr "Xidmət haqqı"
+
+msgid "Parking"
+msgstr "Parkinq"
+
+msgid "Utility"
+msgstr "Kommunal"
+
+msgid "Additional"
+msgstr "Əlavə"
+
+msgid "Penalty"
+msgstr "Cərimə"
+
+msgid "Issued"
+msgstr "Verilib"
+
+msgid "Paid"
+msgstr "Ödənilib"
+
+msgid "Void"
+msgstr "Ləğv"
+
+msgid "Overdue"
+msgstr "Gecikmiş"
+
+msgid "Negotiation"
+msgstr "Danışıq"
+
+msgid "Signed"
+msgstr "İmzalanıb"
+
+msgid "Expiring"
+msgstr "Bitmək üzrə"
+
+msgid "Renewed"
+msgstr "Uzadılıb"
+
+msgid "Amended"
+msgstr "Dəyişdirilib"
+
+msgid "Terminated"
+msgstr "Xitam verilib"
+
+msgid "Website"
+msgstr "Vebsayt"
+
+msgid "Phone"
+msgstr "Telefon"
+
+msgid "Email"
+msgstr "E-poçt"
+
+msgid "Walk-in"
+msgstr "Birbaşa gəliş"
+
+msgid "Referral"
+msgstr "Tövsiyə"
+
+msgid "New"
+msgstr "Yeni"
+
+msgid "Qualified"
+msgstr "Uyğun"
+
+msgid "Disqualified"
+msgstr "Uyğun deyil"
+
+msgid "Converted"
+msgstr "Çevrilib"
+
+msgid "Open"
+msgstr "Açıq"
+
+msgid "Won"
+msgstr "Qazanılıb"
+
+msgid "Lost"
+msgstr "İtirilib"
+
+msgid "Accepted"
+msgstr "Qəbul edilib"
+
+msgid "Asset"
+msgstr "Aktiv"
+
+msgid "Liability"
+msgstr "Öhdəlik"
+
+msgid "Equity"
+msgstr "Kapital"
+
+msgid "Revenue"
+msgstr "Gəlir"
+
+msgid "Expense"
+msgstr "Xərc"
+
+msgid "Prospect"
+msgstr "Potensial"
+
+msgid "Document version"
+msgstr "Sənəd versiyası"
+
+msgid "Dead-letter"
+msgstr "Çatdırılmayan"
+
+msgid "Notice"
+msgstr "Xəbərdarlıq"
+
+msgid "Active"
+msgstr "Aktiv"
+
+msgid "Viewer"
+msgstr "Baxış"
+
+msgid "Edit mode"
+msgstr "Redaktə rejimi"
+
+msgid "Reset zoom"
+msgstr "Miqyası sıfırla"
+
+msgid "Pan: sürüklə · Zoom: scroll · Pinlər SVG ilə birlikdə hərəkət edir"
+msgstr "Sürüşdür: sürüklə · Miqyas: diyirlət · Nişanlar SVG ilə birlikdə hərəkət edir"
+
+msgid "Event"
+msgstr "Hadisə"
+
+msgid "Qonaqlar (reception)"
+msgstr "Qonaqlar (qəbul)"
+
+msgid "Oxuyucu ID"
+msgstr "Oxuyucu nömrəsi"

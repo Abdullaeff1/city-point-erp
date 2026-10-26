@@ -15,7 +15,13 @@ from apps.accounts.models import Role, User
 from apps.core.services import DomainError
 from apps.documents.models import Document
 from apps.erp.forms import GuestVisitForm, StaffTicketForm
-from apps.property.models import Floor, Space
+from apps.property.models import (
+    BuildingAsset,
+    BuildingAssetCategory,
+    Floor,
+    Space,
+    add_one_month,
+)
 from apps.reception.guest_list_import import (
     PREVIEW_SESSION_KEY,
     commit_guest_list,
@@ -256,21 +262,29 @@ class ReceptionView(RoleRequiredMixin, FormView):
         status = self.request.GET.get("status", "")
         company_id = self.request.GET.get("company") or ""
         id_not_returned = self.request.GET.get("id_not_returned") == "1"
-        day_base = today_visits_queryset(selected_date)
-        # "İçəridə indi" = bu gün hələ içəridə olanlar.
+        export_preset, export_from, export_to = access_range_bounds(
+            self.request, default_preset="today"
+        )
+        journal_single_day = export_from == export_to
+        range_base = visits_queryset_for_range(export_from, export_to).order_by(
+            "-scheduled_for", "-check_in_at", "-created_at"
+        )
+        # "İçəridə indi" = seçilmiş gün hələ içəridə olanlar.
         # "24+ saat" = köhnə / uzun müddət bağlanmamış INSIDE qeydləri.
         if status == "inside_overdue":
             base = inside_overdue_queryset()
         elif status == "id_pending":
             base = id_pending_queryset()
-        elif status == "inside":
+        elif status == "inside" and journal_single_day:
             base = (
-                today_visits_queryset(selected_date)
+                today_visits_queryset(export_from)
                 .filter(status=VisitStatus.INSIDE)
                 .order_by("check_in_at", "created_at")
             )
+        elif status == "inside":
+            base = range_base.filter(status=VisitStatus.INSIDE)
         else:
-            base = day_base
+            base = range_base
         visits = filter_visits(
             base,
             q=q,
@@ -281,9 +295,6 @@ class ReceptionView(RoleRequiredMixin, FormView):
         can_sensitive = user_has_permission(self.request.user, "reception.view_sensitive_data")
         can_override = user_has_permission(self.request.user, "reception.override_id")
         can_export = user_has_permission(self.request.user, "reception.export")
-        export_preset, export_from, export_to = access_range_bounds(
-            self.request, default_preset="today"
-        )
         can_create_visit = user_has_permission(self.request.user, "reception.create_visit")
         guest_edits = []
         if can_create_visit:
@@ -313,12 +324,12 @@ class ReceptionView(RoleRequiredMixin, FormView):
             "inside": inside_today_count,
             "inside_overdue": inside_overdue_count,
             "today": today_visits_queryset(today).count(),
-            "day_total": day_base.count(),
+            "day_total": range_base.count(),
             "waiting": today_visits_queryset(today).filter(
                 status__in=[VisitStatus.WAITING, VisitStatus.PRE_REGISTERED]
             ).count(),
-            "checked_out": day_base.filter(status=VisitStatus.LEFT).count(),
-            "no_show": day_base.filter(status=VisitStatus.NO_SHOW).count(),
+            "checked_out": range_base.filter(status=VisitStatus.LEFT).count(),
+            "no_show": range_base.filter(status=VisitStatus.NO_SHOW).count(),
             "id_pending": id_pending_queryset().count(),
         }
         ctx.update(
@@ -342,13 +353,18 @@ class ReceptionView(RoleRequiredMixin, FormView):
                 "can_export": can_export,
                 "mask_fin": mask_fin,
                 "today": today,
-                "selected_date": selected_date,
-                "is_today": selected_date == today,
+                "selected_date": export_from if export_preset == "today" else selected_date,
+                "is_today": journal_single_day and export_from == today,
+                "journal_single_day": journal_single_day,
+                "show_visit_date": (not journal_single_day) or status in {"inside", "inside_overdue"},
                 "export_preset": export_preset,
                 "export_from": export_from,
                 "export_to": export_to,
                 "list_imports": (
-                    GuestListImport.objects.filter(scheduled_for=selected_date)
+                    GuestListImport.objects.filter(
+                        scheduled_for__gte=export_from,
+                        scheduled_for__lte=export_to,
+                    )
                     .select_related("company")
                     .annotate(
                         guest_count=Count("visits"),
@@ -438,7 +454,7 @@ class ReceptionStatusView(RoleRequiredMixin, View):
                     id_override_reason=request.POST.get("id_override_reason") or "",
                     allow_id_override=allow_override,
                 )
-                messages.success(request, "Check-in tamamlandı.")
+                messages.success(request, "İçəri alma tamamlandı.")
             elif action == "checkout":
                 if not user_has_permission(request.user, "reception.check_out"):
                     raise PermissionDenied()
@@ -457,7 +473,7 @@ class ReceptionStatusView(RoleRequiredMixin, View):
                 messages.success(request, "Ziyarət ləğv edildi.")
             elif action == "no_show":
                 ReceptionService.mark_no_show(visit, actor=request.user)
-                messages.success(request, "No-show qeydə alındı.")
+                messages.success(request, "Gəlmədi qeydə alındı.")
         except DomainError as exc:
             messages.error(request, str(exc))
         return redirect("erp:reception")
@@ -749,7 +765,7 @@ class TicketCreateView(RoleRequiredMixin, FormView):
             {
                 "id": space.pk,
                 "company_id": space.resident_id,
-                "name": space.code if not space.name else f"{space.code} · {space.name}",
+                "name": space.area_code,
             }
             for space in form.fields["space"].queryset
         ]
@@ -885,7 +901,7 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
                     queue_id=request.POST.get("queue") or None,
                     note=request.POST.get("note", "").strip(),
                 )
-                messages.success(request, "Ticket digər şöbəyə yönləndirildi.")
+                messages.success(request, "Müraciət digər şöbəyə yönləndirildi.")
             elif action == "create_wo":
                 wo = create_work_order_from_ticket(
                     ticket,
@@ -931,6 +947,120 @@ class SpaceListView(RoleRequiredMixin, ListView):
             }
         )
         return ctx
+
+
+class BuildingAssetListView(RoleRequiredMixin, TemplateView):
+    template_name = "erp/building_assets.html"
+    allowed_roles = (Role.PROPERTY_FM, Role.SERVICE_DESK)
+
+    def get(self, request, *args, **kwargs):
+        if request.GET.get("template") == "1":
+            from apps.property.asset_import import asset_template_response
+
+            return asset_template_response()
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        from apps.property.asset_import import SESSION_KEY
+
+        ctx = super().get_context_data(**kwargs)
+        ctx["assets"] = BuildingAsset.objects.select_related("floor").filter(is_active=True)
+        ctx["floors"] = Floor.objects.order_by("code")
+        ctx["categories"] = BuildingAssetCategory.choices
+        ctx["today"] = timezone.localdate()
+        ctx["import_preview"] = self.request.session.get(SESSION_KEY) or []
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get("action") or ""
+        if action in {"import", "import_save", "import_cancel"}:
+            return self._import_post(request, action)
+        if action == "update":
+            asset = get_object_or_404(BuildingAsset, pk=request.POST.get("asset_id"), is_active=True)
+            if not (request.POST.get("name") or "").strip():
+                messages.error(request, "Ad yazılmayıb.")
+                return redirect("erp:building_assets")
+            asset.name = request.POST.get("name").strip()
+            asset.location = (request.POST.get("location") or "").strip()
+            asset.last_inspected_on = parse_date(request.POST.get("last_inspected_on"), None)
+            posted_next = parse_date(request.POST.get("next_inspection_on"), None)
+            if posted_next:
+                asset.next_inspection_on = posted_next
+            elif asset.last_inspected_on:
+                asset.next_inspection_on = add_one_month(asset.last_inspected_on)
+            else:
+                asset.next_inspection_on = None
+            asset.save()
+            messages.success(request, "Avadanlıq yeniləndi.")
+            return redirect("erp:building_assets")
+        if not (request.POST.get("name") or "").strip():
+            messages.error(request, "Ad yazılmayıb.")
+            return redirect("erp:building_assets")
+        asset = BuildingAsset(name=request.POST.get("name").strip())
+        self._apply_new(asset, request.POST)
+        asset.save()
+        messages.success(request, "Avadanlıq əlavə olundu.")
+        return redirect("erp:building_assets")
+
+    def _apply_new(self, asset, data):
+        asset.code = (data.get("code") or "").strip()
+        category = data.get("category") or BuildingAssetCategory.OTHER
+        if category in BuildingAssetCategory.values:
+            asset.category = category
+        floor_id = (data.get("floor") or "").strip()
+        asset.floor = Floor.objects.filter(pk=floor_id).first() if floor_id else None
+        asset.location = (data.get("location") or "").strip()
+        try:
+            asset.quantity = max(1, int(data.get("quantity") or 1))
+        except (TypeError, ValueError):
+            asset.quantity = 1
+        asset.notes = (data.get("notes") or "").strip()
+        asset.last_inspected_on = parse_date(data.get("last_inspected_on"), None)
+        posted_next = parse_date(data.get("next_inspection_on"), None)
+        if posted_next:
+            asset.next_inspection_on = posted_next
+        elif asset.last_inspected_on:
+            asset.next_inspection_on = add_one_month(asset.last_inspected_on)
+
+    def _import_post(self, request, action):
+        from apps.property.asset_import import (
+            SESSION_KEY,
+            commit_asset_rows,
+            parse_asset_file,
+            preview_rows,
+        )
+
+        if action == "import_cancel":
+            request.session.pop(SESSION_KEY, None)
+            return redirect("erp:building_assets")
+        if action == "import_save":
+            rows = request.session.get(SESSION_KEY) or []
+            if not rows:
+                messages.error(request, "Yazılacaq sətir yoxdur.")
+                return redirect("erp:building_assets")
+            created, updated = commit_asset_rows(rows)
+            request.session.pop(SESSION_KEY, None)
+            messages.success(request, f"Əlavə olundu: {created}. Yeniləndi: {updated}.")
+            return redirect("erp:building_assets")
+        uploaded = request.FILES.get("asset_file")
+        if not uploaded:
+            messages.error(request, "Fayl seçilməyib.")
+            return redirect("erp:building_assets")
+        try:
+            parsed = parse_asset_file(uploaded)
+            rows = preview_rows(parsed, Floor.objects.order_by("code"))
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect("erp:building_assets")
+        except Exception:
+            messages.error(request, "Fayl oxunmadı. Excel (.xlsx) və ya Word (.docx) göndərin.")
+            return redirect("erp:building_assets")
+        if not rows:
+            messages.error(request, "Faylda avadanlıq adı tapılmadı.")
+            return redirect("erp:building_assets")
+        request.session[SESSION_KEY] = rows
+        request.session.modified = True
+        return redirect("erp:building_assets")
 
 
 class SpaceDetailView(RoleRequiredMixin, TemplateView):
@@ -1384,7 +1514,7 @@ class InternalStaffAccessDetailView(RoleRequiredMixin, TemplateView):
 
 
 class AuditLogView(StaffRequiredMixin, TemplateView):
-    """Staff actions grouped by role. Real admin only, including role preview."""
+    """Staff actions in one timeline. Real admin only, including role preview."""
 
     template_name = "erp/audit.html"
 
@@ -1403,14 +1533,18 @@ class AuditLogView(StaffRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         from apps.audit.models import AuditLog
-        from apps.audit.present import audit_sections
+        from apps.audit.present import ROLE_ORDER, audit_rows, role_choices
 
         ctx = super().get_context_data(**kwargs)
-        logs = AuditLog.objects.select_related("actor").order_by("-created_at")[:500]
-        highlight = None
-        if is_impersonating(self.request) and self.request.user.role != Role.ADMIN:
-            highlight = self.request.user.role
-        ctx["sections"] = audit_sections(logs, highlight_role=highlight)
+        selected = (self.request.GET.get("role") or "").strip()
+        if selected not in ROLE_ORDER:
+            selected = ""
+        logs = AuditLog.objects.select_related("actor").order_by("-created_at")
+        if selected:
+            logs = logs.filter(actor__role=selected)
+        ctx["rows"] = audit_rows(list(logs[:500]))
+        ctx["role"] = selected
+        ctx["role_choices"] = role_choices()
         return ctx
 
 
@@ -1498,13 +1632,13 @@ class LeaseDetailView(StaffRequiredMixin, TemplateView):
         action = request.POST.get("action")
         if action == "activate":
             activate_lease(lease, actor=request.user)
-            messages.success(request, "Lease aktivləşdirildi.")
+            messages.success(request, "İcarə aktivləşdirildi.")
         elif action == "terminate":
             terminate_lease(lease, actor=request.user)
-            messages.success(request, "Lease dayandırıldı.")
+            messages.success(request, "İcarə dayandırıldı.")
         elif action == "generate_charges":
             stats = generate_monthly_lease_charges()
-            messages.success(request, f"Charges: created={stats['created']} skipped={stats['skipped']}")
+            messages.success(request, f"Ödənişlər: yaradıldı={stats['created']} keçildi={stats['skipped']}")
         return redirect("erp:lease_detail", code=lease.code)
 
 
@@ -1525,10 +1659,10 @@ class CrmLeadListView(StaffRequiredMixin, ListView):
         action = request.POST.get("action")
         if action == "qualify":
             CrmService.qualify_lead(lead)
-            messages.success(request, "Lead qualified.")
+            messages.success(request, "Potensial müştəri uyğun sayıldı.")
         elif action == "opportunity":
             opp = CrmService.create_opportunity_from_lead(lead)
-            messages.success(request, f"Opportunity #{opp.pk} yaradıldı.")
+            messages.success(request, f"Fürsət #{opp.pk} yaradıldı.")
         return redirect("erp:crm_leads")
 
 
@@ -1548,7 +1682,7 @@ class CrmOfferListView(StaffRequiredMixin, ListView):
         offer = get_object_or_404(Offer, pk=request.POST.get("offer_id"))
         if request.POST.get("action") == "to_lease":
             lease = CrmService.accept_offer_to_lease(offer)
-            messages.success(request, f"Lease draft: {lease.code}")
+            messages.success(request, f"İcarə qaralaması: {lease.code}")
             return redirect("erp:lease_detail", code=lease.code)
         return redirect("erp:crm_offers")
 
@@ -1670,7 +1804,7 @@ class ProcurementListView(StaffRequiredMixin, TemplateView):
             po = get_object_or_404(PurchaseOrder, pk=request.POST.get("po_id"))
             wh = Warehouse.objects.first()
             if not wh:
-                messages.error(request, "Warehouse yoxdur")
+                messages.error(request, "Anbar yoxdur")
             else:
                 ProcurementService.receive_po(po, warehouse=wh, actor=request.user)
                 messages.success(request, f"{po.code} qəbul edildi")
@@ -1696,7 +1830,7 @@ class BillingListView(StaffRequiredMixin, TemplateView):
         action = request.POST.get("action")
         if action == "generate_lease_charges":
             stats = generate_monthly_lease_charges()
-            messages.success(request, f"Lease charges: {stats}")
+            messages.success(request, f"İcarə ödənişləri: {stats}")
         elif action == "invoice_party":
             party_id = request.POST.get("party_id")
             ids = list(
@@ -1707,10 +1841,28 @@ class BillingListView(StaffRequiredMixin, TemplateView):
 
                 party = get_object_or_404(Party, pk=party_id)
                 inv = generate_invoice_from_charges(party, ids)
-                messages.success(request, f"Invoice {inv.code}")
+                messages.success(request, f"Faktura {inv.code}")
             else:
-                messages.warning(request, "Uninvoiced charge yoxdur")
+                messages.warning(request, "Fakturasız ödəniş yoxdur")
         return redirect("erp:billing")
+
+
+class NotificationListView(StaffRequiredMixin, TemplateView):
+    template_name = "erp/alerts.html"
+
+    def get(self, request, *args, **kwargs):
+        from apps.comms.models import Notification
+
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        from apps.comms.links import user_notifications
+
+        ctx = super().get_context_data(**kwargs)
+        ctx["notifications"] = user_notifications(self.request.user, namespace="erp")
+        ctx["unread_alerts"] = 0
+        return ctx
 
 
 class AccountingListView(StaffRequiredMixin, TemplateView):

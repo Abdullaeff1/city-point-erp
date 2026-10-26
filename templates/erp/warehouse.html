@@ -1,10 +1,10 @@
 {% extends "erp/base.html" %}
-{% load l10n %}
-{% block page_title %}Warehouse{% endblock %}
-{% block heading %}Warehouse{% endblock %}
+{% load i18n l10n %}
+{% block page_title %}{% translate "Warehouse" %}{% endblock %}
+{% block heading %}{% translate "Warehouse" %}{% endblock %}
 {% block content %}
 {% if low_stock %}
-<div class="badge badge-urgent mb-4" style="display:block;padding:10px 12px;border-radius:10px;">Low stock: {{ low_stock|length }}</div>
+<div class="badge badge-urgent mb-4" style="display:block;padding:10px 12px;border-radius:10px;">{% translate "Low stock:" %} {{ low_stock|length }}</div>
 {% endif %}
 {% if open_issues %}
 <div class="cp-card p-card mb-4">
@@ -36,7 +36,7 @@
 {% endif %}
 <div class="grid gap-4" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
   <div class="cp-card p-card">
-    <h3 class="cp-section">Stock</h3>
+    <h3 class="cp-section">{% translate "Stock" %}</h3>
     <table class="cp-table">
       <thead><tr><th>SKU</th><th>Anbar</th><th>Miqdar</th></tr></thead>
       <tbody>

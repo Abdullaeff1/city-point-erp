@@ -34,7 +34,7 @@ services:
       TURNSTILE_MSSQL_USER: ${TURNSTILE_MSSQL_USER:-ReadOnlyerp}
       TURNSTILE_MSSQL_PASSWORD: ${TURNSTILE_MSSQL_PASSWORD:-}
     ports:
-      - "8222:8000"
+      - "3001:8000"
     volumes:
       - ../..:/app
       - citypoint_media:/app/media

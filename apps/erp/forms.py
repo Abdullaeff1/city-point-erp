@@ -165,6 +165,7 @@ class PortalTicketForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["category"].queryset = TicketCategory.objects.filter(is_active=True)
         self.fields["space"].required = False
+        self.fields["description"].required = False
         self.fields["ticket_type"].initial = TicketType.INCIDENT
 
         category_id = None
@@ -191,15 +192,9 @@ class PortalTicketForm(forms.ModelForm):
         category = cleaned.get("category")
         subcategory = cleaned.get("subcategory")
         description = (cleaned.get("description") or "").strip()
+        cleaned["description"] = description
         if subcategory and category and subcategory.category_id != category.id:
             self.add_error("subcategory", _("Alt kateqoriya seçilmiş kateqoriyaya aid deyil."))
-        if subcategory and subcategory.requires_description_min:
-            if len(description) < subcategory.requires_description_min:
-                self.add_error(
-                    "description",
-                    _("Digər seçimində ən az %(n)s simvol yazın.")
-                    % {"n": subcategory.requires_description_min},
-                )
         return cleaned
 
 

@@ -1,11 +1,11 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
-{% block page_title %}Leases{% endblock %}
-{% block heading %}Leases{% endblock %}
+{% block page_title %}{% translate "Leases" %}{% endblock %}
+{% block heading %}{% translate "Leases" %}{% endblock %}
 {% block content %}
 <div class="cp-card">
   <table class="cp-table">
-    <thead><tr><th>Kod</th><th>Party</th><th>Sahə</th><th>Status</th><th>Kirayə</th><th>Müddət</th></tr></thead>
+    <thead><tr><th>Kod</th><th>{% translate "Party" %}</th><th>Sahə</th><th>Status</th><th>Kirayə</th><th>Müddət</th></tr></thead>
     <tbody>
       {% for lease in leases %}
       <tr>
@@ -17,7 +17,7 @@
         <td>{{ lease.start_date|default:"—" }} → {{ lease.end_date|default:"—" }}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="6">Lease yoxdur.</td></tr>
+      <tr><td colspan="6">{% translate "Lease yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

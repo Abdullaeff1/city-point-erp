@@ -1,10 +1,11 @@
 {% extends "erp/base.html" %}
-{% block page_title %}CRM Leads{% endblock %}
-{% block heading %}CRM Leads{% endblock %}
+{% load i18n %}
+{% block page_title %}{% translate "CRM Leads" %}{% endblock %}
+{% block heading %}{% translate "CRM Leads" %}{% endblock %}
 {% block content %}
 <div class="cp-card">
   <table class="cp-table">
-    <thead><tr><th>Ad</th><th>Email</th><th>Mənbə</th><th>Status</th><th>Sahə</th><th>Tarix</th></tr></thead>
+    <thead><tr><th>Ad</th><th>{% translate "Email" %}</th><th>Mənbə</th><th>Status</th><th>Sahə</th><th>Tarix</th></tr></thead>
     <tbody>
       {% for lead in leads %}
       <tr>
@@ -15,7 +16,7 @@
         <td>{{ lead.interested_space.code|default:"—" }}</td>
         <td>{{ lead.created_at|date:"d.m.Y H:i" }}</td>
       </tr>
-      {% empty %}<tr><td colspan="6">Lead yoxdur.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="6">{% translate "Lead yoxdur." %}</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

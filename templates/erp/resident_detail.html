@@ -68,6 +68,6 @@
 <div class="cp-card p-card">
   <p>{{ company.get_status_display }} · {% translate "Portal" %} {% if company.portal_active %}{% translate "aktiv" %}{% else %}{% translate "bağlı" %}{% endif %}</p>
   <p class="cp-meta">{{ company.contact_email }} · {{ company.contract_start|date:"Y" }}–{{ company.contract_end|date:"Y" }}</p>
-  {% for s in spaces %}<p><a href="{% url 'erp:space_detail' s.code %}">{{ s.code }}</a></p>{% endfor %}
+  {% for s in spaces %}<p><a href="{% url 'erp:space_detail' s.code %}">{{ s.area_code }}</a></p>{% endfor %}
 </div>
 {% endblock %}

@@ -36,6 +36,7 @@ def action_label(action: str) -> str:
         "TicketResolved": _("Ticket həll etdi"),
         "VisitorCheckedIn": _("Qəbul etdi"),
         "VisitorCheckedOut": _("Çıxış etdirdi"),
+        "lease.activated": _("İcarəni aktivləşdirdi"),
         "LeaseActivated": _("İcarəni aktivləşdirdi"),
         "LeaseTerminated": _("İcarəni dayandırdı"),
         "ApprovalRequested": _("Təsdiq istədi"),
@@ -82,37 +83,26 @@ def _role_label(role: str) -> str:
         return role or _("Digər")
 
 
-def audit_sections(logs, *, highlight_role: str | None = None):
-    rows_by_role: dict[str, list] = {}
+def role_choices():
+    return [(role, _role_label(role)) for role in ROLE_ORDER]
+
+
+def audit_rows(logs):
+    """One timeline. Caller already limited and, when asked, filtered by role."""
+    rows = []
     for log in visible_logs(logs):
         role = getattr(log.actor, "role", None) or ""
         actor = log.actor
-        rows_by_role.setdefault(role, []).append(
+        rows.append(
             {
                 "at": log.created_at,
+                "role": role,
+                "role_label": _role_label(role) if role else _("Digər"),
                 "actor": actor.display_name if actor else "—",
                 "email": actor.email if actor else "",
                 "action": action_label(log.action),
                 "object": object_label(log),
             }
         )
-
-    ordered = [role for role in ROLE_ORDER if role in rows_by_role]
-    ordered.extend(role for role in rows_by_role if role not in ordered)
-    if highlight_role and highlight_role in ordered:
-        ordered.remove(highlight_role)
-        ordered.insert(0, highlight_role)
-    elif highlight_role and highlight_role not in rows_by_role:
-        ordered.insert(0, highlight_role)
-
-    sections = []
-    for role in ordered:
-        sections.append(
-            {
-                "role": role,
-                "label": _role_label(role) if role else _("Digər"),
-                "highlighted": role == highlight_role,
-                "rows": rows_by_role.get(role, []),
-            }
-        )
-    return sections
+    rows.sort(key=lambda row: row["at"], reverse=True)
+    return rows

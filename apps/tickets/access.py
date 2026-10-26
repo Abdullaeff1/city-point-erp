@@ -65,9 +65,8 @@ def can_access_ticket_attachment(user, ticket) -> bool:
 
 
 def can_handoff_ticket(user, ticket) -> bool:
-    if not can_view_all_tickets(user):
-        return False
-    return ticket is not None
+    """The department that holds the ticket, and leadership, may send it elsewhere."""
+    return can_mutate_ticket(user, ticket)
 
 
 def department_assignees(ticket) -> QuerySet[User]:

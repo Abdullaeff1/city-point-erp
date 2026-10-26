@@ -1,10 +1,11 @@
 {% extends "erp/base.html" %}
-{% block page_title %}Offers{% endblock %}
-{% block heading %}CRM Offers{% endblock %}
+{% load i18n %}
+{% block page_title %}{% translate "Offers" %}{% endblock %}
+{% block heading %}{% translate "CRM Offers" %}{% endblock %}
 {% block content %}
 <div class="cp-card">
   <table class="cp-table">
-    <thead><tr><th>Party</th><th>Sahə</th><th>Status</th><th>Kirayə</th><th>Lease</th></tr></thead>
+    <thead><tr><th>{% translate "Party" %}</th><th>Sahə</th><th>Status</th><th>Kirayə</th><th>{% translate "Lease" %}</th></tr></thead>
     <tbody>
       {% for offer in offers %}
       <tr>
@@ -14,7 +15,7 @@
         <td>{{ offer.rent_amount }}</td>
         <td>{% if offer.lease %}<a href="{% url 'erp:lease_detail' offer.lease.code %}">{{ offer.lease.code }}</a>{% else %}—{% endif %}</td>
       </tr>
-      {% empty %}<tr><td colspan="5">Offer yoxdur.</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="5">{% translate "Offer yoxdur." %}</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

@@ -646,6 +646,35 @@ class ReceptionExcelExportTests(TestCase):
         self.assertIn("Bu həftə", body)
         self.assertIn("Bu ay", body)
         self.assertIn("Tarix aralığı", body)
+        panel = body.split('id="journal-panel"', 1)[1]
+        self.assertIn("Günlük", panel)
+        self.assertIn("Bu həftə", panel)
+        self.assertIn("range=week", panel)
+
+    def test_journal_period_filters_visits(self):
+        from datetime import timedelta
+
+        past = self.today - timedelta(days=10)
+        ReceptionService.register_walk_in(
+            fin_code="",
+            first_name="Köhnə",
+            last_name="Qonaq",
+            company=self.company,
+            visit_type=self.vtype,
+            id_document_held=False,
+            actor=self.user,
+        )
+        from apps.reception.models import GuestVisit
+
+        GuestVisit.objects.filter(guest__last_name="Qonaq").update(scheduled_for=past)
+        today_page = self.client.get(reverse("erp:reception")).content.decode()
+        self.assertIn("Kuryer Test", today_page)
+        self.assertNotIn("Köhnə Qonaq", today_page)
+        ranged = self.client.get(
+            reverse("erp:reception") + f"?range=custom&from={past.isoformat()}&to={past.isoformat()}"
+        ).content.decode()
+        self.assertIn("Köhnə Qonaq", ranged)
+        self.assertNotIn("Kuryer Test", ranged.split('id="journal-panel"', 1)[1])
 
 
 class GuestListImportTests(TestCase):

@@ -28,7 +28,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         building, _ = Building.objects.get_or_create(code="CP", defaults={"name": "City Point Business Center"})
-        f08, _ = Floor.objects.get_or_create(building=building, code="F08", defaults={"name": "8-ci mərtəbə"})
+        Floor.objects.get_or_create(building=building, code="F08", defaults={"name": "8-ci mərtəbə"})
+        f10, _ = Floor.objects.get_or_create(building=building, code="F10", defaults={"name": "10-cu mərtəbə"})
         f05, _ = Floor.objects.get_or_create(building=building, code="F05", defaults={"name": "5-ci mərtəbə"})
         f03, _ = Floor.objects.get_or_create(building=building, code="F03", defaults={"name": "3-cü mərtəbə"})
         f01, _ = Floor.objects.get_or_create(building=building, code="F01", defaults={"name": "1-ci mərtəbə"})
@@ -54,22 +55,28 @@ class Command(BaseCommand):
             },
         )
 
-        space801, _ = Space.objects.update_or_create(
+        space801, created = Space.objects.update_or_create(
             code="CP-F08-OFF-801",
             defaults={
                 "name": "801",
-                "floor": f08,
+                "floor": f10,
                 "resident": asbc,
-                "area_m2": "182.4",
+                "area_m2": "232",
                 "access_zone": "F08-A",
                 "occupancy": Occupancy.ACTIVE_LEASE,
                 "commercial_status": "active",
                 "operational_status": "available",
-                "rentable_area_m2": "182.4",
+                "rentable_area_m2": "232",
                 "cost_center": "CC-F08-801",
                 "plan_revision": "Rev.04",
             },
         )
+        if not created:
+            space801.floor = f10
+            space801.resident = asbc
+            space801.area_m2 = "232"
+            space801.rentable_area_m2 = "232"
+            space801.save(update_fields=["floor", "resident", "area_m2", "rentable_area_m2"])
         lobby, _ = Space.objects.update_or_create(
             code="CP-F01-LOB-001",
             defaults={
@@ -176,7 +183,7 @@ class Command(BaseCommand):
             "hvac": subs["technical:hvac"],
             "electric": subs["technical:electric"],
             "cleaning": subs["cleaning:office-cleaning"],
-            "access": subs["security:access-fault"],
+            "access": subs["security:card-related"],
             "larger-office": subs["commercial-space:larger-office"],
         }
 
@@ -441,20 +448,20 @@ class Command(BaseCommand):
             convert_offer_to_lease_draft(offer)
             offer.refresh_from_db()
 
-        lease_asbc, created_lease = Lease.objects.update_or_create(
-            code="LS-1001",
-            defaults={
-                "party": asbc_party,
-                "space": space801,
-                "status": LeaseStatus.SIGNED,
-                "start_date": date(2025, 1, 1),
-                "end_date": date(2027, 12, 31),
-                "rent": Decimal("4500.00"),
-                "deposit": Decimal("9000.00"),
-                "service_charge": Decimal("600.00"),
-                "notes": "ASBC primary lease",
-            },
-        )
+        lease_asbc = Lease.objects.filter(code="LS-1001").first()
+        if lease_asbc is None:
+            lease_asbc = Lease.objects.create(
+                code="LS-1001",
+                party=asbc_party,
+                space=space801,
+                status=LeaseStatus.SIGNED,
+                start_date=date(2025, 1, 1),
+                end_date=date(2027, 12, 31),
+                rent=Decimal("4500.00"),
+                deposit=Decimal("9000.00"),
+                service_charge=Decimal("600.00"),
+                notes="ASBC primary lease",
+            )
         if lease_asbc.status != LeaseStatus.ACTIVE:
             activate_lease(lease_asbc)
 

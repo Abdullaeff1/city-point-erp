@@ -130,18 +130,47 @@ def notify_department_users(ticket, message, *, event_key="", exclude_user_ids=N
     _schedule_notify(_send)
 
 
-def route_ticket(ticket, actor=None, note="routed", *, apply_default_priority=True):
-    """Apply RoutingRule: department, queue, optional default priority + SLA."""
+def service_desk_queue_for(rule):
+    """Portal intake stays with Service Desk. Keep the queue when it already belongs there."""
+    desk = TicketDepartment.objects.filter(code="servicedesk", is_active=True).first()
+    if not desk:
+        return None, None
+    queue = rule.queue if rule and rule.queue_id and rule.queue.department_id == desk.id else None
+    if queue is None:
+        queue = (
+            TicketQueue.objects.filter(department=desk, code="general", is_active=True).first()
+            or TicketQueue.objects.filter(department=desk, is_active=True).order_by("pk").first()
+        )
+    return desk, queue
+
+
+def route_ticket(
+    ticket,
+    actor=None,
+    note="routed",
+    *,
+    apply_default_priority=True,
+    service_desk_intake=False,
+):
+    """Apply RoutingRule: department, queue, optional default priority + SLA.
+
+    Portal tickets are held by Service Desk first. The subcategory still records
+    what the resident asked for, and Service Desk can hand the ticket onward.
+    """
     rule = resolve_routing_rule(ticket.subcategory)
-    if not rule:
+    department = rule.department if rule else None
+    queue = rule.queue if rule else None
+    if service_desk_intake:
+        department, queue = service_desk_queue_for(rule)
+    if not department:
         return None
 
     prev_dept = ticket.department_id
     prev_queue = ticket.queue_id
-    ticket.department = rule.department
-    ticket.queue = rule.queue
+    ticket.department = department
+    ticket.queue = queue
     fields = ["department", "queue", "updated_at"]
-    if apply_default_priority and ticket.priority != TicketPriority.CRITICAL:
+    if apply_default_priority and rule and ticket.priority != TicketPriority.CRITICAL:
         ticket.priority = rule.default_priority
         fields.append("priority")
     ticket.save(update_fields=fields)
@@ -149,13 +178,13 @@ def route_ticket(ticket, actor=None, note="routed", *, apply_default_priority=Tr
     event = TicketRoutingEvent.objects.create(
         ticket=ticket,
         from_department_id=prev_dept,
-        to_department=rule.department,
+        to_department=department,
         from_queue_id=prev_queue,
-        to_queue=rule.queue,
+        to_queue=queue,
         actor=actor,
         note=note,
     )
-    apply_sla(ticket, force_policy=rule.sla_policy)
+    apply_sla(ticket, force_policy=rule.sla_policy if rule else None)
     notify_department_users(
         ticket,
         _("%(code)s şöbəyə yönləndirildi") % {"code": ticket.code},
@@ -166,19 +195,21 @@ def route_ticket(ticket, actor=None, note="routed", *, apply_default_priority=Tr
 
 
 def handoff_ticket(ticket, *, actor, department_id, queue_id=None, note=""):
-    """Admin/Management only: move ticket to another department/queue."""
+    """Move a misrouted ticket to another department. Current department or leadership."""
     if not can_handoff_ticket(actor, ticket):
         raise DomainError(_("Şöbələrarası yönləndirmə icazəsi yoxdur."))
     department = TicketDepartment.objects.filter(pk=department_id, is_active=True).first()
     if not department:
         raise DomainError(_("Şöbə tapılmadı."))
+    if department.id == ticket.department_id:
+        raise DomainError(_("Müraciət artıq bu şöbədədir."))
     queue = None
     if queue_id:
         queue = TicketQueue.objects.filter(pk=queue_id, is_active=True).first()
         if not queue:
-            raise DomainError(_("Queue tapılmadı."))
+            raise DomainError(_("Növbə tapılmadı."))
         if queue.department_id != department.id:
-            raise DomainError(_("Queue seçilmiş şöbəyə aid deyil."))
+            raise DomainError(_("Növbə seçilmiş şöbəyə aid deyil."))
     else:
         queue = (
             TicketQueue.objects.filter(department=department, is_active=True)
@@ -191,7 +222,10 @@ def handoff_ticket(ticket, *, actor, department_id, queue_id=None, note=""):
     ticket.department = department
     ticket.queue = queue
     ticket.assignee = None
-    ticket.save(update_fields=["department", "queue", "assignee", "updated_at"])
+    ticket.assigned_employee = None
+    ticket.save(
+        update_fields=["department", "queue", "assignee", "assigned_employee", "updated_at"]
+    )
 
     event = TicketRoutingEvent.objects.create(
         ticket=ticket,
@@ -404,6 +438,7 @@ def create_ticket_from_portal(
     priority_suggestion="",
     related_employee=None,
     author_label="Siz",
+    service_desk_intake=False,
 ):
     """Thin intake: route via subcategory rule, apply SLA, record created event."""
     with transaction.atomic():
@@ -422,9 +457,16 @@ def create_ticket_from_portal(
             related_employee=related_employee,
         )
         ticket.save()
-        route_ticket(ticket, actor=requester, note="created", apply_default_priority=True)
+        route_ticket(
+            ticket,
+            actor=requester,
+            note="created",
+            apply_default_priority=True,
+            service_desk_intake=service_desk_intake,
+        )
         record_status_event(ticket, TicketStatus.SENT, actor=requester, note="created")
-        add_message(ticket, requester, description, author_label, require_mutate=False)
+        if (description or "").strip():
+            add_message(ticket, requester, description, author_label, require_mutate=False)
         from apps.core import events as bus
 
         bus.emit(

@@ -1,0 +1,18 @@
+{% load i18n %}
+{% for n in notifications %}
+<li>
+  {% if n.target_url %}
+  <a class="cp-list-row" href="{{ n.target_url }}">
+    <span>{{ n.message }}</span>
+    <span class="cp-meta">{{ n.created_at|date:"d.m H:i" }}</span>
+  </a>
+  {% else %}
+  <div class="cp-list-row">
+    <span>{{ n.message }}</span>
+    <span class="cp-meta">{{ n.created_at|date:"d.m H:i" }}</span>
+  </div>
+  {% endif %}
+</li>
+{% empty %}
+<li class="cp-meta">{% translate "Bildiriş yoxdur." %}</li>
+{% endfor %}

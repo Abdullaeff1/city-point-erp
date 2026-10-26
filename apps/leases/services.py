@@ -94,12 +94,6 @@ def activate_lease(lease: Lease, actor=None):
             company.status = "active"
             company.save(update_fields=["portal_active", "status"])
 
-    try:
-        from apps.audit.services import log_action
-
-        log_action(action="lease.activated", actor=actor, entity=lease, source="leases")
-    except Exception:
-        pass
     from apps.core import events as bus
 
     bus.emit(

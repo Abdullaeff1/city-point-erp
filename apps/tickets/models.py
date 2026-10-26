@@ -11,6 +11,7 @@ class TicketType(models.TextChoices):
     SERVICE_REQUEST = "service_request", _("Xidmət sorğusu")
     COMPLAINT = "complaint", _("Şikayət")
     COMMERCIAL = "commercial", _("Kommersiya sorğusu")
+    SUGGESTION = "suggestion", _("Təklif")
 
 
 class TicketStatus(models.TextChoices):

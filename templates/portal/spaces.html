@@ -6,8 +6,7 @@
   {% for space in spaces %}
   <article class="cp-card p-card-lg">
     <div class="cp-meta">{% translate "OFİS" %}</div>
-    <div class="cp-title mt-2">{{ space.short_label }}</div>
-    <p class="cp-code mt-1">{{ space.code }}</p>
+    <p class="cp-code mt-2" style="font-size:22px;">{{ space.area_code }}</p>
     <p class="mt-3">{{ space.area_m2 }} m² · {{ space.floor.name }}</p>
     <p class="cp-meta mt-4">{{ space.resident.name }} · <span class="badge badge-resolved">{% translate "Aktiv" %}</span></p>
   </article>

@@ -16,6 +16,7 @@
         type="search"
         name="q"
         id="employees-search"
+        data-enter-select=".employee-result"
         value="{{ q }}"
         autocomplete="off"
         autofocus
@@ -42,7 +43,7 @@
     </thead>
     <tbody>
       {% for e in employees %}
-      <tr class="is-clickable" onclick="window.location='/security/employees/{{ e.pk }}/access/?range=today&date={{ today|date:'Y-m-d' }}'">
+      <tr class="is-clickable employee-result" data-search="{{ e.full_name }} {{ e.card_number|default:'' }} {{ e.company.name }}" onclick="window.location='/security/employees/{{ e.pk }}/access/?range=today&date={{ today|date:'Y-m-d' }}'">
         <td><a href="/security/employees/{{ e.pk }}/access/?range=today&date={{ today|date:'Y-m-d' }}">{{ e.full_name }}</a></td>
         <td class="cp-code">{{ e.card_number|default:"—" }}</td>
         <td>{{ e.company.name }}</td>

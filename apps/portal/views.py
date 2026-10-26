@@ -96,6 +96,7 @@ class RequestCreateView(ResidentPortalMixin, FormView):
             description=form.cleaned_data["description"],
             space=form.cleaned_data.get("space"),
             priority_suggestion=form.cleaned_data.get("resident_priority_suggestion") or "",
+            service_desk_intake=True,
         )
         photo = form.cleaned_data.get("photo")
         if photo:
@@ -152,7 +153,9 @@ class AlertsView(ResidentPortalMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
-        ctx["notifications"] = Notification.objects.filter(user=user).order_by("-created_at")[:100]
+        from apps.comms.links import user_notifications
+
+        ctx["notifications"] = user_notifications(user, namespace="portal")
         ctx["history"] = Ticket.objects.filter(
             company=user.resident_company, status__in=CLOSED_STATUSES
         )

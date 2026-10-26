@@ -65,6 +65,11 @@
     <div class="cp-card p-card mb-4 reception-toolbar">
       <form method="get" class="flex gap-2 reception-filters" style="flex-wrap:wrap;align-items:end;">
         <input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+        <input type="hidden" name="range" value="{{ export_preset }}">
+        {% if export_preset == 'custom' %}
+        <input type="hidden" name="from" value="{{ export_from|date:'Y-m-d' }}">
+        <input type="hidden" name="to" value="{{ export_to|date:'Y-m-d' }}">
+        {% endif %}
         <label style="flex:1;min-width:160px;">
           <span class="cp-meta">{% translate "Axtarış" %}</span>
           <input class="cp-input" name="q" value="{{ q }}" placeholder="Seriya / ad / şirkət / host / kod">
@@ -243,21 +248,43 @@
 </div>
 {% endif %}
 <div class="cp-card mt-4 reception-journal" style="padding:8px 0;" id="journal-panel" data-refresh-url="{% url 'erp:reception' %}">
+  <div class="section-pad" style="padding-bottom:0;">
+    <div class="cp-tabs" style="margin-bottom:12px;">
+      <a class="cp-tab {% if export_preset == 'today' %}is-active{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&range=today&q={{ q }}&status={{ filter_status }}&company={{ filter_company }}{% if id_not_returned %}&id_not_returned=1{% endif %}#journal-panel">{% translate "Günlük" %}</a>
+      <a class="cp-tab {% if export_preset == 'week' %}is-active{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&range=week&q={{ q }}&status={{ filter_status }}&company={{ filter_company }}{% if id_not_returned %}&id_not_returned=1{% endif %}#journal-panel">{% translate "Bu həftə" %}</a>
+      <a class="cp-tab {% if export_preset == 'month' %}is-active{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&range=month&q={{ q }}&status={{ filter_status }}&company={{ filter_company }}{% if id_not_returned %}&id_not_returned=1{% endif %}#journal-panel">{% translate "Bu ay" %}</a>
+      <a class="cp-tab {% if export_preset == 'custom' %}is-active{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&range=custom&from={{ export_from|date:'Y-m-d' }}&to={{ export_to|date:'Y-m-d' }}&q={{ q }}&status={{ filter_status }}&company={{ filter_company }}{% if id_not_returned %}&id_not_returned=1{% endif %}#journal-panel">{% translate "Tarix aralığı" %}</a>
+    </div>
+    {% if export_preset == 'custom' %}
+    <form method="get" class="flex gap-2 mb-3" style="flex-wrap:wrap;align-items:end;">
+      <input type="hidden" name="range" value="custom">
+      {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
+      {% if filter_status %}<input type="hidden" name="status" value="{{ filter_status }}">{% endif %}
+      {% if filter_company %}<input type="hidden" name="company" value="{{ filter_company }}">{% endif %}
+      {% if id_not_returned %}<input type="hidden" name="id_not_returned" value="1">{% endif %}
+      <label><span class="cp-meta">{% translate "Başlanğıc" %}</span><input class="cp-input mt-1" type="date" name="from" value="{{ export_from|date:'Y-m-d' }}" required></label>
+      <label><span class="cp-meta">{% translate "Son" %}</span><input class="cp-input mt-1" type="date" name="to" value="{{ export_to|date:'Y-m-d' }}" required></label>
+      <button class="cp-btn-ghost" type="submit">{% translate "Tətbiq et" %}</button>
+    </form>
+    {% endif %}
+  </div>
   <div class="flex gap-3 section-pad" style="flex-wrap:wrap;align-items:end;justify-content:space-between;">
     <div>
       <div class="cp-section" style="margin:0;">
         {% if filter_status == "inside_overdue" %}
           {% translate "24+ saat içəridə olanlar" %}
         {% elif filter_status == "inside" %}
-          {% translate "İçəridə indi" %}{% if not is_today %} · {{ selected_date|date:"d.m.Y" }}{% endif %}
+          {% translate "İçəridə indi" %}{% if not journal_single_day %} · {{ export_from|date:"d.m.Y" }} – {{ export_to|date:"d.m.Y" }}{% elif not is_today %} · {{ export_from|date:"d.m.Y" }}{% endif %}
         {% elif filter_status == "id_pending" %}
           {% translate "Vəsiqə gözləyir" %}
         {% elif filter_status == "waiting" and is_today %}
           {% translate "Bugünkü jurnal" %} · {% translate "Gözləyir / Pre-reg" %}
         {% elif is_today %}
           {% translate "Bugünkü jurnal" %}
+        {% elif journal_single_day %}
+          {% translate "Jurnal" %} · {{ export_from|date:"d.m.Y" }}
         {% else %}
-          {% translate "Jurnal" %} · {{ selected_date|date:"d.m.Y" }}
+          {% translate "Jurnal" %} · {{ export_from|date:"d.m.Y" }} – {{ export_to|date:"d.m.Y" }}
         {% endif %}
       </div>
       <p class="cp-meta" style="margin:4px 0 0;">
@@ -276,16 +303,13 @@
         {% elif filter_status == "waiting" or filter_status == "id_pending" %}
           {{ visits|length }} {% translate "qonaq" %}
         {% else %}
-          {{ stats.day_total }} {% translate "qonaq" %}
+          {{ visits|length }} {% translate "qonaq" %}{% if not journal_single_day %} · {{ export_from|date:"d.m.Y" }} – {{ export_to|date:"d.m.Y" }}{% endif %}
         {% endif %}
       </p>
     </div>
+    {% if export_preset == 'today' %}
     <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;margin:0;">
-      <input type="hidden" name="range" value="{{ export_preset }}">
-      {% if export_preset == 'custom' %}
-      <input type="hidden" name="from" value="{{ export_from|date:'Y-m-d' }}">
-      <input type="hidden" name="to" value="{{ export_to|date:'Y-m-d' }}">
-      {% endif %}
+      <input type="hidden" name="range" value="today">
       {% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
       {% if filter_status %}<input type="hidden" name="status" value="{{ filter_status }}">{% endif %}
       {% if filter_company %}<input type="hidden" name="company" value="{{ filter_company }}">{% endif %}
@@ -295,14 +319,17 @@
         <input class="cp-input mt-1" type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" onchange="this.form.submit()">
       </label>
       {% if not is_today %}
-      <a class="cp-btn-ghost" href="?{% if q %}q={{ q }}&{% endif %}{% if filter_status %}status={{ filter_status }}&{% endif %}{% if filter_company %}company={{ filter_company }}&{% endif %}{% if id_not_returned %}id_not_returned=1&{% endif %}" style="padding:8px 10px;white-space:nowrap;">{% translate "Bu gün" %}</a>
+      <a class="cp-btn-ghost" href="?range=today{% if q %}&q={{ q }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}{% if filter_company %}&company={{ filter_company }}{% endif %}{% if id_not_returned %}&id_not_returned=1{% endif %}#journal-panel" style="padding:8px 10px;white-space:nowrap;">{% translate "Bu gün" %}</a>
       {% endif %}
     </form>
+    {% elif not is_today %}
+    <a class="cp-btn-ghost" href="?range=today{% if q %}&q={{ q }}{% endif %}{% if filter_status %}&status={{ filter_status }}{% endif %}{% if filter_company %}&company={{ filter_company }}{% endif %}{% if id_not_returned %}&id_not_returned=1{% endif %}#journal-panel" style="padding:8px 10px;white-space:nowrap;">{% translate "Bu gün" %}</a>
+    {% endif %}
   </div>
   <table class="cp-table">
     <thead>
       <tr>
-        {% if filter_status == "inside" or filter_status == "inside_overdue" %}<th>{% translate "Tarix" %}</th>{% endif %}
+        {% if show_visit_date %}<th>{% translate "Tarix" %}</th>{% endif %}
         <th>{% translate "Qonaq" %}</th>
         <th>{% translate "Seriya №" %}</th>
         <th>{% translate "Şirkət" %}</th>
@@ -319,7 +346,7 @@
     <tbody>
       {% for v in visits %}
       <tr class="is-clickable" data-guest-detail="{{ v.pk }}">
-        {% if filter_status == "inside" or filter_status == "inside_overdue" %}<td>{{ v.scheduled_for|date:"d.m.Y" }}</td>{% endif %}
+        {% if show_visit_date %}<td>{{ v.scheduled_for|date:"d.m.Y" }}</td>{% endif %}
         <td class="guest-name">{{ v.guest.display_name }}</td>
         <td class="cp-code">{% if can_sensitive %}{{ v.guest.fin_code|default:"—" }}{% else %}{{ v.guest.fin_code|mask_fin_filter }}{% endif %}</td>
         <td>{{ v.company.name }}</td>
@@ -339,7 +366,7 @@
             <button class="cp-btn-ghost" name="action" value="no_show" style="padding:6px 10px;font-size:12px;">{% translate "Gəlməyib" %}</button>
             {% endif %}
           </form>
-          {% elif is_today or filter_status == "inside" or filter_status == "inside_overdue" %}
+          {% elif v.scheduled_for == today or v.status == "inside" or filter_status == "inside" or filter_status == "inside_overdue" %}
             {% if v.status == "pre_registered" or v.status == "waiting" %}
           <details>
             <summary class="cp-btn" style="padding:6px 10px;font-size:12px;display:inline-block;">{% translate "Check-in" %}</summary>
@@ -375,7 +402,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="{% if filter_status == 'inside' or filter_status == 'inside_overdue' %}12{% else %}11{% endif %}" class="cp-meta empty-pad">{% if filter_status == "inside_overdue" %}{% translate "24+ saat içəridə qonaq yoxdur." %}{% elif filter_status == "inside" %}{% translate "İçəridə qonaq yoxdur." %}{% elif is_today %}{% translate "Bu gün qonaq yoxdur." %}{% else %}{% translate "Bu tarix üçün qonaq yoxdur." %}{% endif %}</td></tr>
+      <tr><td colspan="{% if show_visit_date %}12{% else %}11{% endif %}" class="cp-meta empty-pad">{% if filter_status == "inside_overdue" %}{% translate "24+ saat içəridə qonaq yoxdur." %}{% elif filter_status == "inside" %}{% translate "İçəridə qonaq yoxdur." %}{% elif is_today %}{% translate "Bu gün qonaq yoxdur." %}{% elif journal_single_day %}{% translate "Bu tarix üçün qonaq yoxdur." %}{% else %}{% translate "Bu aralıqda qonaq yoxdur." %}{% endif %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -601,9 +628,11 @@
         active = Math.max(active - 1, 0);
         items.forEach((el, i) => el.classList.toggle("is-active", i === active));
       } else if (e.key === "Enter") {
-        if (!list.hidden && active >= 0 && items[active]) {
+        const query = norm(search.value).trim();
+        const idx = active >= 0 ? active : 0;
+        if (!list.hidden && query && items[idx]) {
           e.preventDefault();
-          pick({ id: items[active].dataset.id, name: items[active].textContent });
+          pick({ id: items[idx].dataset.id, name: items[idx].textContent });
         }
       } else if (e.key === "Escape") {
         list.hidden = true;
