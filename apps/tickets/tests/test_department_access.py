@@ -206,7 +206,7 @@ class TicketDepartmentAccessTests(TestCase):
             2,
         )
 
-    def test_portal_intake_holds_ticket_for_service_desk(self):
+    def test_portal_routes_to_target_department(self):
         parking = TicketSubcategory.objects.get(slug="parking-extra")
         ticket = create_ticket_from_portal(
             company=self.company_a,
@@ -215,11 +215,10 @@ class TicketDepartmentAccessTests(TestCase):
             category=parking.category,
             subcategory=parking,
             description="Extra parking from the resident portal",
-            service_desk_intake=True,
         )
-        self.assertEqual(ticket.department.code, "servicedesk")
-        self.assertEqual(ticket.queue.code, "general")
-        self.assertTrue(can_view_ticket(self.desk_user, ticket))
+        self.assertEqual(ticket.department.code, "commercial")
+        self.assertEqual(ticket.queue.code, "parking")
+        self.assertFalse(can_view_ticket(self.desk_user, ticket))
         self.assertFalse(can_view_ticket(self.sec_user, ticket))
 
         electric = create_ticket_from_portal(
@@ -229,10 +228,10 @@ class TicketDepartmentAccessTests(TestCase):
             category=self.fm_sub.category,
             subcategory=self.fm_sub,
             description="Electric fault reported from the portal",
-            service_desk_intake=True,
         )
         self.assertEqual(electric.department.code, "servicedesk")
         self.assertEqual(electric.queue.code, "electric")
+        self.assertTrue(can_view_ticket(self.desk_user, electric))
 
         self.client.force_login(self.resident_a)
         resp = self.client.post(
@@ -246,9 +245,10 @@ class TicketDepartmentAccessTests(TestCase):
         )
         self.assertEqual(resp.status_code, 302)
         created = Ticket.objects.get(description="Lobby incident from ASBC portal")
-        self.assertEqual(created.department.code, "servicedesk")
-        self.assertEqual(created.queue.code, "general")
-        self.assertTrue(can_view_ticket(self.desk_user, created))
+        self.assertEqual(created.department.code, "security")
+        self.assertEqual(created.queue.code, "security")
+        self.assertTrue(can_view_ticket(self.sec_user, created))
+        self.assertFalse(can_view_ticket(self.desk_user, created))
 
     def test_erp_list_and_detail_scoped(self):
         self.client.force_login(self.desk_user)

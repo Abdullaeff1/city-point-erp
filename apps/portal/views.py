@@ -96,7 +96,6 @@ class RequestCreateView(ResidentPortalMixin, FormView):
             description=form.cleaned_data["description"],
             space=form.cleaned_data.get("space"),
             priority_suggestion=form.cleaned_data.get("resident_priority_suggestion") or "",
-            service_desk_intake=True,
         )
         photo = form.cleaned_data.get("photo")
         if photo:

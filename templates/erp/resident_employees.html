@@ -27,6 +27,24 @@
   <div class="cp-card p-card-sm">{% translate "Gələn" %} <strong>{{ present }}</strong></div>
 </div>
 
+<div class="cp-card mb-4" style="padding:12px 20px;">
+  <label style="display:block;margin:0;">
+    <span class="cp-meta">{% translate "Axtarış" %}</span>
+    <input
+      class="cp-input mt-1"
+      type="search"
+      id="company-employees-search"
+      data-enter-select=".company-employee-row"
+      autocomplete="off"
+      placeholder="{% translate 'Ad, soyad və ya kart…' %}"
+      aria-label="{% translate 'Ad, soyad və ya kart axtarışı' %}"
+    >
+  </label>
+  <p class="cp-meta" style="margin:10px 0 0;" id="company-employees-filter-meta" hidden>
+    {% translate "Göstərilir" %}: <strong id="company-employees-visible-count">0</strong> / {{ rows|length }}
+  </p>
+</div>
+
 {% if can_export_access %}
 <div class="cp-card p-card mb-4">
   <p class="cp-meta mb-2">{% translate "Excel export — AxTrax üslubu (işə giriş / işdən çıxış)" %}</p>
@@ -66,7 +84,12 @@
     </thead>
     <tbody>
       {% for row in rows %}
-      <tr class="is-clickable" onclick="window.location='{% url 'erp:resident_employee_access' company.slug row.employee.pk %}?range=today&date={{ selected_date|date:'Y-m-d' }}'">
+      <tr
+        class="is-clickable company-employee-row"
+        data-name="{{ row.employee.full_name|lower }}"
+        data-card="{{ row.employee.card_number|default:''|lower }}"
+        onclick="window.location='{% url 'erp:resident_employee_access' company.slug row.employee.pk %}?range=today&date={{ selected_date|date:'Y-m-d' }}'"
+      >
         <td>
           <a href="{% url 'erp:resident_employee_access' company.slug row.employee.pk %}?range=today&date={{ selected_date|date:'Y-m-d' }}">{{ row.employee.full_name }}</a>
           {% if not row.employee.is_active %}<span class="cp-meta"> · {% translate "keçmiş" %}</span>{% endif %}
@@ -81,9 +104,41 @@
         <td>{% if not row.employee.is_active %}{% translate "Arxiv" %}{% else %}{{ row.status }}{% endif %}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="6" class="cp-meta empty-pad">{% translate "Əməkdaş yoxdur." %}</td></tr>
+      <tr id="company-employees-empty-static"><td colspan="6" class="cp-meta empty-pad">{% translate "Əməkdaş yoxdur." %}</td></tr>
       {% endfor %}
+      {% if rows %}
+      <tr id="company-employees-empty-filter" hidden>
+        <td colspan="6" class="cp-meta empty-pad">{% translate "Axtarışa uyğun nəticə yoxdur." %}</td>
+      </tr>
+      {% endif %}
     </tbody>
   </table>
 </div>
+<script>
+(function () {
+  var input = document.getElementById("company-employees-search");
+  if (!input) return;
+  var rows = Array.prototype.slice.call(document.querySelectorAll(".company-employee-row"));
+  var emptyFilter = document.getElementById("company-employees-empty-filter");
+  var meta = document.getElementById("company-employees-filter-meta");
+  var countEl = document.getElementById("company-employees-visible-count");
+
+  function applyFilter() {
+    var q = input.value;
+    var visible = 0;
+    rows.forEach(function (row) {
+      var hay = [row.getAttribute("data-name"), row.getAttribute("data-card")].join(" ");
+      var ok = window.cpHaystackMatch ? cpHaystackMatch(hay, q) : !q || hay.indexOf(String(q).toLowerCase()) !== -1;
+      row.hidden = !ok;
+      if (ok) visible += 1;
+    });
+    if (emptyFilter) emptyFilter.hidden = !(q && visible === 0 && rows.length);
+    if (meta) meta.hidden = !q;
+    if (countEl) countEl.textContent = String(visible);
+  }
+
+  input.addEventListener("input", applyFilter);
+  input.addEventListener("search", applyFilter);
+})();
+</script>
 {% endblock %}

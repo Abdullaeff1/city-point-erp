@@ -2,12 +2,15 @@
 {% load i18n %}
 {% block heading %}{% translate "Bildirişlər" %}{% endblock %}
 {% block content %}
-<div class="cp-card p-card mb-4">
-  <div class="cp-section">{% translate "Ticket bildirişləri" %}</div>
-  <ul class="mt-3" style="list-style:none;padding:0;margin-bottom:0;">
+<details class="cp-card p-card mb-4 cp-notif-fold">
+  <summary class="cp-notif-fold-summary">
+    <span class="cp-section" style="margin:0;">{% translate "Ticket bildirişləri" %}</span>
+    <span class="cp-meta">{{ notifications|length }} · {% translate "aç / bağla" %}</span>
+  </summary>
+  <ul class="mt-3 cp-notif-fold-list" style="list-style:none;padding:0;margin-bottom:0;max-height:280px;overflow:auto;">
     {% include "partials/notification_list.html" %}
   </ul>
-</div>
+</details>
 <div class="flex gap-2 mb-3" style="flex-wrap:wrap;">
   <a class="badge {% if kind == 'rapid' %}badge-sent{% else %}badge-muted{% endif %}" href="{% url 'security:alerts_rapid' %}?tab={{ tab }}">{% translate "Kart çoxvurma" %}{% if open_rapid_alerts %} ({{ open_rapid_alerts }}){% endif %}</a>
   <a class="badge {% if kind == 'shaft' %}badge-sent{% else %}badge-muted{% endif %}" href="{% url 'security:alerts_shaft' %}?tab={{ tab }}">{% translate "Şaxta" %}{% if open_shaft_alerts %} ({{ open_shaft_alerts }}){% endif %}</a>
@@ -67,7 +70,7 @@
     <tbody>
       {% for a in alerts %}
       <tr class="cp-click-row">
-        <td><a class="cp-stretch" href="{% url 'security:alert_detail' a.pk %}">{{ a.created_at|date:"d.m.Y H:i" }}</a></td>
+        <td><a class="cp-stretch" href="{% url 'security:alert_detail' a.pk %}">{{ a.window_start|date:"d.m.Y H:i" }}</a></td>
         <td>{{ a.company_name|default:"—" }}</td>
         <td>{{ a.employee_name }}</td>
         <td>{{ a.card_number|default:"—" }}</td>

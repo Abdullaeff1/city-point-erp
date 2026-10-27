@@ -29,7 +29,7 @@
       <div class="flex-col gap-3 mt-3">
         {% for m in ticket.messages.all %}
           <div>
-            <div class="cp-meta">{{ m.author_label }} · {{ m.created_at|date:"d.m H:i" }}</div>
+            <div class="cp-meta">{% if m.author_label == "Service Desk" %}{{ ticket.company.name }}{% else %}{{ m.author_label }}{% endif %} · {{ m.created_at|date:"d.m H:i" }}</div>
             <div class="mt-1">{{ m.body }}</div>
           </div>
         {% endfor %}

@@ -130,38 +130,17 @@ def notify_department_users(ticket, message, *, event_key="", exclude_user_ids=N
     _schedule_notify(_send)
 
 
-def service_desk_queue_for(rule):
-    """Portal intake stays with Service Desk. Keep the queue when it already belongs there."""
-    desk = TicketDepartment.objects.filter(code="servicedesk", is_active=True).first()
-    if not desk:
-        return None, None
-    queue = rule.queue if rule and rule.queue_id and rule.queue.department_id == desk.id else None
-    if queue is None:
-        queue = (
-            TicketQueue.objects.filter(department=desk, code="general", is_active=True).first()
-            or TicketQueue.objects.filter(department=desk, is_active=True).order_by("pk").first()
-        )
-    return desk, queue
-
-
 def route_ticket(
     ticket,
     actor=None,
     note="routed",
     *,
     apply_default_priority=True,
-    service_desk_intake=False,
 ):
-    """Apply RoutingRule: department, queue, optional default priority + SLA.
-
-    Portal tickets are held by Service Desk first. The subcategory still records
-    what the resident asked for, and Service Desk can hand the ticket onward.
-    """
+    """Apply RoutingRule: department, queue, optional default priority + SLA."""
     rule = resolve_routing_rule(ticket.subcategory)
     department = rule.department if rule else None
     queue = rule.queue if rule else None
-    if service_desk_intake:
-        department, queue = service_desk_queue_for(rule)
     if not department:
         return None
 
@@ -438,7 +417,6 @@ def create_ticket_from_portal(
     priority_suggestion="",
     related_employee=None,
     author_label="Siz",
-    service_desk_intake=False,
 ):
     """Thin intake: route via subcategory rule, apply SLA, record created event."""
     with transaction.atomic():
@@ -462,7 +440,6 @@ def create_ticket_from_portal(
             actor=requester,
             note="created",
             apply_default_priority=True,
-            service_desk_intake=service_desk_intake,
         )
         record_status_event(ticket, TicketStatus.SENT, actor=requester, note="created")
         if (description or "").strip():
@@ -503,7 +480,7 @@ def create_ticket_from_staff(
         subcategory=subcategory,
         description=description,
         space=space,
-        author_label="Service Desk",
+        author_label=company.name,
     )
     if priority:
         ticket.priority = priority

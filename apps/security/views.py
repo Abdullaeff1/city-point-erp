@@ -295,8 +295,10 @@ class AlertDetailView(SecurityPortalMixin, TemplateView):
         for row in alert.swipes or []:
             at_raw = row.get("at")
             at_dt = parse_datetime(str(at_raw)) if at_raw else None
-            if at_dt and timezone.is_naive(at_dt):
-                at_dt = timezone.make_aware(at_dt, timezone.get_current_timezone())
+            if at_dt is not None:
+                if timezone.is_naive(at_dt):
+                    at_dt = timezone.make_aware(at_dt, timezone.get_current_timezone())
+                at_dt = timezone.localtime(at_dt)
             swipes.append(
                 {
                     "at_display": date_format(at_dt, "d.m.Y H:i:s") if at_dt else (at_raw or "—"),

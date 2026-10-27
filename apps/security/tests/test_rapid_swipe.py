@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
@@ -195,11 +195,27 @@ class RapidSwipeSecurityUITests(TestCase):
         self.assertEqual(listing.status_code, 200)
         self.assertContains(listing, "UI Person")
         self.assertContains(listing, "009009")
+        local_start = timezone.localtime(self.alert.window_start).strftime("%d.%m.%Y %H:%M")
+        self.assertContains(listing, local_start)
         detail = self.client.get(reverse("security:alert_detail", args=[self.alert.pk]))
         self.assertEqual(detail.status_code, 200)
         self.assertContains(detail, self.company.name)
         self.assertContains(detail, "009009")
         self.assertContains(detail, "F1TurIN")
+        utc_punch = datetime(2026, 10, 27, 11, 45, 16, tzinfo=dt_timezone.utc)
+        self.alert.swipes = [
+            {
+                "at": utc_punch.isoformat(),
+                "event_type": "in",
+                "access_event_id": 1,
+                "reader_name": "F1TurBack_IN",
+                "reader_id": 90,
+            }
+        ]
+        self.alert.save(update_fields=["swipes"])
+        detail2 = self.client.get(reverse("security:alert_detail", args=[self.alert.pk]))
+        self.assertContains(detail2, "27.10.2026 15:45:16")
+        self.assertNotContains(detail2, "27.10.2026 11:45:16")
         self.alert.refresh_from_db()
         self.assertIsNotNone(self.alert.acknowledged_at)
         self.assertEqual(self.alert.acknowledged_by_id, self.security.pk)
