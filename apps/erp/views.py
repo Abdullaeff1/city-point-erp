@@ -53,6 +53,7 @@ from apps.residents.access_export import access_xlsx_http_response
 from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.rbac.services import user_has_permission
 from apps.tickets.access import (
+    can_delete_ticket,
     can_handoff_ticket,
     can_mutate_ticket,
     can_view_ticket,
@@ -76,6 +77,7 @@ from apps.tickets.services import (
     citypoint_ticket_assignees,
     create_ticket_from_staff,
     create_work_order_from_ticket,
+    delete_ticket,
     handoff_ticket,
     set_enrichment_notes,
     set_ticket_priority,
@@ -824,6 +826,7 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
         ticket = self.get_ticket()
         ctx["ticket"] = ticket
         ctx["can_mutate"] = can_mutate_ticket(self.request.user, ticket)
+        ctx["can_delete"] = can_delete_ticket(self.request.user, ticket)
         ctx["assignee_choices"] = [
             {"id": employee.pk, "name": employee.full_name}
             for employee in citypoint_ticket_assignees()
@@ -916,6 +919,10 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
                     add_message(
                         ticket, request.user, body, "CityPoint", require_mutate=True
                     )
+            elif action == "delete":
+                code = delete_ticket(ticket, actor=request.user)
+                messages.success(request, f"{code} silindi.")
+                return redirect("erp:tickets")
         except DomainError as exc:
             messages.error(request, str(exc))
         return redirect("erp:ticket_detail", code=ticket.code)

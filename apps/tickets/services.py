@@ -6,12 +6,14 @@ from django.utils.translation import gettext as _
 
 from apps.core.services import DomainError
 from apps.tickets.access import (
+    can_delete_ticket,
     can_handoff_ticket,
     can_mutate_ticket,
     department_assignees,
 )
 from apps.tickets.models import (
     CLOSED_STATUSES,
+    DELETABLE_STATUSES,
     STATUS_FLOW,
     RoutingRule,
     SlaPolicy,
@@ -403,6 +405,21 @@ def attach_ticket_file(ticket, *, actor, upload):
     if not upload:
         raise DomainError(_("Fayl seçilməyib."))
     return TicketAttachment.objects.create(ticket=ticket, file=upload)
+
+
+def delete_ticket(ticket, *, actor):
+    """Permanently remove a ticket that has not yet reached İcradadır."""
+    if not can_delete_ticket(actor, ticket):
+        if ticket.status not in DELETABLE_STATUSES:
+            raise DomainError(_("İcradadır statusundan sonra ticket silinə bilməz."))
+        raise DomainError(_("Ticket silmək icazəsi yoxdur."))
+    code = ticket.code
+    with transaction.atomic():
+        for attachment in ticket.attachments.all():
+            if attachment.file:
+                attachment.file.delete(save=False)
+        ticket.delete()
+    return code
 
 
 def create_ticket_from_portal(

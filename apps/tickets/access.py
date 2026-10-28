@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.db.models import QuerySet
 
 from apps.accounts.models import Role, User
-from apps.tickets.models import Ticket
+from apps.tickets.models import DELETABLE_STATUSES, Ticket
 
 
 def can_view_all_tickets(user) -> bool:
@@ -66,6 +66,18 @@ def can_access_ticket_attachment(user, ticket) -> bool:
 
 def can_handoff_ticket(user, ticket) -> bool:
     """The department that holds the ticket, and leadership, may send it elsewhere."""
+    return can_mutate_ticket(user, ticket)
+
+
+def can_delete_ticket(user, ticket) -> bool:
+    """Delete only before İcradadır: staff of the ticket dept, or same-company portal user."""
+    if not user or not getattr(user, "is_authenticated", False) or ticket is None:
+        return False
+    if ticket.status not in DELETABLE_STATUSES:
+        return False
+    if getattr(user, "role", None) == Role.RESIDENT_USER:
+        company_id = getattr(user, "resident_company_id", None)
+        return bool(company_id and ticket.company_id == company_id)
     return can_mutate_ticket(user, ticket)
 
 

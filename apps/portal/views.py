@@ -29,8 +29,9 @@ from apps.residents.access import (
 from apps.residents.access_export import access_xlsx_http_response
 from apps.residents.models import ResidentEmployee
 from apps.residents.services import create_employee_card_order
+from apps.tickets.access import can_delete_ticket
 from apps.tickets.models import CLOSED_STATUSES, OPEN_STATUSES, Ticket, TicketAttachment, TicketSubcategory
-from apps.tickets.services import add_message, create_ticket_from_portal
+from apps.tickets.services import add_message, create_ticket_from_portal, delete_ticket
 
 
 class HomeView(ResidentPortalMixin, TemplateView):
@@ -131,11 +132,22 @@ class RequestDetailView(ResidentPortalMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["ticket"] = self.get_ticket()
+        ticket = self.get_ticket()
+        ctx["ticket"] = ticket
+        ctx["can_delete"] = can_delete_ticket(self.request.user, ticket)
         return ctx
 
     def post(self, request, *args, **kwargs):
         ticket = self.get_ticket()
+        action = request.POST.get("action")
+        if action == "delete":
+            try:
+                code = delete_ticket(ticket, actor=request.user)
+                messages.success(request, _("%(code)s silindi.") % {"code": code})
+                return redirect("portal:requests_active")
+            except DomainError as exc:
+                messages.error(request, str(exc))
+                return redirect("portal:request_detail", code=ticket.code)
         body = request.POST.get("body", "").strip()
         if body:
             add_message(ticket, request.user, body, "Siz")

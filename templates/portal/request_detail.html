@@ -45,6 +45,13 @@
     <div><div class="cp-meta">{% translate "Sahə" %}</div>{{ ticket.space.short_label|default:"—" }}</div>
     <div><div class="cp-meta">{% translate "Prioritet" %}</div>{% include "partials/priority_badge.html" with value=ticket.priority label=ticket.get_priority_display %}</div>
     <div><div class="cp-meta">{% translate "Yaradılıb" %}</div>{{ ticket.created_at|date:"d.m.Y H:i" }}</div>
+    {% if can_delete %}
+    <form method="post" onsubmit="return confirm('{% translate "Bu müraciəti silmək istədiyinizə əminsiniz?" %}');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="delete">
+      <button class="cp-btn-ghost w-full" type="submit" style="color:#b91c1c;">{% translate "Müraciəti sil" %}</button>
+    </form>
+    {% endif %}
   </aside>
 </div>
 {% endblock %}

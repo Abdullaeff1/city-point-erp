@@ -56,6 +56,13 @@ CLOSED_STATUSES = {
     TicketStatus.CANCELLED,
 }
 
+# Hard-delete allowed only before work starts (İcradadır).
+DELETABLE_STATUSES = {
+    TicketStatus.SENT,
+    TicketStatus.ASSIGNED,
+    TicketStatus.ACCEPTED,
+}
+
 # Default linear advance; waiting/cancel/reopen handled via explicit transitions.
 STATUS_FLOW = {
     TicketStatus.SENT: TicketStatus.ACCEPTED,

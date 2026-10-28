@@ -135,6 +135,13 @@
     {% if ticket.space %}
       <div><div class="cp-meta">{% translate "Sahə" %}</div><a href="{% url 'erp:space_detail' ticket.space.code %}">{{ ticket.space.code }}</a></div>
     {% endif %}
+    {% if can_delete %}
+    <form method="post" onsubmit="return confirm('{% translate "Bu ticketi silmək istədiyinizə əminsiniz?" %}');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="delete">
+      <button class="cp-btn-ghost w-full" type="submit" style="color:#b91c1c;">{% translate "Ticketi sil" %}</button>
+    </form>
+    {% endif %}
     {% if ticket.next_status %}
     <form method="post">{% csrf_token %}<input type="hidden" name="action" value="advance"><button class="cp-btn w-full">{% translate "Növbəti status" %} → {{ ticket.get_next_status_display }}</button></form>
     {% endif %}

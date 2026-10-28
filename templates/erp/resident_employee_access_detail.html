@@ -55,6 +55,8 @@
       <tr>
         <th>{% translate "Saat" %}</th>
         <th>{% translate "Tip" %}</th>
+        <th>{% translate "Kart" %}</th>
+        <th>{% translate "Oxuyucu adı" %}</th>
       </tr>
     </thead>
     <tbody>
@@ -68,9 +70,11 @@
           <span class="badge badge-progress">{% translate "Çıxış" %}</span>
           {% endif %}
         </td>
+        <td class="cp-code">{{ e.card_number|default:employee.card_number|default:"—" }}</td>
+        <td style="word-break:break-all;font-family:ui-monospace,Consolas,monospace;">{{ e.reader_name|default:"—" }}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="2" class="cp-meta empty-pad">{% translate "Bu gün üçün giriş/çıxış yoxdur." %}</td></tr>
+      <tr><td colspan="4" class="cp-meta empty-pad">{% translate "Bu gün üçün giriş/çıxış yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

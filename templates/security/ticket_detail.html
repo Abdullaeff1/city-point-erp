@@ -38,6 +38,13 @@
 {% if can_mutate %}
 <div class="cp-card p-card mb-4 flex-col gap-2">
   <div class="cp-section" style="font-size:16px;">{% translate "Əməliyyatlar" %}</div>
+  {% if can_delete %}
+  <form method="post" onsubmit="return confirm('{% translate "Bu ticketi silmək istədiyinizə əminsiniz?" %}');">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="delete">
+    <button class="cp-btn-ghost" type="submit" style="color:#b91c1c;">{% translate "Ticketi sil" %}</button>
+  </form>
+  {% endif %}
   {% if ticket.next_status %}
   <form method="post">{% csrf_token %}<input type="hidden" name="action" value="advance"><button class="cp-btn">{% translate "Növbəti status" %} → {{ ticket.get_next_status_display }}</button></form>
   {% endif %}

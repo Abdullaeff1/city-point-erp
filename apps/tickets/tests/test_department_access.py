@@ -10,6 +10,7 @@ from apps.core.services import DomainError
 from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.tickets.access import (
     can_access_ticket_attachment,
+    can_delete_ticket,
     can_mutate_ticket,
     can_view_ticket,
     tickets_visible_to,
@@ -28,6 +29,7 @@ from apps.tickets.services import (
     assign_ticket,
     assign_ticket_employee,
     create_ticket_from_portal,
+    delete_ticket,
     handoff_ticket,
     set_ticket_status,
 )
@@ -249,6 +251,56 @@ class TicketDepartmentAccessTests(TestCase):
         self.assertEqual(created.queue.code, "security")
         self.assertTrue(can_view_ticket(self.sec_user, created))
         self.assertFalse(can_view_ticket(self.desk_user, created))
+
+    def test_delete_allowed_before_in_progress(self):
+        self.assertTrue(can_delete_ticket(self.sec_user, self.sec_ticket))
+        self.assertTrue(can_delete_ticket(self.resident_a, self.sec_ticket))
+        self.assertFalse(can_delete_ticket(self.fm_user, self.sec_ticket))
+        self.assertFalse(can_delete_ticket(self.resident_b, self.sec_ticket))
+
+        set_ticket_status(self.sec_ticket, TicketStatus.ACCEPTED, actor=self.sec_user)
+        self.sec_ticket.refresh_from_db()
+        self.assertTrue(can_delete_ticket(self.sec_user, self.sec_ticket))
+
+        set_ticket_status(self.sec_ticket, TicketStatus.IN_PROGRESS, actor=self.sec_user)
+        self.sec_ticket.refresh_from_db()
+        self.assertFalse(can_delete_ticket(self.sec_user, self.sec_ticket))
+        with self.assertRaises(DomainError):
+            delete_ticket(self.sec_ticket, actor=self.sec_user)
+
+        doomed = create_ticket_from_portal(
+            company=self.company_a,
+            requester=self.resident_a,
+            ticket_type="incident",
+            category=self.sec_sub.category,
+            subcategory=self.sec_sub,
+            description="Will be deleted before in progress",
+        )
+        code = doomed.code
+        self.client.force_login(self.sec_user)
+        resp = self.client.post(
+            reverse("security:ticket_detail", kwargs={"code": code}),
+            {"action": "delete"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(Ticket.objects.filter(code=code).exists())
+
+        portal_doomed = create_ticket_from_portal(
+            company=self.company_a,
+            requester=self.resident_a,
+            ticket_type="incident",
+            category=self.sec_sub.category,
+            subcategory=self.sec_sub,
+            description="Portal self-delete before in progress",
+        )
+        portal_code = portal_doomed.code
+        self.client.force_login(self.resident_a)
+        resp = self.client.post(
+            reverse("portal:request_detail", kwargs={"code": portal_code}),
+            {"action": "delete"},
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(Ticket.objects.filter(code=portal_code).exists())
 
     def test_erp_list_and_detail_scoped(self):
         self.client.force_login(self.desk_user)

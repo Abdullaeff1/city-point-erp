@@ -607,12 +607,13 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
         )
 
     def get_context_data(self, **kwargs):
-        from apps.tickets.access import can_mutate_ticket, department_assignees
+        from apps.tickets.access import can_delete_ticket, can_mutate_ticket, department_assignees
 
         ctx = super().get_context_data(**kwargs)
         ticket = self.get_ticket()
         ctx["ticket"] = ticket
         ctx["can_mutate"] = can_mutate_ticket(self.request.user, ticket)
+        ctx["can_delete"] = can_delete_ticket(self.request.user, ticket)
         ctx["staff_users"] = department_assignees(ticket)
         ctx["status_events"] = ticket.status_events.select_related("actor")[:40]
         return ctx
@@ -624,6 +625,7 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
         from apps.tickets.services import (
             advance_ticket_status,
             assign_ticket,
+            delete_ticket,
             set_ticket_status,
         )
 
@@ -653,6 +655,10 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
                     actor=request.user,
                     assignee_id=request.POST.get("assignee") or None,
                 )
+            elif action == "delete":
+                code = delete_ticket(ticket, actor=request.user)
+                messages.success(request, f"{code} silindi.")
+                return redirect("security:tickets")
         except DomainError as exc:
             messages.error(request, str(exc))
         return redirect("security:ticket_detail", code=ticket.code)
