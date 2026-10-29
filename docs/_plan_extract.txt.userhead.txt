@@ -1,0 +1,282 @@
+﻿<timestamp>Tuesday, Sep 15, 2026, 9:27 AM (UTC+4)</timestamp>
+<user_query>
+# CITY POINT ERP — MASTER IMPLEMENTATION PLAN
+
+## 0. LAYİHƏNİN MƏQSƏDİ
+
+Bu layihənin məqsədi City Point biznes mərkəzinin daxili əməliyyatlarını vahid platformada birləşdirən, Django 5 + PostgreSQL əsaslı, modul və genişlənə bilən ERP sisteminin hazırlanmasıdır.
+
+Sistem aşağıdakı əsas səthləri vahid məlumat və proses arxitekturasında birləşdirməlidir:
+
+1. ERP / Staff Backoffice
+2. Resident Portal
+3. CRM / Sales
+4. Lease / Contract Management
+5. Property / Space Management
+6. Reception / Visitor Management
+7. Access Control / Turnstile Integration
+8. Facility Management / Maintenance
+9. Warehouse
+10. Procurement
+11. Billing
+12. Accounting
+13. Document Management / DMS
+14. Reporting / BI
+15. City Point rəsmi veb saytı ilə inteqrasiya
+
+Əsas prinsip:
+
+> Sistem ayrı-ayrı modul kolleksiyası kimi yox, vahid biznes prosesləri platforması kimi qurulmalıdır.
+
+---
+
+# 1. TEXNOLOGİYA VƏ ÜMUMİ ARXİTEKTURA
+
+## 1.1. Texnologiyalar
+
+Mövcud texniki baza qorunmalıdır:
+
+* Backend: Django 5
+* Database: PostgreSQL
+* Frontend: mövcud layihənin istifadə etdiyi frontend arxitekturası qorunmalıdır
+* API: REST API
+* Authentication: mövcud authentication sistemi genişləndirilməlidir
+* Background jobs: Celery + Redis və ya layihənin mövcud uyğun queue infrastrukturu
+* File storage: pluggable storage architecture
+* Testing: pytest / Django Test Framework
+* API documentation: OpenAPI / Swagger
+* Deployment: Docker əsaslı quruluş üstünlükdür
+* Logging: structured application logs
+* Audit: ayrıca audit layer
+
+Yeni texnologiya yalnız mövcud architecture ilə uyğunluğu və real ehtiyac sübut edildikdə əlavə edilməlidir.
+
+---
+
+# 2. ƏSAS ARXİTEKTUR PRİNSİPLƏR
+
+## 2.1. Single Source of Truth
+
+Aşağıdakı məlumatların hər biri yalnız bir əsas modulda idarə olunmalıdır:
+
+* Party → identity
+* Space → property inventory
+* Lease → tenancy/contract
+* Asset → technical equipment
+* Access Credential → access identity
+* Work Order → operational work
+* Stock → inventory
+* PO → procurement
+* Invoice → billing
+* Journal → accounting
+
+Eyni məlumatı müxtəlif modullarda müstəqil və paralel saxlayan duplicated source-of-truth yanaşması istifadə edilməməlidir.
+
+---
+
+## 2.2. Integration Layer
+
+Xarici sistemlərlə əlaqələr ayrıca integration layer vasitəsilə qurulmalıdır.
+
+Struktur:
+
+```text
+apps/
+    accounts/
+    core/
+    parties/
+    property/
+    leases/
+    crm/
+    reception/
+    access_control/
+    tickets/
+    maintenance/
+    documents/
+    warehouse/
+    procurement/
+    billing/
+    accounting/
+    portal/
+    reporting/
+    integrations/
+        website/
+        access_control/
+        communications/
+        accounting/
+```
+
+Xarici sistemə xüsusi kod birbaşa əsas biznes modellərinə yerləşdirilməməlidir.
+
+---
+
+## 2.3. Domain Logic UI daxilində yazılmamalıdır
+
+Business rule:
+
+* template-də
+* frontend component-də
+* view function daxilində
+* serializer-də
+
+təkrar edilməməlidir.
+
+Məntiq service/domain layer-də yerləşdirilməlidir.
+
+Misal:
+
+```text
+LeaseService.activate()
+AccessService.assign_card()
+BillingService.generate_invoice()
+VisitorService.check_in()
+WorkOrderService.close()
+```
+
+---
+
+# 3. MASTER DATA MODEL
+
+Bütün sistemin əsasını aşağıdakı master obyektlər təşkil edir.
+
+## 3.1. Party
+
+Party vahid identity modeli olacaq.
+
+Party rolları:
+
+* Prospect
+* Resident
+* Customer
+* Supplier
+* Contractor
+* Partner
+* Other
+
+Party bir şirkət və ya fiziki şəxs ola bilər.
+
+Sistem eyni şirkətin CRM, Lease, Procurement və Accounting daxilində ayrıca duplicate record yaratmasına yol verməməlidir.
+
+---
+
+## 3.2. Person
+
+Person ayrıca obyekt kimi idarə olunmalıdır.
+
+Person Party ilə əlaqələnə bilər.
+
+Əlavə əlaqələr:
+
+```text
+Person
+ ├── Resident Employee
+ ├── Contact Person
+ ├── Visitor
+ ├── Contractor Employee
+ └── Staff Employee
+```
+
+---
+
+## 3.3. Property hierarchy
+
+```text
+Building
+    ↓
+Floor
+    ↓
+Space
+    ↓
+Zone / Area
+    ↓
+Asset
+```
+
+Space əsas kommersiya inventarıdır.
+
+---
+
+# 4. SPACE MANAGEMENT
+
+Space yalnız fiziki otaq məlumatı olmamalıdır.
+
+Space daxilində:
+
+* building
+* floor
+* code
+* name
+* type
+* area_m2
+* rentable_area_m2
+* status
+* base rent rate
+* service charge rate
+* fit-out status
+* availability date
+* parking allocation
+* utility meters
+* public visibility flag
+* photos
+* floor plan reference
+* maintenance status
+* current lease
+* historical leases
+
+saxlanmalıdır.
+
+---
+
+# 5. SPACE STATUS MODEL
+
+Space statusları biznes qaydası ilə idarə edilməlidir.
+
+Əsas lifecycle:
+
+```text
+Vacant
+   ↓
+Reserved
+   ↓
+Contracted / Pending Lease
+   ↓
+Active
+   ↓
+Notice / Move-out
+   ↓
+Vacant
+```
+
+Texniki səbəblə ayrıca maintenance state saxlanmalıdır.
+
+Məsələn:
+
+```text
+Commercial Status
++
+Operational Status
+```
+
+statusların bir-birinə qarışmasına yol verilməməlidir.
+
+Space-in kimə aid olduğunu yalnız `Space.resident_id` vasitəsilə həll etmək olmaz.
+
+Əsas əlaqə:
+
+```text
+Space
+    ↕
+Lease
+    ↕
+Party
+```
+
+Tarixçə saxlanmalıdır.
+
+---
+
+# 6. PARTY / RESIDENT MANAGEMENT
+
+Resident company üçün:
+
+* leg
