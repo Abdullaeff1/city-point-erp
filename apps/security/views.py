@@ -10,12 +10,20 @@ from apps.accounts.mixins import SecurityPortalMixin
 from apps.comms.models import Notification
 from apps.core.search import filter_text_search
 from apps.reception.models import GuestVisit, VisitStatus
+from apps.reception.services import (
+    filter_visits,
+    id_pending_queryset,
+    inside_overdue_queryset,
+    today_visits_queryset,
+    visits_queryset_for_range,
+)
 from apps.residents.access import (
     access_range_bounds,
     build_employee_access_rows,
     currently_inside_employee_rows,
     employee_attendance_days,
     employee_day_flaps,
+    employee_roster_qs,
     parse_date,
 )
 from apps.residents.access_export import access_xlsx_http_response
@@ -362,15 +370,16 @@ class CompanyListView(SecurityPortalMixin, TemplateView):
         employee_hits = []
         matched_company_ids: set[int] | None = None
         if q:
+            # Include former staff so AxTrax-deleted people remain findable in ERP.
             employee_hits = list(
                 filter_text_search(
-                    ResidentEmployee.objects.filter(is_active=True),
+                    ResidentEmployee.objects.all(),
                     q,
                     "full_name",
                     "card_number",
                 )
                 .select_related("company")
-                .order_by("full_name")[:80]
+                .order_by("-is_active", "full_name")[:80]
             )
             matched_company_ids = {e.company_id for e in employee_hits}
             matched_company_ids |= set(
@@ -443,7 +452,8 @@ class CompanyEmployeesView(SecurityPortalMixin, TemplateView):
         tab = self.request.GET.get("tab") or "employees"
         if tab not in {"employees", "guests"}:
             tab = "employees"
-        employees = company.employees.filter(is_active=True).order_by("full_name")
+        base = company.employees.all().order_by("full_name")
+        employees, roster = employee_roster_qs(base, self.request.GET.get("roster"))
         rows, inside, left, present = build_employee_access_rows(employees, selected_date)
         guest_visits = list(_guest_visits_for_date(company=company, selected_date=selected_date))
         guest_stats = _guest_stats(guest_visits)
@@ -461,6 +471,7 @@ class CompanyEmployeesView(SecurityPortalMixin, TemplateView):
                 "inside": inside,
                 "left": left,
                 "present": present,
+                "roster": roster,
                 "guest_visits": guest_visits,
                 "tab": tab,
                 "today": today,
@@ -495,28 +506,71 @@ class CompanyAccessExportView(SecurityPortalMixin, View):
 
 
 class GuestsView(SecurityPortalMixin, TemplateView):
-    """Building-wide guest check-in / check-out journal for security."""
+    """Building-wide guest journal for security — same filters as admin reception."""
 
     template_name = "security/guests.html"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         today = timezone.localdate()
-        selected_date = parse_date(self.request.GET.get("date"), today)
-        company_id = self.request.GET.get("company") or ""
-        company = None
-        if company_id.isdigit():
-            company = ResidentCompany.objects.filter(pk=int(company_id)).first()
-        visits = list(_guest_visits_for_date(company=company, selected_date=selected_date))
+        q = (self.request.GET.get("q") or "").strip()
+        status = (self.request.GET.get("status") or "").strip()
+        raw_company = (self.request.GET.get("company") or "").strip()
+        company_id = raw_company if raw_company.isdigit() else ""
+        id_not_returned = self.request.GET.get("id_not_returned") == "1"
+        export_preset, export_from, export_to = access_range_bounds(
+            self.request, default_preset="today"
+        )
+        journal_single_day = export_from == export_to
+        selected_date = (
+            export_from
+            if export_preset == "today"
+            else parse_date(self.request.GET.get("date"), today)
+        )
+        range_base = visits_queryset_for_range(export_from, export_to).order_by(
+            "-scheduled_for", "-check_in_at", "-created_at"
+        )
+        if status == "inside_overdue":
+            base = inside_overdue_queryset()
+        elif status == "id_pending":
+            base = id_pending_queryset()
+        elif status == "inside" and journal_single_day:
+            base = (
+                today_visits_queryset(export_from)
+                .filter(status=VisitStatus.INSIDE)
+                .order_by("check_in_at", "created_at")
+            )
+        elif status == "inside":
+            base = range_base.filter(status=VisitStatus.INSIDE)
+        else:
+            base = range_base
+        visits = list(
+            filter_visits(
+                base,
+                q=q,
+                status="" if status in {"inside", "inside_overdue", "id_pending"} else status,
+                company_id=company_id or None,
+                id_not_returned=id_not_returned,
+            )
+        )
         stats = _guest_stats(visits)
         ctx.update(
             {
                 "visits": visits,
                 "companies": ResidentCompany.objects.filter(status="active").order_by("name"),
-                "filter_company": company,
+                "q": q,
+                "filter_status": status,
+                "filter_company": company_id,
+                "id_not_returned": id_not_returned,
+                "export_preset": export_preset,
+                "export_from": export_from,
+                "export_to": export_to,
+                "journal_single_day": journal_single_day,
+                "show_visit_date": (not journal_single_day)
+                or status in {"inside", "inside_overdue"},
                 "today": today,
                 "selected_date": selected_date,
-                "is_today": selected_date == today,
+                "is_today": journal_single_day and export_from == today,
                 **stats,
             }
         )
@@ -550,6 +604,7 @@ class EmployeeAccessDetailView(SecurityPortalMixin, TemplateView):
             {
                 "employee": employee,
                 "company": employee.company,
+                "roster": "active" if employee.is_active else "former",
                 "days": days,
                 "flaps": flaps,
                 "single_day": single_day,

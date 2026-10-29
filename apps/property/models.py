@@ -143,6 +143,32 @@ class BuildingAssetCategory(models.TextChoices):
     OTHER = "other", _("Digər")
 
 
+class BuildingAssetKind(models.TextChoices):
+    EQUIPMENT = "equipment", _("Avadanlıq")
+    INVENTORY = "inventory", _("İnventar")
+
+
+EQUIPMENT_CATEGORIES = (
+    BuildingAssetCategory.HVAC,
+    BuildingAssetCategory.LIFT,
+    BuildingAssetCategory.ELECTRIC,
+    BuildingAssetCategory.FIRE,
+    BuildingAssetCategory.PUMP,
+    BuildingAssetCategory.OTHER,
+)
+
+INVENTORY_CATEGORIES = (
+    BuildingAssetCategory.FURNITURE,
+    BuildingAssetCategory.OTHER,
+)
+
+
+def categories_for_kind(kind: str):
+    if kind == BuildingAssetKind.INVENTORY:
+        return [(v, l) for v, l in BuildingAssetCategory.choices if v in INVENTORY_CATEGORIES]
+    return [(v, l) for v, l in BuildingAssetCategory.choices if v in EQUIPMENT_CATEGORIES]
+
+
 def add_one_month(value: date) -> date:
     month = value.month + 1
     year = value.year
@@ -158,6 +184,12 @@ class BuildingAsset(models.Model):
 
     name = models.CharField(max_length=160)
     code = models.CharField(max_length=64, blank=True)
+    kind = models.CharField(
+        max_length=16,
+        choices=BuildingAssetKind.choices,
+        default=BuildingAssetKind.EQUIPMENT,
+        db_index=True,
+    )
     category = models.CharField(
         max_length=24,
         choices=BuildingAssetCategory.choices,
@@ -178,7 +210,7 @@ class BuildingAsset(models.Model):
     next_inspection_on = models.DateField(null=True, blank=True)
 
     class Meta:
-        ordering = ["category", "name"]
+        ordering = ["kind", "category", "name"]
 
     def __str__(self):
         return self.name

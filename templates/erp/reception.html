@@ -62,7 +62,7 @@
 
 <div class="grid-reception">
   <div class="reception-main">
-    <div class="cp-card p-card mb-4 reception-toolbar">
+    <div class="cp-card p-card reception-toolbar">
       <form method="get" class="flex gap-2 reception-filters" style="flex-wrap:wrap;align-items:end;">
         <input type="hidden" name="date" value="{{ selected_date|date:'Y-m-d' }}">
         <input type="hidden" name="range" value="{{ export_preset }}">
@@ -247,7 +247,7 @@
   {% endfor %}
 </div>
 {% endif %}
-<div class="cp-card mt-4 reception-journal" style="padding:8px 0;" id="journal-panel" data-refresh-url="{% url 'erp:reception' %}">
+<div class="cp-card reception-journal" style="padding:8px 0;" id="journal-panel" data-refresh-url="{% url 'erp:reception' %}">
   <div class="section-pad" style="padding-bottom:0;">
     <div class="cp-tabs" style="margin-bottom:12px;">
       <a class="cp-tab {% if export_preset == 'today' %}is-active{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&range=today&q={{ q }}&status={{ filter_status }}&company={{ filter_company }}{% if id_not_returned %}&id_not_returned=1{% endif %}#journal-panel">{% translate "Günlük" %}</a>

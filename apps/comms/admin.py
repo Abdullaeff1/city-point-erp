@@ -1,14 +1,28 @@
 from django.contrib import admin
 
-from apps.comms.models import Announcement, Notification, NotificationDispatch
+from apps.comms.models import (
+    Announcement,
+    AnnouncementAttachment,
+    Notification,
+    NotificationDispatch,
+)
+
+
+class AnnouncementAttachmentInline(admin.TabularInline):
+    model = AnnouncementAttachment
+    extra = 0
+    fields = ("title", "file")
 
 
 @admin.register(Announcement)
 class AnnouncementAdmin(admin.ModelAdmin):
-    list_display = ("title", "visibility", "company", "severity", "published_at")
-    list_filter = ("visibility", "severity")
+    list_display = ("title", "source", "visibility", "company", "severity", "published_at")
+    list_filter = ("source", "visibility", "severity")
+    search_fields = ("title", "external_message_id")
     filter_horizontal = ("target_users",)
     autocomplete_fields = ("company",)
+    readonly_fields = ("source", "external_message_id")
+    inlines = [AnnouncementAttachmentInline]
 
 
 @admin.register(Notification)

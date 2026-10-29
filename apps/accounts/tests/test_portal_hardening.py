@@ -4,8 +4,11 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import Role
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.urls import reverse
+
 from apps.comms.announcements import announcements_for_user
-from apps.comms.models import Announcement, AnnouncementVisibility
+from apps.comms.models import Announcement, AnnouncementAttachment, AnnouncementVisibility
 from apps.residents.models import ResidentCompany
 
 User = get_user_model()
@@ -98,3 +101,18 @@ class AnnouncementScopeTests(TestCase):
         self.assertIn("Only B", titles_b)
         self.assertNotIn("Only A", titles_b)
         self.assertNotIn("Target u1", titles_b)
+
+    def test_announcements_page_opens_in_dialog_with_attachments(self):
+        AnnouncementAttachment.objects.create(
+            announcement=self.building,
+            title="Plan PDF",
+            file=SimpleUploadedFile("plan.pdf", b"%PDF-1.4", content_type="application/pdf"),
+        )
+        self.client.force_login(self.u1)
+        resp = self.client.get(reverse("portal:announcements"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'data-announcement-open="%s"' % self.building.pk)
+        self.assertContains(resp, "announcement-dialog")
+        self.assertContains(resp, "announcement-source")
+        self.assertContains(resp, "Plan PDF")
+        self.assertContains(resp, "showModal")

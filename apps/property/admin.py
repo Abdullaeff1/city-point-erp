@@ -49,8 +49,17 @@ class AssetAdmin(admin.ModelAdmin):
 
 @admin.register(BuildingAsset)
 class BuildingAssetAdmin(admin.ModelAdmin):
-    list_display = ("name", "category", "floor", "location", "last_inspected_on", "next_inspection_on", "is_active")
-    list_filter = ("category", "is_active")
+    list_display = (
+        "name",
+        "kind",
+        "category",
+        "floor",
+        "location",
+        "last_inspected_on",
+        "next_inspection_on",
+        "is_active",
+    )
+    list_filter = ("kind", "category", "is_active")
     search_fields = ("name", "code", "location")
 
 

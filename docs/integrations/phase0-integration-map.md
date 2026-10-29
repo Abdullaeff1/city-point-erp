@@ -30,6 +30,13 @@ Docs: [turnstile-audit.md](./turnstile-audit.md).
 | Public leads API | `/api/v1/public/leads/` + mock adapter |
 | Contract | [website-contract.md](./website-contract.md) — incomplete vs real site |
 
+## Outlook announcements (inbound)
+
+| Item | Notes |
+|------|--------|
+| Shared mailbox → portal Elan | [`outlook_announcements.py`](../../apps/integrations/outlook_announcements.py), `poll_outlook_announcements` |
+| Runbook | [outlook-announcements.md](outlook-announcements.md) |
+
 ## Email / communications
 
 | Channel | Status |

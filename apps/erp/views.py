@@ -18,7 +18,9 @@ from apps.erp.forms import GuestVisitForm, StaffTicketForm
 from apps.property.models import (
     BuildingAsset,
     BuildingAssetCategory,
+    BuildingAssetKind,
     Floor,
+    categories_for_kind,
     Space,
     add_one_month,
 )
@@ -684,7 +686,7 @@ class ReceptionExportView(RoleRequiredMixin, View):
 class TicketListView(RoleRequiredMixin, ListView):
     template_name = "erp/tickets.html"
     context_object_name = "tickets"
-    allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
+    allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM, Role.SECURITY)
 
     def get_queryset(self):
         qs = tickets_visible_to(self.request.user).select_related(
@@ -959,23 +961,35 @@ class SpaceListView(RoleRequiredMixin, ListView):
 class BuildingAssetListView(RoleRequiredMixin, TemplateView):
     template_name = "erp/building_assets.html"
     allowed_roles = (Role.PROPERTY_FM, Role.SERVICE_DESK)
+    asset_kind = BuildingAssetKind.EQUIPMENT
+    list_url_name = "erp:building_equipment"
 
     def get(self, request, *args, **kwargs):
         if request.GET.get("template") == "1":
             from apps.property.asset_import import asset_template_response
 
-            return asset_template_response()
+            return asset_template_response(kind=self.asset_kind)
         return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
-        from apps.property.asset_import import SESSION_KEY
+        from apps.property.asset_import import session_key_for
 
         ctx = super().get_context_data(**kwargs)
-        ctx["assets"] = BuildingAsset.objects.select_related("floor").filter(is_active=True)
+        ctx["asset_kind"] = self.asset_kind
+        ctx["list_url_name"] = self.list_url_name
+        ctx["page_title"] = (
+            "İnventarlar" if self.asset_kind == BuildingAssetKind.INVENTORY else "Avadanlıqlar"
+        )
+        ctx["item_label"] = (
+            "inventar" if self.asset_kind == BuildingAssetKind.INVENTORY else "avadanlıq"
+        )
+        ctx["assets"] = BuildingAsset.objects.select_related("floor").filter(
+            is_active=True, kind=self.asset_kind
+        )
         ctx["floors"] = Floor.objects.order_by("code")
-        ctx["categories"] = BuildingAssetCategory.choices
+        ctx["categories"] = categories_for_kind(self.asset_kind)
         ctx["today"] = timezone.localdate()
-        ctx["import_preview"] = self.request.session.get(SESSION_KEY) or []
+        ctx["import_preview"] = self.request.session.get(session_key_for(self.asset_kind)) or []
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -983,10 +997,15 @@ class BuildingAssetListView(RoleRequiredMixin, TemplateView):
         if action in {"import", "import_save", "import_cancel"}:
             return self._import_post(request, action)
         if action == "update":
-            asset = get_object_or_404(BuildingAsset, pk=request.POST.get("asset_id"), is_active=True)
+            asset = get_object_or_404(
+                BuildingAsset,
+                pk=request.POST.get("asset_id"),
+                is_active=True,
+                kind=self.asset_kind,
+            )
             if not (request.POST.get("name") or "").strip():
                 messages.error(request, "Ad yazılmayıb.")
-                return redirect("erp:building_assets")
+                return redirect(self.list_url_name)
             asset.name = request.POST.get("name").strip()
             asset.location = (request.POST.get("location") or "").strip()
             asset.last_inspected_on = parse_date(request.POST.get("last_inspected_on"), None)
@@ -998,22 +1017,33 @@ class BuildingAssetListView(RoleRequiredMixin, TemplateView):
             else:
                 asset.next_inspection_on = None
             asset.save()
-            messages.success(request, "Avadanlıq yeniləndi.")
-            return redirect("erp:building_assets")
+            messages.success(
+                request,
+                "İnventar yeniləndi."
+                if self.asset_kind == BuildingAssetKind.INVENTORY
+                else "Avadanlıq yeniləndi.",
+            )
+            return redirect(self.list_url_name)
         if not (request.POST.get("name") or "").strip():
             messages.error(request, "Ad yazılmayıb.")
-            return redirect("erp:building_assets")
-        asset = BuildingAsset(name=request.POST.get("name").strip())
+            return redirect(self.list_url_name)
+        asset = BuildingAsset(name=request.POST.get("name").strip(), kind=self.asset_kind)
         self._apply_new(asset, request.POST)
         asset.save()
-        messages.success(request, "Avadanlıq əlavə olundu.")
-        return redirect("erp:building_assets")
+        messages.success(
+            request,
+            "İnventar əlavə olundu."
+            if self.asset_kind == BuildingAssetKind.INVENTORY
+            else "Avadanlıq əlavə olundu.",
+        )
+        return redirect(self.list_url_name)
 
     def _apply_new(self, asset, data):
+        asset.kind = self.asset_kind
         asset.code = (data.get("code") or "").strip()
+        allowed = {v for v, _ in categories_for_kind(self.asset_kind)}
         category = data.get("category") or BuildingAssetCategory.OTHER
-        if category in BuildingAssetCategory.values:
-            asset.category = category
+        asset.category = category if category in allowed else BuildingAssetCategory.OTHER
         floor_id = (data.get("floor") or "").strip()
         asset.floor = Floor.objects.filter(pk=floor_id).first() if floor_id else None
         asset.location = (data.get("location") or "").strip()
@@ -1031,43 +1061,54 @@ class BuildingAssetListView(RoleRequiredMixin, TemplateView):
 
     def _import_post(self, request, action):
         from apps.property.asset_import import (
-            SESSION_KEY,
             commit_asset_rows,
             parse_asset_file,
             preview_rows,
+            session_key_for,
         )
 
+        key = session_key_for(self.asset_kind)
         if action == "import_cancel":
-            request.session.pop(SESSION_KEY, None)
-            return redirect("erp:building_assets")
+            request.session.pop(key, None)
+            return redirect(self.list_url_name)
         if action == "import_save":
-            rows = request.session.get(SESSION_KEY) or []
+            rows = request.session.get(key) or []
             if not rows:
                 messages.error(request, "Yazılacaq sətir yoxdur.")
-                return redirect("erp:building_assets")
-            created, updated = commit_asset_rows(rows)
-            request.session.pop(SESSION_KEY, None)
+                return redirect(self.list_url_name)
+            created, updated = commit_asset_rows(rows, kind=self.asset_kind)
+            request.session.pop(key, None)
             messages.success(request, f"Əlavə olundu: {created}. Yeniləndi: {updated}.")
-            return redirect("erp:building_assets")
+            return redirect(self.list_url_name)
         uploaded = request.FILES.get("asset_file")
         if not uploaded:
             messages.error(request, "Fayl seçilməyib.")
-            return redirect("erp:building_assets")
+            return redirect(self.list_url_name)
         try:
             parsed = parse_asset_file(uploaded)
-            rows = preview_rows(parsed, Floor.objects.order_by("code"))
+            rows = preview_rows(parsed, Floor.objects.order_by("code"), kind=self.asset_kind)
         except ValueError as exc:
             messages.error(request, str(exc))
-            return redirect("erp:building_assets")
+            return redirect(self.list_url_name)
         except Exception:
             messages.error(request, "Fayl oxunmadı. Excel (.xlsx) və ya Word (.docx) göndərin.")
-            return redirect("erp:building_assets")
+            return redirect(self.list_url_name)
         if not rows:
-            messages.error(request, "Faylda avadanlıq adı tapılmadı.")
-            return redirect("erp:building_assets")
-        request.session[SESSION_KEY] = rows
+            messages.error(request, "Faylda ad tapılmadı.")
+            return redirect(self.list_url_name)
+        request.session[key] = rows
         request.session.modified = True
-        return redirect("erp:building_assets")
+        return redirect(self.list_url_name)
+
+
+class BuildingEquipmentListView(BuildingAssetListView):
+    asset_kind = BuildingAssetKind.EQUIPMENT
+    list_url_name = "erp:building_equipment"
+
+
+class BuildingInventoryListView(BuildingAssetListView):
+    asset_kind = BuildingAssetKind.INVENTORY
+    list_url_name = "erp:building_inventory"
 
 
 class SpaceDetailView(RoleRequiredMixin, TemplateView):

@@ -134,7 +134,27 @@ class SecurityPortalTests(TestCase):
         emp_resp = self.client.get(reverse("security:company_employees", args=[self.internal.pk]))
         self.assertEqual(emp_resp.status_code, 200)
         self.assertContains(emp_resp, "CP Worker")
+        self.assertContains(emp_resp, "Keçmiş işçilər")
         self.assertNotContains(emp_resp, "employee_set_level")
+
+        former = ResidentEmployee.objects.create(
+            company=self.company,
+            full_name="Former Guard",
+            card_number="",
+            access_level=AccessLevel.LEVEL_1,
+            is_active=False,
+        )
+        active_tab = self.client.get(
+            reverse("security:company_employees", args=[self.company.pk]) + "?roster=active"
+        )
+        self.assertNotContains(active_tab, "Former Guard")
+        former_tab = self.client.get(
+            reverse("security:company_employees", args=[self.company.pk]) + "?roster=former"
+        )
+        self.assertContains(former_tab, "Former Guard")
+        self.assertContains(former_tab, "Arxiv")
+        detail = self.client.get(reverse("security:employee_access", args=[former.pk]))
+        self.assertContains(detail, "Keçmiş işçi")
 
     def test_manual_level_endpoint_gone(self):
         emp = ResidentEmployee.objects.create(
@@ -187,6 +207,19 @@ class SecurityPortalTests(TestCase):
         self.assertEqual(guests.status_code, 200)
         self.assertContains(guests, "Sec Guest")
         self.assertContains(guests, self.company.name)
+        self.assertContains(guests, "Axtarış")
+        self.assertContains(guests, "Bu həftə")
+        self.assertContains(guests, "journal-panel")
+        self.assertContains(guests, "Bugünkü jurnal")
+        filtered = self.client.get(
+            reverse("security:guests")
+            + f"?range=today&status=inside&company={self.company.pk}&q=Sec"
+        )
+        self.assertEqual(filtered.status_code, 200)
+        self.assertContains(filtered, "Sec Guest")
+        empty = self.client.get(reverse("security:guests") + "?status=checked_out")
+        self.assertEqual(empty.status_code, 200)
+        self.assertNotContains(empty, "Sec Guest")
         company_guests = self.client.get(
             reverse("security:company_employees", args=[self.company.pk]) + "?tab=guests"
         )

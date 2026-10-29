@@ -116,6 +116,7 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
 
 :root {
   --cp-panel-max-height: min(65vh, calc(100vh - 220px));
+  --cp-stack-gap: 12px;
 }
 
 /* Long list cards stay within the viewport; overflow scrolls */
@@ -125,6 +126,9 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
   /* Inline padding:8px 0 leaves a gap above sticky thead — remove it */
   padding-top: 0 !important;
   padding-bottom: 0 !important;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 /* border-collapse:collapse creates a hairline gap under sticky headers in Chromium */
 .cp-main .cp-card:has(table.cp-table):not(.cp-card-nolimit):not(.patrol-floor):not(.patrol-summary) table.cp-table,
@@ -151,6 +155,31 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
   padding-top: 0;
   padding-bottom: 0;
 }
+
+/* Collapse stacked mb/mt so cards sit closer without shrinking width */
+.cp-content > .mb-4 {
+  margin-bottom: var(--cp-stack-gap) !important;
+}
+.cp-content > .mt-4 {
+  margin-top: var(--cp-stack-gap) !important;
+}
+.cp-content > .mb-4 + .mt-4,
+.cp-content > .mb-4 + .cp-card.mt-4,
+.cp-content > .cp-card.mb-4 + .cp-card.mt-4 {
+  margin-top: 0 !important;
+}
+.reception-toolbar {
+  margin-bottom: var(--cp-stack-gap) !important;
+  width: 100%;
+}
+.reception-toolbar + .reception-journal,
+.reception-journal {
+  margin-top: var(--cp-stack-gap) !important;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 @media print {
   .cp-main .cp-card:has(table.cp-table) {
     max-height: none !important;
@@ -617,7 +646,12 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
   align-items: flex-start;
   gap: 16px;
 }
-.cp-content { padding: 20px 32px 48px; max-width: 1120px; width: 100%; }
+.cp-content {
+  padding: 20px 32px 48px;
+  max-width: none;
+  width: 100%;
+  box-sizing: border-box;
+}
 .cp-lang {
   font-size: 11px;
   font-weight: 700;
@@ -698,6 +732,95 @@ dialog.guest-detail {
   white-space: nowrap;
 }
 .guest-detail-reason { color: var(--cp-primary); }
+
+.announcement-card {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.announcement-card:hover,
+.announcement-card:focus-visible {
+  border-color: var(--cp-accent);
+  box-shadow: 0 2px 10px rgba(12, 39, 69, 0.1);
+  outline: none;
+}
+.announcement-card-preview {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+dialog.announcement-dialog {
+  border: 0;
+  padding: 0;
+  border-radius: var(--cp-radius);
+  width: min(720px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  color: var(--cp-text);
+  background: var(--cp-surface);
+  box-shadow: 0 16px 40px rgba(12, 39, 69, 0.18);
+}
+dialog.announcement-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.announcement-dialog::backdrop {
+  background: rgba(12, 39, 69, 0.35);
+}
+.announcement-dialog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--cp-border);
+  flex: 0 0 auto;
+}
+.announcement-dialog-head strong {
+  font-size: 16px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.announcement-dialog-body {
+  padding: 16px 18px 20px;
+  overflow: auto;
+  flex: 1 1 auto;
+}
+.announcement-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.announcement-file-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--cp-border);
+  border-radius: 10px;
+  background: var(--cp-soft);
+}
+.announcement-file-name {
+  font-weight: 600;
+  min-width: 0;
+  word-break: break-word;
+}
+.announcement-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.announcement-file-actions .cp-btn,
+.announcement-file-actions .cp-btn-ghost {
+  padding: 6px 10px;
+  font-size: 13px;
+}
 .guest-edit-form {
   display: flex;
   flex-direction: column;
@@ -1025,6 +1148,10 @@ dialog.guest-detail {
     right: 0;
     width: 100%;
   }
+  .cp-content { padding: 12px 14px 28px; }
+  .reception-filters {
+    flex: 1 1 100%;
+  }
 }
 @media (max-width: 900px) {
   .login-split { grid-template-columns: 1fr; }
@@ -1043,8 +1170,6 @@ dialog.guest-detail {
   .cp-btn-accent { padding: 10px; }
   .cp-sidebar-cta { padding: 8px; }
 }
-
-.cp-content:has(.wo-page) { max-width: 1280px; }
 .wo-page { display: flex; flex-direction: column; gap: 20px; }
 .wo-card .cp-section { margin-bottom: 12px; }
 .wo-head { display: flex; flex-wrap: wrap; gap: 20px 32px; margin-top: 16px; align-items: flex-end; }

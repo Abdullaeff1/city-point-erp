@@ -2,13 +2,145 @@
 {% load i18n %}
 {% block heading %}{% translate "Elanlar" %}{% endblock %}
 {% block content %}
-<div class="flex-col gap-3">
+<div class="flex-col gap-3" id="announcement-list">
   {% for a in announcements %}
-  <article class="cp-card p-card">
+  <article
+    class="cp-card p-card announcement-card is-clickable"
+    role="button"
+    tabindex="0"
+    data-announcement-open="{{ a.pk }}"
+    aria-label="{% translate 'Elanı aç' %}: {{ a.title }}"
+  >
     <div class="cp-meta">{{ a.get_severity_display }} · {{ a.published_at|date:"d.m.Y" }}</div>
     <h2 class="cp-section mt-1">{{ a.title }}</h2>
-    <p class="cp-body-text mt-2">{{ a.body }}</p>
+    <p class="cp-body-text mt-2 announcement-card-preview">{{ a.body }}</p>
+    {% if a.attachments.all %}
+    <p class="cp-meta mt-2">{{ a.attachments.all|length }} {% translate "fayl" %}</p>
+    {% endif %}
+    <template class="announcement-source">
+      <p class="cp-meta" style="margin:0 0 12px;">{{ a.get_severity_display }} · {{ a.published_at|date:"d.m.Y" }}</p>
+      <h3 class="cp-section" style="margin:0 0 12px;">{{ a.title }}</h3>
+      <div class="cp-body-text" style="white-space:pre-wrap;">{{ a.body }}</div>
+      {% if a.attachments.all %}
+      <div class="announcement-files">
+        <div class="cp-section" style="margin:16px 0 8px;">{% translate "Fayllar" %}</div>
+        <ul class="announcement-file-list">
+          {% for att in a.attachments.all %}
+          {% if att.file %}
+          <li class="announcement-file-row">
+            <span class="announcement-file-name">{{ att.display_name }}</span>
+            <span class="announcement-file-actions">
+              <a class="cp-btn-ghost" href="{{ att.file.url }}" target="_blank" rel="noopener">{% translate "Aç" %}</a>
+              <a class="cp-btn" href="{{ att.file.url }}" download="{{ att.display_name }}">{% translate "Yüklə" %}</a>
+            </span>
+          </li>
+          {% endif %}
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </template>
   </article>
+  {% empty %}
+  <div class="cp-card p-card cp-meta">{% translate "Elan yoxdur." %}</div>
   {% endfor %}
 </div>
+
+<dialog id="announcement-dialog" class="announcement-dialog">
+  <div class="announcement-dialog-head">
+    <strong id="announcement-dialog-title">{% translate "Elan" %}</strong>
+    <button type="button" class="cp-btn-ghost" id="announcement-dialog-close">{% translate "Bağla" %}</button>
+  </div>
+  <div class="announcement-dialog-body" id="announcement-dialog-body"></div>
+</dialog>
+{% endblock %}
+
+{% block body %}
+{{ block.super }}
+<script>
+(function () {
+  function ready(fn) {
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn);
+    else fn();
+  }
+
+  ready(function () {
+    var dialog = document.getElementById("announcement-dialog");
+    var body = document.getElementById("announcement-dialog-body");
+    var titleEl = document.getElementById("announcement-dialog-title");
+    var closeBtn = document.getElementById("announcement-dialog-close");
+    var list = document.getElementById("announcement-list");
+    if (!dialog || !body || !list) return;
+
+    function setOpenQuery(id) {
+      try {
+        var url = new URL(window.location.href);
+        if (id) url.searchParams.set("open", String(id));
+        else url.searchParams.delete("open");
+        history.replaceState(null, "", url.pathname + url.search + url.hash);
+      } catch (e) {}
+    }
+
+    function openFromCard(card) {
+      if (!card) return;
+      var source = card.querySelector("template.announcement-source");
+      if (!source) return;
+      var heading = card.querySelector(".cp-section");
+      titleEl.textContent = heading ? heading.textContent.trim() : "{% translate 'Elan' %}";
+      body.innerHTML = "";
+      body.appendChild(source.content.cloneNode(true));
+      try {
+        if (typeof dialog.showModal === "function") dialog.showModal();
+        else dialog.setAttribute("open", "");
+      } catch (e) {
+        dialog.setAttribute("open", "");
+      }
+      setOpenQuery(card.getAttribute("data-announcement-open"));
+    }
+
+    function closeDialog() {
+      try {
+        if (typeof dialog.close === "function") dialog.close();
+        else dialog.removeAttribute("open");
+      } catch (e) {
+        dialog.removeAttribute("open");
+      }
+      setOpenQuery(null);
+    }
+
+    list.addEventListener("click", function (ev) {
+      var card = ev.target.closest("[data-announcement-open]");
+      if (!card || !list.contains(card)) return;
+      ev.preventDefault();
+      openFromCard(card);
+    });
+
+    list.addEventListener("keydown", function (ev) {
+      if (ev.key !== "Enter" && ev.key !== " ") return;
+      var card = ev.target.closest("[data-announcement-open]");
+      if (!card || !list.contains(card)) return;
+      ev.preventDefault();
+      openFromCard(card);
+    });
+
+    if (closeBtn) closeBtn.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      closeDialog();
+    });
+    dialog.addEventListener("cancel", function (ev) {
+      ev.preventDefault();
+      closeDialog();
+    });
+    dialog.addEventListener("click", function (ev) {
+      if (ev.target === dialog) closeDialog();
+    });
+
+    var openId = new URLSearchParams(window.location.search).get("open");
+    if (openId) {
+      var card = list.querySelector('[data-announcement-open="' + openId + '"]');
+      if (card) openFromCard(card);
+    }
+  });
+})();
+</script>
 {% endblock %}

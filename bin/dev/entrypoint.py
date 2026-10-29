@@ -47,6 +47,24 @@ def start_axtrax_poller():
     print(f"AxTrax poller started pid={proc.pid} log={log_path}")
 
 
+def start_outlook_announcements_poller():
+    """Background poller: Outlook shared mailbox → portal announcements."""
+    if os.environ.get("OUTLOOK_POLL_ON_START", "0") != "1":
+        print("Outlook announcements poller disabled (OUTLOOK_POLL_ON_START!=1)")
+        return
+    log_dir = Path("var")
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / "outlook_announcements_poller.log"
+    log = open(log_path, "a", encoding="utf-8")
+    proc = subprocess.Popen(
+        [sys.executable, "manage.py", "poll_outlook_announcements"],
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    print(f"Outlook announcements poller started pid={proc.pid} log={log_path}")
+
+
 def wait_for_postgres():
     host = os.environ.get("POSTGRES_HOST", "db")
     port = int(os.environ.get("POSTGRES_PORT", "5432"))
@@ -73,6 +91,7 @@ def main():
     if os.environ.get("SEED_DEMO", "1") == "1":
         subprocess.check_call([sys.executable, "manage.py", "seed_demo"])
     start_axtrax_poller()
+    start_outlook_announcements_poller()
     # OneDrive-mounted trees can crash Django autoreloader with Errno 5 (I/O error).
     cmd = [sys.executable, "manage.py", "runserver", "0.0.0.0:8000"]
     if os.environ.get("RUNSERVER_NORELOAD", "1") == "1":

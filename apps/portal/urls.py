@@ -7,6 +7,7 @@ app_name = "portal"
 urlpatterns = [
     path("", views.HomeView.as_view(), name="home"),
     path("spaces/", views.SpacesView.as_view(), name="spaces"),
+    path("spaces/<str:code>/", views.SpaceDetailView.as_view(), name="space_detail"),
     path("requests/new/", views.RequestCreateView.as_view(), name="request_new"),
     path("requests/active/", views.RequestListView.as_view(), {"scope": "active"}, name="requests_active"),
     path("requests/history/", views.RequestListView.as_view(), {"scope": "history"}, name="requests_history"),

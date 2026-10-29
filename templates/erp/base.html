@@ -22,7 +22,10 @@
       {% if nav_property or nav_residents or nav_parties or nav_leases %}
       <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
-      {% if nav_property or user.role == "service_desk" %}<a class="{% nav_active 'building_assets' %}" href="{% url 'erp:building_assets' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "Biznes mərkəzi" %}</span></a>{% endif %}
+      {% if nav_property or user.role == "service_desk" %}
+      <a class="{% nav_active 'building_equipment' 'building_assets' %}" href="{% url 'erp:building_equipment' %}"><i data-lucide="cpu" width="18" height="18"></i><span class="cp-nav-text">{% translate "Avadanlıqlar" %}</span></a>
+      <a class="{% nav_active 'building_inventory' %}" href="{% url 'erp:building_inventory' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "İnventarlar" %}</span></a>
+      {% endif %}
       {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' 'resident_employees' 'resident_employee_access' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rezidentlər" %}</span><span class="badge badge-muted" style="margin-left:auto;">{{ resident_count }}</span></a>{% endif %}
       {% if nav_parties %}<a class="{% nav_active 'parties' %}" href="{% url 'erp:parties' %}"><i data-lucide="building" width="18" height="18"></i><span class="cp-nav-text">{% translate "Parties" %}</span></a>{% endif %}
       {% if nav_leases %}<a class="{% nav_active 'leases' 'lease_detail' %}" href="{% url 'erp:leases' %}"><i data-lucide="file-signature" width="18" height="18"></i><span class="cp-nav-text">{% translate "İcarələr" %}</span></a>{% endif %}
@@ -46,7 +49,10 @@
       {% if nav_property or nav_residents or nav_leases %}
       <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
-      {% if nav_property or user.role == "service_desk" %}<a class="{% nav_active 'building_assets' %}" href="{% url 'erp:building_assets' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "Biznes mərkəzi" %}</span></a>{% endif %}
+      {% if nav_property or user.role == "service_desk" %}
+      <a class="{% nav_active 'building_equipment' 'building_assets' %}" href="{% url 'erp:building_equipment' %}"><i data-lucide="cpu" width="18" height="18"></i><span class="cp-nav-text">{% translate "Avadanlıqlar" %}</span></a>
+      <a class="{% nav_active 'building_inventory' %}" href="{% url 'erp:building_inventory' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "İnventarlar" %}</span></a>
+      {% endif %}
       {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' 'resident_employees' 'resident_employee_access' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rezidentlər" %}</span><span class="badge badge-muted" style="margin-left:auto;">{{ resident_count }}</span></a>{% endif %}
       {% if nav_leases %}<a class="{% nav_active 'leases' 'lease_detail' %}" href="{% url 'erp:leases' %}"><i data-lucide="file-signature" width="18" height="18"></i><span class="cp-nav-text">{% translate "İcarələr" %}</span></a>{% endif %}
       {% endif %}

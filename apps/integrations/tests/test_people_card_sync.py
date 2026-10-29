@@ -152,7 +152,21 @@ class AxTraxPeopleCardSyncTests(TestCase):
                 ]
             )
         )
-        # Only Namik left in export — Ali orphaned
+        ali = ResidentEmployee.objects.get(full_name="Əli Cumayev")
+        from django.utils import timezone
+
+        from apps.residents.models import AccessEvent, AccessEventType, AccessResult
+
+        AccessEvent.objects.create(
+            employee=ali,
+            event_type=AccessEventType.IN,
+            result=AccessResult.GRANTED,
+            occurred_at=timezone.now(),
+            employee_name=ali.full_name,
+            card_number="006001",
+            reader_name="F1TurIN",
+        )
+        # Only Namik left in export — Ali orphaned (deleted from AxTrax)
         sync_people_from_payload(
             _payload(
                 [
@@ -168,11 +182,15 @@ class AxTraxPeopleCardSyncTests(TestCase):
                 ]
             )
         )
-        ali = ResidentEmployee.objects.get(full_name="Əli Cumayev")
+        ali.refresh_from_db()
         namik = ResidentEmployee.objects.get(full_name="Namik Məhəmmədov")
         self.assertFalse(ali.is_active)
+        self.assertIsNotNone(ali.deactivated_at)
         self.assertEqual(ali.card_number, "")
         self.assertEqual(namik.card_number, "006001")
+        # Soft-archive only: row + punch history must remain in ERP
+        self.assertTrue(ResidentEmployee.objects.filter(pk=ali.pk).exists())
+        self.assertEqual(AccessEvent.objects.filter(employee=ali).count(), 1)
 
 
 class EventCardSnapshotTests(TestCase):

@@ -27,6 +27,7 @@ from apps.residents.access import (
     parse_date,
 )
 from apps.residents.access_export import access_xlsx_http_response
+from apps.property.models import Space
 from apps.residents.models import ResidentEmployee
 from apps.residents.services import create_employee_card_order
 from apps.tickets.access import can_delete_ticket
@@ -64,6 +65,47 @@ class SpacesView(ResidentPortalMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         company = self.request.user.resident_company
         ctx["spaces"] = company.spaces.select_related("floor") if company else []
+        return ctx
+
+
+class SpaceDetailView(ResidentPortalMixin, TemplateView):
+    """Resident space card — same tabs as ERP, scoped to own company only."""
+
+    template_name = "portal/space_detail.html"
+
+    def get_space(self):
+        company = self.request.user.resident_company
+        if company is None:
+            raise PermissionDenied
+        return get_object_or_404(
+            Space.objects.select_related("floor", "resident"),
+            code=self.kwargs["code"],
+            resident=company,
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        space = self.get_space()
+        company = self.request.user.resident_company
+        tab = self.request.GET.get("tab") or "overview"
+        if tab not in {"overview", "tickets", "documents", "employees", "assets"}:
+            tab = "overview"
+        company_tickets = Ticket.objects.filter(company=company, space=space)
+        ctx.update(
+            {
+                "space": space,
+                "tab": tab,
+                "open_tickets": company_tickets.filter(status__in=OPEN_STATUSES),
+                "all_tickets": company_tickets.select_related("category")[:20],
+                "assets": space.assets.all(),
+                "documents": space.documents.all(),
+                "employees": (
+                    space.resident.employees.filter(is_active=True)
+                    if space.resident_id
+                    else ResidentEmployee.objects.none()
+                ),
+            }
+        )
         return ctx
 
 
@@ -423,7 +465,7 @@ class AnnouncementsView(ResidentPortalMixin, ListView):
     context_object_name = "announcements"
 
     def get_queryset(self):
-        return announcements_for_user(self.request.user)
+        return announcements_for_user(self.request.user).prefetch_related("attachments")
 
 
 class DocumentsView(ResidentPortalMixin, ListView):

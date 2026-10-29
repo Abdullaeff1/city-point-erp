@@ -1,10 +1,16 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
-{% block heading %}{% translate "Biznes mərkəzi" %}{% endblock %}
+{% block heading %}{{ page_title }}{% endblock %}
 {% block content %}
 <div class="cp-card p-card mb-4">
   <div class="cp-section">{% translate "Əlavə et" %}</div>
-  <p class="cp-meta mt-2">{% translate "City Point-ə aid cihaz və mallar. Son baxış yazılanda növbəti baxış bir ay sonra düşür." %}</p>
+  <p class="cp-meta mt-2">
+    {% if asset_kind == "inventory" %}
+    {% translate "City Point-ə aid inventar və mallar. Son baxış yazılanda növbəti baxış bir ay sonra düşür." %}
+    {% else %}
+    {% translate "City Point-ə aid cihaz və avadanlıqlar. Son baxış yazılanda növbəti baxış bir ay sonra düşür." %}
+    {% endif %}
+  </p>
   <form method="post" class="grid-2 mt-3" style="align-items:end;">
     {% csrf_token %}
     <label>
@@ -66,7 +72,7 @@
 {% if import_preview %}
 <div class="cp-card p-card mb-4">
   <div class="cp-section">{% translate "Fayl önizləməsi" %}</div>
-  <p class="cp-meta mt-2">{{ import_preview|length }} {% translate "avadanlıq" %}</p>
+  <p class="cp-meta mt-2">{{ import_preview|length }} {{ item_label }}</p>
   <ul class="mt-3" style="list-style:none;padding:0;margin:0;">
     {% for row in import_preview %}
     <li class="empty-pad" style="padding:8px 0;">
@@ -120,7 +126,7 @@
         <td><button class="cp-btn-ghost" type="submit" form="asset-{{ asset.pk }}" style="padding:6px 10px;">{% translate "Saxla" %}</button></td>
       </tr>
       {% empty %}
-      <tr><td colspan="7" class="cp-meta empty-pad">{% translate "Avadanlıq yoxdur." %}</td></tr>
+      <tr><td colspan="7" class="cp-meta empty-pad">{% if asset_kind == "inventory" %}{% translate "İnventar yoxdur." %}{% else %}{% translate "Avadanlıq yoxdur." %}{% endif %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

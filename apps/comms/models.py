@@ -1,3 +1,5 @@
+import os
+
 from django.conf import settings
 from django.db import models
 
@@ -12,6 +14,11 @@ class AnnouncementVisibility(models.TextChoices):
     BUILDING = "building", "Bina-ümumi"
     COMPANY = "company", "Şirkət"
     TARGETED = "targeted", "Hədəflənmiş"
+
+
+class AnnouncementSource(models.TextChoices):
+    MANUAL = "manual", "Əl ilə"
+    OUTLOOK = "outlook", "Outlook"
 
 
 class NotificationChannel(models.TextChoices):
@@ -46,12 +53,50 @@ class Announcement(models.Model):
         related_name="targeted_announcements",
         help_text="TARGETED görünürlük üçün",
     )
+    source = models.CharField(
+        max_length=16,
+        choices=AnnouncementSource.choices,
+        default=AnnouncementSource.MANUAL,
+        db_index=True,
+    )
+    external_message_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text="Outlook/Graph internetMessageId (dedup)",
+    )
 
     class Meta:
         ordering = ["-published_at"]
 
     def __str__(self):
         return self.title
+
+
+class AnnouncementAttachment(models.Model):
+    """PDF / file attachments shown in the announcement detail dialog."""
+
+    announcement = models.ForeignKey(
+        Announcement,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+    )
+    file = models.FileField(upload_to="announcements/%Y/%m/")
+    title = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return self.display_name
+
+    @property
+    def display_name(self) -> str:
+        if self.title.strip():
+            return self.title.strip()
+        return os.path.basename(self.file.name) if self.file else "—"
 
 
 class Notification(models.Model):

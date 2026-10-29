@@ -9,10 +9,20 @@ from django.db import transaction
 from django.http import HttpResponse
 from openpyxl import Workbook, load_workbook
 
-from apps.property.models import BuildingAsset, BuildingAssetCategory, Floor, add_one_month
+from apps.property.models import (
+    BuildingAsset,
+    BuildingAssetCategory,
+    BuildingAssetKind,
+    Floor,
+    add_one_month,
+)
 
 SESSION_KEY = "building_asset_import"
 MAX_ROWS = 500
+
+
+def session_key_for(kind: str) -> str:
+    return f"{SESSION_KEY}:{kind or BuildingAssetKind.EQUIPMENT}"
 
 _HEADER_ALIASES = {
     "ad": "name",
@@ -267,9 +277,10 @@ def parse_asset_file(uploaded) -> list[dict]:
     raise ValueError("Yalnız .xlsx və ya .docx fayl qəbul olunur.")
 
 
-def preview_rows(parsed, floors) -> list[dict]:
+def preview_rows(parsed, floors, *, kind=BuildingAssetKind.EQUIPMENT) -> list[dict]:
     floors = list(floors)
     ready = []
+    kind = kind or BuildingAssetKind.EQUIPMENT
     for item in parsed:
         name = (item.get("name") or "").strip()
         if not name:
@@ -288,10 +299,16 @@ def preview_rows(parsed, floors) -> list[dict]:
             last = _parse_date(last)
         next_on = add_one_month(last) if last else None
         category = _category_code(item.get("category"))
+        if kind == BuildingAssetKind.INVENTORY and category not in {
+            BuildingAssetCategory.FURNITURE,
+            BuildingAssetCategory.OTHER,
+        }:
+            category = BuildingAssetCategory.OTHER
         ready.append(
             {
                 "name": name[:160],
                 "code": (item.get("code") or "").strip()[:64],
+                "kind": kind,
                 "category": category,
                 "category_label": str(BuildingAssetCategory(category).label),
                 "floor_id": floor.pk if floor else None,
@@ -307,23 +324,27 @@ def preview_rows(parsed, floors) -> list[dict]:
 
 
 @transaction.atomic
-def commit_asset_rows(rows) -> tuple[int, int]:
+def commit_asset_rows(rows, *, kind=BuildingAssetKind.EQUIPMENT) -> tuple[int, int]:
     created = 0
     updated = 0
+    kind = kind or BuildingAssetKind.EQUIPMENT
     for row in rows:
         last = _parse_date(row.get("last_inspected_on")) if row.get("last_inspected_on") else None
         next_on = _parse_date(row.get("next_inspection_on")) if row.get("next_inspection_on") else None
         if last and not next_on:
             next_on = add_one_month(last)
+        row_kind = row.get("kind") or kind
         existing = BuildingAsset.objects.filter(
             name=row["name"],
             code=row.get("code") or "",
+            kind=row_kind,
             is_active=True,
         ).first()
         floor = None
         if row.get("floor_id"):
             floor = Floor.objects.filter(pk=row["floor_id"]).first()
         if existing:
+            existing.kind = row_kind
             existing.category = row.get("category") or BuildingAssetCategory.OTHER
             if floor:
                 existing.floor = floor
@@ -343,6 +364,7 @@ def commit_asset_rows(rows) -> tuple[int, int]:
         BuildingAsset.objects.create(
             name=row["name"],
             code=row.get("code") or "",
+            kind=row_kind,
             category=row.get("category") or BuildingAssetCategory.OTHER,
             floor=floor,
             location=row.get("location") or "",
@@ -355,17 +377,24 @@ def commit_asset_rows(rows) -> tuple[int, int]:
     return created, updated
 
 
-def asset_template_response() -> HttpResponse:
+def asset_template_response(*, kind=BuildingAssetKind.EQUIPMENT) -> HttpResponse:
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = "Avadanliq"
-    sheet.append(["Ad", "Kod", "Kateqoriya", "Mərtəbə", "Yer", "Say", "Son baxış", "Qeyd"])
-    sheet.append(["Lift 1", "L-1", "Lift", "1-ci mərtəbə", "Hol", 1, "", ""])
+    if kind == BuildingAssetKind.INVENTORY:
+        sheet.title = "Inventar"
+        sheet.append(["Ad", "Kod", "Kateqoriya", "Mərtəbə", "Yer", "Say", "Son baxış", "Qeyd"])
+        sheet.append(["Masa", "M-1", "Mebel", "1-ci mərtəbə", "Ofis", 1, "", ""])
+        filename = "inventar-siyahisi.xlsx"
+    else:
+        sheet.title = "Avadanliq"
+        sheet.append(["Ad", "Kod", "Kateqoriya", "Mərtəbə", "Yer", "Say", "Son baxış", "Qeyd"])
+        sheet.append(["Lift 1", "L-1", "Lift", "1-ci mərtəbə", "Hol", 1, "", ""])
+        filename = "avadanliq-siyahisi.xlsx"
     buffer = io.BytesIO()
     workbook.save(buffer)
     response = HttpResponse(
         buffer.getvalue(),
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
-    response["Content-Disposition"] = 'attachment; filename="avadanliq-siyahisi.xlsx"'
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response

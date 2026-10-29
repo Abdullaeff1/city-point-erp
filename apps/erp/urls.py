@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from apps.erp import views
 from apps.erp.work_orders import (
@@ -49,7 +50,21 @@ urlpatterns = [
     path("tickets/new/", views.TicketCreateView.as_view(), name="ticket_create"),
     path("tickets/<str:code>/", views.TicketDetailView.as_view(), name="ticket_detail"),
     path("spaces/", views.SpaceListView.as_view(), name="spaces"),
-    path("building-assets/", views.BuildingAssetListView.as_view(), name="building_assets"),
+    path(
+        "building-assets/",
+        RedirectView.as_view(pattern_name="erp:building_equipment", permanent=False),
+        name="building_assets",
+    ),
+    path(
+        "building-equipment/",
+        views.BuildingEquipmentListView.as_view(),
+        name="building_equipment",
+    ),
+    path(
+        "building-inventory/",
+        views.BuildingInventoryListView.as_view(),
+        name="building_inventory",
+    ),
     path("spaces/<str:code>/", views.SpaceDetailView.as_view(), name="space_detail"),
     path("residents/", views.ResidentListView.as_view(), name="residents"),
     path("residents/<slug:slug>/", views.ResidentDetailView.as_view(), name="resident_detail"),

@@ -2,9 +2,12 @@
 {% load i18n %}
 {% block heading %}{{ employee.full_name }}{% endblock %}
 {% block back_trail %}
- · <a href="{% url 'security:company_employees' company.pk %}">{{ company.name }}</a>
+ · <a href="{% url 'security:company_employees' company.pk %}?roster={% if employee.is_active %}active{% else %}former{% endif %}&date={{ date_from|date:'Y-m-d' }}">{{ company.name }}</a>
  · {% translate "Kart" %}: {{ employee.card_number|default:"—" }}
  · {{ employee.get_access_level_display }}
+ {% if not employee.is_active %}
+ · <strong>{% translate "Keçmiş işçi" %}</strong>{% if employee.deactivated_at %} · {% translate "çıxış" %}: {{ employee.deactivated_at|date:"d.m.Y" }}{% endif %}
+ {% endif %}
 {% endblock %}
 {% block content %}
 <div class="cp-card p-card mb-4">
