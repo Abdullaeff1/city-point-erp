@@ -1,0 +1,46 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Sahə rəsm icazə sorğuları" %}{% endblock %}
+{% block content %}
+{% if messages %}
+<div class="mb-3">
+  {% for message in messages %}
+  <p class="cp-meta">{{ message }}</p>
+  {% endfor %}
+</div>
+{% endif %}
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Tarix" %}</th>
+        <th>{% translate "İstifadəçi" %}</th>
+        <th>{% translate "Sahə" %}</th>
+        <th>{% translate "Fayl" %}</th>
+        <th>{% translate "Növ" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in pending %}
+      <tr>
+        <td class="cp-meta">{{ r.created_at|date:"d.m.Y H:i" }}</td>
+        <td>{{ r.user.display_name }}<br><span class="cp-meta">{{ r.user.email }}</span></td>
+        <td><a href="{% url 'erp:space_detail' r.drawing.space.code %}?tab={% if r.drawing.kind == 'dxf' %}dwg{% else %}technical_plan{% endif %}">{{ r.drawing.space.area_code }}</a></td>
+        <td>{{ r.drawing.original_name }}</td>
+        <td>{{ r.drawing.get_kind_display }}</td>
+        <td>
+          <form method="post" action="{% url 'erp:drawing_access_decide' r.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button class="cp-btn" name="action" value="approve" type="submit">{% translate "Təsdiq" %}</button>
+            <button class="cp-btn-ghost" name="action" value="deny" type="submit">{% translate "İmtina" %}</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="cp-meta empty-pad">{% translate "Gözləyən sorğu yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

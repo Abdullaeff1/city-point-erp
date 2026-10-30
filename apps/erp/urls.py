@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from apps.erp import views
+from apps.erp import drawing_views, views
 from apps.erp.work_orders import (
     WorkOrderDetailView,
     WorkOrderImportView,
@@ -50,6 +50,8 @@ urlpatterns = [
     path("tickets/new/", views.TicketCreateView.as_view(), name="ticket_create"),
     path("tickets/<str:code>/", views.TicketDetailView.as_view(), name="ticket_detail"),
     path("spaces/", views.SpaceListView.as_view(), name="spaces"),
+    path("spaces/new/", views.SpaceCreateView.as_view(), name="space_create"),
+    path("floors/new/", views.FloorCreateView.as_view(), name="floor_create"),
     path(
         "building-assets/",
         RedirectView.as_view(pattern_name="erp:building_equipment", permanent=False),
@@ -65,7 +67,39 @@ urlpatterns = [
         views.BuildingInventoryListView.as_view(),
         name="building_inventory",
     ),
+    path("spaces/<str:code>/edit/", views.SpaceUpdateView.as_view(), name="space_edit"),
+    path("spaces/<str:code>/delete/", views.SpaceDeleteView.as_view(), name="space_delete"),
     path("spaces/<str:code>/", views.SpaceDetailView.as_view(), name="space_detail"),
+    path(
+        "spaces/<str:code>/drawings/upload/",
+        drawing_views.SpaceDrawingUploadView.as_view(),
+        name="space_drawing_upload",
+    ),
+    path(
+        "drawings/<int:pk>/download/",
+        drawing_views.SpaceDrawingDownloadView.as_view(),
+        name="space_drawing_download",
+    ),
+    path(
+        "drawings/<int:pk>/svg/",
+        drawing_views.SpaceDrawingSvgView.as_view(),
+        name="space_drawing_svg",
+    ),
+    path(
+        "drawings/<int:pk>/png/",
+        drawing_views.SpaceDrawingPngPreviewView.as_view(),
+        name="space_drawing_png",
+    ),
+    path(
+        "drawing-access/",
+        drawing_views.DrawingAccessQueueView.as_view(),
+        name="drawing_access_queue",
+    ),
+    path(
+        "drawing-access/<int:pk>/decide/",
+        drawing_views.DrawingAccessDecideView.as_view(),
+        name="drawing_access_decide",
+    ),
     path("residents/", views.ResidentListView.as_view(), name="residents"),
     path("residents/<slug:slug>/", views.ResidentDetailView.as_view(), name="resident_detail"),
     path(

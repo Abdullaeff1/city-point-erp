@@ -6,6 +6,7 @@ from apps.accounts.impersonation import (
     list_role_switch_targets,
 )
 from apps.accounts.models import Role
+from apps.accounts.portal_scope import MODE_ALL, get_portal_scope
 from apps.comms.models import Notification
 
 
@@ -41,6 +42,24 @@ def role_context(request):
         impersonating = is_impersonating(request)
         impersonator = get_impersonator(request) if impersonating else None
 
+    portal_scope_label = ""
+    portal_scope_mode = None
+    portal_can_switch_company = False
+    if user and user.is_authenticated and role == Role.RESIDENT_USER:
+        scope = get_portal_scope(request)
+        if scope:
+            portal_scope_mode = scope.mode
+            if scope.mode == MODE_ALL:
+                portal_scope_label = f"Bütün şirkətlər ({len(scope.company_ids)})"
+            elif scope.company_ids:
+                from apps.residents.models import ResidentCompany
+
+                company = ResidentCompany.objects.filter(pk=scope.company_ids[0]).first()
+                portal_scope_label = company.name if company else ""
+            from apps.accounts.portal_scope import eligible_company_ids_for
+
+            portal_can_switch_company = len(eligible_company_ids_for(user)) > 1
+
     return {
         "unread_alerts": unread,
         "open_rapid_alerts": open_rapid_alerts,
@@ -70,4 +89,7 @@ def role_context(request):
         "role_switch_targets": role_targets,
         "is_impersonating": impersonating,
         "impersonator": impersonator,
+        "portal_scope_label": portal_scope_label,
+        "portal_scope_mode": portal_scope_mode,
+        "portal_can_switch_company": portal_can_switch_company,
     }

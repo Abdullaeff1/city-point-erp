@@ -1,0 +1,20 @@
+{
+  "id": "B1_Ofis_01",
+  "floor": "B1",
+  "floor_title": "-1-ci mərtəbə",
+  "source_label": "Bank 616 m²",
+  "resident_name": null,
+  "source_contour": "DE94",
+  "contour_area_m2": 616.491,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "B1_Ofis_01.dxf",
+  "preview_file": "B1_Ofis_01.png",
+  "audit_errors": 0,
+  "entities": 1116
+}

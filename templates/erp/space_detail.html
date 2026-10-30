@@ -6,24 +6,41 @@
  · <span class="cp-code">{{ space.area_code }}</span>
 {% endblock %}
 {% block content %}
+{% if messages %}
+<div class="mb-3">
+  {% for message in messages %}
+  <p class="cp-meta" style="{% if message.tags == 'error' %}color:#b42318;{% endif %}">{{ message }}</p>
+  {% endfor %}
+</div>
+{% endif %}
 <nav class="cp-tabs">
   <a class="cp-tab {% if tab == 'overview' %}is-active{% endif %}" href="?tab=overview">{% translate "Ümumi" %}</a>
   <a class="cp-tab {% if tab == 'tickets' %}is-active{% endif %}" href="?tab=tickets">{% translate "Müraciətlər" %}</a>
   <a class="cp-tab {% if tab == 'documents' %}is-active{% endif %}" href="?tab=documents">{% translate "Sənədlər" %}</a>
   <a class="cp-tab {% if tab == 'employees' %}is-active{% endif %}" href="?tab=employees">{% translate "Əməkdaşlar" %}</a>
   <a class="cp-tab {% if tab == 'assets' %}is-active{% endif %}" href="?tab=assets">{% translate "Aktivlər" %}</a>
+  {% if can_manage_drawings %}
+  <a class="cp-tab {% if tab == 'technical_plan' %}is-active{% endif %}" href="?tab=technical_plan">{% translate "Texniki plan" %}</a>
+  <a class="cp-tab {% if tab == 'dwg' %}is-active{% endif %}" href="?tab=dwg">DWG</a>
+  {% else %}
   <span class="cp-tab is-disabled">{% translate "Texniki plan" %}</span>
   <span class="cp-tab is-disabled">DWG</span>
+  {% endif %}
   <span class="cp-tab is-disabled">{% translate "Maintenance" %}</span>
 </nav>
 
 {% if tab == 'overview' or not tab %}
+<div class="flex gap-2 mb-4" style="flex-wrap:wrap;">
+  <a class="cp-btn" href="{% url 'erp:space_edit' space.code %}">{% translate "Düzəliş et" %}</a>
+  <a class="cp-btn-ghost" href="{% url 'erp:space_delete' space.code %}">{% translate "Sil" %}</a>
+</div>
 <div class="grid-main mb-5">
   <div class="cp-card p-card-lg">
     <div class="cp-title">{{ space.short_label }}</div>
+    <p class="mt-2 cp-meta">{{ space.code }}{% if space.name %} · {{ space.name }}{% endif %}</p>
     <p class="mt-2">{{ space.area_m2 }} m² · {{ space.floor.name }}</p>
     <p class="mt-2"><span class="cp-meta">{% translate "Rezident" %}:</span> {% if space.resident %}{{ space.resident.name }}{% else %}{% translate "Boş" %}{% endif %}</p>
-    <p class="cp-meta mt-2">{% translate "Access" %} {{ space.access_zone }} · {{ space.get_occupancy_display }} · {{ space.cost_center }}</p>
+    <p class="cp-meta mt-2">{% translate "Keçid" %} {{ space.access_zone }} · {{ space.get_occupancy_display }} · {{ space.get_commercial_status_display }} · {{ space.cost_center }}</p>
   </div>
   <div class="cp-card p-card">
     <div>{% translate "Açıq ticket" %}: <strong>{{ open_tickets.count }}</strong></div>
@@ -64,5 +81,111 @@
 <div class="cp-card p-card">
   <ul style="list-style:none;padding:0;">{% for a in assets %}<li class="mb-2">{{ a.asset_code }} · {{ a.name }}</li>{% empty %}<li class="cp-meta">{% translate "Avadanlıq yoxdur." %}</li>{% endfor %}</ul>
 </div>
+{% elif tab == 'dwg' and can_manage_drawings %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section" style="font-size:16px;">{% translate "DXF yüklə" %}</h3>
+  <form method="post" enctype="multipart/form-data" action="{% url 'erp:space_drawing_upload' space.code %}" class="flex gap-2 mt-3" style="flex-wrap:wrap;align-items:end;">
+    {% csrf_token %}
+    <input type="hidden" name="kind" value="dxf">
+    <input class="cp-input" type="file" name="file" accept=".dxf" required>
+    <button class="cp-btn" type="submit">{% translate "Yüklə" %}</button>
+  </form>
+</div>
+{% if space_pending_requests %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section" style="font-size:16px;">{% translate "Gözləyən icazə sorğuları" %}</h3>
+  {% for r in space_pending_requests %}
+  <div class="flex justify-between mb-2" style="align-items:center;gap:12px;flex-wrap:wrap;">
+    <span>{{ r.user.display_name }} · {{ r.drawing.original_name }}</span>
+    <span>
+      <form method="post" action="{% url 'erp:drawing_access_decide' r.pk %}" style="display:inline;">{% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button class="cp-btn" name="action" value="approve" type="submit">{% translate "Təsdiq" %}</button>
+        <button class="cp-btn-ghost" name="action" value="deny" type="submit">{% translate "İmtina" %}</button>
+      </form>
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Fayl" %}</th><th>{% translate "Tarix" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for d in dxf_drawings %}
+      <tr>
+        <td>{{ d.original_name }}</td>
+        <td class="cp-meta">{{ d.created_at|date:"d.m.Y H:i" }}</td>
+        <td>
+          <a class="cp-btn" href="{% url 'erp:space_drawing_download' d.pk %}" style="padding:4px 10px;font-size:13px;">{% translate "Yüklə" %}</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="cp-meta empty-pad">{% translate "DXF yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% elif tab == 'technical_plan' and can_manage_drawings %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section" style="font-size:16px;">{% translate "Texniki plan yüklə (PDF / PNG)" %}</h3>
+  <form method="post" enctype="multipart/form-data" action="{% url 'erp:space_drawing_upload' space.code %}" class="flex gap-2 mt-3" style="flex-wrap:wrap;align-items:end;">
+    {% csrf_token %}
+    <input type="hidden" name="kind" value="technical_plan">
+    <input class="cp-input" type="file" name="file" accept=".pdf,.png,image/png,application/pdf" required>
+    <button class="cp-btn" type="submit">{% translate "Yüklə" %}</button>
+  </form>
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Fayl" %}</th><th>{% translate "Tarix" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for d in plan_drawings %}
+      <tr>
+        <td>{{ d.original_name }}</td>
+        <td class="cp-meta">{{ d.created_at|date:"d.m.Y H:i" }}</td>
+        <td>
+          <a class="cp-btn" href="{% url 'erp:space_drawing_download' d.pk %}" style="padding:4px 10px;font-size:13px;">{% translate "Yüklə" %}</a>
+          {% if d.is_png %}
+          <button type="button" class="cp-btn-ghost" style="padding:4px 10px;font-size:13px;" data-png-preview="{% url 'erp:space_drawing_png' d.pk %}">{% translate "Önizlə" %}</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="cp-meta empty-pad">{% translate "Texniki plan yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<dialog id="drawing-preview-dialog" style="border:0;border-radius:12px;padding:0;max-width:90vw;max-height:90vh;">
+  <div style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e7eb;">
+    <strong>{% translate "Önizləmə" %}</strong>
+    <button type="button" class="cp-btn-ghost" id="drawing-preview-close">{% translate "Bağla" %}</button>
+  </div>
+  <div id="drawing-preview-body" style="padding:12px;overflow:auto;max-height:80vh;"></div>
+</dialog>
+{% endif %}
+{% if tab == 'technical_plan' %}
+<script>
+(function () {
+  var dlg = document.getElementById("drawing-preview-dialog");
+  var body = document.getElementById("drawing-preview-body");
+  var closeBtn = document.getElementById("drawing-preview-close");
+  if (!dlg || !body) return;
+  function openPreview(url) {
+    body.innerHTML = "";
+    var img = document.createElement("img");
+    img.src = url;
+    img.alt = "preview";
+    img.style.maxWidth = "100%";
+    body.appendChild(img);
+    if (typeof dlg.showModal === "function") dlg.showModal();
+  }
+  document.querySelectorAll("[data-png-preview]").forEach(function (btn) {
+    btn.addEventListener("click", function () { openPreview(btn.getAttribute("data-png-preview")); });
+  });
+  if (closeBtn) closeBtn.addEventListener("click", function () { dlg.close(); });
+})();
+</script>
 {% endif %}
 {% endblock %}

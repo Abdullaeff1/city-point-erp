@@ -230,6 +230,14 @@ class Command(BaseCommand):
         portal_user.resident_company = asbc
         portal_user.set_password("asbc123")
         portal_user.save()
+        from apps.accounts.membership import set_user_memberships
+
+        set_user_memberships(
+            user=portal_user,
+            company_ids=[asbc.pk],
+            primary_company_id=asbc.pk,
+            replace=True,
+        )
 
         desk = created_users["desk"]
         fm = created_users["fm"]

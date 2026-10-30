@@ -1,0 +1,20 @@
+{
+  "id": "F05_Ofis_05",
+  "floor": "F05",
+  "floor_title": "5-ci mərtəbə",
+  "source_label": "PSG Kapital İnvestisiya Şirkəti",
+  "resident_name": null,
+  "source_contour": "B86E",
+  "contour_area_m2": 195.748,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F05_Ofis_05.dxf",
+  "preview_file": "F05_Ofis_05.png",
+  "audit_errors": 0,
+  "entities": 1747
+}

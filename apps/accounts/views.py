@@ -18,6 +18,12 @@ from apps.accounts.impersonation import (
 )
 from apps.accounts.invite import consume_invite, get_valid_invite
 from apps.accounts.models import Role
+from apps.accounts.portal_scope import (
+    MODE_SINGLE,
+    clear_portal_scope,
+    eligible_companies_for,
+    set_portal_scope,
+)
 
 
 @require_http_methods(["GET", "POST"])
@@ -42,6 +48,7 @@ def login_view(request):
 
 
 def logout_view(request):
+    clear_portal_scope(request)
     logout(request)
     return redirect("login")
 
@@ -98,7 +105,19 @@ def post_login(request):
     if request.user.must_set_password:
         return redirect("accounts:force_set_password")
     if request.user.role == Role.RESIDENT_USER:
-        return redirect("portal:home")
+        clear_portal_scope(request)
+        eligible = eligible_companies_for(request.user)
+        if not eligible:
+            logout(request)
+            messages.error(
+                request,
+                _("Portal şirkəti təyin olunmayıb və ya bağlıdır. Administratora müraciət edin."),
+            )
+            return redirect("login")
+        if len(eligible) == 1:
+            set_portal_scope(request, MODE_SINGLE, [eligible[0].pk])
+            return redirect("portal:home")
+        return redirect("portal:choose_companies")
     if request.user.role == Role.SECURITY:
         return redirect("security:home")
     if request.user.role == Role.RECEPTION:
@@ -130,6 +149,7 @@ def invite_accept(request, token):
             login(request, user)
             return redirect("post_login")
         error = _("Şifrə tələblərinə uyğun deyil.")
+    companies = eligible_companies_for(user)
     return render(
         request,
         "accounts/invite_set_password.html",
@@ -138,6 +158,7 @@ def invite_accept(request, token):
             "error": error,
             "email": user.email,
             "company": user.resident_company,
+            "companies": companies,
         },
     )
 

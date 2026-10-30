@@ -969,3 +969,81 @@ msgstr "Qonaqlar (qəbul)"
 
 msgid "Oxuyucu ID"
 msgstr "Oxuyucu nömrəsi"
+
+msgid "Ad"
+msgstr "Ad"
+
+msgid "Bina"
+msgstr "Bina"
+
+msgid "Sahə (m²)"
+msgstr "Sahə (m²)"
+
+msgid "Doluluq"
+msgstr "Doluluq"
+
+msgid "Kommersiya statusu"
+msgstr "Kommersiya statusu"
+
+msgid "Əməliyyat statusu"
+msgstr "Əməliyyat statusu"
+
+msgid "Keçid zonası"
+msgstr "Keçid zonası"
+
+msgid "Xərc mərkəzi"
+msgstr "Xərc mərkəzi"
+
+msgid "Təmir / təchizat statusu"
+msgstr "Təmir / təchizat statusu"
+
+msgid "Plan versiyası"
+msgstr "Plan versiyası"
+
+msgid "İcarəyə verilən sahə (m²)"
+msgstr "İcarəyə verilən sahə (m²)"
+
+msgid "Baza icarə tarifi"
+msgstr "Baza icarə tarifi"
+
+msgid "Xidmət haqqı tarifi"
+msgstr "Xidmət haqqı tarifi"
+
+msgid "Əlçatanlıq tarixi"
+msgstr "Əlçatanlıq tarixi"
+
+msgid "İctimai"
+msgstr "İctimai"
+
+msgid "İctimai təsvir"
+msgstr "İctimai təsvir"
+
+msgid "Aktiv icarə dövrü"
+msgstr "Aktiv icarə dövrü"
+
+msgid "Rezerv"
+msgstr "Rezerv"
+
+msgid "Müqaviləli"
+msgstr "Müqaviləli"
+
+msgid "Hazır"
+msgstr "Hazır"
+
+msgid "Dayandırılıb"
+msgstr "Dayandırılıb"
+
+msgid "AZN / m² / ay (istinad)"
+msgstr "AZN / m² / ay (istinad)"
+
+msgid "Keçid"
+msgstr "Keçid"
+
+msgid "— Boş —"
+msgstr "— Boş —"
+
+msgid "Texniki xidmət"
+msgstr "Texniki xidmət"
+
+msgid "Xəbərdarlıq"
+msgstr "Xəbərdarlıq"

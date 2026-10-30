@@ -1,0 +1,35 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{{ page_title }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:spaces' %}">{% translate "Sahələr" %}</a>
+ {% if space %}· <a href="{% url 'erp:space_detail' space.code %}">{{ space.area_code }}</a>{% endif %}
+{% endblock %}
+{% block content %}
+{% if messages %}
+<div class="mb-3">
+  {% for message in messages %}
+  <p class="cp-meta" style="{% if message.tags == 'error' %}color:#b42318;{% endif %}">{{ message }}</p>
+  {% endfor %}
+</div>
+{% endif %}
+<div class="cp-card p-card-lg">
+  <form method="post" class="grid-2" style="align-items:end;">
+    {% csrf_token %}
+    {% for field in form %}
+    <label {% if field.name == 'name' or field.name == 'fit_out_status' %}style="grid-column:1 / -1;"{% endif %}>
+      <span class="cp-meta">{{ field.label }}{% if field.field.required %} *{% endif %}</span>
+      {{ field }}
+      {% if field.errors %}<div class="cp-meta" style="color:#b42318;">{{ field.errors|striptags }}</div>{% endif %}
+    </label>
+    {% endfor %}
+    {% if form.non_field_errors %}
+    <div class="cp-meta" style="grid-column:1 / -1;color:#b42318;">{{ form.non_field_errors|striptags }}</div>
+    {% endif %}
+    <div style="grid-column:1 / -1;" class="flex gap-2 mt-2">
+      <button class="cp-btn" type="submit">{{ submit_label }}</button>
+      <a class="cp-btn-ghost" href="{% if space %}{% url 'erp:space_detail' space.code %}{% else %}{% url 'erp:spaces' %}{% endif %}">{% translate "Ləğv et" %}</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

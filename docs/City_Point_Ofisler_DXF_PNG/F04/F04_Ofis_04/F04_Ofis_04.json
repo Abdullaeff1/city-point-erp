@@ -1,0 +1,20 @@
+{
+  "id": "F04_Ofis_04",
+  "floor": "F04",
+  "floor_title": "4-cü mərtəbə",
+  "source_label": "Maliyyə Mühəndisliyi (Boş)",
+  "resident_name": null,
+  "source_contour": "B0A6",
+  "contour_area_m2": 145.049,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F04_Ofis_04.dxf",
+  "preview_file": "F04_Ofis_04.png",
+  "audit_errors": 0,
+  "entities": 2839
+}

@@ -1,0 +1,22 @@
+{
+  "id": "F10_Ofis_02",
+  "floor": "F10",
+  "floor_title": "10-cu mərtəbə",
+  "source_label": "Adı müəyyənləşdirilməyib",
+  "resident_name": null,
+  "source_contour": "16676",
+  "contour_area_m2": 126.82,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Şirkət adı uyğunlaşdırılmalıdır.",
+    "Simbrella ilə uyğunluğu və iki hissənin birlikdə icarəsi təsdiqlənməlidir.",
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F10_Ofis_02.dxf",
+  "preview_file": "F10_Ofis_02.png",
+  "audit_errors": 0,
+  "entities": 1570
+}

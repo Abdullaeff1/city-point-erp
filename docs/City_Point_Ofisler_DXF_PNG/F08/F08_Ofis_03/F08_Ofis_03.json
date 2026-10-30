@@ -1,0 +1,20 @@
+{
+  "id": "F08_Ofis_03",
+  "floor": "F08",
+  "floor_title": "8-ci mərtəbə",
+  "source_label": "\"Asterias\" Mövcud - 249.0 m2^ Müqavilə - 240.0 m2^",
+  "resident_name": null,
+  "source_contour": "16EB",
+  "contour_area_m2": 249.42,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F08_Ofis_03.dxf",
+  "preview_file": "F08_Ofis_03.png",
+  "audit_errors": 0,
+  "entities": 714
+}

@@ -11,6 +11,8 @@ from apps.property.models import (
     ParkingSpot,
     ParkingZone,
     Space,
+    SpaceDrawing,
+    SpaceDrawingAccessRequest,
     UtilityMeter,
 )
 
@@ -96,3 +98,21 @@ class UtilityMeterAdmin(admin.ModelAdmin):
 @admin.register(MeterReading)
 class MeterReadingAdmin(admin.ModelAdmin):
     list_display = ("meter", "reading", "read_at")
+
+
+@admin.register(SpaceDrawing)
+class SpaceDrawingAdmin(admin.ModelAdmin):
+    list_display = ("original_name", "space", "kind", "package_id", "uploaded_by", "created_at")
+    list_filter = ("kind",)
+    search_fields = ("original_name", "space__code", "package_id")
+    autocomplete_fields = ("space", "uploaded_by")
+    readonly_fields = ("created_at",)
+
+
+@admin.register(SpaceDrawingAccessRequest)
+class SpaceDrawingAccessRequestAdmin(admin.ModelAdmin):
+    list_display = ("drawing", "user", "status", "approved_by", "expires_at", "created_at")
+    list_filter = ("status",)
+    search_fields = ("user__email", "drawing__original_name", "drawing__space__code")
+    autocomplete_fields = ("user", "drawing", "approved_by")
+    readonly_fields = ("created_at", "decided_at")

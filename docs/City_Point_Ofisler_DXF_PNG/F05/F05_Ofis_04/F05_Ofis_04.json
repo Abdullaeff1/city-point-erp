@@ -1,0 +1,22 @@
+{
+  "id": "F05_Ofis_04",
+  "floor": "F05",
+  "floor_title": "5-ci mərtəbə",
+  "source_label": "ATL AKADEMIYA",
+  "resident_name": null,
+  "source_contour": "B862",
+  "contour_area_m2": 158.788,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur həndəsi düzəliş tələb edib.",
+    "Açıq konturun ucları birləşdirilib: 10.0 mm. Sərhəd təsdiqi lazımdır.",
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F05_Ofis_04.dxf",
+  "preview_file": "F05_Ofis_04.png",
+  "audit_errors": 0,
+  "entities": 4246
+}

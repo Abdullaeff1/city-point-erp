@@ -1,0 +1,21 @@
+{
+  "id": "F08_Ofis_02",
+  "floor": "F08",
+  "floor_title": "8-ci mərtəbə",
+  "source_label": "Adı müəyyənləşdirilməyib",
+  "resident_name": null,
+  "source_contour": "16D0",
+  "contour_area_m2": 321.416,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Şirkət adı uyğunlaşdırılmalıdır.",
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F08_Ofis_02.dxf",
+  "preview_file": "F08_Ofis_02.png",
+  "audit_errors": 0,
+  "entities": 4236
+}

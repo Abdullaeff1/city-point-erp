@@ -1,0 +1,21 @@
+{
+  "id": "F09_Ofis_01",
+  "floor": "F09",
+  "floor_title": "9-cu mərtəbə",
+  "source_label": "\"Tid consulting QSC\"",
+  "resident_name": null,
+  "source_contour": "14996",
+  "contour_area_m2": 452.486,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur həndəsi düzəliş tələb edib.",
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F09_Ofis_01.dxf",
+  "preview_file": "F09_Ofis_01.png",
+  "audit_errors": 0,
+  "entities": 820
+}

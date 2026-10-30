@@ -51,7 +51,15 @@
   {% else %}
   <p class="cp-meta mb-3">{{ export_from|date:"d.m.Y" }}{% if export_from != export_to %} – {{ export_to|date:"d.m.Y" }}{% endif %}</p>
   {% endif %}
+  {% if show_company_column and export_companies %}
+  <div class="flex gap-2" style="flex-wrap:wrap;">
+    {% for c in export_companies %}
+    <a class="cp-btn" href="{% url 'portal:employees_access_export' %}?company={{ c.pk }}&roster={{ roster }}&range={{ export_preset }}{% if export_preset == 'today' %}&date={{ export_from|date:'Y-m-d' }}{% elif export_preset == 'year' %}&year={{ export_from.year }}{% elif export_preset == 'custom' %}&from={{ export_from|date:'Y-m-d' }}&to={{ export_to|date:'Y-m-d' }}{% endif %}">{{ c.name }} — {% translate "Excel" %}</a>
+    {% endfor %}
+  </div>
+  {% else %}
   <a class="cp-btn" href="{% url 'portal:employees_access_export' %}?roster={{ roster }}&range={{ export_preset }}{% if export_preset == 'today' %}&date={{ export_from|date:'Y-m-d' }}{% elif export_preset == 'year' %}&year={{ export_from.year }}{% elif export_preset == 'custom' %}&from={{ export_from|date:'Y-m-d' }}&to={{ export_to|date:'Y-m-d' }}{% endif %}">{% translate "Excel yüklə" %}</a>
+  {% endif %}
 </div>
 
 <p class="cp-meta mb-3">
@@ -63,7 +71,7 @@
 </p>
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
-        <thead><tr><th>{% translate "Əməkdaş" %}</th><th>{% translate "Kart" %}</th><th>{% translate "Səviyyə" %}</th><th>{% translate "İşə gəliş" %}</th><th>{% translate "İşdən çıxış" %}</th><th>{% translate "Status" %}</th></tr></thead>
+        <thead><tr><th>{% translate "Əməkdaş" %}</th>{% if show_company_column %}<th>{% translate "Şirkət" %}</th>{% endif %}<th>{% translate "Kart" %}</th><th>{% translate "Səviyyə" %}</th><th>{% translate "İşə gəliş" %}</th><th>{% translate "İşdən çıxış" %}</th><th>{% translate "Status" %}</th></tr></thead>
     <tbody>
       {% for row in rows %}
       <tr class="is-clickable" onclick="window.location='{% url 'portal:employee_access_detail' row.employee.pk %}?range=today&date={{ selected_date|date:'Y-m-d' }}'">
@@ -71,6 +79,7 @@
           <a href="{% url 'portal:employee_access_detail' row.employee.pk %}?range=today&date={{ selected_date|date:'Y-m-d' }}">{{ row.employee.full_name }}</a>
           {% if not row.employee.is_active %}<span class="cp-meta"> · {% translate "keçmiş" %}</span>{% endif %}
         </td>
+        {% if show_company_column %}<td>{{ row.employee.company.name }}</td>{% endif %}
         <td>{{ row.employee.card_number|default:"—" }}</td>
         <td>{{ row.employee.access_level|default:"1" }}</td>
         <td>{% if row.in_at %}{{ row.in_at|time:"H:i" }}{% else %}—{% endif %}</td>

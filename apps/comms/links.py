@@ -54,6 +54,13 @@ def notification_target_url(note, ticket, user, namespace: str) -> str:
             return reverse("erp:ticket_detail", kwargs={"code": ticket.code})
         return ""
 
+    key = (getattr(note, "event_key", None) or "").strip()
+    if key.startswith("space_drawing_access:") and namespace == "erp":
+        return reverse("erp:drawing_access_queue")
+    if key.startswith("space_drawing_access_result:") and namespace == "portal":
+        # Resident opens own space list; detail link resolved after they pick space
+        return reverse("portal:spaces")
+
     if namespace != "security":
         return ""
     message = note.message or ""

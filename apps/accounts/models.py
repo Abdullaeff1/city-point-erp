@@ -91,6 +91,47 @@ class User(AbstractUser):
         return self.get_full_name().strip() or self.email
 
 
+class PortalCompanyMembership(models.Model):
+    """Many-to-many link: which ResidentCompanies a portal user may access."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="portal_memberships",
+    )
+    company = models.ForeignKey(
+        "residents.ResidentCompany",
+        on_delete=models.CASCADE,
+        related_name="portal_memberships",
+    )
+    is_active = models.BooleanField(default=True)
+    is_primary = models.BooleanField(
+        default=False,
+        help_text=_("Köhnə User.resident_company ilə uyğunluq; avtomatik login seçimi deyil"),
+    )
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_portal_memberships",
+    )
+
+    class Meta:
+        verbose_name = "Portal şirkət üzvlüyü"
+        verbose_name_plural = "Portal şirkət üzvlükləri"
+        constraints = [
+            models.UniqueConstraint(fields=["user", "company"], name="uniq_portal_membership_user_company"),
+        ]
+        ordering = ["-is_primary", "company__name"]
+
+    def __str__(self):
+        flag = "primary" if self.is_primary else ("active" if self.is_active else "inactive")
+        return f"{self.user_id}:{self.company_id}:{flag}"
+
+
 class PortalInvite(models.Model):
     """One-time invite / password-set token for portal (and optional staff) users.
 

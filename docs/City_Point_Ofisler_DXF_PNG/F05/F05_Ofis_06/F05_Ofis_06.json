@@ -1,0 +1,20 @@
+{
+  "id": "F05_Ofis_06",
+  "floor": "F05",
+  "floor_title": "5-ci mərtəbə",
+  "source_label": "De Novo (Boş)",
+  "resident_name": null,
+  "source_contour": "B878",
+  "contour_area_m2": 148.358,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F05_Ofis_06.dxf",
+  "preview_file": "F05_Ofis_06.png",
+  "audit_errors": 0,
+  "entities": 1814
+}

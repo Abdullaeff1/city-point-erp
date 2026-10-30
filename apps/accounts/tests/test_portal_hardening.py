@@ -4,6 +4,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import Role
+from apps.accounts.test_utils import ensure_portal_membership
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
@@ -28,6 +29,7 @@ class PortalActiveGateTests(TestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.company,
         )
+        ensure_portal_membership(self.user, self.company)
         self.client = Client()
 
     def test_portal_ok_when_active(self):
@@ -54,6 +56,7 @@ class AnnouncementScopeTests(TestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.c1,
         )
+        ensure_portal_membership(self.u1, self.c1)
         self.u2 = User.objects.create_user(
             username="b1",
             email="b1@example.com",
@@ -61,6 +64,7 @@ class AnnouncementScopeTests(TestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.c2,
         )
+        ensure_portal_membership(self.u2, self.c2)
         today = timezone.localdate()
         self.building = Announcement.objects.create(
             title="Building",

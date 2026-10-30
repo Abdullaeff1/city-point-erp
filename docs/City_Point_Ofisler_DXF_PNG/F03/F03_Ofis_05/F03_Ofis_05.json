@@ -1,0 +1,22 @@
+{
+  "id": "F03_Ofis_05",
+  "floor": "F03",
+  "floor_title": "3-cü mərtəbə",
+  "source_label": "Mirinşaat",
+  "resident_name": null,
+  "source_contour": "B04C",
+  "contour_area_m2": 55.672,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur həndəsi düzəliş tələb edib.",
+    "Açıq konturun ucları birləşdirilib: 0.3 mm. Sərhəd təsdiqi lazımdır.",
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F03_Ofis_05.dxf",
+  "preview_file": "F03_Ofis_05.png",
+  "audit_errors": 0,
+  "entities": 1211
+}

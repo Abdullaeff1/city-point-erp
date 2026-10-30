@@ -8,7 +8,14 @@ from django.utils.safestring import mark_safe
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.search import fold_search
-from apps.property.models import Floor, Space
+from apps.property.models import (
+    Building,
+    CommercialStatus,
+    Floor,
+    Occupancy,
+    OperationalStatus,
+    Space,
+)
 from apps.reception.models import VisitorType
 from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.tickets.models import Ticket, TicketCategory, TicketPriority, TicketSubcategory, TicketType
@@ -95,6 +102,11 @@ class ExpectedArrival24hField(forms.MultiValueField):
         return timezone.make_aware(naive, timezone.get_current_timezone())
 
 class PortalEmployeeCreateForm(forms.Form):
+    company = forms.ModelChoiceField(
+        queryset=ResidentCompany.objects.none(),
+        required=False,
+        label=_("Şirkət"),
+    )
     full_name = forms.CharField(
         max_length=160,
         label=_("Əməkdaşın adı"),
@@ -116,6 +128,21 @@ class PortalEmployeeCreateForm(forms.Form):
         widget=forms.ClearableFileInput(attrs={"class": "cp-input", "accept": ".pdf,.jpg,.jpeg,.png"}),
     )
 
+    def __init__(self, *args, company=None, companies=None, require_company=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        company_qs = companies if companies is not None else ResidentCompany.objects.none()
+        if hasattr(company_qs, "all"):
+            company_qs = company_qs.all()
+        self.fields["company"].queryset = company_qs
+        self.fields["company"].required = require_company
+        if not require_company:
+            self.fields["company"].widget = forms.HiddenInput()
+            if company is not None:
+                self.fields["company"].initial = company.pk
+        for name, field in self.fields.items():
+            if name not in {"id_document", "access_level"}:
+                field.widget.attrs.setdefault("class", "cp-input")
+
     def clean_full_name(self):
         value = (self.cleaned_data.get("full_name") or "").strip()
         if not value:
@@ -132,8 +159,19 @@ class PortalEmployeeCreateForm(forms.Form):
             raise forms.ValidationError(exc.messages)
         return uploaded
 
+    def clean(self):
+        cleaned = super().clean()
+        if self.fields["company"].required and not cleaned.get("company"):
+            self.add_error("company", _("Şirkət seçin."))
+        return cleaned
+
 
 class PortalTicketForm(forms.ModelForm):
+    company = forms.ModelChoiceField(
+        queryset=ResidentCompany.objects.none(),
+        required=False,
+        label=_("Şirkət"),
+    )
     photo = forms.FileField(required=False, label=_("Foto / sənəd"))
     ticket_type = forms.ChoiceField(choices=TicketType.choices, label=_("Müraciət tipi"))
     subcategory = forms.ModelChoiceField(
@@ -161,8 +199,23 @@ class PortalTicketForm(forms.ModelForm):
             ),
         }
 
-    def __init__(self, *args, company=None, **kwargs):
+    def __init__(self, *args, company=None, companies=None, require_company=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self._fixed_company = company
+        company_qs = companies if companies is not None else ResidentCompany.objects.none()
+        if hasattr(company_qs, "all"):
+            company_qs = company_qs.all()
+        self.fields["company"].queryset = company_qs
+        self.fields["company"].required = require_company
+        if not require_company:
+            self.fields["company"].widget = forms.HiddenInput()
+            if company is not None:
+                self.fields["company"].initial = company.pk
+
+        # Field order: company first when visible
+        order = ["company", "ticket_type", "category", "subcategory", "space", "description", "resident_priority_suggestion", "photo"]
+        self.order_fields(order)
+
         self.fields["category"].queryset = TicketCategory.objects.filter(is_active=True)
         self.fields["space"].required = False
         self.fields["description"].required = False
@@ -181,8 +234,16 @@ class PortalTicketForm(forms.ModelForm):
         else:
             self.fields["subcategory"].queryset = TicketSubcategory.objects.none()
 
-        if company:
-            self.fields["space"].queryset = Space.objects.filter(resident=company)
+        space_company = company
+        if require_company and self.data.get("company"):
+            try:
+                space_company = ResidentCompany.objects.filter(pk=int(self.data.get("company"))).first()
+            except (TypeError, ValueError):
+                space_company = None
+        if space_company:
+            self.fields["space"].queryset = Space.objects.filter(resident=space_company)
+        elif companies is not None:
+            self.fields["space"].queryset = Space.objects.filter(resident__in=company_qs)
         for name, field in self.fields.items():
             if name != "photo":
                 field.widget.attrs["class"] = "cp-input"
@@ -193,6 +254,12 @@ class PortalTicketForm(forms.ModelForm):
         subcategory = cleaned.get("subcategory")
         description = (cleaned.get("description") or "").strip()
         cleaned["description"] = description
+        if self.fields["company"].required and not cleaned.get("company"):
+            self.add_error("company", _("Şirkət seçin."))
+        company = cleaned.get("company") or self._fixed_company
+        space = cleaned.get("space")
+        if space and company and space.resident_id != company.id:
+            self.add_error("space", _("Sahə seçilmiş şirkətə aid deyil."))
         if subcategory and category and subcategory.category_id != category.id:
             self.add_error("subcategory", _("Alt kateqoriya seçilmiş kateqoriyaya aid deyil."))
         return cleaned
@@ -278,6 +345,11 @@ class StaffTicketForm(forms.Form):
 
 
 class PortalGuestForm(forms.Form):
+    company = forms.ModelChoiceField(
+        queryset=ResidentCompany.objects.none(),
+        required=False,
+        label=_("Şirkət"),
+    )
     first_name = forms.CharField(label=_("Ad"), max_length=80)
     last_name = forms.CharField(label=_("Soyad"), max_length=80)
     email = forms.EmailField(
@@ -303,11 +375,35 @@ class PortalGuestForm(forms.Form):
     )
     location_note = forms.CharField(required=False, label=_("Qeyd"))
 
-    def __init__(self, *args, company=None, **kwargs):
+    def __init__(self, *args, company=None, companies=None, require_company=False, **kwargs):
         super().__init__(*args, **kwargs)
-        if company:
-            self.fields["host"].queryset = ResidentEmployee.objects.filter(company=company, is_active=True)
-            self.fields["space"].queryset = Space.objects.filter(resident=company)
+        self._fixed_company = company
+        company_qs = companies if companies is not None else ResidentCompany.objects.none()
+        if hasattr(company_qs, "all"):
+            company_qs = company_qs.all()
+        self.fields["company"].queryset = company_qs
+        self.fields["company"].required = require_company
+        if not require_company:
+            self.fields["company"].widget = forms.HiddenInput()
+            if company is not None:
+                self.fields["company"].initial = company.pk
+
+        space_company = company
+        if require_company and self.data.get("company"):
+            try:
+                space_company = ResidentCompany.objects.filter(pk=int(self.data.get("company"))).first()
+            except (TypeError, ValueError):
+                space_company = None
+        if space_company:
+            self.fields["host"].queryset = ResidentEmployee.objects.filter(
+                company=space_company, is_active=True
+            )
+            self.fields["space"].queryset = Space.objects.filter(resident=space_company)
+        elif companies is not None:
+            self.fields["host"].queryset = ResidentEmployee.objects.filter(
+                company__in=company_qs, is_active=True
+            )
+            self.fields["space"].queryset = Space.objects.filter(resident__in=company_qs)
         now = timezone.localtime()
         date_widget = self.fields["expected_arrival"].widget.widgets[0]
         date_widget.attrs["min"] = now.date().isoformat()
@@ -319,6 +415,19 @@ class PortalGuestForm(forms.Form):
             field.widget.attrs.pop("required", None)
             if name in ("email", "phone"):
                 field.required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.fields["company"].required and not cleaned.get("company"):
+            self.add_error("company", _("Şirkət seçin."))
+        company = cleaned.get("company") or self._fixed_company
+        host = cleaned.get("host")
+        space = cleaned.get("space")
+        if host and company and host.company_id != company.id:
+            self.add_error("host", _("Host seçilmiş şirkətə aid deyil."))
+        if space and company and space.resident_id != company.id:
+            self.add_error("space", _("Sahə seçilmiş şirkətə aid deyil."))
+        return cleaned
 
     def clean_expected_arrival(self):
         value = self.cleaned_data.get("expected_arrival")
@@ -456,4 +565,134 @@ class GuestVisitForm(forms.Form):
                 cleaned["host"] = host
         if visit_type is not None and visit_type.code in NO_HOST_VISIT_CODES:
             cleaned["host"] = None
+        return cleaned
+
+
+def suggest_next_space_code() -> str:
+    """Next CP-L### style code based on existing CP-L numeric suffixes."""
+    import re
+
+    max_n = 0
+    for code in Space.objects.filter(code__startswith="CP-L").values_list("code", flat=True):
+        m = re.match(r"^CP-L(\d+)", code or "")
+        if m:
+            max_n = max(max_n, int(m.group(1)))
+    return f"CP-L{max_n + 1:03d}"
+
+
+class FloorForm(forms.ModelForm):
+    class Meta:
+        model = Floor
+        fields = ("building", "code", "name")
+        labels = {
+            "building": _("Bina"),
+            "code": _("Kod"),
+            "name": _("Ad"),
+        }
+        widgets = {
+            "building": forms.Select(attrs={"class": "cp-input"}),
+            "code": forms.TextInput(attrs={"class": "cp-input", "placeholder": "F11"}),
+            "name": forms.TextInput(attrs={"class": "cp-input", "placeholder": "11-ci mərtəbə"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["building"].queryset = Building.objects.order_by("code")
+        if not self.is_bound and not self.instance.pk:
+            default = Building.objects.order_by("pk").first()
+            if default:
+                self.fields["building"].initial = default.pk
+
+    def clean_code(self):
+        return (self.cleaned_data.get("code") or "").strip().upper()
+
+
+class SpaceForm(forms.ModelForm):
+    class Meta:
+        model = Space
+        fields = (
+            "code",
+            "name",
+            "floor",
+            "resident",
+            "area_m2",
+            "occupancy",
+            "commercial_status",
+            "operational_status",
+            "access_zone",
+            "cost_center",
+            "fit_out_status",
+        )
+        labels = {
+            "code": _("Kod"),
+            "name": _("Ad"),
+            "floor": _("Mərtəbə"),
+            "resident": _("Rezident"),
+            "area_m2": _("Sahə (m²)"),
+            "occupancy": _("Doluluq"),
+            "commercial_status": _("Kommersiya statusu"),
+            "operational_status": _("Əməliyyat statusu"),
+            "access_zone": _("Keçid zonası"),
+            "cost_center": _("Xərc mərkəzi"),
+            "fit_out_status": _("Təmir / təchizat statusu"),
+        }
+        widgets = {
+            "code": forms.TextInput(attrs={"class": "cp-input"}),
+            "name": forms.TextInput(attrs={"class": "cp-input"}),
+            "floor": forms.Select(attrs={"class": "cp-input"}),
+            "resident": forms.Select(attrs={"class": "cp-input"}),
+            "area_m2": forms.NumberInput(attrs={"class": "cp-input", "step": "0.1", "min": "0"}),
+            "occupancy": forms.Select(attrs={"class": "cp-input"}),
+            "commercial_status": forms.Select(attrs={"class": "cp-input"}),
+            "operational_status": forms.Select(attrs={"class": "cp-input"}),
+            "access_zone": forms.TextInput(attrs={"class": "cp-input"}),
+            "cost_center": forms.TextInput(attrs={"class": "cp-input"}),
+            "fit_out_status": forms.TextInput(attrs={"class": "cp-input"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["floor"].queryset = Floor.objects.select_related("building").order_by("code")
+        self.fields["resident"].queryset = ResidentCompany.objects.filter(is_internal=False).order_by(
+            "name"
+        )
+        self.fields["resident"].required = False
+        self.fields["resident"].empty_label = _("— Boş —")
+        self.fields["name"].required = False
+        self.fields["access_zone"].required = False
+        self.fields["cost_center"].required = False
+        self.fields["fit_out_status"].required = False
+        # Re-bind labels/choices under the active request language.
+        for name, label in self.Meta.labels.items():
+            if name in self.fields:
+                self.fields[name].label = label
+        self.fields["occupancy"].choices = list(Occupancy.choices)
+        self.fields["commercial_status"].choices = list(CommercialStatus.choices)
+        self.fields["operational_status"].choices = list(OperationalStatus.choices)
+        if not self.is_bound and not self.instance.pk:
+            self.fields["code"].initial = suggest_next_space_code()
+            self.fields["occupancy"].initial = Occupancy.VACANT
+            self.fields["commercial_status"].initial = CommercialStatus.VACANT
+            self.fields["operational_status"].initial = OperationalStatus.AVAILABLE
+
+    def clean_code(self):
+        code = (self.cleaned_data.get("code") or "").strip()
+        if not code:
+            raise ValidationError(_("Kod vacibdir."))
+        qs = Space.objects.filter(code=code)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise ValidationError(_("Bu kod artıq mövcuddur."))
+        return code
+
+    def clean(self):
+        cleaned = super().clean()
+        resident = cleaned.get("resident")
+        occupancy = cleaned.get("occupancy")
+        if resident and occupancy == Occupancy.VACANT:
+            cleaned["occupancy"] = Occupancy.ACTIVE_LEASE
+        if not resident and occupancy == Occupancy.ACTIVE_LEASE:
+            cleaned["occupancy"] = Occupancy.VACANT
+            cleaned["commercial_status"] = CommercialStatus.VACANT
         return cleaned

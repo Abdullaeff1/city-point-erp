@@ -6,6 +6,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import Role
+from apps.accounts.test_utils import ensure_portal_membership
 from apps.core.services import DomainError
 from apps.erp.forms import ARRIVAL_HOUR_CHOICES, PortalGuestForm
 from apps.reception.models import Guest, GuestVisit, VisitStatus, VisitorAccess, VisitorAccessStatus
@@ -92,6 +93,7 @@ class PortalGuestCheckoutTests(TestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.company,
         )
+        ensure_portal_membership(self.user, self.company)
         self.other_user = User.objects.create_user(
             username="res2",
             email="res2@example.com",
@@ -99,6 +101,7 @@ class PortalGuestCheckoutTests(TestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.other,
         )
+        ensure_portal_membership(self.other_user, self.other)
         self.client = Client()
 
     def _inside_visit(self, *, company, id_held=False, with_active_card=False):

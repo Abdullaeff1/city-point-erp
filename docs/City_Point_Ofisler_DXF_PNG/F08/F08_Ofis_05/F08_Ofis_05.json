@@ -1,0 +1,20 @@
+{
+  "id": "F08_Ofis_05",
+  "floor": "F08",
+  "floor_title": "8-ci mərtəbə",
+  "source_label": "\"Boş\"",
+  "resident_name": null,
+  "source_contour": "1705",
+  "contour_area_m2": 90.889,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F08_Ofis_05.dxf",
+  "preview_file": "F08_Ofis_05.png",
+  "audit_errors": 0,
+  "entities": 1157
+}

@@ -8,17 +8,30 @@ from apps.accounts.models import Role
 from apps.comms.models import Announcement, AnnouncementVisibility
 
 
-def announcements_for_user(user) -> QuerySet[Announcement]:
-    """Building-wide + company + targeted-to-user. Staff without company see building-wide only."""
+def announcements_for_user(user, company_ids=None) -> QuerySet[Announcement]:
+    """Building-wide + company + targeted-to-user. Staff without company see building-wide only.
+
+    ``company_ids`` — optional explicit scope (portal session). When omitted, falls back to
+    ``user.resident_company_id`` for backward compatibility with tests / non-request callers.
+    """
     qs = Announcement.objects.all()
     if not user or not user.is_authenticated:
         return qs.none()
 
-    company_id = getattr(user, "resident_company_id", None)
+    if company_ids is None:
+        cid = getattr(user, "resident_company_id", None)
+        ids = [cid] if cid else []
+    else:
+        ids = [int(i) for i in company_ids if i]
+
     filters = Q(visibility=AnnouncementVisibility.BUILDING)
-    if company_id:
-        filters |= Q(visibility=AnnouncementVisibility.COMPANY, company_id=company_id)
-        filters |= Q(visibility=AnnouncementVisibility.TARGETED, company_id=company_id, target_users=user)
+    if ids:
+        filters |= Q(visibility=AnnouncementVisibility.COMPANY, company_id__in=ids)
+        filters |= Q(
+            visibility=AnnouncementVisibility.TARGETED,
+            company_id__in=ids,
+            target_users=user,
+        )
     elif user.role == Role.RESIDENT_USER:
         return qs.none()
     else:

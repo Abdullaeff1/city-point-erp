@@ -4,6 +4,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from apps.accounts.models import Role
+from apps.accounts.test_utils import ensure_portal_membership
 from apps.integrations.axtrax_people_sync import _find_unlinked_employee_by_name
 from apps.integrations.models import ExternalIdentity, SyncStatus
 from apps.residents.models import ResidentCompany, ResidentEmployee
@@ -31,6 +32,7 @@ class EmployeeCardOrderTests(TestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.company,
         )
+        ensure_portal_membership(self.user, self.company)
         self.client = Client()
         self.client.force_login(self.user)
         self.pdf = SimpleUploadedFile("vesiqe.pdf", b"%PDF-1.4 fake", content_type="application/pdf")

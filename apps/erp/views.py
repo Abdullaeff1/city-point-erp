@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext as _
-from django.views.generic import FormView, ListView, TemplateView, View
+from django.views.generic import CreateView, DeleteView, FormView, ListView, TemplateView, UpdateView, View
 import json
 
 from apps.accounts.impersonation import can_start_impersonation, get_impersonator, is_impersonating
@@ -14,7 +14,7 @@ from apps.accounts.mixins import RoleRequiredMixin, StaffRequiredMixin
 from apps.accounts.models import Role, User
 from apps.core.services import DomainError
 from apps.documents.models import Document
-from apps.erp.forms import GuestVisitForm, StaffTicketForm
+from apps.erp.forms import FloorForm, GuestVisitForm, SpaceForm, StaffTicketForm
 from apps.property.models import (
     BuildingAsset,
     BuildingAssetCategory,
@@ -953,9 +953,95 @@ class SpaceListView(RoleRequiredMixin, ListView):
                 "active_residents": ResidentCompany.objects.filter(status="active", is_internal=False).count(),
                 "guest_today": GuestVisit.objects.filter(scheduled_for=timezone.localdate()).count(),
                 "floor_rows": floor_rows,
+                "floor_form": FloorForm(),
+                "can_manage_spaces": True,
             }
         )
         return ctx
+
+
+class FloorCreateView(RoleRequiredMixin, View):
+    allowed_roles = (Role.PROPERTY_FM,)
+
+    def post(self, request):
+        form = FloorForm(request.POST)
+        if form.is_valid():
+            floor = form.save()
+            messages.success(request, _("Mərtəbə əlavə olundu: %(code)s") % {"code": floor.code})
+        else:
+            err = "; ".join(e for errs in form.errors.values() for e in errs)
+            messages.error(request, err or _("Mərtəbə əlavə olunmadı."))
+        return redirect("erp:spaces")
+
+
+class SpaceCreateView(RoleRequiredMixin, CreateView):
+    template_name = "erp/space_form.html"
+    form_class = SpaceForm
+    model = Space
+    allowed_roles = (Role.PROPERTY_FM,)
+
+    def get_initial(self):
+        initial = super().get_initial()
+        floor_id = self.request.GET.get("floor")
+        if floor_id and Floor.objects.filter(pk=floor_id).exists():
+            initial["floor"] = floor_id
+        return initial
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["page_title"] = _("Sahə əlavə et")
+        ctx["submit_label"] = _("Əlavə et")
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(self.request, _("Sahə yaradıldı: %(code)s") % {"code": form.instance.code})
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("erp:space_detail", kwargs={"code": self.object.code})
+
+
+class SpaceUpdateView(RoleRequiredMixin, UpdateView):
+    template_name = "erp/space_form.html"
+    form_class = SpaceForm
+    model = Space
+    slug_field = "code"
+    slug_url_kwarg = "code"
+    allowed_roles = (Role.PROPERTY_FM,)
+
+    def get_queryset(self):
+        return Space.objects.select_related("floor", "resident")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["page_title"] = _("Sahəni düzəliş et")
+        ctx["submit_label"] = _("Yadda saxla")
+        ctx["space"] = self.object
+        return ctx
+
+    def form_valid(self, form):
+        messages.success(self.request, _("Sahə yeniləndi."))
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("erp:space_detail", kwargs={"code": self.object.code})
+
+
+class SpaceDeleteView(RoleRequiredMixin, DeleteView):
+    model = Space
+    slug_field = "code"
+    slug_url_kwarg = "code"
+    template_name = "erp/space_confirm_delete.html"
+    allowed_roles = (Role.PROPERTY_FM,)
+    success_url = "/erp/spaces/"
+
+    def get_success_url(self):
+        return reverse("erp:spaces")
+
+    def form_valid(self, form):
+        code = self.object.code
+        messages.success(self.request, _("Sahə silindi: %(code)s") % {"code": code})
+        return super().form_valid(form)
 
 
 class BuildingAssetListView(RoleRequiredMixin, TemplateView):
@@ -1119,8 +1205,15 @@ class SpaceDetailView(RoleRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         space = get_object_or_404(Space.objects.select_related("floor", "resident"), code=self.kwargs["code"])
         tab = self.request.GET.get("tab", "overview")
+        from apps.property.drawings import user_can_manage_space_drawings
+        from apps.property.models import SpaceDrawingKind, SpaceDrawingAccessStatus
+
+        can_drawings = user_can_manage_space_drawings(self.request.user)
+        if tab in {"dwg", "technical_plan"} and not can_drawings:
+            tab = "overview"
         ctx["space"] = space
         ctx["tab"] = tab
+        ctx["can_manage_drawings"] = can_drawings
         visible_space = tickets_visible_to(self.request.user).filter(space=space)
         ctx["open_tickets"] = visible_space.filter(status__in=OPEN_STATUSES)
         ctx["ticket_history"] = visible_space.filter(status__in=CLOSED_STATUSES)
@@ -1130,6 +1223,30 @@ class SpaceDetailView(RoleRequiredMixin, TemplateView):
         ctx["employees"] = (
             space.resident.employees.filter(is_active=True) if space.resident_id else []
         )
+        if can_drawings:
+            drawings = space.drawings.all()
+            ctx["dxf_drawings"] = drawings.filter(kind=SpaceDrawingKind.DXF)
+            ctx["plan_drawings"] = drawings.filter(kind=SpaceDrawingKind.TECHNICAL_PLAN)
+            ctx["pending_drawing_requests"] = (
+                space.drawings.filter(access_requests__status=SpaceDrawingAccessStatus.PENDING)
+                .distinct()
+                .count()
+            )
+            from apps.property.models import SpaceDrawingAccessRequest
+
+            ctx["space_pending_requests"] = (
+                SpaceDrawingAccessRequest.objects.filter(
+                    drawing__space=space,
+                    status=SpaceDrawingAccessStatus.PENDING,
+                )
+                .select_related("user", "drawing")
+                .order_by("created_at")
+            )
+        else:
+            ctx["dxf_drawings"] = []
+            ctx["plan_drawings"] = []
+            ctx["pending_drawing_requests"] = 0
+            ctx["space_pending_requests"] = []
         return ctx
 
 

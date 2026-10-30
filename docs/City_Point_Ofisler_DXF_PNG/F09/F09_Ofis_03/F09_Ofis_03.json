@@ -1,0 +1,21 @@
+{
+  "id": "F09_Ofis_03",
+  "floor": "F09",
+  "floor_title": "9-cu mərtəbə",
+  "source_label": "\"Baker Tilly\"",
+  "resident_name": null,
+  "source_contour": "149CB",
+  "contour_area_m2": 722.432,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Açıq konturun ucları birləşdirilib: 110.0 mm. Sərhəd təsdiqi lazımdır.",
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F09_Ofis_03.dxf",
+  "preview_file": "F09_Ofis_03.png",
+  "audit_errors": 0,
+  "entities": 1307
+}

@@ -78,9 +78,15 @@ def invite_url(request, raw_token: str) -> str:
 
 def send_invite_email(*, user: User, absolute_url: str) -> NotificationDispatch:
     """Send invite mail and record delivery outcome on NotificationDispatch."""
-    company = ""
-    if user.resident_company_id:
+    from apps.accounts.portal_scope import eligible_companies_for
+
+    companies = eligible_companies_for(user)
+    if companies:
+        company = " (" + ", ".join(c.name for c in companies) + ")"
+    elif user.resident_company_id:
         company = f" ({user.resident_company.name})"
+    else:
+        company = ""
     subject = "City Point Portal — şifrə təyin edin"
     body = (
         f"Salam {user.get_full_name() or user.email},\n\n"
@@ -150,12 +156,29 @@ def retry_failed_invite_dispatches(*, limit: int = 20) -> dict:
 def provision_portal_user(
     *,
     email: str,
-    company,
+    company=None,
+    companies=None,
     first_name: str = "",
     last_name: str = "",
     invited_by: User | None = None,
 ) -> tuple[User, str]:
-    """Create or update a resident portal user and issue an invite token."""
+    """Create or update a resident portal user and issue an invite token.
+
+    Pass ``company`` (single) and/or ``companies`` (iterable). Memberships are set via service.
+    """
+    from apps.accounts.membership import set_user_memberships
+
+    company_list = []
+    if companies:
+        company_list.extend(list(companies))
+    if company is not None and company not in company_list:
+        company_list.insert(0, company)
+    if not company_list:
+        raise ValueError("company_required")
+
+    primary = company_list[0]
+    company_ids = [c.pk for c in company_list]
+
     email = email.strip().lower()
     username_base = email.split("@")[0][:140] or "user"
     user = User.objects.filter(email=email).first()
@@ -171,7 +194,7 @@ def provision_portal_user(
             first_name=(first_name or "")[:150],
             last_name=(last_name or "")[:150],
             role=Role.RESIDENT_USER,
-            resident_company=company,
+            resident_company=primary,
             is_active=True,
             must_set_password=True,
         )
@@ -179,13 +202,21 @@ def provision_portal_user(
         user.save()
     else:
         user.role = Role.RESIDENT_USER
-        user.resident_company = company
+        user.resident_company = primary
         if first_name:
             user.first_name = first_name[:150]
         if last_name:
             user.last_name = last_name[:150]
         user.is_active = True
         user.save()
+
+    set_user_memberships(
+        user=user,
+        company_ids=company_ids,
+        primary_company_id=primary.pk,
+        created_by=invited_by,
+        replace=True,
+    )
 
     raw = create_portal_invite(user=user, invited_by=invited_by)
     return user, raw

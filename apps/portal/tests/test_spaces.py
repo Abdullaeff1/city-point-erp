@@ -3,6 +3,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from apps.accounts.models import Role
+from apps.accounts.test_utils import ensure_portal_membership
 from apps.property.models import Building, Floor, Space
 from apps.residents.models import ResidentCompany
 
@@ -40,6 +41,7 @@ class PortalSpaceDetailTests(TestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.company,
         )
+        ensure_portal_membership(self.user, self.company)
         self.client = Client()
         self.client.force_login(self.user)
 

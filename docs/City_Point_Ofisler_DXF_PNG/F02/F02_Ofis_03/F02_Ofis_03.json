@@ -1,0 +1,21 @@
+{
+  "id": "F02_Ofis_03",
+  "floor": "F02",
+  "floor_title": "2-ci mərtəbə",
+  "source_label": "ATL Tech",
+  "resident_name": null,
+  "source_contour": "B075",
+  "contour_area_m2": 168.593,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur həndəsi düzəliş tələb edib.",
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F02_Ofis_03.dxf",
+  "preview_file": "F02_Ofis_03.png",
+  "audit_errors": 0,
+  "entities": 1348
+}

@@ -1,0 +1,21 @@
+{
+  "id": "F10_Ofis_01",
+  "floor": "F10",
+  "floor_title": "10-cu mərtəbə",
+  "source_label": "\"Boş\"",
+  "resident_name": null,
+  "source_contour": "16677",
+  "contour_area_m2": 369.752,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib.",
+    "İstifadəçi tərəfindən qəbul edilmiş nümunə saxlanılıb."
+  ],
+  "dxf_file": "F10_Ofis_01.dxf",
+  "preview_file": "F10_Ofis_01.png",
+  "audit_errors": 0,
+  "entities": 328
+}

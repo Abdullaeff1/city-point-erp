@@ -5,9 +5,20 @@ from apps.portal import views
 app_name = "portal"
 
 urlpatterns = [
+    path("choose/", views.ChooseCompaniesView.as_view(), name="choose_companies"),
     path("", views.HomeView.as_view(), name="home"),
     path("spaces/", views.SpacesView.as_view(), name="spaces"),
     path("spaces/<str:code>/", views.SpaceDetailView.as_view(), name="space_detail"),
+    path(
+        "drawings/<int:pk>/request/",
+        views.PortalDrawingAccessRequestView.as_view(),
+        name="drawing_access_request",
+    ),
+    path(
+        "drawings/<int:pk>/download/",
+        views.PortalDrawingDownloadView.as_view(),
+        name="drawing_download",
+    ),
     path("requests/new/", views.RequestCreateView.as_view(), name="request_new"),
     path("requests/active/", views.RequestListView.as_view(), {"scope": "active"}, name="requests_active"),
     path("requests/history/", views.RequestListView.as_view(), {"scope": "history"}, name="requests_history"),

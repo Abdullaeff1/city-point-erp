@@ -6,14 +6,21 @@
  · <span class="cp-code">{{ space.area_code }}</span>
 {% endblock %}
 {% block content %}
+{% if messages %}
+<div class="mb-3">
+  {% for message in messages %}
+  <p class="cp-meta">{{ message }}</p>
+  {% endfor %}
+</div>
+{% endif %}
 <nav class="cp-tabs">
   <a class="cp-tab {% if tab == 'overview' %}is-active{% endif %}" href="?tab=overview">{% translate "Ümumi" %}</a>
   <a class="cp-tab {% if tab == 'tickets' %}is-active{% endif %}" href="?tab=tickets">{% translate "Müraciətlər" %}</a>
   <a class="cp-tab {% if tab == 'documents' %}is-active{% endif %}" href="?tab=documents">{% translate "Sənədlər" %}</a>
   <a class="cp-tab {% if tab == 'employees' %}is-active{% endif %}" href="?tab=employees">{% translate "Əməkdaşlar" %}</a>
   <a class="cp-tab {% if tab == 'assets' %}is-active{% endif %}" href="?tab=assets">{% translate "Aktivlər" %}</a>
-  <span class="cp-tab is-disabled">{% translate "Texniki plan" %}</span>
-  <span class="cp-tab is-disabled">DWG</span>
+  <a class="cp-tab {% if tab == 'technical_plan' %}is-active{% endif %}" href="?tab=technical_plan">{% translate "Texniki plan" %}</a>
+  <a class="cp-tab {% if tab == 'dwg' %}is-active{% endif %}" href="?tab=dwg">DWG</a>
   <span class="cp-tab is-disabled">{% translate "Texniki xidmət" %}</span>
 </nav>
 
@@ -63,6 +70,96 @@
 {% elif tab == 'assets' %}
 <div class="cp-card p-card">
   <ul style="list-style:none;padding:0;">{% for a in assets %}<li class="mb-2">{{ a.asset_code }} · {{ a.name }}</li>{% empty %}<li class="cp-meta">{% translate "Avadanlıq yoxdur." %}</li>{% endfor %}</ul>
+</div>
+{% elif tab == 'dwg' %}
+<div class="cp-card p-card mb-3">
+  <p class="cp-meta">{% translate "DXF faylları brauzerdə açılmır. Fayla klik edib icazə sorğusu göndərin; təsdiqdən sonra müddətli yükləmə aktiv olur." %}</p>
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Fayl" %}</th><th>{% translate "Status" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for row in dxf_rows %}
+      <tr>
+        <td>
+          {% if row.can_download %}
+          <a href="{% url 'portal:drawing_download' row.drawing.pk %}">{{ row.drawing.original_name }}</a>
+          {% elif row.pending %}
+          {{ row.drawing.original_name }}
+          {% else %}
+          <form method="post" action="{% url 'portal:drawing_access_request' row.drawing.pk %}" style="display:inline;" onsubmit="return confirm('{% translate "Bu fayl üçün icazə sorğusu göndərilsin?" %}');">
+            {% csrf_token %}
+            <button type="submit" class="cp-btn-ghost" style="padding:0;font-size:inherit;text-decoration:underline;cursor:pointer;background:none;border:0;color:inherit;">{{ row.drawing.original_name }}</button>
+          </form>
+          {% endif %}
+        </td>
+        <td class="cp-meta">
+          {% if row.can_download %}{% translate "İcazəli" %} · {{ row.request.expires_at|date:"d.m.Y H:i" }}
+          {% elif row.pending %}{% translate "Gözləyir" %}
+          {% elif row.request and row.request.status == 'denied' %}{% translate "İmtina" %}
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if row.can_download %}
+          <a class="cp-btn" href="{% url 'portal:drawing_download' row.drawing.pk %}" style="padding:4px 10px;font-size:13px;">{% translate "Yüklə" %}</a>
+          {% elif not row.pending %}
+          <form method="post" action="{% url 'portal:drawing_access_request' row.drawing.pk %}" style="display:inline;" onsubmit="return confirm('{% translate "Bu fayl üçün icazə sorğusu göndərilsin?" %}');">
+            {% csrf_token %}
+            <button class="cp-btn" type="submit" style="padding:4px 10px;font-size:13px;">{% translate "İcazə sorğusu" %}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="cp-meta empty-pad">{% translate "DXF yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% elif tab == 'technical_plan' %}
+<div class="cp-card p-card mb-3">
+  <p class="cp-meta">{% translate "Fayla klik edib icazə sorğusu göndərin; təsdiqdən sonra müddətli yükləmə aktiv olur." %}</p>
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Fayl" %}</th><th>{% translate "Status" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for row in plan_rows %}
+      <tr>
+        <td>
+          {% if row.can_download %}
+          <a href="{% url 'portal:drawing_download' row.drawing.pk %}">{{ row.drawing.original_name }}</a>
+          {% elif row.pending %}
+          {{ row.drawing.original_name }}
+          {% else %}
+          <form method="post" action="{% url 'portal:drawing_access_request' row.drawing.pk %}" style="display:inline;" onsubmit="return confirm('{% translate "Bu fayl üçün icazə sorğusu göndərilsin?" %}');">
+            {% csrf_token %}
+            <button type="submit" class="cp-btn-ghost" style="padding:0;font-size:inherit;text-decoration:underline;cursor:pointer;background:none;border:0;color:inherit;">{{ row.drawing.original_name }}</button>
+          </form>
+          {% endif %}
+        </td>
+        <td class="cp-meta">
+          {% if row.can_download %}{% translate "İcazəli" %} · {{ row.request.expires_at|date:"d.m.Y H:i" }}
+          {% elif row.pending %}{% translate "Gözləyir" %}
+          {% elif row.request and row.request.status == 'denied' %}{% translate "İmtina" %}
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if row.can_download %}
+          <a class="cp-btn" href="{% url 'portal:drawing_download' row.drawing.pk %}" style="padding:4px 10px;font-size:13px;">{% translate "Yüklə" %}</a>
+          {% elif not row.pending %}
+          <form method="post" action="{% url 'portal:drawing_access_request' row.drawing.pk %}" style="display:inline;" onsubmit="return confirm('{% translate "Bu fayl üçün icazə sorğusu göndərilsin?" %}');">
+            {% csrf_token %}
+            <button class="cp-btn" type="submit" style="padding:4px 10px;font-size:13px;">{% translate "İcazə sorğusu" %}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="cp-meta empty-pad">{% translate "Texniki plan yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endif %}
 {% endblock %}

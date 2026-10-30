@@ -2,8 +2,20 @@
 {% load i18n %}
 {% block heading %}{% translate "Əmlak" %}{% endblock %}
 {% block content %}
+{% if messages %}
+<div class="mb-3">
+  {% for message in messages %}
+  <p class="cp-meta" style="{% if message.tags == 'error' %}color:#b42318;{% endif %}">{{ message }}</p>
+  {% endfor %}
+</div>
+{% endif %}
 <div class="cp-card p-card-lg mb-5">
-  <div class="cp-meta">CITY POINT · {% translate "Building overview" %}</div>
+  <div class="flex justify-between items-center" style="flex-wrap:wrap;gap:12px;">
+    <div class="cp-meta">CITY POINT · {% translate "Building overview" %}</div>
+    <div class="flex gap-2" style="flex-wrap:wrap;">
+      <a class="cp-btn" href="{% url 'erp:space_create' %}">{% translate "Sahə əlavə et" %}</a>
+    </div>
+  </div>
   <div class="grid-4 mt-4">
     <div><div class="cp-metric">{{ floor_count }}</div><div class="cp-meta">{% translate "mərtəbə" %}</div></div>
     <div><div class="cp-metric">{{ space_count }}</div><div class="cp-meta">{% translate "sahə" %}</div></div>
@@ -11,6 +23,23 @@
     <div><div class="cp-metric">{{ guest_today }}</div><div class="cp-meta">{% translate "bugünkü qonaq" %}</div></div>
   </div>
 </div>
+
+<div class="cp-card p-card mb-5">
+  <div class="cp-section">{% translate "Mərtəbə əlavə et" %}</div>
+  <form method="post" action="{% url 'erp:floor_create' %}" class="grid-2 mt-3" style="align-items:end;">
+    {% csrf_token %}
+    {% for field in floor_form %}
+    <label {% if field.name == 'building' %}style="display:none;"{% endif %}>
+      <span class="cp-meta">{{ field.label }}</span>
+      {{ field }}
+    </label>
+    {% endfor %}
+    <div>
+      <button class="cp-btn" type="submit">{% translate "Əlavə et" %}</button>
+    </div>
+  </form>
+</div>
+
 <div class="cp-section mb-3">{% translate "Mərtəbələr" %}</div>
 {% for row in floor_rows %}
   <div class="cp-card p-card-sm mb-3">
@@ -25,8 +54,15 @@
           <strong>{{ s.short_label }}</strong>
           <span class="cp-meta">{% if s.resident %}{{ s.resident.name }}{% else %}{% translate "Boş" %}{% endif %}</span>
         </a>
+      {% empty %}
+      <span class="cp-meta">{% translate "Bu mərtəbədə sahə yoxdur." %}</span>
       {% endfor %}
     </div>
+    <div class="mt-2">
+      <a class="cp-btn-ghost" href="{% url 'erp:space_create' %}?floor={{ row.floor.pk }}" style="padding:4px 10px;font-size:13px;">{% translate "+ Sahə" %}</a>
+    </div>
   </div>
+{% empty %}
+  <p class="cp-meta">{% translate "Mərtəbə yoxdur. Əvvəlcə mərtəbə əlavə edin." %}</p>
 {% endfor %}
 {% endblock %}

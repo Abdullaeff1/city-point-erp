@@ -8,6 +8,7 @@ from django.utils import timezone
 from openpyxl import load_workbook
 
 from apps.accounts.models import Role
+from apps.accounts.test_utils import ensure_portal_membership
 from apps.residents.access_export import access_xlsx_filename, build_access_xlsx, iter_company_attendance_rows
 from apps.residents.models import AccessEvent, AccessEventType, ResidentCompany, ResidentEmployee
 
@@ -120,6 +121,7 @@ class AccessExportViewTests(TestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.company,
         )
+        ensure_portal_membership(self.resident, self.company)
         self.other_user = User.objects.create_user(
             username="res-other",
             email="res-other@test.az",
@@ -127,6 +129,7 @@ class AccessExportViewTests(TestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.other,
         )
+        ensure_portal_membership(self.other_user, self.other)
         self.admin = User.objects.create_user(
             username="admin-exp",
             email="admin-exp@test.az",

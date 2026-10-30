@@ -8,12 +8,19 @@ from apps.residents.models import ResidentCompany
 class Command(BaseCommand):
     help = (
         "Rezident Portal istifadəçisi yarat/yenilə və dəvət tokeni ver. "
-        "Açıq self-signup yoxdur — yalnız Admin/ops bu əmri və ya Django Admin action istifadə edir."
+        "Açıq self-signup yoxdur — yalnız Admin/ops bu əmri və ya Django Admin action istifadə edir. "
+        "Birdən çox --company verilə bilər."
     )
 
     def add_arguments(self, parser):
         parser.add_argument("--email", required=True)
-        parser.add_argument("--company", required=True, help="ResidentCompany slug")
+        parser.add_argument(
+            "--company",
+            action="append",
+            required=True,
+            dest="companies",
+            help="ResidentCompany slug (təkrarlana bilər)",
+        )
         parser.add_argument("--first-name", default="")
         parser.add_argument("--last-name", default="")
         parser.add_argument(
@@ -28,16 +35,21 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        slug = options["company"].strip()
-        company = ResidentCompany.objects.filter(slug=slug).first()
-        if not company:
-            raise CommandError(f"Company not found: {slug}")
-        if company.is_internal:
-            raise CommandError("Internal (City Point) şirkətinə portal user verməyin — ERP staff hesabı istifadə edin.")
+        companies = []
+        for slug in options["companies"]:
+            slug = slug.strip()
+            company = ResidentCompany.objects.filter(slug=slug).first()
+            if not company:
+                raise CommandError(f"Company not found: {slug}")
+            if company.is_internal:
+                raise CommandError(
+                    "Internal (City Point) şirkətinə portal user verməyin — ERP staff hesabı istifadə edin."
+                )
+            companies.append(company)
 
         user, raw = provision_portal_user(
             email=options["email"],
-            company=company,
+            companies=companies,
             first_name=options["first_name"],
             last_name=options["last_name"],
         )
@@ -45,7 +57,8 @@ class Command(BaseCommand):
         base = (options.get("base_url") or "").rstrip("/")
         absolute = f"{base}{path}" if base else path
 
-        self.stdout.write(self.style.SUCCESS(f"User: {user.email} (id={user.pk}) company={company.slug}"))
+        slugs = ",".join(c.slug for c in companies)
+        self.stdout.write(self.style.SUCCESS(f"User: {user.email} (id={user.pk}) companies={slugs}"))
         self.stdout.write(f"Invite path: {absolute}")
 
         if options["send_email"]:
@@ -54,4 +67,6 @@ class Command(BaseCommand):
             send_invite_email(user=user, absolute_url=absolute)
             self.stdout.write(self.style.SUCCESS("Invite email sent."))
         else:
-            self.stdout.write("Email göndərilmədi. Linki əl ilə paylaşın və ya --send-email --base-url=... əlavə edin.")
+            self.stdout.write(
+                "Email göndərilmədi. Linki əl ilə paylaşın və ya --send-email --base-url=... əlavə edin."
+            )

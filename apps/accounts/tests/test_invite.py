@@ -4,6 +4,7 @@ from django.urls import reverse
 
 from apps.accounts.invite import consume_invite, create_portal_invite, provision_portal_user
 from apps.accounts.models import Role
+from apps.accounts.test_utils import ensure_portal_membership
 from apps.residents.models import ResidentCompany
 
 User = get_user_model()
@@ -55,6 +56,7 @@ class PortalInviteTests(TestCase):
             resident_company=self.company,
             must_set_password=True,
         )
+        ensure_portal_membership(user, self.company)
         self.client.force_login(user)
         resp = self.client.get(reverse("portal:home"))
         self.assertEqual(resp.status_code, 302)

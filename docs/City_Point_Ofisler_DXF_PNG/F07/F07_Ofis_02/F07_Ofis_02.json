@@ -1,0 +1,21 @@
+{
+  "id": "F07_Ofis_02",
+  "floor": "F07",
+  "floor_title": "7-ci mərtəbə",
+  "source_label": "\"Nestle\"",
+  "resident_name": null,
+  "source_contour": "22F5",
+  "contour_area_m2": 241.109,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Açıq konturun ucları birləşdirilib: 80.0 mm. Sərhəd təsdiqi lazımdır.",
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F07_Ofis_02.dxf",
+  "preview_file": "F07_Ofis_02.png",
+  "audit_errors": 0,
+  "entities": 826
+}

@@ -2,29 +2,33 @@ import calendar
 from datetime import date
 from decimal import Decimal
 
+from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from apps.property.storage import private_plan_storage
+
 
 class Occupancy(models.TextChoices):
-    ACTIVE_LEASE = "active_lease", "Aktiv icarə dövrü"
-    VACANT = "vacant", "Boş"
-    MAINTENANCE = "maintenance", "Texniki xidmət"
+    ACTIVE_LEASE = "active_lease", _("Aktiv icarə dövrü")
+    VACANT = "vacant", _("Boş")
+    MAINTENANCE = "maintenance", _("Texniki xidmət")
 
 
 class CommercialStatus(models.TextChoices):
-    VACANT = "vacant", _("Vacant")
-    RESERVED = "reserved", _("Reserved")
-    CONTRACTED = "contracted", _("Contracted")
-    ACTIVE = "active", _("Active")
-    NOTICE = "notice", _("Notice")
+    VACANT = "vacant", _("Boş")
+    RESERVED = "reserved", _("Rezerv")
+    CONTRACTED = "contracted", _("Müqaviləli")
+    ACTIVE = "active", _("Aktiv")
+    NOTICE = "notice", _("Xəbərdarlıq")
 
 
 class OperationalStatus(models.TextChoices):
-    AVAILABLE = "available", _("Available")
-    MAINTENANCE = "maintenance", _("Maintenance")
-    BLOCKED = "blocked", _("Blocked")
+    AVAILABLE = "available", _("Hazır")
+    MAINTENANCE = "maintenance", _("Texniki xidmət")
+    BLOCKED = "blocked", _("Dayandırılıb")
 
 
 class ParkingAssignmentType(models.TextChoices):
@@ -50,54 +54,90 @@ class Building(models.Model):
 
 
 class Floor(models.Model):
-    building = models.ForeignKey(Building, on_delete=models.CASCADE, related_name="floors")
-    code = models.CharField(max_length=16)
-    name = models.CharField(max_length=64)
+    building = models.ForeignKey(
+        Building, on_delete=models.CASCADE, related_name="floors", verbose_name=_("Bina")
+    )
+    code = models.CharField(max_length=16, verbose_name=_("Kod"))
+    name = models.CharField(max_length=64, verbose_name=_("Ad"))
 
     class Meta:
         unique_together = ("building", "code")
+        verbose_name = _("Mərtəbə")
+        verbose_name_plural = _("Mərtəbələr")
 
     def __str__(self):
-        return self.code
+        return f"{self.code} · {self.name}" if self.name else self.code
 
 
 class Space(models.Model):
-    code = models.CharField(max_length=64, unique=True)
-    name = models.CharField(max_length=120, blank=True)
-    floor = models.ForeignKey(Floor, on_delete=models.CASCADE, related_name="spaces")
+    code = models.CharField(max_length=64, unique=True, verbose_name=_("Kod"))
+    name = models.CharField(max_length=120, blank=True, verbose_name=_("Ad"))
+    floor = models.ForeignKey(
+        Floor, on_delete=models.CASCADE, related_name="spaces", verbose_name=_("Mərtəbə")
+    )
     resident = models.ForeignKey(
         "residents.ResidentCompany",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
         related_name="spaces",
+        verbose_name=_("Rezident"),
     )
-    area_m2 = models.DecimalField(max_digits=10, decimal_places=1, default=0)
-    access_zone = models.CharField(max_length=32, blank=True)
-    occupancy = models.CharField(max_length=32, choices=Occupancy.choices, default=Occupancy.ACTIVE_LEASE)
-    cost_center = models.CharField(max_length=64, blank=True)
-    plan_revision = models.CharField(max_length=32, blank=True)
+    area_m2 = models.DecimalField(
+        max_digits=10, decimal_places=1, default=0, verbose_name=_("Sahə (m²)")
+    )
+    access_zone = models.CharField(max_length=32, blank=True, verbose_name=_("Keçid zonası"))
+    occupancy = models.CharField(
+        max_length=32,
+        choices=Occupancy.choices,
+        default=Occupancy.ACTIVE_LEASE,
+        verbose_name=_("Doluluq"),
+    )
+    cost_center = models.CharField(max_length=64, blank=True, verbose_name=_("Xərc mərkəzi"))
+    plan_revision = models.CharField(max_length=32, blank=True, verbose_name=_("Plan versiyası"))
     commercial_status = models.CharField(
         max_length=24,
         choices=CommercialStatus.choices,
         default=CommercialStatus.VACANT,
+        verbose_name=_("Kommersiya statusu"),
     )
     operational_status = models.CharField(
         max_length=24,
         choices=OperationalStatus.choices,
         default=OperationalStatus.AVAILABLE,
+        verbose_name=_("Əməliyyat statusu"),
     )
-    rentable_area_m2 = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    rentable_area_m2 = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name=_("İcarəyə verilən sahə (m²)"),
+    )
     base_rent_rate = models.DecimalField(
-        max_digits=12, decimal_places=2, null=True, blank=True, help_text="AZN / m² / ay (istinad)"
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_("AZN / m² / ay (istinad)"),
+        verbose_name=_("Baza icarə tarifi"),
     )
     service_charge_rate = models.DecimalField(
-        max_digits=12, decimal_places=2, null=True, blank=True, help_text="AZN / m² / ay (istinad)"
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=_("AZN / m² / ay (istinad)"),
+        verbose_name=_("Xidmət haqqı tarifi"),
     )
-    availability_date = models.DateField(null=True, blank=True)
-    fit_out_status = models.CharField(max_length=64, blank=True)
-    is_public = models.BooleanField(default=False)
-    public_description = models.TextField(blank=True)
+    availability_date = models.DateField(
+        null=True, blank=True, verbose_name=_("Əlçatanlıq tarixi")
+    )
+    fit_out_status = models.CharField(
+        max_length=64, blank=True, verbose_name=_("Təmir / təchizat statusu")
+    )
+    is_public = models.BooleanField(default=False, verbose_name=_("İctimai"))
+    public_description = models.TextField(blank=True, verbose_name=_("İctimai təsvir"))
 
     def __str__(self):
         return self.area_code
@@ -320,3 +360,130 @@ class MeterReading(models.Model):
 
     def __str__(self):
         return f"{self.meter_id}:{self.reading}"
+
+
+class SpaceDrawingKind(models.TextChoices):
+    DXF = "dxf", _("DXF / DWG")
+    TECHNICAL_PLAN = "technical_plan", _("Texniki plan")
+
+
+class SpaceDrawingAccessStatus(models.TextChoices):
+    PENDING = "pending", _("Gözləyir")
+    APPROVED = "approved", _("Təsdiqləndi")
+    DENIED = "denied", _("İmtina")
+
+
+def space_drawing_upload_to(instance, filename):
+    return f"space_drawings/{instance.space_id}/{instance.kind}/{filename}"
+
+
+def space_drawing_svg_upload_to(instance, filename):
+    return f"space_drawings/{instance.space_id}/{instance.kind}/svg/{filename}"
+
+
+class SpaceDrawing(models.Model):
+    """Per-office DXF or technical plan (PDF/PNG) — private storage only."""
+
+    space = models.ForeignKey(Space, on_delete=models.CASCADE, related_name="drawings")
+    kind = models.CharField(max_length=32, choices=SpaceDrawingKind.choices)
+    file = models.FileField(upload_to=space_drawing_upload_to, storage=private_plan_storage)
+    svg_file = models.FileField(
+        upload_to=space_drawing_svg_upload_to,
+        storage=private_plan_storage,
+        blank=True,
+        null=True,
+    )
+    original_name = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=128, blank=True)
+    package_id = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        help_text=_("Import paket ID (məs. F08_Ofis_01)"),
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="uploaded_space_drawings",
+    )
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = _("Sahə rəsmi")
+        verbose_name_plural = _("Sahə rəsmləri")
+
+    def __str__(self):
+        return f"{self.space_id}:{self.kind}:{self.original_name}"
+
+    def clean(self):
+        name = (self.original_name or "").lower()
+        if self.kind == SpaceDrawingKind.DXF and not name.endswith(".dxf"):
+            raise ValidationError({"file": _("DWG tabı üçün yalnız .dxf faylı.")})
+        if self.kind == SpaceDrawingKind.TECHNICAL_PLAN and not (
+            name.endswith(".pdf") or name.endswith(".png")
+        ):
+            raise ValidationError({"file": _("Texniki plan üçün yalnız .pdf və ya .png.")})
+
+    @property
+    def is_png(self) -> bool:
+        return (self.original_name or "").lower().endswith(".png")
+
+    @property
+    def is_pdf(self) -> bool:
+        return (self.original_name or "").lower().endswith(".pdf")
+
+    @property
+    def has_svg_preview(self) -> bool:
+        return bool(self.svg_file)
+
+
+class SpaceDrawingAccessRequest(models.Model):
+    """Resident request to download a space drawing; staff approves with TTL."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="space_drawing_access_requests",
+    )
+    drawing = models.ForeignKey(
+        SpaceDrawing,
+        on_delete=models.CASCADE,
+        related_name="access_requests",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=SpaceDrawingAccessStatus.choices,
+        default=SpaceDrawingAccessStatus.PENDING,
+        db_index=True,
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="decided_space_drawing_access_requests",
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    note = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = _("Sahə rəsm icazə sorğusu")
+        verbose_name_plural = _("Sahə rəsm icazə sorğuları")
+
+    def __str__(self):
+        return f"{self.user_id}:{self.drawing_id}:{self.status}"
+
+    @property
+    def is_download_allowed(self) -> bool:
+        if self.status != SpaceDrawingAccessStatus.APPROVED:
+            return False
+        if self.expires_at is None:
+            return False
+        return timezone.now() < self.expires_at
+

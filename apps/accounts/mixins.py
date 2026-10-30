@@ -1,7 +1,9 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import PermissionDenied
+from django.utils.translation import gettext as _
 
 from apps.accounts.models import Role, STAFF_ROLES, SECURITY_PORTAL_ROLES
+from apps.accounts.portal_scope import eligible_companies_for, require_portal_scope
 
 
 class StaffRequiredMixin(LoginRequiredMixin):
@@ -14,17 +16,36 @@ class StaffRequiredMixin(LoginRequiredMixin):
 
 
 class ResidentPortalMixin(LoginRequiredMixin):
+    """Portal pages that require a valid company scope for resident users."""
+
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return self.handle_no_permission()
-        if request.user.role == Role.RESIDENT_USER:
-            company = request.user.resident_company
-            if not company:
-                raise PermissionDenied("Rezident şirkəti təyin olunmayıb.")
-            if not company.portal_active:
-                raise PermissionDenied("Bu şirkət üçün portal müvəqqəti bağlanıb.")
         if not request.user.can_access_portal():
             raise PermissionDenied("Portal girişinə icazə yoxdur.")
+        if request.user.role == Role.RESIDENT_USER:
+            eligible = eligible_companies_for(request.user)
+            if not eligible:
+                raise PermissionDenied(_("Rezident şirkəti təyin olunmayıb və ya portal bağlıdır."))
+            redirect_response = require_portal_scope(request)
+            if redirect_response is not None:
+                return redirect_response
+        else:
+            # Staff browsing portal — attach empty/FK scope for view helpers
+            require_portal_scope(request)
+        return super().dispatch(request, *args, **kwargs)
+
+
+class ResidentChooserMixin(LoginRequiredMixin):
+    """Company selector — authenticated resident, no scope required (avoids redirect loop)."""
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if request.user.role != Role.RESIDENT_USER:
+            raise PermissionDenied(_("Şirkət seçimi yalnız rezidentlər üçündür."))
+        if not eligible_companies_for(request.user):
+            raise PermissionDenied(_("Rezident şirkəti təyin olunmayıb və ya portal bağlıdır."))
         return super().dispatch(request, *args, **kwargs)
 
 

@@ -22,6 +22,7 @@
       {% if nav_property or nav_residents or nav_parties or nav_leases %}
       <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
+      {% if user.role == "admin" or user.role == "property_fm" %}<a class="{% nav_active 'drawing_access_queue' %}" href="{% url 'erp:drawing_access_queue' %}"><i data-lucide="file-key" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rəsm icazələri" %}</span></a>{% endif %}
       {% if nav_property or user.role == "service_desk" %}
       <a class="{% nav_active 'building_equipment' 'building_assets' %}" href="{% url 'erp:building_equipment' %}"><i data-lucide="cpu" width="18" height="18"></i><span class="cp-nav-text">{% translate "Avadanlıqlar" %}</span></a>
       <a class="{% nav_active 'building_inventory' %}" href="{% url 'erp:building_inventory' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "İnventarlar" %}</span></a>
@@ -49,6 +50,7 @@
       {% if nav_property or nav_residents or nav_leases %}
       <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
+      {% if user.role == "admin" or user.role == "property_fm" %}<a class="{% nav_active 'drawing_access_queue' %}" href="{% url 'erp:drawing_access_queue' %}"><i data-lucide="file-key" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rəsm icazələri" %}</span></a>{% endif %}
       {% if nav_property or user.role == "service_desk" %}
       <a class="{% nav_active 'building_equipment' 'building_assets' %}" href="{% url 'erp:building_equipment' %}"><i data-lucide="cpu" width="18" height="18"></i><span class="cp-nav-text">{% translate "Avadanlıqlar" %}</span></a>
       <a class="{% nav_active 'building_inventory' %}" href="{% url 'erp:building_inventory' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "İnventarlar" %}</span></a>

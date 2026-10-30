@@ -28,11 +28,12 @@
 </div>
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
-    <thead><tr><th>{% translate "Qonaq" %}</th><th>{% translate "Host" %}</th><th>{% translate "Tip" %}</th><th>{% translate "Mərtəbə" %}</th><th>{% translate "Status" %}</th><th></th></tr></thead>
+    <thead><tr><th>{% translate "Qonaq" %}</th>{% if show_company_column %}<th>{% translate "Şirkət" %}</th>{% endif %}<th>{% translate "Host" %}</th><th>{% translate "Tip" %}</th><th>{% translate "Mərtəbə" %}</th><th>{% translate "Status" %}</th><th></th></tr></thead>
     <tbody>
       {% for v in visits %}
       <tr>
         <td>{{ v.guest.display_name }}</td>
+        {% if show_company_column %}<td>{{ v.company.name }}</td>{% endif %}
         <td>{{ v.host.full_name|default:"—" }}</td>
         <td>{{ v.visit_type.name|default:"—" }}</td>
         <td>{% if v.space %}{{ v.floor.code }} / {{ v.space.short_label }}{% elif v.location_note %}{{ v.location_note }}{% else %}{{ v.floor.code|default:"—" }}{% endif %}</td>
@@ -47,7 +48,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="6" class="cp-meta empty-pad">{% translate "Bu gün qonaq yoxdur." %}</td></tr>
+      <tr><td colspan="{% if show_company_column %}7{% else %}6{% endif %}" class="cp-meta empty-pad">{% translate "Bu gün qonaq yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

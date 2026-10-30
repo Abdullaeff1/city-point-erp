@@ -1,6 +1,6 @@
 {% extends "portal/base.html" %}
 {% load i18n cp_ui %}
-{% block heading %}{% blocktranslate with name=company.name|default:user.display_name %}Salam, {{ name }}{% endblocktranslate %}{% endblock %}
+{% block heading %}{% if portal_scope_all %}{% translate "Salam — bütün şirkətlər" %}{% else %}{% blocktranslate with name=company.name|default:user.display_name %}Salam, {{ name }}{% endblocktranslate %}{% endif %}{% endblock %}
 {% block eyebrow %}{% translate "Xoş gəlmisiniz" %}{% endblock %}
 {% block content %}
 <div class="grid-3 mb-6">

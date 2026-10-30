@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% translate "Şirkət seçimi" %} · City Point{% endblock %}
+{% block body %}
+<div class="cp-shell" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(160deg,#0f2744 0%,#1a3a5c 45%,#243d5c 100%);">
+  <div class="cp-card" style="width:100%;max-width:520px;padding:28px 28px 24px;border-radius:16px;box-shadow:0 24px 48px rgba(0,0,0,0.28);">
+    <p class="cp-meta" style="letter-spacing:0.06em;text-transform:uppercase;">CITY POINT · {% translate "Rezident" %}</p>
+    <h1 class="cp-title" style="font-size:22px;margin-top:8px;">{% translate "Hansı şirkətin portalına daxil olmaq istəyirsiniz?" %}</h1>
+    <p class="cp-meta mt-2">{% translate "Bir şirkət və ya bütün bağlı şirkətləri seçin." %}</p>
+
+    {% if messages %}
+    <div class="mt-3">
+      {% for message in messages %}
+      <p class="cp-meta" style="color:#b42318;">{{ message }}</p>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" class="mt-4" style="display:flex;flex-direction:column;gap:12px;">
+      {% csrf_token %}
+      {% for company in companies %}
+      <label class="cp-card" style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border:1px solid var(--cp-border, #e5e7eb);border-radius:12px;">
+        <input type="radio" name="choice" value="{{ company.pk }}" required style="width:18px;height:18px;accent-color:var(--cp-primary, #0f2744);">
+        <span style="font-weight:600;">{{ company.name }}</span>
+      </label>
+      {% endfor %}
+      {% if companies|length > 1 %}
+      <label class="cp-card" style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border:1px solid var(--cp-border, #e5e7eb);border-radius:12px;background:rgba(15,39,68,0.04);">
+        <input type="radio" name="choice" value="all" style="width:18px;height:18px;accent-color:var(--cp-primary, #0f2744);">
+        <span>
+          <strong>{% translate "Hamısı" %}</strong>
+          <span class="cp-meta" style="display:block;margin-top:2px;">{% translate "Bütün bağlı şirkətlərin məlumatları" %}</span>
+        </span>
+      </label>
+      {% endif %}
+      <button class="cp-btn" type="submit" style="margin-top:8px;">{% translate "Davam et" %}</button>
+    </form>
+
+    <form method="post" action="{% url 'logout' %}" style="margin-top:16px;text-align:center;">
+      {% csrf_token %}
+      <button class="cp-btn-ghost" type="submit" style="font-size:13px;">{% translate "Çıxış" %}</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Sahəni sil" %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:spaces' %}">{% translate "Sahələr" %}</a>
+ · <a href="{% url 'erp:space_detail' object.code %}">{{ object.area_code }}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card-lg">
+  <p>
+    {% blocktranslate with label=object.area_code code=object.code %}
+    <strong>{{ label }}</strong> ({{ code }}) sahəsini silmək istəyirsiniz?
+    {% endblocktranslate %}
+  </p>
+  <p class="cp-meta mt-2">{% translate "Bu əməliyyat sahəyə bağlı rəsmləri və ofis aktivlərini də siləcək. Ticket və icarə qeydləri sahəsiz qalacaq." %}</p>
+  <form method="post" class="flex gap-2 mt-4">
+    {% csrf_token %}
+    <button class="cp-btn" type="submit" style="background:#b42318;">{% translate "Sil" %}</button>
+    <a class="cp-btn-ghost" href="{% url 'erp:space_detail' object.code %}">{% translate "Ləğv et" %}</a>
+  </form>
+</div>
+{% endblock %}

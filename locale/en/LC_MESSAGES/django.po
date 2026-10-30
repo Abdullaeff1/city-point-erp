@@ -576,3 +576,81 @@ msgstr "guests"
 
 msgid "Jurnal"
 msgstr "Journal"
+
+msgid "Ad"
+msgstr "Name"
+
+msgid "Bina"
+msgstr "Building"
+
+msgid "Sahə (m²)"
+msgstr "Area (m²)"
+
+msgid "Doluluq"
+msgstr "Occupancy"
+
+msgid "Kommersiya statusu"
+msgstr "Commercial status"
+
+msgid "Əməliyyat statusu"
+msgstr "Operational status"
+
+msgid "Keçid zonası"
+msgstr "Access zone"
+
+msgid "Xərc mərkəzi"
+msgstr "Cost center"
+
+msgid "Təmir / təchizat statusu"
+msgstr "Fit-out status"
+
+msgid "Plan versiyası"
+msgstr "Plan revision"
+
+msgid "İcarəyə verilən sahə (m²)"
+msgstr "Rentable area (m²)"
+
+msgid "Baza icarə tarifi"
+msgstr "Base rent rate"
+
+msgid "Xidmət haqqı tarifi"
+msgstr "Service charge rate"
+
+msgid "Əlçatanlıq tarixi"
+msgstr "Availability date"
+
+msgid "İctimai"
+msgstr "Public"
+
+msgid "İctimai təsvir"
+msgstr "Public description"
+
+msgid "Aktiv icarə dövrü"
+msgstr "Active lease"
+
+msgid "Rezerv"
+msgstr "Reserved"
+
+msgid "Müqaviləli"
+msgstr "Contracted"
+
+msgid "Hazır"
+msgstr "Available"
+
+msgid "Dayandırılıb"
+msgstr "Blocked"
+
+msgid "AZN / m² / ay (istinad)"
+msgstr "AZN / m² / month (reference)"
+
+msgid "Keçid"
+msgstr "Access"
+
+msgid "— Boş —"
+msgstr "— Vacant —"
+
+msgid "Texniki xidmət"
+msgstr "Maintenance"
+
+msgid "Xəbərdarlıq"
+msgstr "Notice"

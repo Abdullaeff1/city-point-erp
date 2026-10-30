@@ -1,0 +1,20 @@
+{
+  "id": "F01_Ofis_02",
+  "floor": "F01",
+  "floor_title": "1-ci mərtəbə",
+  "source_label": "Retail",
+  "resident_name": null,
+  "source_contour": "DB45",
+  "contour_area_m2": 553.661,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F01_Ofis_02.dxf",
+  "preview_file": "F01_Ofis_02.png",
+  "audit_errors": 0,
+  "entities": 1951
+}

@@ -1,0 +1,20 @@
+{
+  "id": "F03_Ofis_06",
+  "floor": "F03",
+  "floor_title": "3-cü mərtəbə",
+  "source_label": "Datapey",
+  "resident_name": null,
+  "source_contour": "B04E",
+  "contour_area_m2": 52.058,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F03_Ofis_06.dxf",
+  "preview_file": "F03_Ofis_06.png",
+  "audit_errors": 0,
+  "entities": 1272
+}

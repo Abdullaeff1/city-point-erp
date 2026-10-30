@@ -576,3 +576,81 @@ msgstr "гостей"
 
 msgid "Jurnal"
 msgstr "Журнал"
+
+msgid "Ad"
+msgstr "Название"
+
+msgid "Bina"
+msgstr "Здание"
+
+msgid "Sahə (m²)"
+msgstr "Площадь (м²)"
+
+msgid "Doluluq"
+msgstr "Занятость"
+
+msgid "Kommersiya statusu"
+msgstr "Коммерческий статус"
+
+msgid "Əməliyyat statusu"
+msgstr "Операционный статус"
+
+msgid "Keçid zonası"
+msgstr "Зона доступа"
+
+msgid "Xərc mərkəzi"
+msgstr "Центр затрат"
+
+msgid "Təmir / təchizat statusu"
+msgstr "Статус отделки"
+
+msgid "Plan versiyası"
+msgstr "Версия плана"
+
+msgid "İcarəyə verilən sahə (m²)"
+msgstr "Арендуемая площадь (м²)"
+
+msgid "Baza icarə tarifi"
+msgstr "Базовая арендная ставка"
+
+msgid "Xidmət haqqı tarifi"
+msgstr "Ставка сервисного сбора"
+
+msgid "Əlçatanlıq tarixi"
+msgstr "Дата доступности"
+
+msgid "İctimai"
+msgstr "Публичный"
+
+msgid "İctimai təsvir"
+msgstr "Публичное описание"
+
+msgid "Aktiv icarə dövrü"
+msgstr "Активная аренда"
+
+msgid "Rezerv"
+msgstr "Резерв"
+
+msgid "Müqaviləli"
+msgstr "По договору"
+
+msgid "Hazır"
+msgstr "Доступно"
+
+msgid "Dayandırılıb"
+msgstr "Заблокировано"
+
+msgid "AZN / m² / ay (istinad)"
+msgstr "AZN / м² / месяц (справка)"
+
+msgid "Keçid"
+msgstr "Доступ"
+
+msgid "— Boş —"
+msgstr "— Свободно —"
+
+msgid "Texniki xidmət"
+msgstr "Техобслуживание"
+
+msgid "Xəbərdarlıq"
+msgstr "Уведомление"

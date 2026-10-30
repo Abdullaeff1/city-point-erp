@@ -29,7 +29,14 @@
       <div class="cp-avatar">{{ user.initials }}</div>
       <div class="cp-user-meta min-0 flex-1">
         <div class="cp-user-name">{{ user.display_name }}</div>
+        {% if portal_scope_label %}
+        <div class="cp-user-role" title="{{ portal_scope_label }}">{{ portal_scope_label }}</div>
+        {% else %}
         <div class="cp-user-role">{{ user.get_role_display }}</div>
+        {% endif %}
+        {% if portal_can_switch_company %}
+        <a href="{% url 'portal:choose_companies' %}" class="cp-meta" style="display:inline-block;margin-top:4px;color:rgba(255,255,255,0.75);font-size:12px;">{% translate "Şirkət dəyiş" %}</a>
+        {% endif %}
       </div>
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}
         <button class="cp-btn-ghost" title="{% translate 'Çıxış' %}" style="color:rgba(255,255,255,0.7);"><i data-lucide="log-out" width="16" height="16"></i></button>

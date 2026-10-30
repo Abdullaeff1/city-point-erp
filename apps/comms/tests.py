@@ -3,6 +3,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from apps.accounts.models import Role
+from apps.accounts.test_utils import ensure_portal_membership
 from apps.comms.models import Notification
 from apps.residents.models import ResidentCompany
 from apps.tickets.models import TicketDepartment, TicketSubcategory
@@ -28,6 +29,7 @@ class NotificationLinkTests(TestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.company,
         )
+        ensure_portal_membership(self.resident, self.company)
         self.desk = User.objects.create_user(
             username="note-desk",
             email="note-desk@test.az",

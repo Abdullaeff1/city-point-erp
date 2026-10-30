@@ -4,6 +4,7 @@ from django.test import Client, TestCase, TransactionTestCase
 from django.urls import reverse
 
 from apps.accounts.models import Role
+from apps.accounts.test_utils import ensure_portal_membership
 from apps.comms.models import Notification
 from apps.comms.services import notify_in_app
 from apps.core.services import DomainError
@@ -150,6 +151,7 @@ class TicketDepartmentAccessTests(TestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.company_a,
         )
+        ensure_portal_membership(self.resident_a, self.company_a)
         self.resident_b = User.objects.create_user(
             username="resb",
             email="resb@cob.az",
@@ -157,6 +159,7 @@ class TicketDepartmentAccessTests(TestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.company_b,
         )
+        ensure_portal_membership(self.resident_b, self.company_b)
         self.sec_sub = TicketSubcategory.objects.get(slug="security-incident")
         self.fm_sub = TicketSubcategory.objects.get(slug="electric")
         self.sec_ticket = create_ticket_from_portal(
@@ -528,6 +531,7 @@ class TicketNotifyOnCommitTests(TransactionTestCase):
             role=Role.RESIDENT_USER,
             resident_company=self.company,
         )
+        ensure_portal_membership(self.resident, self.company)
         self.sub = TicketSubcategory.objects.get(slug="security-incident")
 
     def test_status_notify_fires_after_commit(self):

@@ -1,0 +1,20 @@
+{
+  "id": "F07_Ofis_04",
+  "floor": "F07",
+  "floor_title": "7-ci mərtəbə",
+  "source_label": "\"Proxima\" Mövcud - 169.0 m2^ Müqavilə - 182.0 m2^",
+  "resident_name": null,
+  "source_contour": "233C",
+  "contour_area_m2": 168.687,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F07_Ofis_04.dxf",
+  "preview_file": "F07_Ofis_04.png",
+  "audit_errors": 0,
+  "entities": 3726
+}

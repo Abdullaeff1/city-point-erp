@@ -1,0 +1,22 @@
+{
+  "id": "U01_Ofis_01",
+  "floor": "U01",
+  "floor_title": "Başlıqsız plan U01 (mərtəbə təsdiqlənməlidir)",
+  "source_label": "Bütöv mərtəbə",
+  "resident_name": null,
+  "source_contour": "FULL",
+  "contour_area_m2": null,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Mərtəbənin bütöv ofis kimi verilməsi istifadəçi məlumatına əsaslanır.",
+    "Mərtəbə nömrəsi təsdiqlənməlidir.",
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "U01_Ofis_01.dxf",
+  "preview_file": "U01_Ofis_01.png",
+  "audit_errors": 0,
+  "entities": 4513
+}

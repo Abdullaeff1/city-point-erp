@@ -1,0 +1,21 @@
+{
+  "id": "F02_Ofis_04",
+  "floor": "F02",
+  "floor_title": "2-ci mərtəbə",
+  "source_label": "Adı müəyyənləşdirilməyib",
+  "resident_name": null,
+  "source_contour": "B077",
+  "contour_area_m2": 122.134,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Şirkət adı uyğunlaşdırılmalıdır.",
+    "Kontur sahəsi müqavilə sahəsi deyil; pilləkən/lift əlavələri sahəyə daxil edilməyib."
+  ],
+  "dxf_file": "F02_Ofis_04.dxf",
+  "preview_file": "F02_Ofis_04.png",
+  "audit_errors": 0,
+  "entities": 1271
+}
