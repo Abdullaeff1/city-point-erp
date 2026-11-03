@@ -388,7 +388,14 @@ class Command(BaseCommand):
         from apps.leases.services import activate_lease, next_lease_code
         from apps.parties.services import PartyService
         from apps.procurement.models import POStatus, PRStatus, PurchaseOrder, PurchaseRequest
-        from apps.property.models import ParkingSpot, ParkingZone, UtilityMeter, UtilityType
+        from apps.property.models import (
+            ParkingAssignment,
+            ParkingAssignmentType,
+            ParkingSpot,
+            ParkingZone,
+            UtilityMeter,
+            UtilityType,
+        )
         from apps.rbac.services import seed_rbac_catalog
         from apps.warehouse.models import SKU, StockMovementType, Warehouse
         from apps.warehouse.services import apply_movement
@@ -401,6 +408,19 @@ class Command(BaseCommand):
             code="P1", defaults={"name": "Parking Level 1", "building": building}
         )
         spot, _ = ParkingSpot.objects.get_or_create(zone=zone, code="A-12")
+        if asbc_party:
+            ParkingAssignment.objects.update_or_create(
+                spot=spot,
+                party=asbc_party,
+                defaults={
+                    "space": space801,
+                    "assignment_type": ParkingAssignmentType.RESIDENT,
+                    "vehicle_plate": "",
+                    "employee": None,
+                    "start_date": None,
+                    "end_date": None,
+                },
+            )
         UtilityMeter.objects.get_or_create(
             space=space801, meter_code="EL-801", defaults={"utility_type": UtilityType.ELECTRIC, "unit": "kWh"}
         )

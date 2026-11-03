@@ -1,0 +1,79 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Parkinq" %}{% endblock %}
+{% block content %}
+<form method="get" class="flex gap-2 mb-4" style="flex-wrap:wrap;align-items:end;">
+  <input type="hidden" name="sort" value="{{ sort }}">
+  <input type="hidden" name="dir" value="{{ dir }}">
+  <label style="flex:1;min-width:220px;">
+    <span class="cp-meta">{% translate "Axtarış" %}</span>
+    <input class="cp-input mt-1" type="search" name="q" value="{{ q }}" placeholder="{% translate 'Şirkət, əməkdaş, yer, nömrə…' %}">
+  </label>
+  <button class="cp-btn" type="submit">{% translate "Axtar" %}</button>
+</form>
+
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>
+          <a href="?sort=company&dir={% if sort == 'company' and dir == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">
+            {% translate "Şirkət" %}{% if sort == 'company' %} {% if dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          </a>
+        </th>
+        <th>
+          <a href="?sort=zone&dir={% if sort == 'zone' and dir == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">
+            {% translate "Zona" %}{% if sort == 'zone' %} {% if dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          </a>
+        </th>
+        <th>
+          <a href="?sort=spot&dir={% if sort == 'spot' and dir == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">
+            {% translate "Yer" %}{% if sort == 'spot' %} {% if dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          </a>
+        </th>
+        <th>
+          <a href="?sort=plate&dir={% if sort == 'plate' and dir == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">
+            {% translate "Nömrə nişanı" %}{% if sort == 'plate' %} {% if dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          </a>
+        </th>
+        <th>
+          <a href="?sort=employee&dir={% if sort == 'employee' and dir == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">
+            {% translate "Əməkdaş" %}{% if sort == 'employee' %} {% if dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          </a>
+        </th>
+        <th>{% translate "Ofis" %}</th>
+        <th>{% translate "Növ" %}</th>
+        <th>{% translate "Dövr" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in assignments %}
+      <tr>
+        <td style="font-weight:600;">
+          {% if a.party.legacy_resident_company %}
+          <a href="{% url 'security:company_employees' a.party.legacy_resident_company_id %}">{{ a.party.legacy_resident_company.name }}</a>
+          {% else %}
+          {{ a.party.display_name }}
+          {% endif %}
+        </td>
+        <td class="cp-meta">{{ a.spot.zone.code }}{% if a.spot.zone.name %} · {{ a.spot.zone.name }}{% endif %}</td>
+        <td style="font-weight:600;">{{ a.spot.code }}</td>
+        <td>{{ a.vehicle_plate|default:"—" }}</td>
+        <td>
+          {% if a.employee %}
+          <a href="{% url 'security:employee_access' a.employee_id %}">{{ a.employee.full_name }}</a>
+          {% else %}
+          <span class="cp-meta">—</span>
+          {% endif %}
+        </td>
+        <td class="cp-meta">{% if a.space %}{{ a.space.area_code }}{% else %}—{% endif %}</td>
+        <td class="cp-meta">{{ a.get_assignment_type_display }}</td>
+        <td class="cp-meta">{{ a.start_date|date:"d.m.Y"|default:"—" }} – {{ a.end_date|date:"d.m.Y"|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="cp-meta empty-pad">{% translate "Aktiv parkinq təyinatı yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

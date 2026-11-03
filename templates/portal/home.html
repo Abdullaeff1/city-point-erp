@@ -3,6 +3,9 @@
 {% block heading %}{% if portal_scope_all %}{% translate "Salam — bütün şirkətlər" %}{% else %}{% blocktranslate with name=company.name|default:user.display_name %}Salam, {{ name }}{% endblocktranslate %}{% endif %}{% endblock %}
 {% block eyebrow %}{% translate "Xoş gəlmisiniz" %}{% endblock %}
 {% block content %}
+<p class="cp-meta mb-4">
+  <a href="{% url 'portal:user_guide' %}">{% translate "Portalda nələri edə biləcəyinizi öyrənin — İstifadəçi təlimatı" %} →</a>
+</p>
 <div class="grid-3 mb-6">
   <div class="cp-card p-card">
     <div class="cp-meta">{% translate "SAHƏLƏRİM" %}</div>

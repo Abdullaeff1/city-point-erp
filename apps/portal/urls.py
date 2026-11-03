@@ -41,4 +41,12 @@ urlpatterns = [
     path("guests/<int:pk>/checkout/", views.GuestCheckoutView.as_view(), name="guest_checkout"),
     path("announcements/", views.AnnouncementsView.as_view(), name="announcements"),
     path("documents/", views.DocumentsView.as_view(), name="documents"),
+    path("documents/<int:pk>/download/", views.DocumentDownloadView.as_view(), name="document_download"),
+    path("procedures/", views.BuildingProceduresView.as_view(), name="building_procedures"),
+    path(
+        "procedures/<int:pk>/download/",
+        views.BuildingProcedureDownloadView.as_view(),
+        name="building_procedure_download",
+    ),
+    path("guide/", views.UserGuideView.as_view(), name="user_guide"),
 ]

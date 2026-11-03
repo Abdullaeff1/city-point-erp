@@ -2,6 +2,9 @@ import os
 
 from django.conf import settings
 from django.db import models
+from django.utils.translation import gettext_lazy as _
+
+from apps.documents.storage import private_document_storage
 
 
 class AnnouncementSeverity(models.TextChoices):
@@ -96,6 +99,42 @@ class AnnouncementAttachment(models.Model):
     def display_name(self) -> str:
         if self.title.strip():
             return self.title.strip()
+        return os.path.basename(self.file.name) if self.file else "—"
+
+
+class BuildingProcedure(models.Model):
+    """Building-wide internal procedure files shown in the resident portal."""
+
+    title = models.CharField(max_length=200, verbose_name=_("Başlıq"))
+    description = models.TextField(blank=True, verbose_name=_("Təsvir"))
+    file = models.FileField(
+        upload_to="building_procedures/%Y/%m/",
+        storage=private_document_storage,
+        verbose_name=_("Fayl"),
+    )
+    sort_order = models.PositiveIntegerField(default=0, verbose_name=_("Sıra"))
+    is_published = models.BooleanField(default=True, verbose_name=_("Portala görünən"))
+    published_at = models.DateField(null=True, blank=True, verbose_name=_("Nəşr tarixi"))
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_building_procedures",
+    )
+
+    class Meta:
+        ordering = ["sort_order", "title"]
+        verbose_name = _("Daxili prosedur")
+        verbose_name_plural = _("Daxili prosedurlar")
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def display_filename(self) -> str:
         return os.path.basename(self.file.name) if self.file else "—"
 
 

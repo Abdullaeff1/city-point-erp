@@ -5,21 +5,78 @@
  · <a href="{% url 'erp:residents' %}">{% translate "Rezidentlər" %}</a>
 {% endblock %}
 {% block content %}
-<div class="grid-4 mb-4">
-  <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Sahə" %}</div><div style="font-weight:700;">{% for s in spaces %}{{ s.short_label }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</div></div>
-  {% if can_view_resident_ops %}
-  <a class="cp-card p-card-sm" href="{% url 'erp:resident_employees' company.slug %}" style="text-decoration:none;color:inherit;display:block;">
-    <div class="cp-meta">{% translate "Əməkdaşlar" %}</div>
-    <div class="cp-metric" style="font-size:24px;">{{ employees.count }}</div>
+{% include "erp/partials/resident_section_nav.html" %}
+
+{% if can_manage_resident %}
+<div class="flex gap-2 mb-4" style="flex-wrap:wrap;">
+  {% if section == 'general' or section == 'contacts' or section == 'bank' %}
+  <a class="cp-btn" href="{% url 'erp:resident_edit' company.slug %}?section={{ section }}">{% translate "Redaktə" %}</a>
+  {% elif section == 'hub' or not section %}
+  <a class="cp-btn" href="{% url 'erp:resident_edit' company.slug %}?section=general">{% translate "Ümuminı redaktə et" %}</a>
+  {% endif %}
+  {% if company.is_archived %}
+  <form method="post" action="{% url 'erp:resident_unarchive' company.slug %}">{% csrf_token %}
+    <button class="cp-btn-ghost" type="submit">{% translate "Arxivdən çıxar" %}</button>
+  </form>
+  {% else %}
+  <form method="post" action="{% url 'erp:resident_archive' company.slug %}" onsubmit="return confirm('{% translate "Arxivlənsin?" %}');">{% csrf_token %}
+    <button class="cp-btn-ghost" type="submit">{% translate "Arxivlə" %}</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+{# —— HUB (6 tiles) —— #}
+{% if section == 'hub' or not section %}
+<div class="cp-card p-card mb-4">
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+    <span class="badge" style="background:{% if company.status == 'active' %}#1b7a3d{% else %}#666{% endif %};color:#fff;">{{ company.get_status_display }}</span>
+    <span class="badge" style="background:{% if company.portal_active %}#1a4f8a{% else %}#666{% endif %};color:#fff;">{% translate "Portal" %} {% if company.portal_active %}{% translate "aktiv" %}{% else %}{% translate "bağlı" %}{% endif %}</span>
+    {% if company.is_archived %}<span class="cp-meta">{% translate "Arxiv" %}</span>{% endif %}
+  </div>
+  {% if can_view_legal and company.voen %}
+  <p class="cp-meta mt-2">{% translate "VÖEN" %}: {{ company.voen }}</p>
+  {% endif %}
+</div>
+
+<div class="grid-2 mb-4" style="gap:12px;">
+  {% if can_view_legal %}
+  <a class="cp-card p-card" href="?section=general" style="text-decoration:none;color:inherit;">
+    <div style="font-weight:700;">{% translate "Ümumi məlumatlar" %}</div>
+    <p class="cp-meta">{% translate "Şirkət və qeydiyyat məlumatları" %}</p>
   </a>
+  <a class="cp-card p-card" href="?section=contacts" style="text-decoration:none;color:inherit;">
+    <div style="font-weight:700;">{% translate "Əlaqəli şəxslər" %}</div>
+    <p class="cp-meta">{% translate "Rəhbərlik və kontaktlar" %}</p>
+  </a>
+  <a class="cp-card p-card" href="?section=bank" style="text-decoration:none;color:inherit;">
+    <div style="font-weight:700;">{% translate "Bank rekvizitləri" %}</div>
+    <p class="cp-meta">{% translate "Bank hesabları" %}</p>
+  </a>
+  <a class="cp-card p-card" href="{% url 'erp:resident_documents' company.slug %}" style="text-decoration:none;color:inherit;">
+    <div style="font-weight:700;">{% translate "Sənədlər" %}</div>
+    <p class="cp-meta">{% translate "Müqavilələr və hüquqi sənədlər" %}</p>
+  </a>
+  <a class="cp-card p-card" href="?section=leases" style="text-decoration:none;color:inherit;">
+    <div style="font-weight:700;">{% translate "İcarə və sahələr" %}</div>
+    <p class="cp-meta">{% translate "Ofislər, parkinq və müqavilələr" %}</p>
+  </a>
+  {% endif %}
+  <a class="cp-card p-card" href="?section=access" style="text-decoration:none;color:inherit;">
+    <div style="font-weight:700;">{% translate "Giriş və əməliyyatlar" %}</div>
+    <p class="cp-meta">{% translate "Portal, kartlar və daxili qeydlər" %}</p>
+  </a>
+</div>
+
+<div class="grid-4 mb-4">
+  <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Sahə" %}</div><div style="font-weight:700;">{% for s in spaces %}{{ s.short_label }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}{% if parking_assignments %} · {% translate "Parkinq" %}: {% for p in parking_assignments %}{{ p.spot.code }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}</div></div>
+  {% if can_view_resident_ops %}
+  <a class="cp-card p-card-sm" href="{% url 'erp:resident_employees' company.slug %}" style="text-decoration:none;color:inherit;"><div class="cp-meta">{% translate "Əməkdaşlar" %}</div><div class="cp-metric" style="font-size:24px;">{{ employees.count }}</div></a>
   {% else %}
   <div class="cp-card p-card-sm"><div class="cp-meta">{% translate "Əməkdaşlar" %}</div><div class="cp-metric" style="font-size:24px;">{{ employees.count }}</div></div>
   {% endif %}
   {% if can_view_resident_guests %}
-  <a class="cp-card p-card-sm" href="{% url 'erp:resident_guests' company.slug %}?range=today&date={{ today|date:'Y-m-d' }}" style="text-decoration:none;color:inherit;display:block;">
-    <div class="cp-meta">{% translate "Bugünkü qonaq" %}</div>
-    <div class="cp-metric" style="font-size:24px;">{{ guest_today }}</div>
-  </a>
+  <a class="cp-card p-card-sm" href="{% url 'erp:resident_guests' company.slug %}?range=today&date={{ today|date:'Y-m-d' }}" style="text-decoration:none;color:inherit;"><div class="cp-meta">{% translate "Bugünkü qonaq" %}</div><div class="cp-metric" style="font-size:24px;">{{ guest_today }}</div></a>
   {% endif %}
 </div>
 
@@ -64,10 +121,195 @@
   </div>
 </div>
 {% endif %}
+{% endif %}
+
+{# —— GENERAL —— #}
+{% if section == 'general' and can_view_legal %}
+<div class="cp-card p-card">
+  <div class="cp-section" style="margin-top:0;">{% translate "Hüquqi məlumatlar" %}</div>
+  <p class="cp-meta">{% translate "Hüquqi ad" %}: {{ company.name }}</p>
+  <p class="cp-meta">{% translate "VÖEN" %}: {{ company.voen|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Hüquqi forma" %}: {{ company.legal_form|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Nizamnamə kapitalı" %}: {% if company.charter_capital != None %}{{ company.charter_capital }} AZN{% else %}—{% endif %}</p>
+  <p class="cp-meta">{% translate "Ədliyyə qeydiyyat №" %}: {{ company.justice_registration_no|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Ədliyyə tarixi" %}: {{ company.justice_registration_date|date:"d.m.Y"|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Reyestrdən çıxarış" %}: {{ company.registry_extract_ref|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Hüquqi ünvan" %}: {{ company.legal_address|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Faktiki ünvan" %}: {{ company.actual_address|default:display_address|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Status" %}: {{ company.get_status_display }} · {% translate "Portal" %} {% if company.portal_active %}{% translate "aktiv" %}{% else %}{% translate "bağlı" %}{% endif %}</p>
+</div>
+{% endif %}
+
+{# —— CONTACTS —— #}
+{% if section == 'contacts' and can_view_legal %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="margin-top:0;">{% translate "Əlaqə məlumatları" %}</div>
+  <p class="cp-meta">{% translate "Telefon" %}: {{ company.phone|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Əsas email" %}: {{ company.contact_email|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Veb-sayt" %}: {% if company.website %}<a href="{{ company.website }}" target="_blank" rel="noopener">{{ company.website }}</a>{% else %}—{% endif %}</p>
+  <p class="cp-meta">{% translate "Faktura email" %}: {{ company.billing_email|default:"—" }}</p>
+</div>
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="margin-top:0;">{% translate "Rəhbərlik" %}</div>
+  <p class="cp-meta">{% translate "Direktor / rəhbər" %}: {{ company.manager_name|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Vəzifə" %}: {{ company.manager_position|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Telefon" %}: {{ company.manager_phone|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Email" %}: {{ company.manager_email|default:"—" }}</p>
+</div>
+<div class="cp-card p-card">
+  <div class="cp-section" style="margin-top:0;">{% translate "Əlaqəli şəxs" %}</div>
+  <p class="cp-meta">{{ company.contact_person_name|default:"—" }} · {{ company.contact_person_phone|default:"—" }} · {{ company.contact_person_email|default:"—" }}</p>
+</div>
+{% endif %}
+
+{# —— BANK —— #}
+{% if section == 'bank' and can_view_legal %}
+<div class="cp-card p-card">
+  <div class="cp-section" style="margin-top:0;">{% translate "Bank rekvizitləri" %}</div>
+  <p class="cp-meta">{% translate "Bank adı" %}: {{ company.bank_name|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Bank VÖEN" %}: {{ company.bank_voen|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Bank kodu" %}: {{ company.bank_code|default:"—" }}</p>
+  <p class="cp-meta">SWIFT/BIC: {{ company.swift_bic|default:"—" }}</p>
+  <p class="cp-meta">IBAN: {{ company.iban|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Hesab nömrəsi" %}: {{ company.account_number|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Müxbir hesab" %}: {{ company.correspondent_account|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Filial" %}: {{ company.bank_branch|default:"—" }}</p>
+  <p class="cp-meta">{% translate "Valyuta" %}: {{ company.bank_currency|default:"AZN" }}</p>
+</div>
+{% endif %}
+
+{# —— LEASES —— #}
+{% if section == 'leases' and can_view_legal %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="margin-top:0;">{% translate "Cari sahələr" %}</div>
+  {% for s in spaces %}
+  <p><a href="{% url 'erp:space_detail' s.code %}">{{ s.area_code }}</a> · {{ s.floor }}{% if s.area_m2 %} · {{ s.area_m2 }} m²{% endif %}</p>
+  {% empty %}
+  <p class="cp-meta">{% translate "Aktiv sahə yoxdur." %}</p>
+  {% endfor %}
+</div>
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="margin-top:0;">{% translate "Müqavilələr (Lease)" %}</div>
+  {% if lease_summary and lease_summary.active_leases %}
+  <p class="cp-meta mb-2">{% translate "Aktiv xülasə" %}: {{ lease_summary.summary_start|date:"d.m.Y"|default:"—" }} – {{ lease_summary.summary_end|date:"d.m.Y"|default:"—" }}</p>
+  {% endif %}
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid var(--cp-border);">
+          <th style="padding:8px;">{% translate "№" %}</th>
+          <th style="padding:8px;">{% translate "Dövr" %}</th>
+          <th style="padding:8px;">{% translate "Status" %}</th>
+          <th style="padding:8px;">{% translate "Sahə" %}</th>
+          <th style="padding:8px;">{% translate "Mərtəbə" %}</th>
+          <th style="padding:8px;">{% translate "m²" %}</th>
+          <th style="padding:8px;">{% translate "Növ" %}</th>
+          <th style="padding:8px;">{% translate "Məbləğ" %}</th>
+          <th style="padding:8px;">{% translate "Depozit" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in lease_rows %}
+        <tr style="border-bottom:1px solid var(--cp-border);{% if row.is_active %}font-weight:600;{% endif %}">
+          <td style="padding:8px;"><a href="{% url 'erp:lease_detail' row.code %}">{{ row.code }}</a></td>
+          <td style="padding:8px;">{{ row.start|date:"d.m.Y"|default:"—" }} – {{ row.end|date:"d.m.Y"|default:"—" }}</td>
+          <td style="padding:8px;">{{ row.status }}</td>
+          <td style="padding:8px;">{% if row.space %}<a href="{% url 'erp:space_detail' row.space.code %}">{{ row.space_label }}</a>{% else %}{{ row.space_label }}{% endif %}</td>
+          <td style="padding:8px;">{{ row.floor }}</td>
+          <td style="padding:8px;">{{ row.area_m2|default:"—" }}</td>
+          <td style="padding:8px;">{{ row.lease_type }}</td>
+          <td style="padding:8px;">{{ row.rent }} {{ row.currency }}</td>
+          <td style="padding:8px;">{{ row.deposit }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="cp-meta" style="padding:12px;">{% translate "Müqavilə yoxdur." %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="cp-meta mt-2">{% translate "Məlumat Lease / Space modellərindən oxunur — burada yalnız baxış." %}</p>
+</div>
 
 <div class="cp-card p-card">
-  <p>{{ company.get_status_display }} · {% translate "Portal" %} {% if company.portal_active %}{% translate "aktiv" %}{% else %}{% translate "bağlı" %}{% endif %}</p>
-  <p class="cp-meta">{{ company.contact_email }} · {{ company.contract_start|date:"Y" }}–{{ company.contract_end|date:"Y" }}</p>
-  {% for s in spaces %}<p><a href="{% url 'erp:space_detail' s.code %}">{{ s.area_code }}</a></p>{% endfor %}
+  <div class="cp-section" style="margin-top:0;">{% translate "Parkinq" %}</div>
+  {% if parking_assignments %}
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <thead>
+        <tr style="text-align:left;border-bottom:1px solid var(--cp-border);">
+          <th style="padding:8px;">{% translate "Zona" %}</th>
+          <th style="padding:8px;">{% translate "Yer" %}</th>
+          <th style="padding:8px;">{% translate "Ofis" %}</th>
+          <th style="padding:8px;">{% translate "Nömrə nişanı" %}</th>
+          <th style="padding:8px;">{% translate "Əməkdaş" %}</th>
+          <th style="padding:8px;">{% translate "Növ" %}</th>
+          <th style="padding:8px;">{% translate "Dövr" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in parking_assignments %}
+        <tr style="border-bottom:1px solid var(--cp-border);">
+          <td style="padding:8px;">{{ p.spot.zone.code }}{% if p.spot.zone.name %} · {{ p.spot.zone.name }}{% endif %}</td>
+          <td style="padding:8px;font-weight:600;">{{ p.spot.code }}</td>
+          <td style="padding:8px;">{% if p.space %}<a href="{% url 'erp:space_detail' p.space.code %}">{{ p.space.area_code }}</a>{% else %}—{% endif %}</td>
+          <td style="padding:8px;">{{ p.vehicle_plate|default:"—" }}</td>
+          <td style="padding:8px;">{{ p.employee.full_name|default:"—" }}</td>
+          <td style="padding:8px;">{{ p.get_assignment_type_display }}</td>
+          <td style="padding:8px;" class="cp-meta">{{ p.start_date|date:"d.m.Y"|default:"—" }} – {{ p.end_date|date:"d.m.Y"|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="cp-meta">{% translate "Ayrılmış parkinq yeri yoxdur." %}</p>
+  {% endif %}
 </div>
+{% endif %}
+
+{# —— ACCESS —— #}
+{% if section == 'access' %}
+<div class="grid-2 mb-4" style="gap:12px;">
+  {% if can_view_resident_ops or can_view_employees %}
+  <a class="cp-card p-card" href="{% url 'erp:resident_employees' company.slug %}" style="text-decoration:none;color:inherit;">
+    <div style="font-weight:700;">{% translate "Əməkdaşlar / kartlar" %}</div>
+    <p class="cp-meta">{{ employees.count }} {% translate "aktiv əməkdaş" %}</p>
+  </a>
+  {% endif %}
+  {% if can_view_resident_guests %}
+  <a class="cp-card p-card" href="{% url 'erp:resident_guests' company.slug %}?range=today{% if today %}&date={{ today|date:'Y-m-d' }}{% endif %}" style="text-decoration:none;color:inherit;">
+    <div style="font-weight:700;">{% translate "Qonaqlar" %}</div>
+    <p class="cp-meta">{% translate "Resepsiya qeydləri" %}</p>
+  </a>
+  {% endif %}
+  {% if can_view_resident_ops %}
+  <a class="cp-card p-card" href="{% url 'erp:resident_tickets' company.slug %}?tab=open" style="text-decoration:none;color:inherit;">
+    <div style="font-weight:700;">{% translate "Ticketlər" %}</div>
+    <p class="cp-meta">{% translate "Şirkət müraciətləri" %}</p>
+  </a>
+  {% endif %}
+</div>
+
+{% if can_view_resident_guests %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="margin-top:0;">{% translate "Resepsiya qeydləri" %}</div>
+  <div class="cp-tabs" style="margin-bottom:12px;">
+    <a class="cp-tab {% if guest_preset == 'today' %}is-active{% endif %}" href="?section=access&range=today&date={% if guest_single_day %}{{ guest_from|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">{% translate "Günlük" %}</a>
+    <a class="cp-tab {% if guest_preset == 'week' %}is-active{% endif %}" href="?section=access&range=week">{% translate "Bu həftə" %}</a>
+    <a class="cp-tab {% if guest_preset == 'month' %}is-active{% endif %}" href="?section=access&range=month">{% translate "Bu ay" %}</a>
+  </div>
+  <div class="flex gap-3" style="flex-wrap:wrap;">
+    <div class="cp-card p-card-sm">{% translate "Ziyarət" %} <strong>{{ guest_total }}</strong></div>
+    <div class="cp-card p-card-sm">{% translate "İçəridə" %} <strong>{{ guest_inside }}</strong></div>
+    <div class="cp-card p-card-sm">{% translate "Gözləyir" %} <strong>{{ guest_waiting }}</strong></div>
+    <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ guest_left }}</strong></div>
+  </div>
+  <div class="mt-3">
+    <a class="cp-btn" href="{% url 'erp:resident_guests' company.slug %}?{{ guest_query }}">{% translate "Bütün qeydlərə bax" %}</a>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
 {% endblock %}

@@ -15,7 +15,7 @@
     <a class="cp-tab {% if preset == 'today' %}is-active{% endif %}" href="?range=today&date={% if single_day %}{{ date_from|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">{% translate "Günlük" %}</a>
     <a class="cp-tab {% if preset == 'week' %}is-active{% endif %}" href="?range=week">{% translate "Bu həftə" %}</a>
     <a class="cp-tab {% if preset == 'month' %}is-active{% endif %}" href="?range=month">{% translate "Bu ay" %}</a>
-    <a class="cp-tab {% if preset == 'custom' %}is-active{% endif %}" href="?range=custom&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}">{% translate "Tarix aralığı" %}</a>
+    <a class="cp-tab {% if preset == 'custom' %}is-active{% endif %}" href="?range=custom">{% translate "Tarix aralığı" %}</a>
   </div>
   {% if preset == 'custom' %}
   <form method="get" class="flex gap-2 mb-3" style="flex-wrap:wrap;align-items:end;">
@@ -32,6 +32,9 @@
   <div class="mt-3">
     <a class="cp-btn" href="{% url 'security:employee_access_export' company.pk employee.pk %}?range={{ preset }}{% if preset == 'today' %}&date={{ date_from|date:'Y-m-d' }}{% elif preset == 'custom' %}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}{% endif %}">{% translate "Excel yüklə" %}</a>
   </div>
+  {% if fell_back_to_last_month %}
+  <p class="cp-meta mt-3">{% translate "Seçilmiş aralıqda keçid yox idi — keçən ay göstərilir" %} ({{ date_from|date:"d.m.Y" }} – {{ date_to|date:"d.m.Y" }}).</p>
+  {% endif %}
 </div>
 {% if single_day %}
 <div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
@@ -40,17 +43,23 @@
 </div>
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
-    <thead><tr><th>{% translate "Saat" %}</th><th>{% translate "Tip" %}</th><th>{% translate "Kart" %}</th><th>{% translate "Oxuyucu adı" %}</th></tr></thead>
+    <thead><tr><th>{% translate "Saat" %}</th><th>{% translate "Tip" %}</th><th>{% translate "Kart" %}</th><th>{% translate "Oxuyucu adı" %}</th><th>{% translate "Nəticə" %}</th></tr></thead>
     <tbody>
       {% for e in flaps %}
       <tr>
         <td>{{ e.occurred_at|time:"H:i:s" }}</td>
         <td>{% if e.event_type == "in" %}{% translate "Giriş" %}{% else %}{% translate "Çıxış" %}{% endif %}</td>
-        <td class="cp-code">{{ e.card_number|default:employee.card_number|default:"—" }}</td>
+        <td class="cp-code">
+          {{ e.card_number|default:"—" }}
+          {% if e.card_number and employee.card_number and e.card_number != employee.card_number %}
+          <span class="badge badge-muted">{% translate "digər kart" %}</span>
+          {% endif %}
+        </td>
         <td style="word-break:break-all;font-family:ui-monospace,Consolas,monospace;">{{ e.reader_name|default:"—" }}</td>
+        <td>{% if e.result == "denied" %}<span class="badge badge-muted">{% translate "Uğursuz" %}</span>{% else %}<span class="badge badge-resolved">{% translate "Uğurlu" %}</span>{% endif %}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="4" class="cp-meta empty-pad">{% translate "Hadisə yoxdur." %}</td></tr>
+      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Hadisə yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -58,17 +67,22 @@
 {% else %}
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
-    <thead><tr><th>{% translate "Tarix" %}</th><th>{% translate "İşə gəliş" %}</th><th>{% translate "İşdən çıxış" %}</th><th>{% translate "Status" %}</th></tr></thead>
+    <thead><tr><th>{% translate "Tarix" %}</th><th>{% translate "İşə gəliş" %}</th><th>{% translate "İşdən çıxış" %}</th><th>{% translate "Kart" %}</th><th>{% translate "Status" %}</th></tr></thead>
     <tbody>
       {% for d in days %}
-      <tr>
+      <tr {% if d.has_other_card %}style="background:rgba(180,120,40,0.08);"{% endif %}>
         <td><a href="?range=today&date={{ d.date|date:'Y-m-d' }}">{{ d.date|date:"d.m.Y" }}</a></td>
         <td>{% if d.in_at %}{{ d.in_at|time:"H:i" }}{% else %}—{% endif %}</td>
         <td>{% if d.out_at %}{{ d.out_at|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td class="cp-code">
+          {{ d.cards_label }}
+          {% if d.has_other_card %}<span class="badge badge-muted">{% translate "digər kart" %}</span>{% endif %}
+          {% if d.has_denied %}<span class="badge badge-muted" title="{% translate 'AxTrax Access Denied keçidləri daxildir' %}">{% translate "uğursuz" %}</span>{% endif %}
+        </td>
         <td>{{ d.status }}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="4" class="cp-meta empty-pad">{% translate "Məlumat yoxdur." %}</td></tr>
+      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Məlumat yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

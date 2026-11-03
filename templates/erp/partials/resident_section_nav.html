@@ -1,0 +1,12 @@
+{% load i18n %}
+<div class="cp-tabs mb-4" style="flex-wrap:wrap;">
+  <a class="cp-tab {% if section == 'hub' or not section %}is-active{% endif %}" href="{% url 'erp:resident_detail' company.slug %}">{% translate "Kart" %}</a>
+  {% if can_view_legal %}
+  <a class="cp-tab {% if section == 'general' %}is-active{% endif %}" href="{% url 'erp:resident_detail' company.slug %}?section=general">{% translate "Ümumi" %}</a>
+  <a class="cp-tab {% if section == 'contacts' %}is-active{% endif %}" href="{% url 'erp:resident_detail' company.slug %}?section=contacts">{% translate "Əlaqə" %}</a>
+  <a class="cp-tab {% if section == 'bank' %}is-active{% endif %}" href="{% url 'erp:resident_detail' company.slug %}?section=bank">{% translate "Bank" %}</a>
+  <a class="cp-tab {% if section == 'documents' %}is-active{% endif %}" href="{% url 'erp:resident_documents' company.slug %}">{% translate "Sənədlər" %}</a>
+  <a class="cp-tab {% if section == 'leases' %}is-active{% endif %}" href="{% url 'erp:resident_detail' company.slug %}?section=leases">{% translate "İcarə və sahələr" %}</a>
+  {% endif %}
+  <a class="cp-tab {% if section == 'access' %}is-active{% endif %}" href="{% url 'erp:resident_detail' company.slug %}?section=access">{% translate "Giriş" %}</a>
+</div>

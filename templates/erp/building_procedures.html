@@ -1,0 +1,49 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Daxili prosedurlar" %}{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a class="cp-btn" href="{% url 'erp:building_procedure_create' %}">{% translate "Prosedur əlavə et" %}</a>
+</div>
+
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Sıra" %}</th>
+        <th>{% translate "Başlıq" %}</th>
+        <th>{% translate "Portal" %}</th>
+        <th>{% translate "Tarix" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in procedures %}
+      <tr>
+        <td class="cp-meta">{{ p.sort_order }}</td>
+        <td>
+          <div style="font-weight:600;">{{ p.title }}</div>
+          {% if p.description %}<div class="cp-meta">{{ p.description|truncatechars:80 }}</div>{% endif %}
+          <div class="cp-meta">{{ p.display_filename }}</div>
+        </td>
+        <td>{% if p.is_published %}{% translate "Bəli" %}{% else %}{% translate "Xeyr" %}{% endif %}</td>
+        <td class="cp-meta">{{ p.published_at|date:"d.m.Y"|default:"—" }}</td>
+        <td>
+          <div class="flex gap-2" style="flex-wrap:wrap;justify-content:flex-end;">
+            {% if p.file %}
+            <a class="cp-btn-ghost" href="{% url 'erp:building_procedure_download' p.pk %}">{% translate "Yüklə" %}</a>
+            {% endif %}
+            <a class="cp-btn-ghost" href="{% url 'erp:building_procedure_edit' p.pk %}">{% translate "Redaktə" %}</a>
+            <form method="post" action="{% url 'erp:building_procedure_delete' p.pk %}" onsubmit="return confirm('{% translate "Silinsin?" %}');">{% csrf_token %}
+              <button class="cp-btn-ghost" type="submit">{% translate "Sil" %}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Daxili prosedur yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

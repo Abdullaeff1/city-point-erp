@@ -29,7 +29,7 @@ def role_context(request):
     if user and user.is_authenticated and nav_residents:
         from apps.residents.models import ResidentCompany
 
-        resident_count = ResidentCompany.objects.filter(is_internal=False).count()
+        resident_count = ResidentCompany.objects.filter(is_internal=False, is_archived=False).count()
 
     can_switch = False
     role_targets = []
@@ -73,7 +73,8 @@ def role_context(request):
         "nav_docs": is_adminish,
         "nav_reports": is_adminish,
         "nav_internal_access": is_adminish,
-        "nav_leases": is_adminish or role == Role.PROPERTY_FM,
+        # İcarələr sidebar gizlədilir — məlumat Rezident kartında (Sənədlər) saxlanır
+        "nav_leases": False,
         "nav_crm": is_adminish,
         "nav_supply": is_adminish,
         "nav_finance": is_adminish,

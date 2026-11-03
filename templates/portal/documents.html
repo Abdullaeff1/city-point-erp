@@ -6,12 +6,14 @@
   {% for d in documents %}
   <div class="flex justify-between items-center" style="padding:14px 20px;border-bottom:1px solid var(--cp-border);">
     <div>
-      <div class="cp-meta">{{ d.file_type }}</div>
+      <div class="cp-meta">{{ d.document_type|default:d.file_type }}</div>
       <div style="font-weight:600;">{{ d.title }}</div>
-      <div class="cp-meta">{{ d.published_at|date:"d.m.Y" }} · {{ d.size_label }}</div>
+      <div class="cp-meta">{{ d.document_date|date:"d.m.Y"|default:d.published_at|date:"d.m.Y" }} · {{ d.size_label }}</div>
     </div>
-    {% if d.file %}<a href="{{ d.file.url }}">{% translate "Aç" %}</a>{% else %}<span class="cp-meta">{% translate "Fayl yoxdur" %}</span>{% endif %}
+    {% if d.file %}<a href="{% url 'portal:document_download' d.pk %}">{% translate "Yüklə" %}</a>{% else %}<span class="cp-meta">{% translate "Fayl yoxdur" %}</span>{% endif %}
   </div>
+  {% empty %}
+  <div class="cp-meta empty-pad">{% translate "Sənəd yoxdur." %}</div>
   {% endfor %}
 </div>
 {% endblock %}

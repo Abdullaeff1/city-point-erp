@@ -68,6 +68,7 @@ urlpatterns = [
     # Legacy rapid alert detail URLs
     path("alerts/<int:pk>/", views.AlertDetailView.as_view(), name="alert_detail_legacy"),
     path("alerts/<int:pk>/ack/", views.AlertAcknowledgeView.as_view(), name="alert_ack_legacy"),
+    path("parking/", views.ParkingListView.as_view(), name="parking"),
     path("companies/", views.CompanyListView.as_view(), name="companies"),
     path("companies/<int:pk>/", views.CompanyEmployeesView.as_view(), name="company_employees"),
     path(

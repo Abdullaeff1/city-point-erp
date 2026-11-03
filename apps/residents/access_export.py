@@ -139,9 +139,11 @@ def load_company_day_attendance(
     emp_ids = [e.pk for e in employees]
     start_dt = timezone.make_aware(datetime.combine(date_from, datetime.min.time()))
     end_dt = timezone.make_aware(datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
+    from apps.residents.access import ATTENDANCE_RESULTS
+
     events = AccessEvent.objects.filter(
         employee_id__in=emp_ids,
-        result=AccessResult.GRANTED,
+        result__in=ATTENDANCE_RESULTS,
         occurred_at__gte=start_dt,
         occurred_at__lt=end_dt,
     ).order_by("occurred_at", "id")

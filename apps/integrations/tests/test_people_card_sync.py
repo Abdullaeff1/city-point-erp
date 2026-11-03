@@ -197,9 +197,22 @@ class EventCardSnapshotTests(TestCase):
     def test_event_stores_badge_not_internal_code(self):
         from types import SimpleNamespace
 
-        from apps.integrations.axtrax_events_sync import _snapshot_card
+        from apps.integrations.axtrax_events_sync import _snapshot_card, _snapshot_company
 
-        employee = SimpleNamespace(card_number="006445")
+        employee = SimpleNamespace(
+            card_number="006445",
+            company=SimpleNamespace(pk=9, name="Demo Co"),
+            company_id=9,
+        )
+        # Explicit printed badge on the row wins over employee current badge
+        self.assertEqual(
+            _snapshot_card({"badge_number": "006109", "card_code": "25037"}, employee),
+            "006109",
+        )
+        # Otherwise employee badge (printed) beats internal iCardCode
         self.assertEqual(_snapshot_card({"card_code": "25037"}, employee), "006445")
         self.assertEqual(_snapshot_card({"card_code": "25037"}, None), "25037")
         self.assertEqual(_snapshot_card({"card_code": "0"}, SimpleNamespace(card_number="")), "")
+        cid, cname = _snapshot_company(employee)
+        self.assertEqual(cid, 9)
+        self.assertEqual(cname, "Demo Co")

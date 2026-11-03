@@ -80,12 +80,30 @@ class ParkingZoneAdmin(admin.ModelAdmin):
 class ParkingSpotAdmin(admin.ModelAdmin):
     list_display = ("zone", "code", "is_active")
     list_filter = ("is_active", "zone")
+    search_fields = ("code", "zone__code", "zone__name")
 
 
 @admin.register(ParkingAssignment)
 class ParkingAssignmentAdmin(admin.ModelAdmin):
-    list_display = ("spot", "party", "vehicle_plate", "assignment_type", "start_date", "end_date")
+    list_display = (
+        "spot",
+        "party",
+        "space",
+        "employee",
+        "vehicle_plate",
+        "assignment_type",
+        "start_date",
+        "end_date",
+    )
     list_filter = ("assignment_type",)
+    autocomplete_fields = ("party", "space", "spot", "employee")
+    search_fields = (
+        "spot__code",
+        "vehicle_plate",
+        "party__legal_name",
+        "space__code",
+        "employee__full_name",
+    )
 
 
 @admin.register(UtilityMeter)

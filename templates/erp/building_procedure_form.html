@@ -1,0 +1,29 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{{ page_title }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:building_procedures' %}">{% translate "Daxili prosedurlar" %}</a>
+{% endblock %}
+{% block content %}
+<form method="post" enctype="multipart/form-data" class="cp-card p-card" style="max-width:640px;">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="cp-meta" style="color:var(--cp-danger);">{{ form.non_field_errors }}</div>{% endif %}
+  {% for field in form %}
+  <label style="display:block;margin-bottom:12px;">
+    <span class="cp-meta">{{ field.label }}{% if field.field.required %} *{% endif %}</span>
+    <div class="mt-1">
+      {% if field.name == "is_published" %}
+        {{ field }}
+      {% else %}
+        {{ field }}
+      {% endif %}
+    </div>
+    {% if field.name == "file" and procedure and procedure.file %}
+    <div class="cp-meta mt-1">{% translate "Mövcud fayl" %}: {{ procedure.display_filename }}</div>
+    {% endif %}
+    {% if field.errors %}<div class="cp-meta" style="color:var(--cp-danger);">{{ field.errors }}</div>{% endif %}
+  </label>
+  {% endfor %}
+  <button class="cp-btn" type="submit">{% translate "Saxla" %}</button>
+</form>
+{% endblock %}

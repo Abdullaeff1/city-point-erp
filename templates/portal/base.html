@@ -19,6 +19,9 @@
       <a class="{% nav_active 'guests' %}" href="{% url 'portal:guests' %}"><i data-lucide="door-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Qonaqlar" %}</span></a>
       <a class="{% nav_active 'announcements' %}" href="{% url 'portal:announcements' %}"><i data-lucide="megaphone" width="18" height="18"></i><span class="cp-nav-text">{% translate "Elanlar" %}</span></a>
       <a class="{% nav_active 'documents' %}" href="{% url 'portal:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sənədlər" %}</span></a>
+      <a class="{% nav_active 'building_procedures' 'building_procedure_download' %}" href="{% url 'portal:building_procedures' %}"><i data-lucide="book-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Daxili prosedurlar" %}</span></a>
+      <div class="cp-nav-label">{% translate "KÖMƏK" %}</div>
+      <a class="{% nav_active 'user_guide' %}" href="{% url 'portal:user_guide' %}"><i data-lucide="circle-help" width="18" height="18"></i><span class="cp-nav-text">{% translate "İstifadəçi təlimatı" %}</span></a>
     </nav>
     <div class="cp-sidebar-cta">
       <a class="cp-btn-accent" href="{% url 'portal:request_new' %}">

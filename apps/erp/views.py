@@ -46,6 +46,7 @@ from apps.residents.access import (
     attendance_for_day,
     build_employee_access_rows,
     currently_inside_employee_rows,
+    employee_access_period_context,
     employee_attendance_days,
     employee_day_flaps,
     employee_roster_qs,
@@ -1271,11 +1272,17 @@ class ResidentListView(StaffRequiredMixin, ListView):
 
     def get_queryset(self):
         from apps.core.search import filter_text_search
+        from apps.residents.permissions import user_can_manage_resident_profile
 
+        show_archived = self.request.GET.get("archived") == "1"
         qs = ResidentCompany.objects.filter(is_internal=False).order_by("name")
+        if show_archived:
+            qs = qs.filter(is_archived=True)
+        else:
+            qs = qs.filter(is_archived=False)
         q = (self.request.GET.get("q") or "").strip()
         if q:
-            qs = filter_text_search(qs, q, "name", "slug", "contact_email")
+            qs = filter_text_search(qs, q, "name", "slug", "contact_email", "voen")
         if _can_view_resident_ticket_counts(self.request.user):
             qs = qs.annotate(ticket_count=Count("tickets", distinct=True))
         if _can_view_resident_guests(self.request.user):
@@ -1287,14 +1294,17 @@ class ResidentListView(StaffRequiredMixin, ListView):
                     distinct=True,
                 )
             )
+        self._can_manage = user_can_manage_resident_profile(self.request.user)
         return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["q"] = self.request.GET.get("q") or ""
+        ctx["show_archived"] = self.request.GET.get("archived") == "1"
         ctx["can_view_resident_guests"] = _can_view_resident_guests(self.request.user)
         ctx["can_view_resident_ticket_counts"] = _can_view_resident_ticket_counts(self.request.user)
         ctx["company_opens_tickets"] = self.request.user.role == Role.SERVICE_DESK
+        ctx["can_manage_resident"] = getattr(self, "_can_manage", False)
         return ctx
 
 
@@ -1344,6 +1354,8 @@ class ResidentDetailView(StaffRequiredMixin, TemplateView):
     template_name = "erp/resident_detail.html"
 
     def get_context_data(self, **kwargs):
+        from apps.erp.resident_views import enrich_resident_detail_context
+
         ctx = super().get_context_data(**kwargs)
         company = get_object_or_404(ResidentCompany, slug=self.kwargs["slug"], is_internal=False)
         can_drill = _can_view_resident_ops(self.request.user)
@@ -1379,7 +1391,7 @@ class ResidentDetailView(StaffRequiredMixin, TemplateView):
                     "guest_left": period["left"],
                 }
             )
-        return ctx
+        return enrich_resident_detail_context(self.request, company, ctx)
 
 
 def _resident_company(slug):
@@ -1535,31 +1547,12 @@ class ResidentEmployeeAccessDetailView(RoleRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         employee = self.get_employee()
-        preset, date_from, date_to = access_range_bounds(self.request, default_preset="today")
-        single_day = date_from == date_to
-        if single_day:
-            flaps = employee_day_flaps(employee, date_from)
-            in_count = sum(1 for e in flaps if e.event_type == "in")
-            out_count = len(flaps) - in_count
-            days = []
-        else:
-            flaps = []
-            days = employee_attendance_days(employee, date_from, date_to)
-            in_count = out_count = 0
+        period = employee_access_period_context(employee, self.request, default_preset="today")
         ctx.update(
             {
                 "employee": employee,
                 "company": employee.company,
-                "days": days,
-                "flaps": flaps,
-                "single_day": single_day,
-                "preset": preset,
-                "date_from": date_from,
-                "date_to": date_to,
-                "present_days": len(days) if not single_day else (1 if flaps else 0),
-                "in_count": in_count,
-                "out_count": out_count,
-                "today": timezone.localdate(),
+                **period,
             }
         )
         return ctx
@@ -1649,29 +1642,11 @@ class InternalStaffAccessDetailView(RoleRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         employee = self.get_employee()
-        preset, date_from, date_to = access_range_bounds(self.request, default_preset="today")
-        single_day = date_from == date_to
-        if single_day:
-            flaps = employee_day_flaps(employee, date_from)
-            in_count = sum(1 for e in flaps if e.event_type == "in")
-            out_count = len(flaps) - in_count
-            days = []
-        else:
-            flaps = []
-            days = employee_attendance_days(employee, date_from, date_to)
-            in_count = out_count = 0
+        period = employee_access_period_context(employee, self.request, default_preset="today")
         ctx.update(
             {
                 "employee": employee,
-                "days": days,
-                "flaps": flaps,
-                "single_day": single_day,
-                "preset": preset,
-                "date_from": date_from,
-                "date_to": date_to,
-                "present_days": len(days) if not single_day else (1 if flaps else 0),
-                "in_count": in_count,
-                "out_count": out_count,
+                **period,
                 "today": timezone.localdate(),
             }
         )

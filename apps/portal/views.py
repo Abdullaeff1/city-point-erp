@@ -21,7 +21,7 @@ from apps.accounts.portal_scope import (
     set_portal_scope,
 )
 from apps.comms.announcements import announcements_for_user
-from apps.comms.models import Notification
+from apps.comms.models import BuildingProcedure, Notification
 from apps.core.services import DomainError
 from apps.documents.models import Document
 from apps.erp.forms import PortalEmployeeCreateForm, PortalTicketForm
@@ -30,6 +30,7 @@ from apps.reception.services import can_portal_checkout, portal_check_out_visit
 from apps.residents.access import (
     access_range_bounds,
     build_employee_access_rows,
+    employee_access_period_context,
     employee_attendance_days,
     employee_day_flaps,
     employee_roster_qs,
@@ -142,13 +143,39 @@ class SpacesView(ResidentPortalMixin, TemplateView):
     template_name = "portal/spaces.html"
 
     def get_context_data(self, **kwargs):
+        from collections import defaultdict
+
+        from apps.residents.lease_dates import parking_for_company_ids
+
         ctx = super().get_context_data(**kwargs)
         ids = _scope_ids(self.request)
-        ctx["spaces"] = (
+        spaces = list(
             Space.objects.filter(resident_id__in=ids).select_related("floor", "resident")
             if ids
-            else Space.objects.none()
+            else []
         )
+        parking = parking_for_company_ids(ids)
+        by_space: dict[int, list] = defaultdict(list)
+        unlinked_by_company: dict[int, list] = defaultdict(list)
+        for p in parking:
+            if p.space_id:
+                by_space[p.space_id].append(p)
+            elif p.party and p.party.legacy_resident_company_id:
+                unlinked_by_company[p.party.legacy_resident_company_id].append(p)
+
+        # Single-office company: unlinked parking attaches to that office.
+        company_spaces: dict[int, list] = defaultdict(list)
+        for s in spaces:
+            company_spaces[s.resident_id].append(s)
+        for company_id, rows in unlinked_by_company.items():
+            offices = company_spaces.get(company_id) or []
+            if len(offices) == 1:
+                by_space[offices[0].pk].extend(rows)
+
+        ctx["space_cards"] = [
+            {"space": s, "parking": by_space.get(s.pk, [])} for s in spaces
+        ]
+        ctx["spaces"] = spaces
         ctx["show_company_column"] = _scope_mode(self.request) == MODE_ALL or len(ids) > 1
         return ctx
 
@@ -605,30 +632,11 @@ class EmployeeAccessDetailView(ResidentPortalMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         employee = self.get_employee()
-        preset, date_from, date_to = access_range_bounds(self.request, default_preset="today")
-        single_day = date_from == date_to
-        if single_day:
-            flaps = employee_day_flaps(employee, date_from)
-            in_count = sum(1 for e in flaps if e.event_type == "in")
-            out_count = len(flaps) - in_count
-            days = []
-        else:
-            flaps = []
-            days = employee_attendance_days(employee, date_from, date_to)
-            in_count = out_count = 0
+        period = employee_access_period_context(employee, self.request, default_preset="today")
         ctx.update(
             {
                 "employee": employee,
-                "days": days,
-                "flaps": flaps,
-                "single_day": single_day,
-                "preset": preset,
-                "date_from": date_from,
-                "date_to": date_to,
-                "present_days": len(days) if not single_day else (1 if flaps else 0),
-                "in_count": in_count,
-                "out_count": out_count,
-                "today": timezone.localdate(),
+                **period,
                 "list_url_name": "portal:employees",
                 "detail_url_name": "portal:employee_access_detail",
             }
@@ -745,5 +753,66 @@ class DocumentsView(ResidentPortalMixin, ListView):
     context_object_name = "documents"
 
     def get_queryset(self):
-        ids = _scope_ids(self.request)
-        return Document.objects.filter(Q(company_id__in=ids) | Q(company__isnull=True))
+        from apps.residents.permissions import portal_document_qs_for_request
+
+        return portal_document_qs_for_request(self.request)
+
+
+class DocumentDownloadView(ResidentPortalMixin, View):
+    def get(self, request, pk):
+        import mimetypes
+
+        from django.http import FileResponse, Http404
+
+        from apps.residents.permissions import user_can_access_portal_document_in_scope
+
+        ids = _scope_ids(request)
+        document = get_object_or_404(Document, pk=pk)
+        if not user_can_access_portal_document_in_scope(request.user, document, ids):
+            raise PermissionDenied(_("Bu sənədə giriş icazəniz yoxdur."))
+        if not document.file:
+            raise Http404()
+        filename = document.file.name.rsplit("/", 1)[-1]
+        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        return FileResponse(
+            document.file.open("rb"),
+            as_attachment=True,
+            filename=filename,
+            content_type=content_type,
+        )
+
+
+class BuildingProceduresView(ResidentPortalMixin, ListView):
+    template_name = "portal/building_procedures.html"
+    context_object_name = "procedures"
+
+    def get_queryset(self):
+        return BuildingProcedure.objects.filter(is_published=True).exclude(file="")
+
+
+class BuildingProcedureDownloadView(ResidentPortalMixin, View):
+    def get(self, request, pk):
+        import mimetypes
+
+        from django.http import FileResponse, Http404
+
+        procedure = get_object_or_404(
+            BuildingProcedure.objects.filter(is_published=True),
+            pk=pk,
+        )
+        if not procedure.file:
+            raise Http404()
+        filename = procedure.display_filename
+        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        return FileResponse(
+            procedure.file.open("rb"),
+            as_attachment=True,
+            filename=filename,
+            content_type=content_type,
+        )
+
+
+class UserGuideView(ResidentPortalMixin, TemplateView):
+    """In-portal help: what residents can do in City Point."""
+
+    template_name = "portal/user_guide.html"

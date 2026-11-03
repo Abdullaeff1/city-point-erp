@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from apps.erp import drawing_views, views
+from apps.erp import building_procedure_views, drawing_views, resident_views, views
 from apps.erp.work_orders import (
     WorkOrderDetailView,
     WorkOrderImportView,
@@ -101,7 +101,48 @@ urlpatterns = [
         name="drawing_access_decide",
     ),
     path("residents/", views.ResidentListView.as_view(), name="residents"),
+    path("residents/new/", resident_views.ResidentCreateView.as_view(), name="resident_create"),
     path("residents/<slug:slug>/", views.ResidentDetailView.as_view(), name="resident_detail"),
+    path(
+        "residents/<slug:slug>/edit/",
+        resident_views.ResidentUpdateView.as_view(),
+        name="resident_edit",
+    ),
+    path(
+        "residents/<slug:slug>/archive/",
+        resident_views.ResidentArchiveView.as_view(),
+        name="resident_archive",
+    ),
+    path(
+        "residents/<slug:slug>/unarchive/",
+        resident_views.ResidentUnarchiveView.as_view(),
+        name="resident_unarchive",
+    ),
+    path(
+        "residents/<slug:slug>/documents/",
+        resident_views.ResidentDocumentsView.as_view(),
+        name="resident_documents",
+    ),
+    path(
+        "residents/<slug:slug>/documents/new/",
+        resident_views.ResidentDocumentCreateView.as_view(),
+        name="resident_document_create",
+    ),
+    path(
+        "residents/<slug:slug>/documents/<int:pk>/edit/",
+        resident_views.ResidentDocumentUpdateView.as_view(),
+        name="resident_document_edit",
+    ),
+    path(
+        "residents/<slug:slug>/documents/<int:pk>/delete/",
+        resident_views.ResidentDocumentDeleteView.as_view(),
+        name="resident_document_delete",
+    ),
+    path(
+        "residents/<slug:slug>/documents/<int:pk>/download/",
+        resident_views.ResidentDocumentDownloadView.as_view(),
+        name="resident_document_download",
+    ),
     path(
         "residents/<slug:slug>/tickets/",
         views.ResidentTicketsView.as_view(),
@@ -169,6 +210,31 @@ urlpatterns = [
     path("billing/", views.BillingListView.as_view(), name="billing"),
     path("accounting/", views.AccountingListView.as_view(), name="accounting"),
     path("documents/", views.DocumentsView.as_view(), name="documents"),
+    path(
+        "procedures/",
+        building_procedure_views.BuildingProcedureListView.as_view(),
+        name="building_procedures",
+    ),
+    path(
+        "procedures/new/",
+        building_procedure_views.BuildingProcedureCreateView.as_view(),
+        name="building_procedure_create",
+    ),
+    path(
+        "procedures/<int:pk>/edit/",
+        building_procedure_views.BuildingProcedureUpdateView.as_view(),
+        name="building_procedure_edit",
+    ),
+    path(
+        "procedures/<int:pk>/delete/",
+        building_procedure_views.BuildingProcedureDeleteView.as_view(),
+        name="building_procedure_delete",
+    ),
+    path(
+        "procedures/<int:pk>/download/",
+        building_procedure_views.BuildingProcedureDownloadView.as_view(),
+        name="building_procedure_download",
+    ),
     path("reports/", views.ReportsView.as_view(), name="reports"),
     path("audit/", views.AuditLogView.as_view(), name="audit"),
 ]

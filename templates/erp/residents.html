@@ -2,8 +2,19 @@
 {% load i18n %}
 {% block heading %}{% translate "Rezidentlər" %}{% endblock %}
 {% block content %}
+{% if can_manage_resident %}
+<div class="flex gap-2 mb-3" style="flex-wrap:wrap;">
+  <a class="cp-btn" href="{% url 'erp:resident_create' %}">{% translate "Yeni rezident" %}</a>
+  {% if show_archived %}
+  <a class="cp-btn-ghost" href="{% url 'erp:residents' %}">{% translate "Aktiv siyahı" %}</a>
+  {% else %}
+  <a class="cp-btn-ghost" href="{% url 'erp:residents' %}?archived=1">{% translate "Arxiv" %}</a>
+  {% endif %}
+</div>
+{% endif %}
 <div class="cp-card mb-4" style="padding:12px 20px;">
   <form method="get" id="residents-search-form" class="flex gap-2" style="flex-wrap:wrap;align-items:end;margin:0;">
+    {% if show_archived %}<input type="hidden" name="archived" value="1">{% endif %}
     <label style="flex:1;min-width:220px;margin:0;">
       <span class="cp-meta">{% translate "Axtarış" %}</span>
       <input
@@ -20,7 +31,7 @@
     </label>
     <button class="cp-btn" type="submit">{% translate "Axtar" %}</button>
     {% if q %}
-    <a class="cp-btn-ghost" href="{% url 'erp:residents' %}">{% translate "Təmizlə" %}</a>
+    <a class="cp-btn-ghost" href="{% url 'erp:residents' %}{% if show_archived %}?archived=1{% endif %}">{% translate "Təmizlə" %}</a>
     {% endif %}
   </form>
   <p class="cp-meta" style="margin:10px 0 0;" id="residents-filter-meta" {% if not q %}hidden{% endif %}>
@@ -39,7 +50,7 @@
     data-email="{{ c.contact_email }}"
   >
     <strong class="resident-name">{{ c.name }}</strong>
-    <span class="cp-meta resident-status">{{ c.get_status_display }}</span>
+    <span class="cp-meta resident-status">{{ c.get_status_display }}{% if c.is_archived %} · {% translate "Arxiv" %}{% endif %}</span>
     {% if can_view_resident_guests %}<span class="cp-meta resident-guests">{% translate "Bugünkü qonaq" %} {{ c.guest_today }}</span>{% endif %}
     {% if can_view_resident_ticket_counts %}<span class="cp-meta resident-tickets">{{ c.ticket_count }} {% translate "ticket" %}</span>{% endif %}
   </a>

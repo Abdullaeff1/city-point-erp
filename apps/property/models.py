@@ -319,7 +319,25 @@ class ParkingAssignment(models.Model):
         on_delete=models.SET_NULL,
         related_name="parking_assignments",
     )
-    vehicle_plate = models.CharField(max_length=32, blank=True)
+    space = models.ForeignKey(
+        Space,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="parking_assignments",
+        verbose_name=_("Ofis / sahə"),
+        help_text=_("Parkinq yerinin aid olduğu ofis sahəsi"),
+    )
+    employee = models.ForeignKey(
+        "residents.ResidentEmployee",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="parking_assignments",
+        verbose_name=_("Əməkdaş"),
+        help_text=_("Nömrə nişanına bağlı əməkdaş (opsional)"),
+    )
+    vehicle_plate = models.CharField(max_length=32, blank=True, verbose_name=_("Nömrə nişanı"))
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
     assignment_type = models.CharField(

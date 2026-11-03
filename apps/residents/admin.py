@@ -1,15 +1,25 @@
 from django.contrib import admin, messages
+from django.core.exceptions import ValidationError
 from django.db.models import ProtectedError
 
+from apps.residents.company_sync import save_resident_company
 from apps.residents.models import AccessEvent, RapidCardSwipeAlert, ResidentCompany, ResidentEmployee, ShaftAccessAlert
 
 
 @admin.register(ResidentCompany)
 class ResidentCompanyAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug", "status", "portal_active", "is_internal")
-    list_filter = ("status", "portal_active", "is_internal")
-    search_fields = ("name", "slug")
+    list_display = ("name", "slug", "status", "portal_active", "is_archived", "is_internal", "voen")
+    list_filter = ("status", "portal_active", "is_archived", "is_internal")
+    search_fields = ("name", "slug", "voen", "contact_email")
     prepopulated_fields = {"slug": ("name",)}
+    readonly_fields = ("created_at", "updated_at", "archived_at")
+
+    def save_model(self, request, obj, form, change):
+        try:
+            save_resident_company(obj, actor=request.user, create=not change)
+        except ValidationError as exc:
+            form.add_error(None, exc)
+            raise
 
 
 @admin.register(ResidentEmployee)

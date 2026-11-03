@@ -189,8 +189,10 @@ class TicketDepartmentAccessTests(TestCase):
         self.assertTrue(can_view_ticket(self.desk_user, self.fm_ticket))
         self.assertFalse(can_view_ticket(self.fm_user, self.fm_ticket))
         self.assertFalse(can_view_ticket(self.fm_user, self.sec_ticket))
-        self.assertEqual(tickets_visible_to(self.no_dept).count(), 0)
+        # SERVICE_DESK without ticket_department still sees servicedesk via role default.
+        self.assertTrue(can_view_ticket(self.no_dept, self.fm_ticket))
         self.assertFalse(can_view_ticket(self.no_dept, self.sec_ticket))
+        self.assertEqual(tickets_visible_to(self.no_dept).count(), 1)
 
     def test_technical_and_cleaning_route_to_service_desk(self):
         cleaning = TicketSubcategory.objects.get(slug="office-cleaning")
@@ -442,6 +444,54 @@ class TicketDepartmentAccessTests(TestCase):
         assign_ticket(self.sec_ticket, actor=self.sec_user, assignee_id=self.sec_user.pk)
         self.sec_ticket.refresh_from_db()
         self.assertEqual(self.sec_ticket.assignee_id, self.sec_user.pk)
+
+    def test_category_fallback_when_rule_missing(self):
+        from apps.tickets.models import RoutingRule
+        from apps.tickets.services import route_ticket
+
+        sub = TicketSubcategory.objects.get(slug="security-incident")
+        RoutingRule.objects.filter(subcategory=sub).delete()
+        ticket = Ticket.objects.create(
+            code="TK-FALLBACK-1",
+            ticket_type="incident",
+            category=sub.category,
+            subcategory=sub,
+            company=self.company_a,
+            requester=self.resident_a,
+            description="No rule — category fallback",
+            status="sent",
+            priority="normal",
+        )
+        self.assertIsNone(ticket.department_id)
+        route_ticket(ticket, note="test-fallback")
+        ticket.refresh_from_db()
+        self.assertEqual(ticket.department.code, "security")
+        self.assertEqual(ticket.queue.code, "security")
+        self.assertTrue(can_view_ticket(self.sec_user, ticket))
+
+    def test_repair_command_binds_staff_and_reroutes(self):
+        from django.core.management import call_command
+
+        self.no_dept.ticket_department = None
+        self.no_dept.save(update_fields=["ticket_department"])
+        orphan = Ticket.objects.create(
+            code="TK-ORPHAN-1",
+            ticket_type="incident",
+            category=self.sec_sub.category,
+            subcategory=self.sec_sub,
+            company=self.company_a,
+            requester=self.resident_a,
+            description="Orphan department",
+            status="sent",
+            priority="normal",
+            department=None,
+            queue=None,
+        )
+        call_command("repair_ticket_routing")
+        self.no_dept.refresh_from_db()
+        orphan.refresh_from_db()
+        self.assertEqual(self.no_dept.ticket_department.code, "servicedesk")
+        self.assertEqual(orphan.department.code, "security")
 
     def test_holding_department_can_handoff(self):
         with self.assertRaises(DomainError):

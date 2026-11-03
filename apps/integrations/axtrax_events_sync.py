@@ -100,19 +100,40 @@ def _access_result(ax_type) -> str:
     return AccessResult.GRANTED
 
 
-def _snapshot_name(row, employee) -> str:
-    if employee is not None:
-        return (employee.full_name or "")[:160]
+def _name_from_row(row) -> str:
     raw = " ".join(str(row.get("full_name") or "").split())
+    if not raw:
+        return ""
     if raw.lower().startswith("card"):
         code = str(row.get("card_code") or "").strip()
         return (f"Kart {code}" if code else "Naməlum kart")[:160]
     head = raw.split("(Card", 1)[0].strip(" ,")
-    return (head or raw or "Naməlum kart")[:160]
+    return (head or raw)[:160]
+
+
+def _snapshot_name(row, employee) -> str:
+    # Prefer AxTrax punch-time name so later emp-id reuse does not rewrite history.
+    from_row = _name_from_row(row)
+    if from_row and not from_row.lower().startswith("kart "):
+        return from_row
+    if employee is not None and (employee.full_name or "").strip():
+        return (employee.full_name or "")[:160]
+    return from_row or "Naməlum kart"
 
 
 def _snapshot_card(row, employee) -> str:
-    """Store the printed badge (tIdentification), not AxTrax internal iCardCode."""
+    """Store the printed badge at punch time.
+
+    AxTrax ``iCardCode`` is an internal code — not the printed badge — so when the
+    event row only has card_code we fall back to the mapped employee's current
+    badge. Attribution of the event is always by AxTrax employee_id → ResidentEmployee
+    (never by card alone), so a card later moved to another person does not move
+    historical punches.
+    """
+    # Prefer explicit printed badge if export provides it
+    badge = str(row.get("badge_number") or row.get("identification") or "").strip()
+    if badge and badge != "0":
+        return badge[:32]
     if employee is not None and (employee.card_number or "").strip():
         return employee.card_number.strip()[:32]
     code = str(row.get("card_code") or "").strip()
@@ -121,7 +142,25 @@ def _snapshot_card(row, employee) -> str:
     return ""
 
 
-@transaction.atomic
+def _snapshot_company(employee) -> tuple[int | None, str]:
+    """Always return a non-null company_name string (DB column is NOT NULL)."""
+    if employee is None:
+        return None, ""
+    company = getattr(employee, "company", None)
+    if company is not None:
+        return company.pk, (company.name or "")[:160]
+    cid = getattr(employee, "company_id", None)
+    if cid:
+        from apps.residents.models import ResidentCompany
+
+        name = (
+            ResidentCompany.objects.filter(pk=cid).values_list("name", flat=True).first()
+            or ""
+        )
+        return int(cid), name[:160]
+    return None, ""
+
+
 def sync_event_rows(
     rows: list,
     *,
@@ -130,7 +169,11 @@ def sync_event_rows(
     detect_alerts: bool = True,
     advance_cursor: bool = True,
 ) -> dict:
-    """Import already-fetched AxTrax access rows (granted and denied)."""
+    """Import already-fetched AxTrax access rows (granted and denied).
+
+    Each row uses a savepoint so one bad punch cannot roll back the whole batch
+    and freeze the live poller cursor.
+    """
     live_cursor = get_events_cursor()
     cursor = live_cursor if since_id is None else int(since_id)
     emp_map = _employee_map()
@@ -145,6 +188,7 @@ def sync_event_rows(
         "skipped_unmapped": 0,
         "skipped_bad_time": 0,
         "skipped_old": 0,
+        "row_errors": 0,
         "rapid_swipe_alerts": 0,
         "shaft_access_alerts": 0,
     }
@@ -171,9 +215,11 @@ def sync_event_rows(
         employee_pk = emp_map.get(emp_num) if emp_num else None
         employee = None
         if employee_pk:
-            employee = ResidentEmployee.objects.filter(pk=employee_pk).only(
-                "id", "full_name", "card_number"
-            ).first()
+            employee = (
+                ResidentEmployee.objects.filter(pk=employee_pk)
+                .select_related("company")
+                .first()
+            )
         if result == AccessResult.GRANTED and employee is None:
             stats["skipped_unmapped"] += 1
             continue
@@ -190,25 +236,33 @@ def sync_event_rows(
             except (TypeError, ValueError):
                 reader_id = None
 
-        event = AccessEvent.objects.create(
-            employee_id=employee.pk if employee else None,
-            event_type=_event_type(row.get("reader_out")),
-            result=result,
-            occurred_at=occurred_at,
-            employee_name=_snapshot_name(row, employee),
-            card_number=_snapshot_card(row, employee),
-            axtrax_employee_id=emp_num or None,
-            reader_id=reader_id,
-            reader_name=(str(row.get("reader_name") or "").strip()[:255]),
-        )
-        ExternalIdentity.objects.create(
-            system=AXTRAX_SYSTEM,
-            external_id=ext_key,
-            entity_type=event_ct,
-            entity_id=event.pk,
-            last_sync_at=timezone.now(),
-            last_status=SyncStatus.SUCCESS,
-        )
+        company_id, company_name = _snapshot_company(employee)
+        try:
+            with transaction.atomic():
+                event = AccessEvent.objects.create(
+                    employee_id=employee.pk if employee else None,
+                    event_type=_event_type(row.get("reader_out")),
+                    result=result,
+                    occurred_at=occurred_at,
+                    employee_name=_snapshot_name(row, employee) or "",
+                    card_number=_snapshot_card(row, employee) or "",
+                    company_id=company_id,
+                    company_name=company_name or "",
+                    axtrax_employee_id=emp_num or None,
+                    reader_id=reader_id,
+                    reader_name=(str(row.get("reader_name") or "").strip()[:255]),
+                )
+                ExternalIdentity.objects.create(
+                    system=AXTRAX_SYSTEM,
+                    external_id=ext_key,
+                    entity_type=event_ct,
+                    entity_id=event.pk,
+                    last_sync_at=timezone.now(),
+                    last_status=SyncStatus.SUCCESS,
+                )
+        except Exception:
+            stats["row_errors"] += 1
+            continue
         stats["created"] += 1
         if result == AccessResult.GRANTED:
             created_events.append(event)

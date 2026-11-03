@@ -19,6 +19,7 @@ from apps.reception.services import (
 )
 from apps.residents.access import (
     access_range_bounds,
+    employee_access_period_context,
     build_employee_access_rows,
     currently_inside_employee_rows,
     employee_attendance_days,
@@ -589,32 +590,13 @@ class EmployeeAccessDetailView(SecurityPortalMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         employee = self.get_employee()
-        preset, date_from, date_to = access_range_bounds(self.request, default_preset="today")
-        single_day = date_from == date_to
-        if single_day:
-            flaps = employee_day_flaps(employee, date_from)
-            days = []
-            in_count = sum(1 for e in flaps if e.event_type == "in")
-            out_count = len(flaps) - in_count
-        else:
-            flaps = []
-            days = employee_attendance_days(employee, date_from, date_to)
-            in_count = out_count = 0
+        period = employee_access_period_context(employee, self.request, default_preset="today")
         ctx.update(
             {
                 "employee": employee,
                 "company": employee.company,
                 "roster": "active" if employee.is_active else "former",
-                "days": days,
-                "flaps": flaps,
-                "single_day": single_day,
-                "preset": preset,
-                "date_from": date_from,
-                "date_to": date_to,
-                "in_count": in_count,
-                "out_count": out_count,
-                "present_days": len(days) if not single_day else (1 if flaps else 0),
-                "today": timezone.localdate(),
+                **period,
             }
         )
         return ctx
@@ -717,3 +699,57 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
         except DomainError as exc:
             messages.error(request, str(exc))
         return redirect("security:ticket_detail", code=ticket.code)
+
+
+class ParkingListView(SecurityPortalMixin, TemplateView):
+    """Building parking spots assigned to resident companies."""
+
+    template_name = "security/parking.html"
+    SORT_FIELDS = {
+        "company": "party__legacy_resident_company__name",
+        "zone": "spot__zone__code",
+        "spot": "spot__code",
+        "plate": "vehicle_plate",
+        "employee": "employee__full_name",
+    }
+
+    def get_context_data(self, **kwargs):
+        from apps.residents.lease_dates import active_parking_qs
+
+        ctx = super().get_context_data(**kwargs)
+        q = (self.request.GET.get("q") or "").strip()
+        sort = (self.request.GET.get("sort") or "company").strip().lower()
+        if sort not in self.SORT_FIELDS:
+            sort = "company"
+        direction = (self.request.GET.get("dir") or "asc").strip().lower()
+        if direction not in {"asc", "desc"}:
+            direction = "asc"
+        order = self.SORT_FIELDS[sort]
+        if direction == "desc":
+            order = f"-{order}"
+
+        qs = active_parking_qs().filter(party__legacy_resident_company__isnull=False)
+        if q:
+            qs = filter_text_search(
+                qs,
+                q,
+                "spot__code",
+                "spot__zone__code",
+                "spot__zone__name",
+                "vehicle_plate",
+                "employee__full_name",
+                "party__legal_name",
+                "party__brand_name",
+                "party__legacy_resident_company__name",
+            )
+        qs = qs.order_by(order, "spot__code", "id")
+        ctx.update(
+            {
+                "assignments": list(qs),
+                "q": q,
+                "sort": sort,
+                "dir": direction,
+                "assignment_count": qs.count() if hasattr(qs, "count") else len(qs),
+            }
+        )
+        return ctx

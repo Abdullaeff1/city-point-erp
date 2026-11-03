@@ -41,6 +41,12 @@ class Lease(UUIDPrimaryModel):
     currency = models.CharField(max_length=8, default="AZN")
     deposit = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     service_charge = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    lease_type = models.CharField(
+        max_length=64,
+        blank=True,
+        verbose_name=_("İcarə növü"),
+        help_text=_("Məs. ofis, anbar, qarışıq"),
+    )
     parent_lease = models.ForeignKey(
         "self",
         null=True,

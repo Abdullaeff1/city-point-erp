@@ -696,3 +696,307 @@ class SpaceForm(forms.ModelForm):
             cleaned["occupancy"] = Occupancy.VACANT
             cleaned["commercial_status"] = CommercialStatus.VACANT
         return cleaned
+
+
+RESIDENT_FORM_SECTIONS = {
+    "general": (
+        "name",
+        "slug",
+        "status",
+        "portal_active",
+        "voen",
+        "legal_form",
+        "justice_registration_no",
+        "justice_registration_date",
+        "registry_extract_ref",
+        "charter_capital",
+        "legal_address",
+        "actual_address",
+    ),
+    "contacts": (
+        "phone",
+        "contact_email",
+        "website",
+        "billing_email",
+        "manager_name",
+        "manager_position",
+        "manager_phone",
+        "manager_email",
+        "contact_person_name",
+        "contact_person_phone",
+        "contact_person_email",
+    ),
+    "bank": (
+        "bank_name",
+        "bank_voen",
+        "bank_code",
+        "swift_bic",
+        "iban",
+        "account_number",
+        "correspondent_account",
+        "bank_branch",
+        "bank_currency",
+    ),
+}
+
+
+class ResidentCompanyForm(forms.ModelForm):
+    class Meta:
+        model = ResidentCompany
+        fields = (
+            "name",
+            "slug",
+            "status",
+            "portal_active",
+            "voen",
+            "legal_form",
+            "justice_registration_no",
+            "justice_registration_date",
+            "registry_extract_ref",
+            "charter_capital",
+            "legal_address",
+            "actual_address",
+            "contact_email",
+            "billing_email",
+            "phone",
+            "website",
+            "manager_name",
+            "manager_position",
+            "manager_phone",
+            "manager_email",
+            "contact_person_name",
+            "contact_person_phone",
+            "contact_person_email",
+            "bank_name",
+            "bank_voen",
+            "bank_code",
+            "swift_bic",
+            "iban",
+            "account_number",
+            "correspondent_account",
+            "bank_branch",
+            "bank_currency",
+        )
+        labels = {
+            "name": _("Şirkət adı (hüquqi)"),
+            "slug": _("Slug"),
+            "status": _("Status"),
+            "portal_active": _("Portal aktiv"),
+            "voen": _("VÖEN"),
+            "legal_form": _("Hüquqi forma"),
+            "justice_registration_no": _("Ədliyyə qeydiyyat №"),
+            "justice_registration_date": _("Ədliyyə qeydiyyat tarixi"),
+            "registry_extract_ref": _("Reyestrdən çıxarış"),
+            "charter_capital": _("Nizamnamə kapitalı (AZN)"),
+            "legal_address": _("Hüquqi ünvan"),
+            "actual_address": _("Faktiki ünvan"),
+            "contact_email": _("Əsas email"),
+            "billing_email": _("Faktura email"),
+            "phone": _("Telefon"),
+            "website": _("Veb-sayt"),
+            "manager_name": _("Direktor / rəhbər"),
+            "manager_position": _("Rəhbər vəzifəsi"),
+            "manager_phone": _("Rəhbər telefon"),
+            "manager_email": _("Rəhbər email"),
+            "contact_person_name": _("Əlaqəli şəxs"),
+            "contact_person_phone": _("Əlaqə telefon"),
+            "contact_person_email": _("Əlaqə email"),
+            "bank_name": _("Bank adı"),
+            "bank_voen": _("Bank VÖEN"),
+            "bank_code": _("Bank kodu"),
+            "swift_bic": _("SWIFT/BIC"),
+            "iban": _("IBAN"),
+            "account_number": _("Hesab nömrəsi"),
+            "correspondent_account": _("Müxbir hesab"),
+            "bank_branch": _("Bank filialı"),
+            "bank_currency": _("Hesab valyutası"),
+        }
+        widgets = {
+            name: forms.TextInput(attrs={"class": "cp-input"})
+            for name in (
+                "name",
+                "slug",
+                "voen",
+                "legal_form",
+                "justice_registration_no",
+                "registry_extract_ref",
+                "legal_address",
+                "actual_address",
+                "contact_email",
+                "billing_email",
+                "phone",
+                "website",
+                "manager_name",
+                "manager_position",
+                "manager_phone",
+                "manager_email",
+                "contact_person_name",
+                "contact_person_phone",
+                "contact_person_email",
+                "bank_name",
+                "bank_voen",
+                "bank_code",
+                "swift_bic",
+                "iban",
+                "account_number",
+                "correspondent_account",
+                "bank_branch",
+                "bank_currency",
+            )
+        } | {
+            "status": forms.Select(attrs={"class": "cp-input"}),
+            "portal_active": forms.CheckboxInput(),
+            "justice_registration_date": forms.DateInput(attrs={"class": "cp-input", "type": "date"}),
+            "charter_capital": forms.NumberInput(attrs={"class": "cp-input", "step": "0.01", "min": "0"}),
+        }
+
+    def __init__(self, *args, section=None, **kwargs):
+        self.section = section if section in RESIDENT_FORM_SECTIONS else None
+        super().__init__(*args, **kwargs)
+        self.fields["slug"].required = False
+        for name, label in self.Meta.labels.items():
+            if name in self.fields:
+                self.fields[name].label = label
+        if self.instance and self.instance.pk and self.instance.is_archived:
+            if "portal_active" in self.fields:
+                self.fields["portal_active"].disabled = True
+                self.fields["portal_active"].help_text = _(
+                    "Arxivdə portal açıla bilməz. Əvvəl unarchive edin."
+                )
+        if self.section:
+            keep = set(RESIDENT_FORM_SECTIONS[self.section])
+            for name in list(self.fields.keys()):
+                if name not in keep:
+                    self.fields.pop(name)
+
+    def clean(self):
+        cleaned = super().clean()
+        if cleaned.get("portal_active") and (
+            (self.instance and self.instance.is_archived) or cleaned.get("is_archived")
+        ):
+            self.add_error("portal_active", _("Arxivdə olan şirkətin portalı aktiv ola bilməz."))
+        return cleaned
+
+
+
+class ResidentDocumentForm(forms.Form):
+    def __init__(self, *args, company=None, instance=None, **kwargs):
+        from apps.documents.models import DOCUMENT_TYPE_LEASE_CONTRACT, Document, DocumentType
+        from apps.leases.models import Lease
+        from apps.residents.lease_dates import leases_for_company
+
+        self.company = company
+        self.instance = instance
+        super().__init__(*args, **kwargs)
+        parent_qs = Document.objects.filter(
+            company=company,
+            document_type__code=DOCUMENT_TYPE_LEASE_CONTRACT,
+        ).order_by("-document_date", "-id")
+        if instance and instance.pk:
+            parent_qs = parent_qs.exclude(pk=instance.pk)
+
+        self.fields["title"] = forms.CharField(
+            max_length=200,
+            label=_("Başlıq"),
+            widget=forms.TextInput(attrs={"class": "cp-input"}),
+            initial=instance.title if instance else "",
+        )
+        self.fields["document_type"] = forms.ModelChoiceField(
+            queryset=DocumentType.objects.order_by("name"),
+            required=False,
+            label=_("Tip"),
+            widget=forms.Select(attrs={"class": "cp-input"}),
+            initial=instance.document_type_id if instance else None,
+        )
+        self.fields["document_date"] = forms.DateField(
+            required=False,
+            label=_("Sənəd tarixi"),
+            widget=forms.DateInput(attrs={"class": "cp-input", "type": "date"}),
+            initial=(instance.document_date or instance.published_at) if instance else None,
+        )
+        self.fields["visible_to_resident"] = forms.BooleanField(
+            required=False,
+            label=_("Portala görünən"),
+            initial=instance.visible_to_resident if instance else False,
+        )
+        self.fields["parent_document"] = forms.ModelChoiceField(
+            queryset=parent_qs,
+            required=False,
+            label=_("Əsas müqavilə"),
+            widget=forms.Select(attrs={"class": "cp-input"}),
+            empty_label=_("— Yoxdur —"),
+            initial=instance.parent_document_id if instance else None,
+        )
+        self.fields["lease"] = forms.ModelChoiceField(
+            queryset=leases_for_company(company) if company else Lease.objects.none(),
+            required=False,
+            label=_("İcarə"),
+            widget=forms.Select(attrs={"class": "cp-input"}),
+            empty_label=_("— Yoxdur —"),
+            initial=instance.lease_id if instance else None,
+        )
+        self.fields["file"] = forms.FileField(
+            required=not (instance and instance.pk),
+            label=_("Fayl"),
+        )
+
+    def clean(self):
+        from apps.documents.models import DOCUMENT_TYPE_LEASE_AMENDMENT
+        from apps.documents.validation import validate_document_file
+
+        cleaned = super().clean()
+        uploaded = cleaned.get("file")
+        if uploaded:
+            try:
+                validate_document_file(uploaded)
+            except ValidationError as exc:
+                self.add_error("file", exc)
+        elif not self.instance:
+            self.add_error("file", _("Fayl tələb olunur."))
+        dtype = cleaned.get("document_type")
+        parent = cleaned.get("parent_document")
+        if dtype and getattr(dtype, "code", None) == DOCUMENT_TYPE_LEASE_AMENDMENT and not parent:
+            self.add_error("parent_document", _("İcarə əlavəsi üçün əsas müqavilə seçilməlidir."))
+        return cleaned
+
+
+class BuildingProcedureForm(forms.ModelForm):
+    class Meta:
+        from apps.comms.models import BuildingProcedure as _BuildingProcedure
+
+        model = _BuildingProcedure
+        fields = ("title", "description", "file", "sort_order", "is_published", "published_at")
+        widgets = {
+            "title": forms.TextInput(attrs={"class": "cp-input"}),
+            "description": forms.Textarea(attrs={"class": "cp-input", "rows": 3}),
+            "sort_order": forms.NumberInput(attrs={"class": "cp-input", "min": 0}),
+            "published_at": forms.DateInput(attrs={"class": "cp-input", "type": "date"}),
+        }
+        labels = {
+            "title": _("Başlıq"),
+            "description": _("Təsvir"),
+            "file": _("Fayl"),
+            "sort_order": _("Sıra"),
+            "is_published": _("Portala görünən"),
+            "published_at": _("Nəşr tarixi"),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        has_file = bool(self.instance and self.instance.pk and self.instance.file)
+        self.fields["file"].required = not has_file
+        self.fields["description"].required = False
+        self.fields["published_at"].required = False
+        self.fields["sort_order"].required = False
+
+    def clean_file(self):
+        from apps.documents.validation import validate_document_file
+
+        uploaded = self.cleaned_data.get("file")
+        if uploaded:
+            validate_document_file(uploaded)
+            return uploaded
+        if self.instance and self.instance.pk and self.instance.file:
+            return uploaded
+        raise ValidationError(_("Fayl tələb olunur."))
+

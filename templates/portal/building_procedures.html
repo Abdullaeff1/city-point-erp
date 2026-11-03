@@ -1,0 +1,23 @@
+{% extends "portal/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Daxili prosedurlar" %}{% endblock %}
+{% block content %}
+<div class="cp-card" style="padding:8px 0;">
+  {% for p in procedures %}
+  <div class="flex justify-between items-center" style="padding:14px 20px;border-bottom:1px solid var(--cp-border);">
+    <div>
+      <div style="font-weight:600;">{{ p.title }}</div>
+      {% if p.description %}
+      <div class="cp-meta" style="margin-top:4px;white-space:pre-wrap;">{{ p.description }}</div>
+      {% endif %}
+      <div class="cp-meta" style="margin-top:4px;">
+        {% if p.published_at %}{{ p.published_at|date:"d.m.Y" }} · {% endif %}{{ p.display_filename }}
+      </div>
+    </div>
+    <a href="{% url 'portal:building_procedure_download' p.pk %}">{% translate "Yüklə" %}</a>
+  </div>
+  {% empty %}
+  <div class="cp-meta empty-pad">{% translate "Hazırda dərc olunmuş daxili prosedur yoxdur." %}</div>
+  {% endfor %}
+</div>
+{% endblock %}

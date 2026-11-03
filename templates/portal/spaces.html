@@ -3,12 +3,24 @@
 {% block heading %}{% translate "Sahələrim" %}{% endblock %}
 {% block content %}
 <div class="grid-2">
-  {% for space in spaces %}
-  <a class="cp-card p-card-lg cp-card-link is-clickable" href="{% url 'portal:space_detail' space.code %}">
+  {% for item in space_cards %}
+  <a class="cp-card p-card-lg cp-card-link is-clickable" href="{% url 'portal:space_detail' item.space.code %}">
     <div class="cp-meta">{% translate "OFİS" %}</div>
-    <p class="cp-code mt-2" style="font-size:22px;">{{ space.area_code }}</p>
-    <p class="mt-3">{{ space.area_m2 }} m² · {{ space.floor.name }}</p>
-    <p class="cp-meta mt-4">{{ space.resident.name }} · <span class="badge badge-resolved">{% translate "Aktiv" %}</span></p>
+    <p class="cp-code mt-2" style="font-size:22px;">{{ item.space.area_code }}</p>
+    <p class="mt-3">{{ item.space.area_m2 }} m² · {{ item.space.floor.name }}</p>
+    {% if item.parking %}
+    <div class="mt-3" style="border-top:1px solid var(--cp-border);padding-top:10px;">
+      <div class="cp-meta">{% translate "Parkinq" %}</div>
+      {% for p in item.parking %}
+      <p class="mt-1" style="font-weight:600;">
+        {{ p.spot.zone.code }} · {{ p.spot.code }}
+        {% if p.vehicle_plate %} · {{ p.vehicle_plate }}{% endif %}
+        {% if p.employee %} · {{ p.employee.full_name }}{% endif %}
+      </p>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <p class="cp-meta mt-4">{{ item.space.resident.name }} · <span class="badge badge-resolved">{% translate "Aktiv" %}</span></p>
   </a>
   {% empty %}
   <p class="cp-meta">{% translate "Bağlı sahə yoxdur." %}</p>

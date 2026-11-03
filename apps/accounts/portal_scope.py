@@ -36,6 +36,7 @@ def eligible_companies_qs(user: User) -> QuerySet[ResidentCompany]:
         portal_memberships__is_active=True,
         status=CompanyStatus.ACTIVE,
         portal_active=True,
+        is_archived=False,
         is_internal=False,
     ).distinct().order_by("name")
 

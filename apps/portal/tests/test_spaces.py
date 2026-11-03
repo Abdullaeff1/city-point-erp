@@ -4,7 +4,16 @@ from django.urls import reverse
 
 from apps.accounts.models import Role
 from apps.accounts.test_utils import ensure_portal_membership
-from apps.property.models import Building, Floor, Space
+from apps.parties.models import Party
+from apps.property.models import (
+    Building,
+    Floor,
+    ParkingAssignment,
+    ParkingAssignmentType,
+    ParkingSpot,
+    ParkingZone,
+    Space,
+)
 from apps.residents.models import ResidentCompany
 
 User = get_user_model()
@@ -50,6 +59,29 @@ class PortalSpaceDetailTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, reverse("portal:space_detail", args=[self.space.code]))
         self.assertContains(resp, "CP/F8/249")
+
+    def test_spaces_list_shows_parking_on_office_card(self):
+        party = Party.objects.create(
+            legal_name="ASBC Portal",
+            legacy_resident_company=self.company,
+        )
+        zone = ParkingZone.objects.create(code="P1-T", name="Parking Test")
+        spot = ParkingSpot.objects.create(zone=zone, code="B-01")
+        ParkingAssignment.objects.create(
+            spot=spot,
+            party=party,
+            space=self.space,
+            assignment_type=ParkingAssignmentType.RESIDENT,
+            vehicle_plate="10-AA-100",
+        )
+        resp = self.client.get(reverse("portal:spaces"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Parkinq")
+        self.assertContains(resp, "B-01")
+        self.assertContains(resp, "10-AA-100")
+        self.assertContains(resp, reverse("portal:space_detail", args=[self.space.code]))
+        # No standalone parking card
+        self.assertNotContains(resp, "PARKİNQ")
 
     def test_own_space_detail_ok(self):
         resp = self.client.get(reverse("portal:space_detail", args=[self.space.code]))

@@ -17,17 +17,28 @@ def can_view_all_tickets(user) -> bool:
 def user_ticket_department(user):
     if not user or not getattr(user, "is_authenticated", False):
         return None
-    return getattr(user, "ticket_department", None)
+    dept = getattr(user, "ticket_department", None)
+    if dept is not None:
+        return dept
+    from apps.tickets.routing import department_code_for_role
+    from apps.tickets.models import TicketDepartment
+
+    code = department_code_for_role(getattr(user, "role", None))
+    if not code:
+        return None
+    return TicketDepartment.objects.filter(code=code, is_active=True).first()
 
 
 def tickets_visible_to(user) -> QuerySet[Ticket]:
     """Staff queryset for ticket lists/details. Residents use company scoping in portal views."""
+    from apps.tickets.routing import effective_ticket_department_id
+
     base = Ticket.objects.all()
     if not user or not getattr(user, "is_authenticated", False):
         return base.none()
     if can_view_all_tickets(user):
         return base
-    dept_id = getattr(user, "ticket_department_id", None)
+    dept_id = effective_ticket_department_id(user)
     if not dept_id:
         return base.none()
     return base.filter(department_id=dept_id)
@@ -35,11 +46,13 @@ def tickets_visible_to(user) -> QuerySet[Ticket]:
 
 def can_view_ticket(user, ticket) -> bool:
     """Staff department visibility (not for resident company scope)."""
+    from apps.tickets.routing import effective_ticket_department_id
+
     if not user or not getattr(user, "is_authenticated", False) or ticket is None:
         return False
     if can_view_all_tickets(user):
         return True
-    dept_id = getattr(user, "ticket_department_id", None)
+    dept_id = effective_ticket_department_id(user)
     if not dept_id:
         return False
     return ticket.department_id == dept_id

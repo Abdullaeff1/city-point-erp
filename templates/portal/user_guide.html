@@ -1,0 +1,255 @@
+{% extends "portal/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "İstifadəçi təlimatı" %}{% endblock %}
+{% block content %}
+<style>
+  .cp-guide-layout {
+    display: grid;
+    grid-template-columns: minmax(200px, 240px) 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .cp-guide-layout { grid-template-columns: 1fr; }
+  }
+  .cp-guide-toc {
+    position: sticky;
+    top: 16px;
+  }
+  .cp-guide-toc a {
+    display: block;
+    padding: 6px 0;
+    color: inherit;
+    text-decoration: none;
+    font-size: 14px;
+  }
+  .cp-guide-toc a:hover { color: var(--cp-accent, #c4a35a); }
+  .cp-guide-section {
+    scroll-margin-top: 24px;
+    margin-bottom: 28px;
+  }
+  .cp-guide-section h2 {
+    font-size: 18px;
+    margin: 0 0 10px;
+  }
+  .cp-guide-section h3 {
+    font-size: 15px;
+    margin: 16px 0 8px;
+  }
+  .cp-guide-section p,
+  .cp-guide-section li {
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .cp-guide-section ul {
+    margin: 8px 0 0;
+    padding-left: 1.25rem;
+  }
+  .cp-guide-section li + li { margin-top: 6px; }
+  .cp-guide-steps {
+    counter-reset: step;
+    list-style: none;
+    padding-left: 0;
+  }
+  .cp-guide-steps li {
+    position: relative;
+    padding-left: 2.2rem;
+    margin-top: 10px;
+  }
+  .cp-guide-steps li::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 999px;
+    background: var(--cp-primary-dark, #1a2e44);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+</style>
+
+<p class="cp-body-text mb-4">
+  {% translate "Bu təlimat City Point Rezident Portalında edə biləcəyiniz əsas əməliyyatları addım-addım izah edir. Hər bölmənin sonunda müvafiq səhifəyə keçid var." %}
+</p>
+
+<div class="cp-guide-layout">
+  <aside class="cp-card p-card cp-guide-toc">
+    <div class="cp-meta mb-2">{% translate "Mündəricat" %}</div>
+    <a href="#intro">{% translate "Portal nədir?" %}</a>
+    <a href="#login">{% translate "Giriş və şirkət seçimi" %}</a>
+    <a href="#home">{% translate "Əsas səhifə" %}</a>
+    <a href="#spaces">{% translate "Sahələrim və parkinq" %}</a>
+    <a href="#requests">{% translate "Müraciətlər (ticket)" %}</a>
+    <a href="#alerts">{% translate "Bildirişlər" %}</a>
+    <a href="#employees">{% translate "Əməkdaşlar və keçidlər" %}</a>
+    <a href="#guests">{% translate "Qonaqlar" %}</a>
+    <a href="#announcements">{% translate "Elanlar" %}</a>
+    <a href="#documents">{% translate "Sənədlər" %}</a>
+    <a href="#procedures">{% translate "Daxili prosedurlar" %}</a>
+    <a href="#tips">{% translate "Faydalı məsləhətlər" %}</a>
+  </aside>
+
+  <div>
+    <section class="cp-card p-card cp-guide-section" id="intro">
+      <h2>{% translate "1. Portal nədir?" %}</h2>
+      <p>
+        {% translate "Rezident Portalı City Point biznes mərkəzində icarəçi şirkətlər üçün nəzərdə tutulub. Buradan öz ofislərinizi, müraciətlərinizi, əməkdaş keçidlərini, qonaq qeydiyyatını, elanları, sənədləri və bina daxili prosedurlarını idarə edə bilərsiniz." %}
+      </p>
+      <ul>
+        <li>{% translate "Hesabınız yalnız sizin şirkət(lər)inizin məlumatlarına giriş verir." %}</li>
+        <li>{% translate "Bəzi əməliyyatlar (məs. kart sifarişi) icazənizdən asılıdır — əgər düymə görünmürsə, administratorla əlaqə saxlayın." %}</li>
+        <li>{% translate "Yuxarı sağda dil seçimi (AZ / EN / RU) var." %}</li>
+      </ul>
+    </section>
+
+    <section class="cp-card p-card cp-guide-section" id="login">
+      <h2>{% translate "2. Giriş və şirkət seçimi" %}</h2>
+      <p>{% translate "Portal hesabı ilə daxil olduqdan sonra sol menyudan bölmələrə keçirsiniz." %}</p>
+      <h3>{% translate "Bir neçə şirkət" %}</h3>
+      <p>
+        {% translate "Əgər hesabınız bir neçə şirkətə bağlıdırsa, sol altda «Şirkət dəyiş» linki görünür. Oradan bir şirkət və ya bütün şirkətlər rejimini seçə bilərsiniz. «Bütün şirkətlər» rejimində siyahılarda şirkət sütunu da göstərilir." %}
+      </p>
+      <p><a href="{% url 'portal:choose_companies' %}">{% translate "Şirkət seçiminə keç" %} →</a></p>
+    </section>
+
+    <section class="cp-card p-card cp-guide-section" id="home">
+      <h2>{% translate "3. Əsas səhifə" %}</h2>
+      <p>{% translate "Əsas səhifə gündəlik xülasədir:" %}</p>
+      <ul>
+        <li>{% translate "Sahələrim — əsas ofisiniz və qısa məlumat" %}</li>
+        <li>{% translate "Açıq müraciətlər — hələ bağlanmamış ticket sayı" %}</li>
+        <li>{% translate "Bildirişlər — oxunmamış bildiriş sayı" %}</li>
+        <li>{% translate "Son müraciətlər və elanlar — tez keçid üçün" %}</li>
+      </ul>
+      <p><a href="{% url 'portal:home' %}">{% translate "Əsas səhifəni aç" %} →</a></p>
+    </section>
+
+    <section class="cp-card p-card cp-guide-section" id="spaces">
+      <h2>{% translate "4. Sahələrim və parkinq" %}</h2>
+      <p>
+        {% translate "«Sahələrim» bölməsində şirkətinizə bağlı ofis sahələri kart şəklində göstərilir. Ofisə aid ayrılmış parkinq yeri varsa, eyni kartın içində «Parkinq» kimi görünür (ayrıca kart deyil)." %}
+      </p>
+      <h3>{% translate "Sahə kartına daxil olmaq" %}</h3>
+      <p>{% translate "Kartı klikləyəndə sahə səhifəsi açılır. Orada tablar var:" %}</p>
+      <ul>
+        <li><strong>{% translate "Ümumi" %}</strong> — {% translate "sahə kodu, m², mərtəbə, doluluq" %}</li>
+        <li><strong>{% translate "Müraciətlər" %}</strong> — {% translate "bu sahəyə bağlı ticketlər" %}</li>
+        <li><strong>{% translate "Sənədlər" %}</strong> — {% translate "sahəyə bağlı sənədlər" %}</li>
+        <li><strong>{% translate "Əməkdaşlar" %}</strong> — {% translate "şirkət əməkdaşları" %}</li>
+        <li><strong>{% translate "Aktivlər" %}</strong> — {% translate "ofis avadanlıqları" %}</li>
+        <li><strong>{% translate "Texniki plan / DWG" %}</strong> — {% translate "plan faylları; yükləmək üçün icazə sorğusu göndərə bilərsiniz" %}</li>
+      </ul>
+      <p><a href="{% url 'portal:spaces' %}">{% translate "Sahələrimə keç" %} →</a></p>
+    </section>
+
+    <section class="cp-card p-card cp-guide-section" id="requests">
+      <h2>{% translate "5. Müraciətlər (ticket)" %}</h2>
+      <p>
+        {% translate "Texniki xidmət, təmizlik, giriş-çıxış, parkinq və digər məsələlər üçün müraciət yaradırsınız. Sol altdakı «Yeni müraciət» düyməsi və ya menyudan «Aktiv müraciətlər» istifadə olunur." %}
+      </p>
+      <h3>{% translate "Yeni müraciət necə yaradılır?" %}</h3>
+      <ol class="cp-guide-steps">
+        <li>{% translate "«Yeni müraciət»ə klikləyin." %}</li>
+        <li>{% translate "Kateqoriya və alt kateqoriyanı seçin." %}</li>
+        <li>{% translate "Lazımdırsa sahəni seçin və təsviri yazın." %}</li>
+        <li>{% translate "Prioriteti seçin və göndərin." %}</li>
+      </ol>
+      <h3>{% translate "Aktiv və tarixçə" %}</h3>
+      <ul>
+        <li><strong>{% translate "Aktiv müraciətlər" %}</strong> — {% translate "açıq, işlənməkdə olan ticketlər" %}</li>
+        <li><strong>{% translate "Tarixçə" %}</strong> — {% translate "bağlanmış / həll olunmuş müraciətlər" %}</li>
+        <li>{% translate "Ticket detallarında mesaj yazıb əlavə məlumat göndərə bilərsiniz." %}</li>
+      </ul>
+      <p>
+        <a href="{% url 'portal:request_new' %}">{% translate "Yeni müraciət" %} →</a>
+        ·
+        <a href="{% url 'portal:requests_active' %}">{% translate "Aktivlər" %} →</a>
+        ·
+        <a href="{% url 'portal:requests_history' %}">{% translate "Tarixçə" %} →</a>
+      </p>
+    </section>
+
+    <section class="cp-card p-card cp-guide-section" id="alerts">
+      <h2>{% translate "6. Bildirişlər" %}</h2>
+      <p>
+        {% translate "«Bildirişlər» bölməsində sistemdən gələn in-app bildirişləri görürsünüz (məs. müraciət statusunun dəyişməsi). Menyuda oxunmamış sayı badge kimi görünür." %}
+      </p>
+      <p><a href="{% url 'portal:alerts' %}">{% translate "Bildirişlərə keç" %} →</a></p>
+    </section>
+
+    <section class="cp-card p-card cp-guide-section" id="employees">
+      <h2>{% translate "7. Əməkdaşlar və keçidlər" %}</h2>
+      <p>
+        {% translate "«Əməkdaşlar» bölməsində şirkətinizin kartlı əməkdaşlarının giriş-çıxış məlumatları AxTrax üslubunda göstərilir: işə gəliş (ilk giriş) və işdən çıxış (son çıxış)." %}
+      </p>
+      <ul>
+        <li>{% translate "Aktiv / Keçmiş işçilər / Hamısı tabları ilə siyahını filtrə edin." %}</li>
+        <li>{% translate "Tarix seçərək konkret günü izləyin; «İçəridə» və «Çıxış» sayğacları görünür." %}</li>
+        <li>{% translate "Əməkdaşa klikləyəndə günlük, həftəlik, aylıq və ya tarix aralığı üzrə ətraflı tarixçə açılır." %}</li>
+        <li>{% translate "Excel export ilə seçilmiş dövrü yükləyə bilərsiniz." %}</li>
+        <li>{% translate "İcazəniz varsa «Yeni kart sifarişi» ilə yeni əməkdaş üçün kart müraciəti yaradırsınız." %}</li>
+      </ul>
+      <p><a href="{% url 'portal:employees' %}">{% translate "Əməkdaşlara keç" %} →</a></p>
+    </section>
+
+    <section class="cp-card p-card cp-guide-section" id="guests">
+      <h2>{% translate "8. Qonaqlar" %}</h2>
+      <p>
+        {% translate "Qonaqları resepsiyaya gəlməzdən əvvəl qeyd edə bilərsiniz. Bu, giriş prosesini sürətləndirir." %}
+      </p>
+      <h3>{% translate "Əvvəlcədən qeydiyyat" %}</h3>
+      <ol class="cp-guide-steps">
+        <li>{% translate "«Qonaqlar» səhifəsində formu doldurun (ad, tarix/saat, host, mərtəbə/sahə və s.)." %}</li>
+        <li>{% translate "«Qeyd et» düyməsinə basın." %}</li>
+        <li>{% translate "Qonaq gələndə resepsiya qeydi təsdiqləyib içəri buraxacaq." %}</li>
+      </ol>
+      <p>
+        {% translate "Siyahıda bugünkü / seçilmiş qonaq ziyarətlərini və statusu görürsünüz. İcazə olduqda portalda çıxış (check-out) da qeyd edilə bilər." %}
+      </p>
+      <p><a href="{% url 'portal:guests' %}">{% translate "Qonaqlara keç" %} →</a></p>
+    </section>
+
+    <section class="cp-card p-card cp-guide-section" id="announcements">
+      <h2>{% translate "9. Elanlar" %}</h2>
+      <p>
+        {% translate "Bina və ya şirkətiniz üçün elanlar burada yerləşir. Karta klikləyəndə tam mətn və əlavə fayllar (aç / yüklə) görünür." %}
+      </p>
+      <p><a href="{% url 'portal:announcements' %}">{% translate "Elanlara keç" %} →</a></p>
+    </section>
+
+    <section class="cp-card p-card cp-guide-section" id="documents">
+      <h2>{% translate "10. Sənədlər" %}</h2>
+      <p>
+        {% translate "«Sənədlər» — şirkətiniz üçün portalda görünən hüquqi və digər sənədlərdir (məs. müqavilə ilə bağlı fayllar). Yalnız «portala görünən» kimi işarələnmiş sənədlər burada çıxır. «Yüklə» ilə faylı endirə bilərsiniz." %}
+      </p>
+      <p><a href="{% url 'portal:documents' %}">{% translate "Sənədlərə keç" %} →</a></p>
+    </section>
+
+    <section class="cp-card p-card cp-guide-section" id="procedures">
+      <h2>{% translate "11. Daxili prosedurlar" %}</h2>
+      <p>
+        {% translate "Bina üzrə rəsmi daxili prosedurlar (giriş-çıxış, davranış, parkinq, təxliyə və s.) burada PDF kimi yerləşdirilir. Faylı yükləyib oxuya bilərsiniz. Bu sənədlər bütün rezidentlər üçün ortaqdır." %}
+      </p>
+      <p><a href="{% url 'portal:building_procedures' %}">{% translate "Daxili prosedurlara keç" %} →</a></p>
+    </section>
+
+    <section class="cp-card p-card cp-guide-section" id="tips">
+      <h2>{% translate "12. Faydalı məsləhətlər" %}</h2>
+      <ul>
+        <li>{% translate "Təcili məsələ üçün müraciət yaradın və təsvirdə mərtəbə / ofis kodunu qeyd edin." %}</li>
+        <li>{% translate "Keçid hesabatını Excel-ə export edib HR və ya mühasibatlıqla paylaşa bilərsiniz." %}</li>
+        <li>{% translate "Qonaqları eyni gün və ya əvvəlcədən qeyd etmək resepsiyada gözləməni azaldır." %}</li>
+        <li>{% translate "DWG / texniki plan yükləməsi üçün əvvəlcə icazə sorğusu göndərin; təsdiqdən sonra yükləmə aktiv olur." %}</li>
+        <li>{% translate "Hesab və ya kart icazəsi ilə bağlı sualınız varsa City Point administrasiyası / Service Desk ilə əlaqə saxlayın." %}</li>
+      </ul>
+    </section>
+  </div>
+</div>
+{% endblock %}

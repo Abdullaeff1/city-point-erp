@@ -139,10 +139,20 @@ def route_ticket(
     *,
     apply_default_priority=True,
 ):
-    """Apply RoutingRule: department, queue, optional default priority + SLA."""
+    """Apply RoutingRule: department, queue, optional default priority + SLA.
+
+    If subcategory has no active rule, fall back to category → default queue so
+    tickets never sit with department=NULL (invisible to Security / Service Desk).
+    """
+    from apps.tickets.routing import fallback_department_and_queue
+
     rule = resolve_routing_rule(ticket.subcategory)
     department = rule.department if rule else None
     queue = rule.queue if rule else None
+    if not department:
+        department, queue = fallback_department_and_queue(ticket.category)
+        if not department and ticket.subcategory_id and ticket.subcategory.category_id:
+            department, queue = fallback_department_and_queue(ticket.subcategory.category)
     if not department:
         return None
 
@@ -163,7 +173,7 @@ def route_ticket(
         from_queue_id=prev_queue,
         to_queue=queue,
         actor=actor,
-        note=note,
+        note=note if rule else f"{note}:category-fallback",
     )
     apply_sla(ticket, force_policy=rule.sla_policy if rule else None)
     notify_department_users(
@@ -458,6 +468,14 @@ def create_ticket_from_portal(
             note="created",
             apply_default_priority=True,
         )
+        ticket.refresh_from_db(fields=["department_id", "queue_id", "priority"])
+        if not ticket.department_id:
+            raise DomainError(
+                _(
+                    "Müraciət şöbəyə yönləndirilə bilmədi. Kateqoriya/alt kateqoriya "
+                    "və RoutingRule yoxlanmalıdır."
+                )
+            )
         record_status_event(ticket, TicketStatus.SENT, actor=requester, note="created")
         if (description or "").strip():
             add_message(ticket, requester, description, author_label, require_mutate=False)

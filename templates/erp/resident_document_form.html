@@ -1,0 +1,23 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{{ page_title }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:residents' %}">{% translate "Rezidentlər" %}</a>
+ · <a href="{% url 'erp:resident_documents' company.slug %}">{% translate "Sənədlər" %}</a>
+{% endblock %}
+{% block content %}
+{% include "erp/partials/resident_section_nav.html" with can_view_legal=True can_manage_resident=True section="documents" %}
+<p class="cp-meta mb-3">{% translate "Əsas müqavilə yalnız «İcarə əlavəsi» tipində məcburidir. «İcarə» sahəsi ERP Lease qeydinə opsional bağlanır." %}</p>
+<form method="post" enctype="multipart/form-data" class="cp-card p-card" style="max-width:640px;">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="cp-meta" style="color:var(--cp-danger);">{{ form.non_field_errors }}</div>{% endif %}
+  {% for field in form %}
+  <label style="display:block;margin-bottom:12px;">
+    <span class="cp-meta">{{ field.label }}</span>
+    <div class="mt-1">{{ field }}</div>
+    {% if field.errors %}<div class="cp-meta" style="color:var(--cp-danger);">{{ field.errors }}</div>{% endif %}
+  </label>
+  {% endfor %}
+  <button class="cp-btn" type="submit">{% translate "Saxla" %}</button>
+</form>
+{% endblock %}

@@ -18,6 +18,7 @@ class PartyService(Service):
                 "brand_name": company.name,
                 "status": status,
                 "contact_email": company.contact_email or "",
+                "tax_id": (company.voen or "").strip(),
             },
         )
         PartyRole.objects.get_or_create(

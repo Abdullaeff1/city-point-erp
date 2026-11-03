@@ -1,6 +1,11 @@
+from decimal import Decimal
+
+from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
+from django.utils.translation import gettext_lazy as _
 
 
 class CompanyStatus(models.TextChoices):
@@ -17,14 +22,120 @@ class ResidentCompany(models.Model):
         default=False,
         help_text="Operator-only şirkət — rezident siyahısına düşmür",
     )
-    contact_email = models.EmailField(blank=True)
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="archived_resident_companies",
+    )
+
+    # Legal / registration
+    voen = models.CharField(max_length=32, blank=True, verbose_name=_("VÖEN"))
+    legal_form = models.CharField(
+        max_length=64, blank=True, verbose_name=_("Hüquqi forma")
+    )
+    charter_capital = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name=_("Nizamnamə kapitalı (AZN)"),
+    )
+    justice_registration_no = models.CharField(
+        max_length=64, blank=True, verbose_name=_("Ədliyyə qeydiyyat №")
+    )
+    justice_registration_date = models.DateField(
+        null=True, blank=True, verbose_name=_("Ədliyyə qeydiyyat tarixi")
+    )
+    registry_extract_ref = models.CharField(
+        max_length=128,
+        blank=True,
+        verbose_name=_("Reyestrdən çıxarış"),
+        help_text=_("Reyestr çıxarışı nömrəsi / istinad (sənəd tipi: Reyestrdən çıxarış)"),
+    )
+    legal_address = models.CharField(max_length=255, blank=True, verbose_name=_("Hüquqi ünvan"))
+    actual_address = models.CharField(max_length=255, blank=True, verbose_name=_("Faktiki ünvan"))
+
+    # Contacts
+    contact_email = models.EmailField(blank=True, verbose_name=_("Əsas email"))
+    billing_email = models.EmailField(blank=True, verbose_name=_("Faktura email"))
+    phone = models.CharField(max_length=64, blank=True, verbose_name=_("Telefon"))
+    website = models.URLField(blank=True, verbose_name=_("Veb-sayt"))
+    manager_name = models.CharField(max_length=160, blank=True, verbose_name=_("Direktor / rəhbər"))
+    manager_position = models.CharField(max_length=120, blank=True, verbose_name=_("Rəhbər vəzifəsi"))
+    manager_phone = models.CharField(max_length=64, blank=True, verbose_name=_("Rəhbər telefon"))
+    manager_email = models.EmailField(blank=True, verbose_name=_("Rəhbər email"))
+    contact_person_name = models.CharField(max_length=160, blank=True, verbose_name=_("Əlaqəli şəxs"))
+    contact_person_phone = models.CharField(max_length=64, blank=True, verbose_name=_("Əlaqə telefon"))
+    contact_person_email = models.EmailField(blank=True, verbose_name=_("Əlaqə email"))
+
+    # Bank (single primary account)
+    bank_name = models.CharField(max_length=160, blank=True, verbose_name=_("Bank adı"))
+    bank_voen = models.CharField(max_length=32, blank=True, verbose_name=_("Bank VÖEN"))
+    bank_code = models.CharField(max_length=32, blank=True, verbose_name=_("Bank kodu"))
+    swift_bic = models.CharField(max_length=32, blank=True, verbose_name=_("SWIFT/BIC"))
+    iban = models.CharField(max_length=64, blank=True, verbose_name=_("IBAN"))
+    account_number = models.CharField(max_length=64, blank=True, verbose_name=_("Hesab nömrəsi"))
+    correspondent_account = models.CharField(
+        max_length=64, blank=True, verbose_name=_("Müxbir hesab")
+    )
+    bank_branch = models.CharField(max_length=160, blank=True, verbose_name=_("Bank filialı"))
+    bank_currency = models.CharField(
+        max_length=8, blank=True, default="AZN", verbose_name=_("Hesab valyutası")
+    )
+
     contract_start = models.DateField(null=True, blank=True)
     contract_end = models.DateField(null=True, blank=True)
 
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_resident_companies",
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="updated_resident_companies",
+    )
+
+    class Meta:
+        verbose_name = _("Rezident şirkət")
+        verbose_name_plural = _("Rezident şirkətlər")
+
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)
+            self.slug = slugify(self.name) or f"company-{timezone.now().timestamp():.0f}"
         super().save(*args, **kwargs)
+
+    def clean(self):
+        super().clean()
+        voen = (self.voen or "").strip()
+        if voen and (not voen.isdigit() or len(voen) != 10):
+            raise ValidationError({"voen": _("VÖEN 10 rəqəmdən ibarət olmalıdır.")})
+        bank_voen = (self.bank_voen or "").strip()
+        if bank_voen and (not bank_voen.isdigit() or len(bank_voen) != 10):
+            raise ValidationError({"bank_voen": _("Bank VÖEN 10 rəqəmdən ibarət olmalıdır.")})
+        if self.charter_capital is not None and self.charter_capital < Decimal("0"):
+            raise ValidationError({"charter_capital": _("Nizamnamə kapitalı mənfi ola bilməz.")})
+        if self.contract_start and self.contract_end and self.contract_start > self.contract_end:
+            raise ValidationError({"contract_end": _("Bitmə tarixi başlanğıcdan əvvəl ola bilməz.")})
+        if self.is_archived and self.portal_active:
+            raise ValidationError(
+                {"portal_active": _("Arxivdə olan şirkətin portalı aktiv ola bilməz.")}
+            )
+
+    @property
+    def display_address(self) -> str:
+        return (self.actual_address or "").strip() or (self.legal_address or "").strip()
 
     def __str__(self):
         return self.name
@@ -133,9 +244,20 @@ class AccessEvent(models.Model):
         db_index=True,
     )
     occurred_at = models.DateTimeField()
-    # Denormalized archive fields (filled at sync time)
+    # Denormalized archive fields (filled at sync time — punch anındakı vəziyyət)
     employee_name = models.CharField(max_length=160, blank=True)
-    card_number = models.CharField(max_length=32, blank=True)
+    card_number = models.CharField(max_length=32, blank=True, db_index=True)
+    company_id = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="Punch anında şirkət id (snapshot)",
+    )
+    company_name = models.CharField(
+        max_length=160,
+        blank=True,
+        help_text="Punch anında şirkət adı (snapshot)",
+    )
     axtrax_employee_id = models.PositiveIntegerField(null=True, blank=True, db_index=True)
     reader_id = models.PositiveIntegerField(null=True, blank=True, db_index=True)
     reader_name = models.CharField(

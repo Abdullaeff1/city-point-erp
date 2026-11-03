@@ -304,6 +304,17 @@ def _find_unlinked_employee_by_name(company: ResidentCompany, full_name: str):
     return None
 
 
+def _find_employee_by_name_in_company(company: ResidentCompany, full_name: str):
+    """Any same-name row in the company (used when AxTrax reassigned emp ids)."""
+    target = _normalize_person_name(full_name)
+    if not target:
+        return None
+    for emp in ResidentEmployee.objects.filter(company=company).order_by("-is_active", "pk"):
+        if _normalize_person_name(emp.full_name) == target:
+            return emp
+    return None
+
+
 def _reclaim_card_number(owner: ResidentEmployee, badge: str, stats: dict) -> None:
     """Ensure only ``owner`` holds this printed badge in ERP."""
     badge = normalize_identification(badge)
@@ -395,6 +406,18 @@ def _sync_people_payload(payload: dict) -> dict:
 
             now_active = bool(emp["is_enabled"])
 
+            if employee and _normalize_person_name(employee.full_name) != _normalize_person_name(
+                full_name
+            ):
+                # AxTrax reused this emp id for a different person — do not rename
+                # the old ResidentEmployee (that would glue two people's access history).
+                if employee.card_number:
+                    employee.card_number = ""
+                    employee.save(update_fields=["card_number"])
+                    stats["cards_cleared_identity_split"] += 1
+                stats["identity_splits"] += 1
+                employee = None
+
             if employee:
                 employee.company = company
                 employee.full_name = full_name
@@ -416,7 +439,9 @@ def _sync_people_payload(payload: dict) -> dict:
                 employee.save()
                 stats["employees_updated"] += 1
             else:
-                employee = _find_unlinked_employee_by_name(company, full_name)
+                employee = _find_unlinked_employee_by_name(
+                    company, full_name
+                ) or _find_employee_by_name_in_company(company, full_name)
                 if employee:
                     employee.company = company
                     employee.full_name = full_name
