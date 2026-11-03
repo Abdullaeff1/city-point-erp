@@ -1,0 +1,21 @@
+{
+  "id": "F12_Ofis_01",
+  "floor": "F12",
+  "floor_title": "12-ci mərtəbə",
+  "source_label": "",
+  "resident_name": null,
+  "source_contour": "FULL",
+  "contour_area_m2": 1099.985,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Ofis sərhədi mənbədəki konturlardan seçilib; təsdiq tələb olunur.",
+    "Göstərilən sahə çertyoj konturundan hesablanıb."
+  ],
+  "dxf_file": "F12_Ofis_01.dxf",
+  "preview_file": "F12_Ofis_01.png",
+  "audit_errors": 0,
+  "entities": 582
+}

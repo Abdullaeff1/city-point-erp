@@ -1,0 +1,20 @@
+{
+  "id": "F08_Ofis_04",
+  "floor": "F08",
+  "floor_title": "8-ci mərtəbə",
+  "source_label": "",
+  "resident_name": null,
+  "source_contour": "1703",
+  "contour_area_m2": 225.572,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Göstərilən sahə çertyoj konturundan hesablanıb."
+  ],
+  "dxf_file": "F08_Ofis_04.dxf",
+  "preview_file": "F08_Ofis_04.png",
+  "audit_errors": 0,
+  "entities": 186
+}

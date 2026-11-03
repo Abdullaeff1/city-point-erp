@@ -1,0 +1,7 @@
+City Point - ofislər üzrə CAD paketi
+Hər qovluqda DXF, PNG və JSON var. INDEX.html faylından başlayın.
+Fayllar sakinlərə uyğunlaşdırma və sərhəd yoxlaması üçündür. JSON-da review_required statusu saxlanılıb.
+DWG-lər hazırlanmayıb. ODA File Converter: Input bu qovluq, Recurse folders aktiv, filter *.DXF, output ayrı qovluq, 2018 DWG.
+Mənbədəki şirkət adları köhnə ola bilər. 6-cı mərtəbə Ofis 1-in açıq konturu ayrıca təsdiq tələb edir.
+U01/U02 mərtəbə nömrələrini təsdiq edin. 12-ci mərtəbə bütöv bir ofis faylıdır.
+Dəyişməyən ofis/sahə kodunu sistemdə saxlayın, rezidenti ayrıca əlaqələndirin.

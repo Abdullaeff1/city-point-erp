@@ -1,0 +1,22 @@
+{
+  "id": "F05_Ofis_01",
+  "floor": "F05",
+  "floor_title": "5-ci mərtəbə",
+  "source_label": "",
+  "resident_name": null,
+  "source_contour": "B881",
+  "contour_area_m2": 579.492,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Kontur həndəsi düzəliş tələb edib.",
+    "Açıq konturun ucları birləşdirilib: 10.0 mm. Sərhəd təsdiqi lazımdır.",
+    "Göstərilən sahə çertyoj konturundan hesablanıb."
+  ],
+  "dxf_file": "F05_Ofis_01.dxf",
+  "preview_file": "F05_Ofis_01.png",
+  "audit_errors": 0,
+  "entities": 757
+}

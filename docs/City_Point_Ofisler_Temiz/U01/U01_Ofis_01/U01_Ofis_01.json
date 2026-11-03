@@ -1,0 +1,22 @@
+{
+  "id": "U01_Ofis_01",
+  "floor": "U01",
+  "floor_title": "Başlıqsız plan U01 (mərtəbə təsdiqlənməlidir)",
+  "source_label": "",
+  "resident_name": null,
+  "source_contour": "FULL",
+  "contour_area_m2": 1624.064,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Ofis sərhədi mənbədəki konturlardan seçilib; təsdiq tələb olunur.",
+    "Mərtəbə nömrəsi təsdiqlənməlidir.",
+    "Göstərilən sahə çertyoj konturundan hesablanıb."
+  ],
+  "dxf_file": "U01_Ofis_01.dxf",
+  "preview_file": "U01_Ofis_01.png",
+  "audit_errors": 0,
+  "entities": 3965
+}

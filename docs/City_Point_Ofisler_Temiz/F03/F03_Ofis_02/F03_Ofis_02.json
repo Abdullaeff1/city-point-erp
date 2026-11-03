@@ -1,0 +1,20 @@
+{
+  "id": "F03_Ofis_02",
+  "floor": "F03",
+  "floor_title": "3-cü mərtəbə",
+  "source_label": "",
+  "resident_name": null,
+  "source_contour": "B046",
+  "contour_area_m2": 79.187,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Göstərilən sahə çertyoj konturundan hesablanıb."
+  ],
+  "dxf_file": "F03_Ofis_02.dxf",
+  "preview_file": "F03_Ofis_02.png",
+  "audit_errors": 0,
+  "entities": 138
+}

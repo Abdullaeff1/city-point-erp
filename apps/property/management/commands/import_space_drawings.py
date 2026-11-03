@@ -16,9 +16,9 @@ from apps.property.models import Space, SpaceDrawing, SpaceDrawingKind
 DEFAULT_ROOT = Path(settings.BASE_DIR) / "docs" / "City_Point_Ofisler_DXF_PNG"
 
 
-def load_mapping(path: Path) -> dict[str, str]:
-    """CSV columns: package_id,space_code"""
-    mapping: dict[str, str] = {}
+def load_mapping(path: Path) -> dict[str, list[str]]:
+    """CSV columns: package_id,space_code (same package may map to multiple spaces)."""
+    mapping: dict[str, list[str]] = {}
     with path.open(encoding="utf-8-sig", newline="") as fh:
         reader = csv.DictReader(fh)
         if not reader.fieldnames or "package_id" not in reader.fieldnames or "space_code" not in reader.fieldnames:
@@ -27,7 +27,9 @@ def load_mapping(path: Path) -> dict[str, str]:
             pid = (row.get("package_id") or "").strip()
             code = (row.get("space_code") or "").strip()
             if pid and code:
-                mapping[pid] = code
+                mapping.setdefault(pid, [])
+                if code not in mapping[pid]:
+                    mapping[pid].append(code)
     return mapping
 
 
@@ -55,6 +57,11 @@ class Command(BaseCommand):
             action="store_true",
             help="Replace existing drawings with same package_id+kind for the space",
         )
+        parser.add_argument(
+            "--purge-mapped-spaces",
+            action="store_true",
+            help="Delete ALL existing drawings on mapped spaces before import (full replace)",
+        )
 
     def handle(self, *args, **options):
         root = Path(options["root"])
@@ -69,9 +76,38 @@ class Command(BaseCommand):
         mapping = load_mapping(map_path)
         dry = options["dry_run"]
         replace = options["replace"]
+        purge = options["purge_mapped_spaces"]
 
-        stats = {"imported": 0, "skipped_no_map": 0, "skipped_no_space": 0, "skipped_missing_file": 0, "errors": 0}
+        stats = {
+            "imported": 0,
+            "purged": 0,
+            "skipped_no_map": 0,
+            "skipped_no_space": 0,
+            "skipped_missing_file": 0,
+            "errors": 0,
+        }
         skipped: list[str] = []
+
+        if purge:
+            space_codes = sorted({c for codes in mapping.values() for c in codes})
+            qs = SpaceDrawing.objects.filter(space__code__in=space_codes)
+            n = qs.count()
+            if dry:
+                stats["purged"] = n
+                self.stdout.write(f"DRY purge {n} drawings on {len(space_codes)} mapped spaces")
+            else:
+                # Delete files via model.delete when possible
+                for drawing in qs.iterator(chunk_size=50):
+                    try:
+                        if drawing.file:
+                            drawing.file.delete(save=False)
+                        if drawing.svg_file:
+                            drawing.svg_file.delete(save=False)
+                    except Exception:  # noqa: BLE001
+                        pass
+                    drawing.delete()
+                stats["purged"] = n
+                self.stdout.write(self.style.WARNING(f"Purged {n} old drawings on mapped spaces"))
 
         for json_path in sorted(root.rglob("*.json")):
             if json_path.name in {"office_register.json"} or "map" in json_path.name:
@@ -85,15 +121,10 @@ class Command(BaseCommand):
             if not isinstance(meta, dict):
                 continue
             package_id = (meta.get("id") or json_path.stem).strip()
-            space_code = mapping.get(package_id)
-            if not space_code:
+            space_codes = mapping.get(package_id) or []
+            if not space_codes:
                 stats["skipped_no_map"] += 1
                 skipped.append(package_id)
-                continue
-            space = Space.objects.filter(code=space_code).first()
-            if not space:
-                stats["skipped_no_space"] += 1
-                skipped.append(f"{package_id}->{space_code} (space yox)")
                 continue
 
             office_dir = json_path.parent
@@ -112,35 +143,42 @@ class Command(BaseCommand):
             for pdf in office_dir.glob("*.pdf"):
                 pairs.append((SpaceDrawingKind.TECHNICAL_PLAN, pdf))
 
-            for kind, fpath in pairs:
-                if dry:
-                    self.stdout.write(f"DRY {package_id} -> {space_code} [{kind}] {fpath.name}")
-                    stats["imported"] += 1
+            for space_code in space_codes:
+                space = Space.objects.filter(code=space_code).first()
+                if not space:
+                    stats["skipped_no_space"] += 1
+                    skipped.append(f"{package_id}->{space_code} (space yox)")
                     continue
-                if replace:
-                    SpaceDrawing.objects.filter(
-                        space=space, kind=kind, package_id=package_id
-                    ).delete()
-                elif SpaceDrawing.objects.filter(space=space, kind=kind, package_id=package_id).exists():
-                    self.stdout.write(f"skip existing {package_id} {kind}")
-                    continue
-                try:
-                    with fpath.open("rb") as fh:
-                        create_space_drawing(
-                            space=space,
-                            uploaded_file=File(fh, name=fpath.name),
-                            kind=kind,
-                            package_id=package_id,
-                            build_svg=(kind == SpaceDrawingKind.DXF),
-                        )
-                    stats["imported"] += 1
-                    self.stdout.write(self.style.SUCCESS(f"OK {package_id} -> {space_code} {fpath.name}"))
-                except Exception as exc:  # noqa: BLE001
-                    stats["errors"] += 1
-                    self.stderr.write(f"ERR {package_id} {fpath.name}: {exc}")
+
+                for kind, fpath in pairs:
+                    if dry:
+                        self.stdout.write(f"DRY {package_id} -> {space_code} [{kind}] {fpath.name}")
+                        stats["imported"] += 1
+                        continue
+                    if replace:
+                        SpaceDrawing.objects.filter(
+                            space=space, kind=kind, package_id=package_id
+                        ).delete()
+                    elif SpaceDrawing.objects.filter(space=space, kind=kind, package_id=package_id).exists():
+                        self.stdout.write(f"skip existing {package_id} {kind} {space_code}")
+                        continue
+                    try:
+                        with fpath.open("rb") as fh:
+                            create_space_drawing(
+                                space=space,
+                                uploaded_file=File(fh, name=fpath.name),
+                                kind=kind,
+                                package_id=package_id,
+                                build_svg=(kind == SpaceDrawingKind.DXF),
+                            )
+                        stats["imported"] += 1
+                        self.stdout.write(self.style.SUCCESS(f"OK {package_id} -> {space_code} {fpath.name}"))
+                    except Exception as exc:  # noqa: BLE001
+                        stats["errors"] += 1
+                        self.stderr.write(f"ERR {package_id} {space_code} {fpath.name}: {exc}")
 
         self.stdout.write(
-            f"imported={stats['imported']} no_map={stats['skipped_no_map']} "
+            f"imported={stats['imported']} purged={stats['purged']} no_map={stats['skipped_no_map']} "
             f"no_space={stats['skipped_no_space']} missing_file={stats['skipped_missing_file']} "
             f"errors={stats['errors']}"
         )

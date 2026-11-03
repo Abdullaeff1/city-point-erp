@@ -1,0 +1,20 @@
+{
+  "id": "F04_Ofis_05",
+  "floor": "F04",
+  "floor_title": "4-cü mərtəbə",
+  "source_label": "",
+  "resident_name": null,
+  "source_contour": "B0AF",
+  "contour_area_m2": 158.908,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Göstərilən sahə çertyoj konturundan hesablanıb."
+  ],
+  "dxf_file": "F04_Ofis_05.dxf",
+  "preview_file": "F04_Ofis_05.png",
+  "audit_errors": 0,
+  "entities": 185
+}

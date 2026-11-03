@@ -1,0 +1,20 @@
+{
+  "id": "F01_Ofis_02",
+  "floor": "F01",
+  "floor_title": "1-ci mərtəbə",
+  "source_label": "",
+  "resident_name": null,
+  "source_contour": "DB45",
+  "contour_area_m2": 552.761,
+  "units": "mm",
+  "coordinates": "original",
+  "boundary_confirmed": false,
+  "status": "review_required",
+  "notes": [
+    "Göstərilən sahə çertyoj konturundan hesablanıb."
+  ],
+  "dxf_file": "F01_Ofis_02.dxf",
+  "preview_file": "F01_Ofis_02.png",
+  "audit_errors": 0,
+  "entities": 260
+}
