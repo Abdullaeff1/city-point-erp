@@ -1,7 +1,8 @@
-# Yeniləmə: Sahələr + ofis planları (NetAdmin / SysAdmin)
+# Yeniləmə: Sahələr + Temiz ofis planları (NetAdmin / SysAdmin)
 
-Bu paketdə çoxşirkətli portal, sahə CRUD və DXF/texniki plan axını var.
-Kod açıldıqdan sonra **mütləq** aşağıdakıları işlədin ki, server lokal ilə eyni işləsin.
+Bu paketdə təmizlənmiş ofis CAD paketi (`docs/City_Point_Ofisler_Temiz/`) və
+`import_space_drawings` əmri var. Kod açıldıqdan sonra **mütləq** aşağıdakıları
+işlədin ki, server lokal ilə eyni sahə/plan vəziyyətində olsun.
 
 ## 1. Kod + migrate
 
@@ -14,42 +15,69 @@ python manage.py collectstatic --noinput
 sudo systemctl restart citypoint   # və ya gunicorn/nginx unit adınız
 ```
 
-Yeni miqrasiyalar:
+## 2. F03 birləşmiş boş sahə (CP-L061)
 
-- `accounts.0005_portalcompanymembership` + `0006_backfill_portal_memberships`
-- `property.0007_space_drawings`
+Temiz-də F03 Ofis 05+06 bir sahə kimi qəbul olunur. Lokalda `CP-L061` (107.7 m², Boş)
+yaradılıb. Serverdə yoxdursa bir dəfə yaradın:
 
-## 2. Ofis planlarını DB-yə yükləyin (bir dəfə / yeniləmədə)
+```bash
+cd /opt/citypoint
+python manage.py shell <<'PY'
+from decimal import Decimal
+from apps.property.models import Floor, Space, Occupancy, CommercialStatus, OperationalStatus
+f03 = Floor.objects.get(code="F03")
+space, created = Space.objects.get_or_create(
+    code="CP-L061",
+    defaults={
+        "name": "Boş",
+        "floor": f03,
+        "area_m2": Decimal("107.7"),
+        "rentable_area_m2": Decimal("107.70"),
+        "occupancy": Occupancy.VACANT,
+        "commercial_status": CommercialStatus.VACANT,
+        "operational_status": OperationalStatus.AVAILABLE,
+    },
+)
+print("created" if created else "exists", space.code, space.area_m2)
+PY
+```
 
-Paketdə mənbə fayllar: `docs/City_Point_Ofisler_DXF_PNG/`  
-Mapping: `docs/City_Point_Ofisler_DXF_PNG/space_drawing_map.csv`
+## 3. Ofis planlarını DB-yə yükləyin (köhnələri silib yenilə)
+
+Mənbə: `docs/City_Point_Ofisler_Temiz/`  
+Mapping: `docs/City_Point_Ofisler_Temiz/space_drawing_map.csv`
 
 ```bash
 cd /opt/citypoint
 python manage.py import_space_drawings \
-  --map docs/City_Point_Ofisler_DXF_PNG/space_drawing_map.csv \
+  --root docs/City_Point_Ofisler_Temiz \
+  --map docs/City_Point_Ofisler_Temiz/space_drawing_map.csv \
+  --purge-mapped-spaces \
   --replace
 ```
 
-Gözlənilən nəticə (təxminən): ~46 ofis × (DXF + PNG) = ~92 `SpaceDrawing`.
+Gözlənilən nəticə (təxminən):
 
-Mapsız qalan paketlər (U01/U02, bəzi kiçik konturlar) skip olunur — normaldır.
+- ~52 paket × (DXF + PNG) → mapped sahələrdə ~106 `SpaceDrawing`
+- U01 → F11 `CP-L056`, U02 → F13 `CP-L058` + `CP-L059`
+- F12 → `CP-L057` (Bakı Fond Birjası)
+- F09 Ofis 02 → Baker Tilly `CP-L051` (Ofis 03 ilə birlikdə)
+- F03 Ofis 05+06 → `CP-L061`
 
-Mapping-i yenidən qurmaq lazımdırsa (sahə kodları dəyişibsə):
+`--purge-mapped-spaces` yalnız CSV-dəki sahələrdəki köhnə rəsmləri silir, sonra
+Temiz fayllarını yenidən yazır.
 
-```bash
-python scripts/build_space_drawing_map.py
-python manage.py import_space_drawings --map docs/City_Point_Ofisler_DXF_PNG/space_drawing_map.csv --replace
-```
+## 4. Yoxlama
 
-## 3. Yoxlama
+- ERP → Əmlak: F03-də `CP-L061` Boş görünür
+- F11 / F12 / F13 sahələrində DXF + PNG var
+- Baker Tilly (`CP-L051`): F09_Ofis_02 + F09_Ofis_03
+- Digər mapped ofislərdə Temiz PNG/DXF
 
-- ERP → Əmlak: mərtəbə/sahə siyahısı, **Sahə əlavə et**, düzəliş/silmə
-- ERP → sahə kartı → DWG / Texniki plan tabları (Admin, Rəhbərlik, Property/FM)
-- Portal → sahə → DWG / Texniki plan → icazə sorğusu → təsdiq → yükləmə (72 saat)
+## 5. Qeyd
 
-## 4. Qeyd
-
-- Plan faylları `media/` altında private storage-dadır (`media/` zip-ə daxil edilmir).
-- Import əmri faylları DB + media-ya yazır; migrate təkcə cədvəl yaradır.
+- Plan faylları `var/private_media/` altındadır (zip-ə daxil edilmir).
+- Import əmri faylları DB + private media-ya yazır.
 - `.env` secret-ləri zip-də yoxdur — serverdəki mövcud `.env`-i saxlayın.
+- Köhnə `docs/City_Point_Ofisler_DXF_PNG/` mənbə olaraq qala bilər; aktiv import
+  yolu Temiz qovluğudur.
