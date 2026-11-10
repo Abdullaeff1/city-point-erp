@@ -2,6 +2,10 @@
 
 City Point ERP follows the **Final Master Implementation Plan** (Phases 0–13).
 
+## Target-state technical plan (all modules)
+
+**[CityPoint_Tam_Texniki_Plan.md](./CityPoint_Tam_Texniki_Plan.md)** — tam hədəf texniki plan: bütün modullar, arxitektura, NFR, deploy, risklər, **xərclər** (CAPEX/OPEX).
+
 ## Phase 0 audit (current)
 
 Start here: **[phase0-README.md](./phase0-README.md)** — ten audit artifacts, preserve/extend/migrate decisions, next = Phase 1.
@@ -10,6 +14,7 @@ Start here: **[phase0-README.md](./phase0-README.md)** — ten audit artifacts, 
 
 | Doc | Purpose |
 |-----|---------|
+| [CityPoint_Tam_Texniki_Plan.md](./CityPoint_Tam_Texniki_Plan.md) | Tam bitmiş sistem texniki planı + xərc |
 | [phase0-README.md](./phase0-README.md) | Phase 0 audit index + decisions |
 | [phase2-erp-core.md](./phase2-erp-core.md) | Phase 2 ERP Core deliverables |
 | [legacy-mapping.md](./legacy-mapping.md) | Current MVP models ↔ target domain mapping |

@@ -107,6 +107,49 @@ class SecurityPortalTests(TestCase):
         self.assertTrue(data["results"][0]["granted"])
         self.assertEqual(data["results"][0]["result_label"], "Uğurlu")
 
+    def test_events_journal_by_date(self):
+        from datetime import datetime, time as dtime, timedelta
+
+        from apps.residents.models import AccessEvent, AccessEventType, AccessResult
+
+        emp = ResidentEmployee.objects.create(
+            company=self.company,
+            full_name="Journal Person",
+            card_number="7777",
+            is_active=True,
+        )
+        today = timezone.localdate()
+        yesterday = today - timedelta(days=1)
+        AccessEvent.objects.create(
+            employee=emp,
+            event_type=AccessEventType.OUT,
+            result=AccessResult.GRANTED,
+            occurred_at=timezone.make_aware(datetime.combine(yesterday, dtime(18, 30))),
+            employee_name=emp.full_name,
+            card_number=emp.card_number,
+            reader_name="GateOUT",
+        )
+        AccessEvent.objects.create(
+            employee=emp,
+            event_type=AccessEventType.IN,
+            result=AccessResult.GRANTED,
+            occurred_at=timezone.now(),
+            employee_name=emp.full_name,
+            card_number=emp.card_number,
+            reader_name="GateIN",
+        )
+        self.client.force_login(self.security)
+        resp = self.client.get(
+            reverse("security:events"),
+            {"date": yesterday.isoformat(), "type": "out"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Journal Person")
+        self.assertContains(resp, "GateOUT")
+        self.assertEqual(resp.context["event_total"], 1)
+        self.assertEqual(resp.context["out_count"], 1)
+        self.assertFalse(resp.context["is_today"])
+
     def test_resident_blocked_from_security(self):
         self.client.force_login(self.resident)
         resp = self.client.get(reverse("security:home"))

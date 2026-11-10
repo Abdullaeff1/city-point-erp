@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>City Point ERP — Biznes mərkəzi idarəetmə platforması</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --navy: #123B68;
+      --deep: #0C2745;
+      --soft: #EAF2F8;
+      --bg: #F6F8FA;
+      --white: #FFFFFF;
+      --ink: #1A2332;
+      --muted: #5A6B7D;
+      --line: #D7E0EA;
+      --accent: #2A6FAF;
+      --ok: #1F7A4D;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "DM Sans", system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.55;
+    }
+    img { max-width: 100%; height: auto; display: block; }
+    a { color: var(--accent); }
+
+    .hero {
+      min-height: 92vh;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      background: var(--deep);
+      color: white;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-visual {
+      background:
+        linear-gradient(105deg, rgba(12,39,69,.72), rgba(18,59,104,.45)),
+        url("screenshots/01-login.png") center / cover no-repeat;
+      min-height: 420px;
+    }
+    .hero-copy {
+      padding: clamp(2.5rem, 5vw, 5rem);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 1.25rem;
+    }
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+    }
+    .brand-row img {
+      width: 52px;
+      height: 52px;
+      object-fit: contain;
+      background: rgba(255,255,255,.08);
+      border-radius: 10px;
+      padding: 6px;
+    }
+    .eyebrow {
+      font-size: 0.78rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.7);
+      margin: 0;
+    }
+    .hero h1 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-weight: 400;
+      font-size: clamp(2.4rem, 4.5vw, 3.6rem);
+      line-height: 1.12;
+      margin: 0;
+      max-width: 14ch;
+    }
+    .hero p.lead {
+      margin: 0;
+      font-size: 1.08rem;
+      color: rgba(255,255,255,.86);
+      max-width: 36ch;
+    }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.5rem; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.85rem 1.25rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      border: 1px solid transparent;
+    }
+    .btn-primary { background: white; color: var(--deep); }
+    .btn-ghost { background: transparent; color: white; border-color: rgba(255,255,255,.35); }
+
+    .wrap {
+      width: min(1120px, calc(100% - 2.5rem));
+      margin: 0 auto;
+    }
+    section { padding: clamp(3rem, 6vw, 5rem) 0; }
+    section.alt { background: white; }
+    .section-kicker {
+      font-size: 0.75rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 600;
+      margin: 0 0 0.6rem;
+    }
+    h2 {
+      font-family: "Instrument Serif", Georgia, serif;
+      font-weight: 400;
+      font-size: clamp(1.9rem, 3vw, 2.5rem);
+      margin: 0 0 0.75rem;
+      color: var(--deep);
+      max-width: 22ch;
+    }
+    .section-lead {
+      margin: 0 0 2rem;
+      color: var(--muted);
+      max-width: 58ch;
+      font-size: 1.05rem;
+    }
+
+    .shot {
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      box-shadow: 0 18px 50px rgba(12, 39, 69, 0.12);
+      background: #111;
+    }
+    .shot img { width: 100%; }
+    .shot-caption {
+      margin-top: 0.7rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: clamp(1.5rem, 3vw, 2.5rem);
+      align-items: center;
+    }
+    .grid-2.flip > :first-child { order: 2; }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.1rem;
+    }
+    .card {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1.25rem 1.3rem;
+    }
+    .card h3 {
+      margin: 0 0 0.45rem;
+      font-size: 1.05rem;
+      color: var(--navy);
+    }
+    .card p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+    .card .tag {
+      display: inline-block;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.55rem;
+      font-weight: 600;
+    }
+
+    .module-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.85rem 1.5rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .module-list li {
+      padding: 0.85rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .module-list strong {
+      display: block;
+      color: var(--deep);
+      margin-bottom: 0.2rem;
+    }
+    .module-list span { color: var(--muted); font-size: 0.92rem; }
+
+    .pill-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.25rem; }
+    .pill {
+      background: var(--soft);
+      color: var(--navy);
+      border-radius: 999px;
+      padding: 0.35rem 0.8rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.75rem;
+      counter-reset: step;
+    }
+    .flow-item {
+      background: var(--soft);
+      border-radius: 12px;
+      padding: 1rem;
+      position: relative;
+    }
+    .flow-item::before {
+      counter-increment: step;
+      content: counter(step);
+      display: inline-flex;
+      width: 1.6rem;
+      height: 1.6rem;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: var(--navy);
+      color: white;
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 0.55rem;
+    }
+    .flow-item strong { display: block; margin-bottom: 0.25rem; color: var(--deep); }
+    .flow-item span { color: var(--muted); font-size: 0.9rem; }
+
+    .compare {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+    .compare th, .compare td {
+      text-align: left;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      font-size: 0.95rem;
+    }
+    .compare th { background: var(--deep); color: white; font-weight: 600; }
+    .compare tr:last-child td { border-bottom: 0; }
+    .check { color: var(--ok); font-weight: 700; }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+
+    .footer-cta {
+      background:
+        linear-gradient(120deg, rgba(12,39,69,.92), rgba(18,59,104,.85)),
+        url("screenshots/01-login.png") center / cover no-repeat;
+      color: white;
+      border-radius: 18px;
+      padding: clamp(2rem, 4vw, 3.2rem);
+    }
+    .footer-cta h2 { color: white; max-width: 18ch; }
+    .footer-cta p { color: rgba(255,255,255,.85); max-width: 48ch; }
+    footer.meta {
+      padding: 2rem 0 3rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; min-height: auto; }
+      .hero-visual { min-height: 280px; order: -1; }
+      .grid-2, .grid-2.flip, .grid-3, .gallery, .flow, .module-list {
+        grid-template-columns: 1fr;
+      }
+      .grid-2.flip > :first-child { order: 0; }
+    }
+
+    @media print {
+      .hero { min-height: auto; page-break-after: always; }
+      section { page-break-inside: avoid; }
+      .btn { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-visual" aria-hidden="true"></div>
+    <div class="hero-copy">
+      <div class="brand-row">
+        <img src="city-point-logo.png" alt="City Point" />
+        <p class="eyebrow">City Point ERP</p>
+      </div>
+      <h1>Biznes mərkəzini bir platformadan idarə edin</h1>
+      <p class="lead">
+        Rezident portal, staff ERP, təhlükəsizlik və qəbul — eyni məlumat bazasında.
+        Turniket inteqrasiyası, ticket, əmlak planları, CRM, anbar və maliyyə.
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#modullar">Funksionallığa bax</a>
+        <a class="btn btn-ghost" href="#ekranlar">Canlı ekranlar</a>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <div class="wrap">
+      <p class="section-kicker">Məhsul</p>
+      <h2>Ayrı sistemlər əvəzinə vahid bina ERP</h2>
+      <p class="section-lead">
+        Excel, WhatsApp qrupları, ayrı qonaq jurnalları və turniket proqramı bir-birinə bağlı olmadıqda
+        məlumat itir, SLA pozulur, rəhbərlik real mənzərəni görmür. City Point ERP bu boşluğu bağlayır.
+      </p>
+      <div class="grid-3">
+        <article class="card">
+          <div class="tag">Portal</div>
+          <h3>Rezident özünəxidmət</h3>
+          <p>Müraciət, qonaq, sənəd və sahə planı — şirkət istifadəçisi brauzerdən.</p>
+        </article>
+        <article class="card">
+          <div class="tag">ERP</div>
+          <h3>Əməliyyat mərkəzi</h3>
+          <p>Qəbul, ticket, əmlak, rezident, CRM, FM, anbar, satınalma, hesablaşma.</p>
+        </article>
+        <article class="card">
+          <div class="tag">Security</div>
+          <h3>Canlı təhlükəsizlik</h3>
+          <p>AxTrax giriş/çıxış, binada olanlar, parkinq, kart xəbərdarlıqları.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt" id="ekranlar">
+    <div class="wrap">
+      <p class="section-kicker">İdarə paneli</p>
+      <h2>Bir baxışda bina əməliyyatı</h2>
+      <p class="section-lead">
+        Açıq müraciətlər, SLA riski, bugünkü qonaqlar, rezident sayı və AxTrax sinxron statusu —
+        rəhbərlik və ops eyni paneldə.
+      </p>
+      <div class="shot">
+        <img src="screenshots/02-erp-dashboard.png" alt="ERP idarə paneli" />
+      </div>
+      <p class="shot-caption">Staff ERP — idarə paneli (City Point canlı mühit)</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap grid-2">
+      <div>
+        <p class="section-kicker">Əmlak</p>
+        <h2>Mərtəbə və sahə inventarı</h2>
+        <p class="section-lead">
+          15 mərtəbə, onlarla ofis sahəsi, doluluq və rezident əlaqəsi. Sahə əlavə/düzəliş,
+          DXF və texniki plan yükləmə, rezidentə plan icazəsi.
+        </p>
+        <ul class="module-list" style="grid-template-columns:1fr">
+          <li>
+            <strong>Sahə kartı</strong>
+            <span>Kod, m², status, rezident, avadanlıq və plan sənədləri.</span>
+          </li>
+          <li>
+            <strong>Texniki plan / DXF</strong>
+            <span>Temiz CAD paketi; portalda icazə ilə baxış.</span>
+          </li>
+        </ul>
+      </div>
+      <div>
+        <div class="shot">
+          <img src="screenshots/03-spaces.png" alt="Sahələr siyahısı" />
+        </div>
+        <p class="shot-caption">Əmlak → Sahələr</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="wrap grid-2 flip">
+      <div>
+        <p class="section-kicker">Təhlükəsizlik</p>
+        <h2>Turniket hadisələri canlı</h2>
+        <p class="section-lead">
+          AxTrax NG ilə LAN inteqrasiya: giriş/çıxış, oxuyucu, kart, şirkət.
+          Binada olanlar, parkinq, qonaq jurnalı və müraciətlər ayrı security portalında.
+        </p>
+        <div class="pill-row">
+          <span class="pill">AxTrax canli event</span>
+          <span class="pill">1290+ əməkdaş izi</span>
+          <span class="pill">Kart xəbərdarlıqları</span>
+        </div>
+      </div>
+      <div>
+        <div class="shot">
+          <img src="screenshots/15-security.png" alt="Təhlükəsizlik portalı" />
+        </div>
+        <p class="shot-caption">Security portal — AxTrax hadisələri</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="section-kicker">Portallar</p>
+      <h2>Hər rol öz iş səthi</h2>
+      <p class="section-lead">Eyni məlumat, fərqli ekranlar — qarışıqlıq və səhv hüquq yoxdur.</p>
+      <div class="gallery">
+        <figure>
+          <div class="shot"><img src="screenshots/16-portal.png" alt="Rezident portal" /></div>
+          <figcaption class="shot-caption">Rezident portal — şirkət özünəxidməti</figcaption>
+        </figure>
+        <figure>
+          <div class="shot"><img src="screenshots/06-reception.png" alt="Qəbul" /></div>
+          <figcaption class="shot-caption">ERP Qəbul — qonaq/vizit axını</figcaption>
+        </figure>
+        <figure>
+          <div class="shot"><img src="screenshots/05-tickets.png" alt="Ticketlər" /></div>
+          <figcaption class="shot-caption">Service Desk — ticket və SLA</figcaption>
+        </figure>
+        <figure>
+          <div class="shot"><img src="screenshots/14-space-detail.png" alt="Sahə kartı" /></div>
+          <figcaption class="shot-caption">Sahə kartı — plan və detallar</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt" id="modullar">
+    <div class="wrap">
+      <p class="section-kicker">Tam modul xəritəsi</p>
+      <h2>Nə satırıq — açıq siyahı</h2>
+      <p class="section-lead">
+        Aşağıdakılar məhsulun funksionallıq kataloqudur. Bəzi kommersiya modulları tətbiq dərinliyinə
+        görə mərhələli açılır; əsas əməliyyat (portal, ticket, qəbul, security, əmlak) istehsalda işləyir.
+      </p>
+      <ul class="module-list">
+        <li>
+          <strong>Rezident portal</strong>
+          <span>Müraciət, qonaq, elan, sənəd, sahə, plan icazəsi, çoxşirkətli membership.</span>
+        </li>
+        <li>
+          <strong>Staff ERP</strong>
+          <span>Dashboard, audit izi, bildirişlər, rol əsaslı menyu.</span>
+        </li>
+        <li>
+          <strong>Qəbul (Reception)</strong>
+          <span>Qonaq qeydiyyatı, status, export, qonaq siyahısı.</span>
+        </li>
+        <li>
+          <strong>Ticket / Service Desk</strong>
+          <span>Kateqoriya, routing, departament ACL, SLA, əlavələr.</span>
+        </li>
+        <li>
+          <strong>Təhlükəsizlik portalı</strong>
+          <span>AxTrax event, içəridə olanlar, parkinq, kart, planlar.</span>
+        </li>
+        <li>
+          <strong>Əmlak</strong>
+          <span>Mərtəbə/sahə CRUD, avadanlıq, inventar, DXF/PNG plan.</span>
+        </li>
+        <li>
+          <strong>Rezidentlər</strong>
+          <span>Şirkət profili, işçilər, sənədlər, arxiv, portal aktivliyi.</span>
+        </li>
+        <li>
+          <strong>CRM / Satış</strong>
+          <span>Lead → fürsət → təklif → icarə keçidi.</span>
+        </li>
+        <li>
+          <strong>İş sifarişləri (FM)</strong>
+          <span>Work order, status, texniki xidmət əlaqəsi.</span>
+        </li>
+        <li>
+          <strong>Anbar</strong>
+          <span>SKU, stok, hərəkət, low-stock siqnalı.</span>
+        </li>
+        <li>
+          <strong>Satınalma</strong>
+          <span>PR / PO / qəbul axını, təsdiq.</span>
+        </li>
+        <li>
+          <strong>Hesablaşma / Muhasibat</strong>
+          <span>Charge, invoice, ödəniş, jurnal əsasları.</span>
+        </li>
+        <li>
+          <strong>Hesabatlar</strong>
+          <span>KPI paneli, əməliyyat göstəriciləri.</span>
+        </li>
+        <li>
+          <strong>İnteqrasiyalar</strong>
+          <span>AxTrax RO, e-poçt/outbox, Outlook elan (opsional), API stub.</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="section-kicker">Kommersiya + təchizat</p>
+      <h2>CRM-dən anbara qədər ekranlar</h2>
+      <p class="section-lead">Satış hunisi və təchizat eyni ERP-də — ayrı Excel cədvəlləri lazım deyil.</p>
+      <div class="gallery">
+        <figure>
+          <div class="shot"><img src="screenshots/07-crm.png" alt="CRM leadlər" /></div>
+          <figcaption class="shot-caption">CRM — potensial müştərilər</figcaption>
+        </figure>
+        <figure>
+          <div class="shot"><img src="screenshots/08-work-orders.png" alt="İş sifarişləri" /></div>
+          <figcaption class="shot-caption">Facility — iş sifarişləri</figcaption>
+        </figure>
+        <figure>
+          <div class="shot"><img src="screenshots/09-warehouse.png" alt="Anbar" /></div>
+          <figcaption class="shot-caption">Anbar</figcaption>
+        </figure>
+        <figure>
+          <div class="shot"><img src="screenshots/10-procurement.png" alt="Satınalma" /></div>
+          <figcaption class="shot-caption">Satınalma</figcaption>
+        </figure>
+        <figure>
+          <div class="shot"><img src="screenshots/11-billing.png" alt="Billing" /></div>
+          <figcaption class="shot-caption">Hesablaşma</figcaption>
+        </figure>
+        <figure>
+          <div class="shot"><img src="screenshots/12-accounting.png" alt="Muhasibat" /></div>
+          <figcaption class="shot-caption">Muhasibatlıq</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="wrap">
+      <p class="section-kicker">Tipik axın</p>
+      <h2>Rezident müraciətindən həllə</h2>
+      <div class="flow" style="margin-top:1.5rem">
+        <div class="flow-item">
+          <strong>Portal</strong>
+          <span>Rezident kateqoriya seçib müraciət yaradır.</span>
+        </div>
+        <div class="flow-item">
+          <strong>Routing</strong>
+          <span>Sistem ticket-i doğru şöbəyə yönləndirir.</span>
+        </div>
+        <div class="flow-item">
+          <strong>İcra</strong>
+          <span>Service Desk / Security / FM status yeniləyir.</span>
+        </div>
+        <div class="flow-item">
+          <strong>Bağlanış</strong>
+          <span>SLA izlənilir; lazım olsa WO və anbar bağlıdır.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="section-kicker">Niyə biz</p>
+      <h2>Digər yanaşmalarla müqayisə</h2>
+      <table class="compare" style="margin-top:1.5rem">
+        <thead>
+          <tr>
+            <th>Mövzu</th>
+            <th>Excel + ayrı proqramlar</th>
+            <th>City Point ERP</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Qonaq + ticket + turniket</td>
+            <td>Ayrı fayllar, əl ilə uzlaşdırma</td>
+            <td class="check">Vahid DB, canlı AxTrax</td>
+          </tr>
+          <tr>
+            <td>Rezident özünəxidmət</td>
+            <td>Telefon / WhatsApp</td>
+            <td class="check">Portal + izləmə</td>
+          </tr>
+          <tr>
+            <td>Sahə planları</td>
+            <td>Paylaşılan qovluq</td>
+            <td class="check">ACL + private storage</td>
+          </tr>
+          <tr>
+            <td>Rol təhlükəsizliyi</td>
+            <td>Hamı eyni fayla baxır</td>
+            <td class="check">Portal / ERP / Security ayrımı</td>
+          </tr>
+          <tr>
+            <td>On-prem / LAN</td>
+            <td>Qarışıq</td>
+            <td class="check">Daxili server, air-gap uyğun</td>
+          </tr>
+          <tr>
+            <td>Dil</td>
+            <td>Çox vaxt yalnız EN</td>
+            <td class="check">AZ / EN / RU</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="alt">
+    <div class="wrap">
+      <p class="section-kicker">Texniki əsas</p>
+      <h2>Satış üçün qısa texniki kart</h2>
+      <div class="grid-3" style="margin-top:1.5rem">
+        <article class="card">
+          <h3>Yığın</h3>
+          <p>Django + PostgreSQL, Nginx/Gunicorn, AlmaLinux on-prem.</p>
+        </article>
+        <article class="card">
+          <h3>İnteqrasiya</h3>
+          <p>AxTrax MS SQL (LAN), e-poçt/outbox, opsional Outlook Graph.</p>
+        </article>
+        <article class="card">
+          <h3>Təhlükəsizlik</h3>
+          <p>Rol ACL, private media, audit izi, air-gapped iş rejimi.</p>
+        </article>
+      </div>
+      <div class="pill-row">
+        <span class="pill">Çoxdil</span>
+        <span class="pill">Invite / şifrə axını</span>
+        <span class="pill">NetAdmin yeniləmə zip</span>
+        <span class="pill">Backup / restore runbook</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="footer-cta">
+        <p class="eyebrow" style="color:rgba(255,255,255,.7)">Növbəti addım</p>
+        <h2>Demo və pilot təklifi</h2>
+        <p>
+          Canlı demo: ERP + Security + Portal. Pilot: 1–2 rezident şirkət, qəbul və ticket axını.
+          Tam modul yol xəritəsi və qiymətləndirmə ayrıca texniki planda.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="../architecture/CityPoint_Tam_Texniki_Plan.docx">Texniki plan (Word)</a>
+          <a class="btn btn-ghost" href="screenshots/01-login.png">Giriş ekranı</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="meta">
+    <div class="wrap">
+      City Point ERP — məhsul təqdimatı · ekranlar canlı sistemdən (2026-11) ·
+      <a href="CityPoint_ERP_Mehsul_Taqdimati.html">HTML</a> ·
+      şəkillər: <code>docs/product/screenshots/</code>
+      <br />
+      Qeyd: bu sənəd məhsul kataloqudur; bəzi maliyyə/təchizat ekranları mərhələli yetkinlikdədir.
+    </div>
+  </footer>
+</body>
+</html>

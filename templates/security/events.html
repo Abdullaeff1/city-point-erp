@@ -1,0 +1,122 @@
+{% extends "security/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Giriş / çıxış" %}{% endblock %}
+{% block back_trail %}
+ · {{ selected_date|date:"d.m.Y" }}
+ · <strong>{{ event_total }}</strong> {% translate "hadisə" %}
+ · {% translate "Giriş" %}: {{ in_count }} · {% translate "Çıxış" %}: {{ out_count }}
+{% endblock %}
+{% block content %}
+<div class="cp-card mb-4" style="padding:12px 20px;">
+  <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;margin:0;">
+    <label style="margin:0;">
+      <span class="cp-meta">{% translate "Tarix" %}</span>
+      <input class="cp-input mt-1" type="date" name="date" value="{{ selected_date|date:'Y-m-d' }}" required>
+    </label>
+    <label style="margin:0;min-width:140px;">
+      <span class="cp-meta">{% translate "Hadisə" %}</span>
+      <select class="cp-input mt-1" name="type">
+        <option value=""{% if not event_type %} selected{% endif %}>{% translate "Hamısı" %}</option>
+        <option value="in"{% if event_type == "in" %} selected{% endif %}>{% translate "Giriş" %}</option>
+        <option value="out"{% if event_type == "out" %} selected{% endif %}>{% translate "Çıxış" %}</option>
+      </select>
+    </label>
+    <label style="flex:1;min-width:200px;margin:0;">
+      <span class="cp-meta">{% translate "Axtarış" %}</span>
+      <input
+        class="cp-input mt-1"
+        type="search"
+        name="q"
+        value="{{ q }}"
+        placeholder="{% translate 'Ad, kart, şirkət və ya oxuyucu…' %}"
+        autocomplete="off"
+      >
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Göstər" %}</button>
+    {% if not is_today or q or event_type %}
+    <a class="cp-btn-ghost" href="{% url 'security:events' %}?date={{ today|date:'Y-m-d' }}">{% translate "Bu gün" %}</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="flex gap-2 mb-3" style="flex-wrap:wrap;">
+  <a class="cp-tab {% if not event_type %}is-active{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}{% if q %}&q={{ q|urlencode }}{% endif %}">{% translate "Hamısı" %} ({{ event_total }})</a>
+  <a class="cp-tab {% if event_type == 'in' %}is-active{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&type=in{% if q %}&q={{ q|urlencode }}{% endif %}">{% translate "Giriş" %}</a>
+  <a class="cp-tab {% if event_type == 'out' %}is-active{% endif %}" href="?date={{ selected_date|date:'Y-m-d' }}&type=out{% if q %}&q={{ q|urlencode }}{% endif %}">{% translate "Çıxış" %}</a>
+</div>
+
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Vaxt" %}</th>
+        <th>{% translate "İşçi" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Kart" %}</th>
+        <th>{% translate "Oxuyucu" %}</th>
+        <th>{% translate "Hadisə" %}</th>
+        <th>{% translate "Nəticə" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in events %}
+      <tr class="{% if e.result == 'denied' %}is-event-denied{% elif e.event_type == 'in' %}is-event-in{% else %}is-event-out{% endif %}">
+        <td class="cp-code">{{ e.occurred_at|date:"d.m.Y H:i:s" }}</td>
+        <td>
+          {% if e.employee_id %}
+          <a href="{% url 'security:employee_access' e.employee_id %}?range=today&date={{ selected_date|date:'Y-m-d' }}">
+            {{ e.employee_name|default:e.employee.full_name }}
+          </a>
+          {% else %}
+          {{ e.employee_name|default:"—" }}
+          {% endif %}
+        </td>
+        <td>
+          {% if e.employee_id and e.employee.company_id %}
+          <a href="{% url 'security:company_employees' e.employee.company_id %}?date={{ selected_date|date:'Y-m-d' }}">{{ e.employee.company.name }}</a>
+          {% else %}—{% endif %}
+        </td>
+        <td class="cp-code">{% if e.employee_id and e.employee.card_number %}{{ e.employee.card_number }}{% else %}{{ e.card_number|default:"—" }}{% endif %}</td>
+        <td>{{ e.reader_name|default:"—" }}</td>
+        <td>
+          {% if e.event_type == "in" %}
+          <span class="badge badge-sent">{% translate "Giriş" %}</span>
+          {% else %}
+          <span class="badge badge-muted">{% translate "Çıxış" %}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if e.result == "denied" %}
+          <span class="badge badge-danger">{% translate "Uğursuz" %}</span>
+          {% else %}
+          <span class="badge badge-resolved">{% translate "Uğurlu" %}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7" class="cp-meta empty-pad">
+          {% if is_today %}{% translate "Bu gün üçün keçid yoxdur." %}{% else %}{% translate "Bu tarix üçün keçid yoxdur." %}{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="flex gap-2" style="justify-content:space-between;align-items:center;padding:12px 20px;flex-wrap:wrap;">
+    <span class="cp-meta">
+      {% translate "Səhifə" %} {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+      · {{ event_total }} {% translate "hadisə" %}
+    </span>
+    <div class="flex gap-2">
+      {% if page_obj.has_previous %}
+      <a class="cp-btn-ghost" href="?date={{ selected_date|date:'Y-m-d' }}&page={{ page_obj.previous_page_number }}{% if event_type %}&type={{ event_type }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">{% translate "Əvvəlki" %}</a>
+      {% endif %}
+      {% if page_obj.has_next %}
+      <a class="cp-btn-ghost" href="?date={{ selected_date|date:'Y-m-d' }}&page={{ page_obj.next_page_number }}{% if event_type %}&type={{ event_type }}{% endif %}{% if q %}&q={{ q|urlencode }}{% endif %}">{% translate "Növbəti" %}</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

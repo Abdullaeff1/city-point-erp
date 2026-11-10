@@ -1,4 +1,7 @@
+from datetime import datetime, timedelta
+
 from django.contrib import messages
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -18,6 +21,7 @@ from apps.reception.services import (
     visits_queryset_for_range,
 )
 from apps.residents.access import (
+    ATTENDANCE_RESULTS,
     access_range_bounds,
     employee_access_period_context,
     build_employee_access_rows,
@@ -42,6 +46,43 @@ from apps.tickets.access import tickets_visible_to
 from apps.tickets.models import OPEN_STATUSES, Ticket, TicketStatus
 
 RECENT_EVENTS_LIMIT = 80
+EVENTS_JOURNAL_PAGE_SIZE = 150
+
+
+def _local_day_bounds(day):
+    """Timezone-aware [start, end) for a calendar day (index-friendly)."""
+    start_dt = timezone.make_aware(datetime.combine(day, datetime.min.time()))
+    end_dt = timezone.make_aware(datetime.combine(day + timedelta(days=1), datetime.min.time()))
+    return start_dt, end_dt
+
+
+def access_events_for_day(day, *, event_type: str = "", q: str = ""):
+    """All IN/OUT punches for one day (newest first), optional type/search filters."""
+    start_dt, end_dt = _local_day_bounds(day)
+    qs = (
+        AccessEvent.objects.filter(
+            result__in=ATTENDANCE_RESULTS,
+            occurred_at__gte=start_dt,
+            occurred_at__lt=end_dt,
+        )
+        .select_related("employee", "employee__company")
+        .order_by("-occurred_at", "-id")
+    )
+    if event_type in {AccessEventType.IN, AccessEventType.OUT}:
+        qs = qs.filter(event_type=event_type)
+    q = (q or "").strip()
+    if q:
+        qs = filter_text_search(
+            qs,
+            q,
+            "employee_name",
+            "card_number",
+            "reader_name",
+            "employee__full_name",
+            "employee__card_number",
+            "employee__company__name",
+        )
+    return qs
 
 
 def _serialize_access_event(event: AccessEvent) -> dict:
@@ -152,17 +193,76 @@ class HomeView(SecurityPortalMixin, TemplateView):
 
 
 class EventsFeedView(SecurityPortalMixin, View):
-    """JSON feed — AxTraxNG Events üslubunda canlı siyahı."""
+    """JSON feed — AxTraxNG Events üslubunda canlı siyahı (son N) və ya seçilmiş gün."""
 
     def get(self, request):
-        events = recent_access_events()
+        today = timezone.localdate()
+        selected = parse_date(request.GET.get("date"), today)
+        event_type = (request.GET.get("type") or "").strip().lower()
+        q = request.GET.get("q") or ""
+        if selected == today and not event_type and not q.strip():
+            events = list(recent_access_events())
+            mode = "live"
+        else:
+            events = list(access_events_for_day(selected, event_type=event_type, q=q)[:RECENT_EVENTS_LIMIT])
+            mode = "day"
         return JsonResponse(
             {
                 "ok": True,
+                "mode": mode,
+                "date": selected.isoformat(),
+                "is_today": selected == today,
                 "generated_at": timezone.localtime().strftime("%H:%M:%S"),
                 "results": [_serialize_access_event(e) for e in events],
             }
         )
+
+
+class EventsJournalView(SecurityPortalMixin, TemplateView):
+    """Tarix seçməklə günün bütün giriş/çıxış hadisələri."""
+
+    template_name = "security/events.html"
+    page_size = EVENTS_JOURNAL_PAGE_SIZE
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        today = timezone.localdate()
+        selected = parse_date(self.request.GET.get("date"), today)
+        event_type = (self.request.GET.get("type") or "").strip().lower()
+        if event_type not in {AccessEventType.IN, AccessEventType.OUT, ""}:
+            event_type = ""
+        q = self.request.GET.get("q") or ""
+        qs = access_events_for_day(selected, event_type=event_type, q=q)
+        total = qs.count()
+        if event_type == AccessEventType.IN:
+            in_count, out_count = total, 0
+        elif event_type == AccessEventType.OUT:
+            in_count, out_count = 0, total
+        else:
+            in_count = qs.filter(event_type=AccessEventType.IN).count()
+            out_count = max(0, total - in_count)
+        paginator = Paginator(qs, self.page_size)
+        try:
+            page_num = max(1, int(self.request.GET.get("page") or 1))
+        except (TypeError, ValueError):
+            page_num = 1
+        page = paginator.get_page(page_num)
+        ctx.update(
+            {
+                "today": today,
+                "selected_date": selected,
+                "is_today": selected == today,
+                "events": page.object_list,
+                "page_obj": page,
+                "paginator": paginator,
+                "event_total": total,
+                "in_count": in_count,
+                "out_count": out_count,
+                "event_type": event_type,
+                "q": q,
+            }
+        )
+        return ctx
 
 
 class PeopleInsideView(SecurityPortalMixin, TemplateView):

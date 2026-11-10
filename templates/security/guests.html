@@ -124,6 +124,7 @@
         <th>{% translate "Seriya №" %}</th>
         <th>{% translate "Şirkət" %}</th>
         <th>{% translate "Host" %}</th>
+        <th>{% translate "Gəliş səbəbi" %}</th>
         <th>{% translate "Giriş" %}</th>
         <th>{% translate "Çıxış" %}</th>
         <th>{% translate "Vəsiqə" %}</th>
@@ -135,23 +136,24 @@
     <tbody>
       {% for v in visits %}
       <tr>
-        {% if show_visit_date %}<td>{{ v.scheduled_for|date:"d.m.Y" }}</td>{% endif %}
-        <td class="guest-name">{{ v.guest.display_name }}</td>
-        <td class="cp-code">{% if v.guest.fin_code %}{{ v.guest.fin_code|mask_fin_filter }}{% else %}—{% endif %}</td>
-        <td>
+        {% if show_visit_date %}<td class="cp-cell-clip" title="{{ v.scheduled_for|date:'d.m.Y' }}">{{ v.scheduled_for|date:"d.m.Y" }}</td>{% endif %}
+        <td class="guest-name cp-cell-clip" title="{{ v.guest.display_name }}">{{ v.guest.display_name }}</td>
+        <td class="cp-code cp-cell-clip" title="{% if v.guest.fin_code %}{{ v.guest.fin_code|mask_fin_filter }}{% else %}—{% endif %}">{% if v.guest.fin_code %}{{ v.guest.fin_code|mask_fin_filter }}{% else %}—{% endif %}</td>
+        <td class="cp-cell-clip" title="{{ v.company.name }}">
           <a href="{% url 'security:company_employees' v.company_id %}?tab=guests&date={{ v.scheduled_for|date:'Y-m-d' }}">{{ v.company.name }}</a>
         </td>
-        <td>{{ v.host.full_name|default:"—" }}</td>
-        <td>{{ v.check_in_at|date:"H:i"|default:"—" }}</td>
-        <td>{{ v.check_out_at|date:"H:i"|default:"—" }}</td>
-        <td>{{ v.id_document_label }}</td>
-        <td>{% if v.visitor_access %}{% if v.visitor_access.credential %}<span class="cp-code">{{ v.visitor_access.credential }}</span> · {% endif %}{{ v.visitor_access.get_status_display }}{% else %}—{% endif %}</td>
-        <td class="cp-meta cp-note-cell"{% if v.notes %} title="{{ v.notes }}"{% endif %}>{% if v.notes %}<span class="cp-note-text">{{ v.notes }}</span>{% else %}—{% endif %}</td>
-        <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
+        <td class="cp-cell-clip" title="{{ v.host.full_name|default:'—' }}">{{ v.host.full_name|default:"—" }}</td>
+        <td class="cp-cell-clip" title="{{ v.visit_type.name|default:'—' }}">{{ v.visit_type.name|default:"—" }}</td>
+        <td class="cp-cell-clip" title="{{ v.check_in_at|date:'H:i'|default:'—' }}">{{ v.check_in_at|date:"H:i"|default:"—" }}</td>
+        <td class="cp-cell-clip" title="{{ v.check_out_at|date:'H:i'|default:'—' }}">{{ v.check_out_at|date:"H:i"|default:"—" }}</td>
+        <td class="cp-cell-clip" title="{{ v.id_document_label }}">{{ v.id_document_label }}</td>
+        <td class="cp-cell-clip" title="{% if v.visitor_access %}{% if v.visitor_access.credential %}{{ v.visitor_access.credential }} · {% endif %}{{ v.visitor_access.get_status_display }}{% else %}—{% endif %}">{% if v.visitor_access %}{% if v.visitor_access.credential %}<span class="cp-code">{{ v.visitor_access.credential }}</span> · {% endif %}{{ v.visitor_access.get_status_display }}{% else %}—{% endif %}</td>
+        <td class="cp-meta cp-note-cell cp-cell-clip"{% if v.notes %} title="{{ v.notes }}"{% else %} title="—"{% endif %}>{% if v.notes %}<span class="cp-note-text">{{ v.notes }}</span>{% else %}—{% endif %}</td>
+        <td class="cp-cell-clip" title="{{ v.get_status_display }}">{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
       </tr>
       {% empty %}
       <tr>
-        <td colspan="{% if show_visit_date %}11{% else %}10{% endif %}" class="cp-meta empty-pad">
+        <td colspan="{% if show_visit_date %}12{% else %}11{% endif %}" class="cp-meta empty-pad">
           {% if filter_status == "inside_overdue" %}
           {% translate "24+ saat içəridə qonaq yoxdur." %}
           {% elif filter_status == "inside" %}

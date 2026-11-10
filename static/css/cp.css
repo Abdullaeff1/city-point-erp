@@ -1053,17 +1053,35 @@ dialog.announcement-dialog[open] {
   cursor: default;
 }
 .cp-note-cell .cp-note-text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  display: block;
   overflow: hidden;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  white-space: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   margin: 0 auto;
   max-width: 100%;
   text-align: center;
+}
+
+/* Reception / guests journal: no wrap; full text on hover via title */
+.reception-journal .cp-table th,
+.reception-journal .cp-table td.cp-cell-clip {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 10.5rem;
+}
+.reception-journal .cp-table td.cp-cell-clip a {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.reception-journal .cp-table td.journal-actions {
+  white-space: nowrap;
+  max-width: none;
+  overflow: visible;
 }
 .space-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .section-pad { padding: 16px 20px 8px; }

@@ -56,6 +56,7 @@ urlpatterns = [
         views_plans.DeviceDeactivateView.as_view(),
         name="device_deactivate",
     ),
+    path("events/", views.EventsJournalView.as_view(), name="events"),
     path("events/feed/", views.EventsFeedView.as_view(), name="events_feed"),
     path("people-inside/", views.PeopleInsideView.as_view(), name="people_inside"),
     path("alerts/", views.AlertListView.as_view(), name="alerts"),

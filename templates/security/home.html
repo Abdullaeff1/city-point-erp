@@ -54,7 +54,15 @@
       <p class="cp-meta" style="margin:4px 0 0;">
         {% translate "Son keçidlər" %}
         · <span id="axtrax-events-updated">{% translate "yenilənir…" %}</span>
+        · <a href="{% url 'security:events' %}">{% translate "Tarixə görə bütün keçidlər" %} →</a>
       </p>
+      <form method="get" action="{% url 'security:events' %}" class="flex gap-2" style="margin-top:10px;align-items:end;flex-wrap:wrap;">
+        <label style="margin:0;">
+          <span class="cp-meta">{% translate "Tarix" %}</span>
+          <input class="cp-input mt-1" type="date" name="date" value="{% now 'Y-m-d' %}" required>
+        </label>
+        <button class="cp-btn" type="submit">{% translate "Göstər" %}</button>
+      </form>
     </div>
     <div class="axtrax-events-live" aria-hidden="true">
       <span class="axtrax-events-dot"></span>
