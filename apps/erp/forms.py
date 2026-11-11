@@ -20,6 +20,11 @@ from apps.reception.models import VisitorType
 from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.tickets.models import Ticket, TicketCategory, TicketPriority, TicketSubcategory, TicketType
 from apps.tickets.services import allowed_resident_priorities, allowed_staff_priorities, citypoint_ticket_assignees
+from apps.tickets.taxonomy_map import (
+    categories_for_ticket_type,
+    category_allowed_for_type,
+    ticket_type_choices_for_forms,
+)
 
 # Portal guest arrival: 24h clock, no AM/PM; earliest hour 09:00.
 ARRIVAL_HOUR_CHOICES = [(f"{h:02d}", f"{h:02d}") for h in range(9, 24)]
@@ -173,7 +178,9 @@ class PortalTicketForm(forms.ModelForm):
         label=_("Şirkət"),
     )
     photo = forms.FileField(required=False, label=_("Foto / sənəd"))
-    ticket_type = forms.ChoiceField(choices=TicketType.choices, label=_("Müraciət tipi"))
+    ticket_type = forms.ChoiceField(
+        choices=ticket_type_choices_for_forms(), label=_("Müraciət tipi")
+    )
     subcategory = forms.ModelChoiceField(
         queryset=TicketSubcategory.objects.none(),
         label=_("Alt kateqoriya"),
@@ -183,6 +190,29 @@ class PortalTicketForm(forms.ModelForm):
         required=False,
         initial=TicketPriority.NORMAL,
         label=_("Təxmini prioritet"),
+    )
+    full_name = forms.CharField(
+        max_length=160,
+        required=False,
+        label=_("Əməkdaşın adı"),
+        widget=forms.TextInput(attrs={"placeholder": _("Ad Soyad")}),
+    )
+    access_level = forms.ChoiceField(
+        required=False,
+        label=_("İstənilən kart səviyyəsi"),
+        choices=[
+            ("", "---------"),
+            ("1", _("Səviyyə 1 — arxa turniket (turn_back) yox")),
+            ("2", _("Səviyyə 2 — arxa turniket (turn_back) icazəli")),
+        ],
+        initial="1",
+        help_text=_("Kart sifarişi üçün. Faktiki səviyyə AxTraxNG sync-indən gəlir."),
+    )
+    id_document = forms.FileField(
+        required=False,
+        label=_("Şəxsiyyət vəsiqəsi"),
+        help_text=_("PDF, JPG və ya PNG (maks. 10 MB)."),
+        widget=forms.ClearableFileInput(attrs={"accept": ".pdf,.jpg,.jpeg,.png"}),
     )
 
     class Meta:
@@ -199,6 +229,10 @@ class PortalTicketForm(forms.ModelForm):
             ),
         }
 
+    @staticmethod
+    def _is_card_order_subcategory(subcategory) -> bool:
+        return bool(subcategory and getattr(subcategory, "slug", None) == "card-order")
+
     def __init__(self, *args, company=None, companies=None, require_company=False, **kwargs):
         super().__init__(*args, **kwargs)
         self._fixed_company = company
@@ -212,14 +246,35 @@ class PortalTicketForm(forms.ModelForm):
             if company is not None:
                 self.fields["company"].initial = company.pk
 
-        # Field order: company first when visible
-        order = ["company", "ticket_type", "category", "subcategory", "space", "description", "resident_priority_suggestion", "photo"]
+        # Field order: company first when visible; card-order fields after subcategory
+        order = [
+            "company",
+            "ticket_type",
+            "category",
+            "subcategory",
+            "full_name",
+            "access_level",
+            "id_document",
+            "space",
+            "description",
+            "resident_priority_suggestion",
+            "photo",
+        ]
         self.order_fields(order)
 
-        self.fields["category"].queryset = TicketCategory.objects.filter(is_active=True)
+        self.fields["ticket_type"].choices = ticket_type_choices_for_forms()
+        ticket_type = None
+        if self.data.get("ticket_type"):
+            ticket_type = self.data.get("ticket_type")
+        elif self.initial.get("ticket_type"):
+            ticket_type = self.initial.get("ticket_type")
+        else:
+            ticket_type = TicketType.INCIDENT
+        # Do not overwrite get_initial() (e.g. card_order → service_request)
+        self.fields["ticket_type"].initial = ticket_type
+        self.fields["category"].queryset = categories_for_ticket_type(ticket_type)
         self.fields["space"].required = False
         self.fields["description"].required = False
-        self.fields["ticket_type"].initial = TicketType.INCIDENT
 
         category_id = None
         if self.data.get("category"):
@@ -228,11 +283,19 @@ class PortalTicketForm(forms.ModelForm):
             category_id = getattr(self.initial["category"], "pk", self.initial["category"])
 
         if category_id:
+            self.fields["category"].initial = category_id
             self.fields["subcategory"].queryset = TicketSubcategory.objects.filter(
                 is_active=True, category_id=category_id
             )
         else:
             self.fields["subcategory"].queryset = TicketSubcategory.objects.none()
+
+        if self.initial.get("subcategory") and not self.data:
+            self.fields["subcategory"].initial = getattr(
+                self.initial["subcategory"], "pk", self.initial["subcategory"]
+            )
+        if self.initial.get("access_level") and not self.data:
+            self.fields["access_level"].initial = self.initial["access_level"]
 
         space_company = company
         if require_company and self.data.get("company"):
@@ -244,14 +307,26 @@ class PortalTicketForm(forms.ModelForm):
             self.fields["space"].queryset = Space.objects.filter(resident=space_company)
         elif companies is not None:
             self.fields["space"].queryset = Space.objects.filter(resident__in=company_qs)
+
+        # Single space → auto-select
+        space_qs = self.fields["space"].queryset
+        if not self.data and not self.initial.get("space") and space_qs.count() == 1:
+            self.fields["space"].initial = space_qs.first().pk
+
         for name, field in self.fields.items():
-            if name != "photo":
+            if name not in {"photo", "id_document", "access_level"}:
                 field.widget.attrs["class"] = "cp-input"
+            elif name in {"photo", "id_document"}:
+                field.widget.attrs.setdefault("class", "cp-input")
+            # Mark card-order-only fields for template/JS
+            if name in {"full_name", "access_level", "id_document"}:
+                field.widget.attrs["data-card-order-only"] = "1"
 
     def clean(self):
         cleaned = super().clean()
         category = cleaned.get("category")
         subcategory = cleaned.get("subcategory")
+        ticket_type = cleaned.get("ticket_type")
         description = (cleaned.get("description") or "").strip()
         cleaned["description"] = description
         if self.fields["company"].required and not cleaned.get("company"):
@@ -260,8 +335,29 @@ class PortalTicketForm(forms.ModelForm):
         space = cleaned.get("space")
         if space and company and space.resident_id != company.id:
             self.add_error("space", _("Sahə seçilmiş şirkətə aid deyil."))
+        if category and not category_allowed_for_type(ticket_type, category):
+            self.add_error("category", _("Bu kateqoriya seçilmiş müraciət tipinə aid deyil."))
         if subcategory and category and subcategory.category_id != category.id:
             self.add_error("subcategory", _("Alt kateqoriya seçilmiş kateqoriyaya aid deyil."))
+
+        if self._is_card_order_subcategory(subcategory):
+            name = (cleaned.get("full_name") or "").strip()
+            cleaned["full_name"] = name
+            if not name:
+                self.add_error("full_name", _("Əməkdaşın adı mütləqdir."))
+            level = cleaned.get("access_level") or ""
+            if level not in {"1", "2"}:
+                self.add_error("access_level", _("Kart səviyyəsi 1 və ya 2 olmalıdır."))
+            from apps.residents.services import validate_id_document
+
+            try:
+                validate_id_document(cleaned.get("id_document"))
+            except ValidationError as exc:
+                self.add_error("id_document", exc.messages)
+        else:
+            cleaned["full_name"] = ""
+            cleaned["access_level"] = ""
+            cleaned["id_document"] = None
         return cleaned
 
 
@@ -275,7 +371,9 @@ class StaffTicketForm(forms.Form):
         required=False,
         label=_("Sahə"),
     )
-    ticket_type = forms.ChoiceField(choices=TicketType.choices, label=_("Müraciət tipi"))
+    ticket_type = forms.ChoiceField(
+        choices=ticket_type_choices_for_forms(), label=_("Müraciət tipi")
+    )
     category = forms.ModelChoiceField(
         queryset=TicketCategory.objects.none(),
         label=_("Problem"),
@@ -305,18 +403,18 @@ class StaffTicketForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields["company"].queryset = ResidentCompany.objects.filter(status="active").order_by("name")
         self.fields["space"].queryset = Space.objects.filter(resident__status="active").order_by("code")
-        self.fields["category"].queryset = TicketCategory.objects.filter(is_active=True).order_by(
-            "sort_order", "name"
-        )
-        self.fields["assigned_employee"].queryset = citypoint_ticket_assignees()
+        self.fields["ticket_type"].choices = ticket_type_choices_for_forms()
         self.fields["ticket_type"].initial = TicketType.INCIDENT
+        ticket_type = self.data.get("ticket_type") if self.data else TicketType.INCIDENT
+        self.fields["category"].queryset = categories_for_ticket_type(ticket_type)
+        self.fields["assigned_employee"].queryset = citypoint_ticket_assignees()
         category_id = self.data.get("category") if self.data else None
         if category_id:
             self.fields["subcategory"].queryset = TicketSubcategory.objects.filter(
                 is_active=True, category_id=category_id
             )
         else:
-            self.fields["subcategory"].queryset = TicketSubcategory.objects.filter(is_active=True)
+            self.fields["subcategory"].queryset = TicketSubcategory.objects.none()
         for field in self.fields.values():
             field.widget.attrs["class"] = "cp-input"
         self.fields["company"].widget.attrs["hidden"] = True
@@ -328,9 +426,12 @@ class StaffTicketForm(forms.Form):
         space = cleaned.get("space")
         category = cleaned.get("category")
         subcategory = cleaned.get("subcategory")
+        ticket_type = cleaned.get("ticket_type")
         description = (cleaned.get("description") or "").strip()
         if space and company and space.resident_id != company.id:
             self.add_error("space", _("Sahə seçilmiş şirkətə aid deyil."))
+        if category and not category_allowed_for_type(ticket_type, category):
+            self.add_error("category", _("Bu kateqoriya seçilmiş müraciət tipinə aid deyil."))
         if subcategory and category and subcategory.category_id != category.id:
             self.add_error("subcategory", _("Alt problem seçilmiş problemə aid deyil."))
         if subcategory and subcategory.requires_description_min:

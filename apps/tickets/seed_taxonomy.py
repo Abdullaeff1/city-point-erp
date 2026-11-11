@@ -13,11 +13,13 @@ from apps.tickets.models import (
 
 def seed_ticket_taxonomy():
     """Idempotent seed of Category → Subcategory → RoutingRule matrix."""
+    # A.1 business decision: yüksək 4h / normal 8h / aşağı 24h (business hours).
+    # Kritik ayrıca təyin olunmayıb — yüksəkdən təcili: 2 business hour.
     for prio, hours, label in [
         (TicketPriority.CRITICAL, 2, "Kritik SLA"),
-        (TicketPriority.HIGH, 8, "Yüksək SLA"),
-        (TicketPriority.NORMAL, 24, "Normal SLA"),
-        (TicketPriority.LOW, 48, "Aşağı SLA"),
+        (TicketPriority.HIGH, 4, "Yüksək SLA"),
+        (TicketPriority.NORMAL, 8, "Normal SLA"),
+        (TicketPriority.LOW, 24, "Aşağı SLA"),
     ]:
         SlaPolicy.objects.update_or_create(
             priority=prio, defaults={"name": label, "hours": hours, "pause_on_waiting": True}
@@ -186,7 +188,7 @@ def seed_ticket_taxonomy():
             defaults={"name": cat_name, "sort_order": sort, "is_active": True},
         )
         cats[cat_slug] = cat
-        for i, (sub_slug, sub_name, qcode, prio, wo, crm, min_desc) in enumerate(sub_rows):
+        for i, (sub_slug, sub_name, qcode, prio, _wo, crm, min_desc) in enumerate(sub_rows):
             sub, _ = TicketSubcategory.objects.update_or_create(
                 category=cat,
                 slug=sub_slug,
@@ -205,7 +207,8 @@ def seed_ticket_taxonomy():
                     "queue": queues[qcode],
                     "default_priority": prio,
                     "sla_policy": sla.get(prio),
-                    "wo_eligible": wo,
+                    # A.2: all tickets may create a work order (manual; not auto-spawn)
+                    "wo_eligible": True,
                     "crm_eligible": crm,
                     "is_active": True,
                 },

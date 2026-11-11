@@ -376,8 +376,31 @@ msgstr "Kart"
 msgid "Bu gün qonaq yoxdur."
 msgstr "Bu gün qonaq yoxdur."
 
+#, python-format
+msgid "Son %(days)s gündə qonaq yoxdur."
+msgstr "Son %(days)s gündə qonaq yoxdur."
+
+msgid "Kart sifarişi gözləyir"
+msgstr "Kart sifarişi gözləyir"
+
+msgid "Kart sifarişi açıqdır"
+msgstr "Kart sifarişi açıqdır"
+
+#, python-format
+msgid "Kart: %(status)s"
+msgstr "Kart: %(status)s"
+
+msgid "Fayl var"
+msgstr "Fayl var"
+
 msgid "Fayl yoxdur"
 msgstr "Fayl yoxdur"
+
+msgid "Şirkət adına görə qruplaşdırılıb"
+msgstr "Şirkət adına görə qruplaşdırılıb"
+
+msgid "Excel yüklə"
+msgstr "Excel yüklə"
 
 msgid "Göndərildi"
 msgstr "Göndərildi"

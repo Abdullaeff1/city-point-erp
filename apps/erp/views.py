@@ -54,6 +54,11 @@ from apps.residents.access import (
 )
 from apps.residents.access_export import access_xlsx_http_response
 from apps.residents.models import ResidentCompany, ResidentEmployee
+from apps.residents.people_inside_export import (
+    people_inside_company_count,
+    people_inside_snapshot,
+    people_inside_xlsx_http_response,
+)
 from apps.rbac.services import user_has_permission
 from apps.tickets.access import (
     can_delete_ticket,
@@ -175,33 +180,25 @@ class PeopleInsideView(StaffRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        today = timezone.localdate()
-        employees = currently_inside_employee_rows(today)
-        guests = list(
-            GuestVisit.objects.filter(scheduled_for=today, status=VisitStatus.INSIDE)
-            .select_related("guest", "company")
-            .order_by("check_in_at", "guest__full_name")
-        )
-        guest_rows = [
-            {
-                "kind": "guest",
-                "visit": v,
-                "name": v.guest.display_name,
-                "company": v.company,
-                "card_number": "",
-                "in_at": v.check_in_at,
-            }
-            for v in guests
-        ]
+        employees, guest_rows, today = people_inside_snapshot()
         ctx.update(
             {
                 "today": today,
                 "employee_rows": employees,
                 "guest_rows": guest_rows,
                 "inside_total": len(employees) + len(guest_rows),
+                "inside_company_count": people_inside_company_count(employees, guest_rows),
             }
         )
         return ctx
+
+
+class PeopleInsideExportView(StaffRequiredMixin, View):
+    """Binada olanlar — Excel (şirkət adına görə)."""
+
+    def get(self, request):
+        employees, guest_rows, today = people_inside_snapshot()
+        return people_inside_xlsx_http_response(employees, guest_rows, report_date=today)
 
 
 class PeopleInsideDetailView(StaffRequiredMixin, TemplateView):
@@ -756,6 +753,8 @@ class TicketCreateView(RoleRequiredMixin, FormView):
     allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
 
     def get_context_data(self, **kwargs):
+        from apps.tickets.taxonomy_map import type_category_map_payload
+
         ctx = super().get_context_data(**kwargs)
         form = ctx["form"]
         ctx["companies"] = [
@@ -778,6 +777,7 @@ class TicketCreateView(RoleRequiredMixin, FormView):
             {"id": sub.pk, "category_id": sub.category_id, "name": sub.name, "sort": sub.sort_order}
             for sub in TicketSubcategory.objects.filter(is_active=True).order_by("sort_order", "name")
         ]
+        ctx["type_category_map"] = type_category_map_payload()
         return ctx
 
     def form_valid(self, form):
@@ -1220,7 +1220,7 @@ class SpaceDetailView(RoleRequiredMixin, TemplateView):
         ctx["ticket_history"] = visible_space.filter(status__in=CLOSED_STATUSES)
         ctx["all_tickets"] = visible_space.select_related("category")[:20]
         ctx["assets"] = space.assets.all()
-        ctx["documents"] = space.documents.all()
+        ctx["documents"] = space.documents.select_related("company").all()
         ctx["employees"] = (
             space.resident.employees.filter(is_active=True) if space.resident_id else []
         )

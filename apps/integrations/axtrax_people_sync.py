@@ -476,6 +476,11 @@ def _sync_people_payload(payload: dict) -> dict:
 
             if badge and now_active:
                 _reclaim_card_number(employee, badge, stats)
+                from apps.residents.card_order import mark_card_order_issued_from_axtrax
+
+                employee.refresh_from_db(fields=["card_number", "card_order_status"])
+                if mark_card_order_issued_from_axtrax(employee):
+                    stats["card_orders_issued"] = stats.get("card_orders_issued", 0) + 1
 
             _upsert_external(AXTRAX_SYSTEM, ext_emp, employee)
             PartyService.upsert_person_from_employee(employee)

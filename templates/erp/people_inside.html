@@ -4,9 +4,13 @@
 {% block back_trail %}
  · {{ today|date:"d.m.Y" }}
  · {% translate "Cəmi" %}: <strong>{{ inside_total }}</strong>
- ({{ employee_rows|length }} {% translate "əməkdaş" %} · {{ guest_rows|length }} {% translate "qonaq" %})
+ ({% blocktranslate with emp=employee_rows|length guests=guest_rows|length companies=inside_company_count|default:0 %}{{ emp }} əməkdaş · {{ guests }} qonaq · {{ companies }} şirkət{% endblocktranslate %})
 {% endblock %}
 {% block content %}
+<p class="mb-3" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+  <a class="cp-btn" id="people-inside-export" href="{% url 'erp:people_inside_export' %}">{% translate "Excel yüklə" %}</a>
+  <span class="cp-meta">{% translate "Şirkət adına görə qruplaşdırılıb" %}</span>
+</p>
 <div class="cp-card mb-4" style="padding:8px 0;">
   <div class="cp-section section-pad" style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
     <span>{% translate "Əməkdaşlar (AxTrax)" %}</span>
@@ -88,6 +92,14 @@
 </div>
 <script>
 (function () {
+  var exportBtn = document.getElementById("people-inside-export");
+  if (exportBtn) {
+    exportBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      var base = (exportBtn.getAttribute("href") || "").split("?")[0];
+      window.location = base + "?t=" + Date.now();
+    });
+  }
   var input = document.getElementById("people-inside-search");
   if (!input) return;
   var rows = Array.prototype.slice.call(document.querySelectorAll(".people-inside-row"));

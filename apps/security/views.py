@@ -42,6 +42,11 @@ from apps.residents.models import (
     ResidentEmployee,
     ShaftAccessAlert,
 )
+from apps.residents.people_inside_export import (
+    people_inside_company_count,
+    people_inside_snapshot,
+    people_inside_xlsx_http_response,
+)
 from apps.tickets.access import tickets_visible_to
 from apps.tickets.models import OPEN_STATUSES, Ticket, TicketStatus
 
@@ -272,32 +277,25 @@ class PeopleInsideView(SecurityPortalMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        today = timezone.localdate()
-        employees = currently_inside_employee_rows(today)
-        guests = list(
-            GuestVisit.objects.filter(scheduled_for=today, status=VisitStatus.INSIDE)
-            .select_related("guest", "company")
-            .order_by("check_in_at", "guest__full_name")
-        )
-        guest_rows = [
-            {
-                "kind": "guest",
-                "visit": v,
-                "name": v.guest.display_name,
-                "company": v.company,
-                "in_at": v.check_in_at,
-            }
-            for v in guests
-        ]
+        employees, guest_rows, today = people_inside_snapshot()
         ctx.update(
             {
                 "today": today,
                 "employee_rows": employees,
                 "guest_rows": guest_rows,
                 "inside_total": len(employees) + len(guest_rows),
+                "inside_company_count": people_inside_company_count(employees, guest_rows),
             }
         )
         return ctx
+
+
+class PeopleInsideExportView(SecurityPortalMixin, View):
+    """Binada olanlar — Excel (şirkət adına görə)."""
+
+    def get(self, request):
+        employees, guest_rows, today = people_inside_snapshot()
+        return people_inside_xlsx_http_response(employees, guest_rows, report_date=today)
 
 
 class EmployeeListView(SecurityPortalMixin, TemplateView):
@@ -744,6 +742,11 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
         )
 
     def get_context_data(self, **kwargs):
+        from apps.residents.card_order import (
+            allowed_card_order_targets,
+            can_change_card_order_status,
+        )
+        from apps.residents.models import CardOrderStatus
         from apps.tickets.access import can_delete_ticket, can_mutate_ticket, department_assignees
 
         ctx = super().get_context_data(**kwargs)
@@ -753,12 +756,28 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
         ctx["can_delete"] = can_delete_ticket(self.request.user, ticket)
         ctx["staff_users"] = department_assignees(ticket)
         ctx["status_events"] = ticket.status_events.select_related("actor")[:40]
+        emp = ticket.related_employee
+        is_card_order = bool(
+            ticket.subcategory_id and ticket.subcategory.slug == "card-order" and emp
+        )
+        ctx["is_card_order"] = is_card_order
+        ctx["can_change_card_order"] = is_card_order and can_change_card_order_status(
+            self.request.user
+        )
+        if is_card_order:
+            targets = allowed_card_order_targets(emp.card_order_status or CardOrderStatus.NONE)
+            labels = dict(CardOrderStatus.choices)
+            ctx["card_order_transitions"] = [(s, labels.get(s, s)) for s in targets]
+        else:
+            ctx["card_order_transitions"] = []
         return ctx
 
     def post(self, request, *args, **kwargs):
         from django.contrib import messages
+        from django.core.exceptions import PermissionDenied
 
         from apps.core.services import DomainError
+        from apps.residents.card_order import set_card_order_status
         from apps.tickets.services import (
             advance_ticket_status,
             assign_ticket,
@@ -769,7 +788,21 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
         ticket = self.get_ticket()
         action = request.POST.get("action")
         try:
-            if action == "advance" and ticket.next_status:
+            if action == "card_order_status":
+                emp = ticket.related_employee
+                if not emp or not ticket.subcategory_id or ticket.subcategory.slug != "card-order":
+                    raise DomainError(_("Bu ticket kart sifarişi deyil."))
+                set_card_order_status(
+                    employee=emp,
+                    new_status=request.POST.get("card_order_status") or "",
+                    actor=request.user,
+                )
+                messages.success(
+                    request,
+                    _("Kart sifarişi statusu: %(status)s")
+                    % {"status": emp.get_card_order_status_display()},
+                )
+            elif action == "advance" and ticket.next_status:
                 advance_ticket_status(ticket, actor=request.user)
             elif action == "waiting":
                 reason = request.POST.get("waiting_reason", "").strip()
@@ -796,7 +829,7 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
                 code = delete_ticket(ticket, actor=request.user)
                 messages.success(request, f"{code} silindi.")
                 return redirect("security:tickets")
-        except DomainError as exc:
+        except (DomainError, PermissionDenied) as exc:
             messages.error(request, str(exc))
         return redirect("security:ticket_detail", code=ticket.code)
 

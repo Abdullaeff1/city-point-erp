@@ -322,7 +322,13 @@ def currently_inside_employee_rows(selected_date=None):
                 "event_count": len(evs),
             }
         )
-    rows.sort(key=lambda r: (r["in_at"] is None, r["in_at"] or start_dt, r["name"]))
+    def _company_key(r):
+        company = r.get("company")
+        name = (getattr(company, "name", None) or "").strip() if company else ""
+        label = name or "—"
+        return (label == "—", label.casefold(), (r.get("name") or "").casefold())
+
+    rows.sort(key=_company_key)
     return rows
 
 

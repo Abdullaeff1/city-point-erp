@@ -75,9 +75,10 @@ def role_context(request):
         "nav_internal_access": is_adminish,
         # İcarələr sidebar gizlədilir — məlumat Rezident kartında (Sənədlər) saxlanır
         "nav_leases": False,
-        "nav_crm": is_adminish,
-        "nav_supply": is_adminish,
-        "nav_finance": is_adminish,
+        # İlkin MVP: CRM / Anbar / Billing thin — təqdimatda gizlədilir
+        "nav_crm": False,
+        "nav_supply": False,
+        "nav_finance": False,
         "nav_audit": bool(
             user
             and user.is_authenticated

@@ -376,8 +376,31 @@ msgstr "Card"
 msgid "Bu gün qonaq yoxdur."
 msgstr "No guests today."
 
+#, python-format
+msgid "Son %(days)s gündə qonaq yoxdur."
+msgstr "No guests in the last %(days)s days."
+
+msgid "Kart sifarişi gözləyir"
+msgstr "Card order pending"
+
+msgid "Kart sifarişi açıqdır"
+msgstr "Card order is open"
+
+#, python-format
+msgid "Kart: %(status)s"
+msgstr "Card: %(status)s"
+
+msgid "Fayl var"
+msgstr "File available"
+
 msgid "Fayl yoxdur"
 msgstr "No file"
+
+msgid "Şirkət adına görə qruplaşdırılıb"
+msgstr "Grouped by company name"
+
+msgid "Excel yüklə"
+msgstr "Download Excel"
 
 msgid "Göndərildi"
 msgstr "Submitted"

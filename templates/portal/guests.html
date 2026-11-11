@@ -48,7 +48,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="{% if show_company_column %}7{% else %}6{% endif %}" class="cp-meta empty-pad">{% translate "Bu gün qonaq yoxdur." %}</td></tr>
+      <tr><td colspan="{% if show_company_column %}7{% else %}6{% endif %}" class="cp-meta empty-pad">{% blocktranslate with days=guest_days|default:30 %}Son {{ days }} gündə qonaq yoxdur.{% endblocktranslate %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

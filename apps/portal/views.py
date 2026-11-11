@@ -24,7 +24,7 @@ from apps.comms.announcements import announcements_for_user
 from apps.comms.models import BuildingProcedure, Notification
 from apps.core.services import DomainError
 from apps.documents.models import Document
-from apps.erp.forms import PortalEmployeeCreateForm, PortalTicketForm
+from apps.erp.forms import PortalTicketForm
 from apps.reception.models import GuestVisit
 from apps.reception.services import can_portal_checkout, portal_check_out_visit
 from apps.residents.access import (
@@ -249,7 +249,7 @@ class SpaceDetailView(ResidentPortalMixin, TemplateView):
                 "open_tickets": company_tickets.filter(status__in=OPEN_STATUSES),
                 "all_tickets": company_tickets.select_related("category")[:20],
                 "assets": space.assets.all(),
-                "documents": space.documents.all(),
+                "documents": space.documents.filter(visible_to_resident=True).exclude(file=""),
                 "employees": (
                     space.resident.employees.filter(is_active=True)
                     if space.resident_id
@@ -311,6 +311,9 @@ class RequestCreateView(ResidentPortalMixin, FormView):
     template_name = "portal/request_new.html"
     form_class = PortalTicketForm
 
+    def _card_order_intent(self) -> bool:
+        return (self.request.GET.get("intent") or self.request.POST.get("intent") or "") == "card_order"
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         ids = _scope_ids(self.request)
@@ -321,16 +324,72 @@ class RequestCreateView(ResidentPortalMixin, FormView):
             kwargs["company"] = ResidentCompany.objects.filter(pk=ids[0]).first()
         return kwargs
 
+    def get_initial(self):
+        from apps.tickets.models import TicketType
+
+        initial = super().get_initial()
+        if not self._card_order_intent():
+            return initial
+        sub = (
+            TicketSubcategory.objects.select_related("category")
+            .filter(slug="card-order", category__slug="security", is_active=True)
+            .first()
+        )
+        if not sub:
+            return initial
+        initial["ticket_type"] = TicketType.SERVICE_REQUEST
+        initial["category"] = sub.category_id
+        initial["subcategory"] = sub.pk
+        initial["access_level"] = "1"
+        # Space auto-fill when exactly one space in scope company
+        ids = _scope_ids(self.request)
+        mode = _scope_mode(self.request)
+        company = None
+        if mode == MODE_SINGLE and len(ids) == 1:
+            company = ResidentCompany.objects.filter(pk=ids[0]).first()
+        if company:
+            spaces = list(Space.objects.filter(resident=company).order_by("code")[:2])
+            if len(spaces) == 1:
+                initial["space"] = spaces[0].pk
+        return initial
+
     def get_context_data(self, **kwargs):
+        from apps.tickets.taxonomy_map import type_category_map_payload
+
         ctx = super().get_context_data(**kwargs)
         mapping = {
-            str(s.id): {"category_id": s.category_id, "name": s.name, "sort": s.sort_order}
+            str(s.id): {
+                "category_id": s.category_id,
+                "name": s.name,
+                "sort": s.sort_order,
+                "slug": s.slug,
+            }
             for s in TicketSubcategory.objects.filter(is_active=True)
             .order_by("sort_order", "name")
-            .only("id", "category_id", "name", "sort_order")
+            .only("id", "category_id", "name", "sort_order", "slug")
         }
         ctx["subcategory_map_json"] = json.dumps(mapping, ensure_ascii=False)
+        ctx["type_category_map"] = type_category_map_payload()
         ctx["portal_scope_all"] = _scope_mode(self.request) == MODE_ALL
+        ctx["card_order_intent"] = self._card_order_intent()
+        prefill = None
+        if self._card_order_intent():
+            sub = (
+                TicketSubcategory.objects.select_related("category")
+                .filter(slug="card-order", category__slug="security", is_active=True)
+                .first()
+            )
+            if sub:
+                from apps.tickets.models import TicketType
+
+                prefill = {
+                    "ticket_type": TicketType.SERVICE_REQUEST,
+                    "category_id": sub.category_id,
+                    "subcategory_id": sub.pk,
+                    "category_slug": "security",
+                    "subcategory_slug": "card-order",
+                }
+        ctx["card_order_prefill"] = prefill
         return ctx
 
     def form_valid(self, form):
@@ -344,12 +403,37 @@ class RequestCreateView(ResidentPortalMixin, FormView):
         if space and space.resident_id != company.id:
             form.add_error("space", _("Sahə seçilmiş şirkətə aid deyil."))
             return self.form_invalid(form)
+
+        subcategory = form.cleaned_data["subcategory"]
+        if subcategory and subcategory.slug == "card-order":
+            if company.is_internal:
+                form.add_error(None, _("Bu hesab üçün kart sifarişi edilə bilməz."))
+                return self.form_invalid(form)
+            try:
+                employee, ticket = create_employee_card_order(
+                    company=company,
+                    requester=self.request.user,
+                    full_name=form.cleaned_data["full_name"],
+                    id_document=form.cleaned_data["id_document"],
+                    access_level=form.cleaned_data["access_level"],
+                    space=space,
+                )
+            except ValidationError as exc:
+                form.add_error(None, exc)
+                return self.form_invalid(form)
+            messages.success(
+                self.request,
+                _("“%(name)s” üçün kart sifarişi təhlükəsizliyə göndərildi (%(code)s).")
+                % {"name": employee.full_name, "code": ticket.code},
+            )
+            return redirect("portal:request_detail", code=ticket.code)
+
         ticket = create_ticket_from_portal(
             company=company,
             requester=self.request.user,
             ticket_type=form.cleaned_data["ticket_type"],
             category=form.cleaned_data["category"],
-            subcategory=form.cleaned_data["subcategory"],
+            subcategory=subcategory,
             description=form.cleaned_data["description"],
             space=space,
             priority_suggestion=form.cleaned_data.get("resident_priority_suggestion") or "",
@@ -551,12 +635,10 @@ class EmployeesAccessExportView(ResidentPortalMixin, View):
         )
 
 
-class EmployeeCreateView(ResidentPortalMixin, FormView):
-    template_name = "portal/employee_create.html"
-    form_class = PortalEmployeeCreateForm
+class EmployeeCreateView(ResidentPortalMixin, View):
+    """A.3: legacy URL → ticket create with card-order prefill (no separate section)."""
 
     def dispatch(self, request, *args, **kwargs):
-        # ResidentPortalMixin must run first so portal_company_ids is set
         if not request.user.is_authenticated:
             return self.handle_no_permission()
         if not request.user.can_access_portal():
@@ -578,43 +660,7 @@ class EmployeeCreateView(ResidentPortalMixin, FormView):
         if not companies.exists():
             messages.error(request, _("Bu hesab üçün kart sifarişi edilə bilməz."))
             return redirect("portal:home")
-        return FormView.dispatch(self, request, *args, **kwargs)
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        ids = _scope_ids(self.request)
-        mode = _scope_mode(self.request)
-        kwargs["companies"] = ResidentCompany.objects.filter(id__in=ids, is_internal=False).order_by("name")
-        kwargs["require_company"] = mode == MODE_ALL
-        if mode == MODE_SINGLE and len(ids) == 1:
-            kwargs["company"] = ResidentCompany.objects.filter(pk=ids[0]).first()
-        return kwargs
-
-    def form_valid(self, form):
-        company, err = resolve_write_company(
-            self.request,
-            form.cleaned_data.get("company").pk if form.cleaned_data.get("company") else None,
-        )
-        if err or not company or company.is_internal:
-            form.add_error("company" if "company" in form.fields else None, err or _("Şirkət seçin."))
-            return self.form_invalid(form)
-        try:
-            employee, ticket = create_employee_card_order(
-                company=company,
-                requester=self.request.user,
-                full_name=form.cleaned_data["full_name"],
-                id_document=form.cleaned_data["id_document"],
-                access_level=form.cleaned_data["access_level"],
-            )
-        except ValidationError as exc:
-            form.add_error(None, exc)
-            return self.form_invalid(form)
-        messages.success(
-            self.request,
-            _("“%(name)s” üçün kart sifarişi təhlükəsizliyə göndərildi (%(code)s). Kart AxTrax-da verildikdən sonra siyahıda görünəcək.")
-            % {"name": employee.full_name, "code": ticket.code},
-        )
-        return redirect("portal:employees")
+        return redirect(f"{reverse('portal:request_new')}?intent=card_order")
 
 
 class EmployeeAccessDetailView(ResidentPortalMixin, TemplateView):

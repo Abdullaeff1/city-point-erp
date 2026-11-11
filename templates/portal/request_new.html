@@ -1,16 +1,51 @@
 {% extends "portal/base.html" %}
 {% load i18n %}
-{% block heading %}{% translate "Yeni müraciət" %}{% endblock %}
+{% block heading %}{% if card_order_intent %}{% translate "Yeni əməkdaş — kart sifarişi" %}{% else %}{% translate "Yeni müraciət" %}{% endif %}{% endblock %}
 {% block back_trail %}
  · <a href="{% url 'portal:requests_active' %}">{% translate "Müraciətlər" %}</a>
 {% endblock %}
 {% block content %}
 <div class="cp-card p-card-lg" style="max-width:520px;">
+  {% if card_order_intent %}
+  <p class="cp-meta mb-3">{% translate "Kart nömrəsi soruşulmur — AxTrax-da verildikdən sonra siyahıda görünəcək. Tip və kateqoriya avtomatik seçilib." %}</p>
+  {% else %}
   <p class="cp-meta mb-3">{% translate "Qısa təsvir kifayətdir — əlavə detalları şöbə sizinlə əlaqə saxlayaraq tamamlayacaq." %}</p>
+  {% endif %}
   <form method="post" enctype="multipart/form-data" class="flex-col gap-3" id="ticket-create-form">
     {% csrf_token %}
+    {% if card_order_intent %}<input type="hidden" name="intent" value="card_order">{% endif %}
     {% for field in form %}
-      {% if field.field.widget.input_type == "file" %}
+      {% if field.name == "full_name" or field.name == "access_level" or field.name == "id_document" %}
+      <div data-card-order-field {% if not card_order_intent %}hidden{% endif %}>
+        {% if field.field.widget.input_type == "file" %}
+        <span class="cp-meta">{{ field.label }}</span>
+        <div class="mt-1 cp-file-pick" data-cp-file>
+          {{ field }}
+          <button type="button" class="cp-btn cp-file-pick-btn">{% translate "Fayl seç" %}</button>
+          <span class="cp-meta cp-file-pick-name" hidden></span>
+        </div>
+        {% if field.help_text %}<p class="cp-meta mt-1">{{ field.help_text }}</p>{% endif %}
+        {{ field.errors }}
+        {% else %}
+        <label>
+          <span class="cp-meta">{{ field.label }}</span>
+          <div class="mt-1">{{ field }}</div>
+          {% if field.help_text %}<p class="cp-meta mt-1">{{ field.help_text }}</p>{% endif %}
+          {{ field.errors }}
+        </label>
+        {% endif %}
+      </div>
+      {% elif field.name == "photo" %}
+      <div data-non-card-order-field {% if card_order_intent %}hidden{% endif %}>
+        <span class="cp-meta">{{ field.label }}</span>
+        <div class="mt-1 cp-file-pick" data-cp-file>
+          {{ field }}
+          <button type="button" class="cp-btn cp-file-pick-btn">{% translate "Fayl seç" %}</button>
+          <span class="cp-meta cp-file-pick-name" hidden></span>
+        </div>
+        {{ field.errors }}
+      </div>
+      {% elif field.field.widget.input_type == "file" %}
       <div>
         <span class="cp-meta">{{ field.label }}</span>
         <div class="mt-1 cp-file-pick" data-cp-file>
@@ -28,10 +63,12 @@
       </label>
       {% endif %}
     {% endfor %}
-    <button class="cp-btn" type="submit">{% translate "Göndər" %}</button>
+    <button class="cp-btn" type="submit">{% if card_order_intent %}{% translate "Kart sifariş et" %}{% else %}{% translate "Göndər" %}{% endif %}</button>
   </form>
 </div>
 <script type="application/json" id="subcategory-map">{{ subcategory_map_json|safe }}</script>
+{{ type_category_map|json_script:"type-category-map" }}
+{% if card_order_prefill %}{{ card_order_prefill|json_script:"card-order-prefill" }}{% endif %}
 <script>
 (function () {
   document.querySelectorAll("[data-cp-file]").forEach(function (wrap) {
@@ -52,15 +89,73 @@
     });
   });
 
-  var raw = document.getElementById("subcategory-map");
-  var map = {};
-  try { map = JSON.parse(raw.textContent || "{}"); } catch (e) { map = {}; }
+  function readJson(id, fallback) {
+    var el = document.getElementById(id);
+    try {
+      var data = JSON.parse(el && el.textContent ? el.textContent : "");
+      return data == null ? fallback : data;
+    } catch (e) {
+      return fallback;
+    }
+  }
+
+  var map = readJson("subcategory-map", {});
+  var typeMap = readJson("type-category-map", {});
+  if (!typeMap || typeof typeMap !== "object" || Array.isArray(typeMap)) typeMap = {};
+  var prefill = readJson("card-order-prefill", null);
+  var typ = document.getElementById("id_ticket_type");
   var cat = document.getElementById("id_category");
   var sub = document.getElementById("id_subcategory");
   if (!cat || !sub) return;
-  function refill() {
+
+  function wantsCardOrder() {
+    if (prefill && prefill.subcategory_slug === "card-order") return true;
+    try {
+      return new URLSearchParams(window.location.search).get("intent") === "card_order";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function resolveCardOrderPrefill() {
+    if (prefill && prefill.category_id && prefill.subcategory_id) return prefill;
+    if (!wantsCardOrder()) return null;
+    // Fallback from URL intent: pick security + card-order by slug from maps.
+    var catId = null;
+    var rows = typeMap.service_request || [];
+    rows.forEach(function (item) {
+      if (item.slug === "security") catId = item.id;
+    });
+    var subId = null;
+    Object.keys(map).forEach(function (id) {
+      if (map[id].slug === "card-order") subId = id;
+    });
+    if (!catId || !subId) return null;
+    return {
+      ticket_type: "service_request",
+      category_id: catId,
+      subcategory_id: subId
+    };
+  }
+
+  function isCardOrderSelected() {
+    var id = sub.value;
+    return !!(id && map[id] && map[id].slug === "card-order");
+  }
+
+  function toggleCardOrderFields() {
+    var on = isCardOrderSelected() || wantsCardOrder();
+    document.querySelectorAll("[data-card-order-field]").forEach(function (el) {
+      el.hidden = !on;
+    });
+    document.querySelectorAll("[data-non-card-order-field]").forEach(function (el) {
+      el.hidden = on;
+    });
+  }
+
+  function refillSubs(preferredSubId) {
     var cid = cat.value;
-    var current = sub.value;
+    var current = preferredSubId != null ? String(preferredSubId) : sub.value;
     sub.innerHTML = "";
     var opt0 = document.createElement("option");
     opt0.value = "";
@@ -77,12 +172,61 @@
       var o = document.createElement("option");
       o.value = id;
       o.textContent = map[id].name;
-      if (id === current) o.selected = true;
+      if (String(id) === String(current)) o.selected = true;
       sub.appendChild(o);
     });
+    // If preferred id missing from list, still force-select when present after rebuild
+    if (preferredSubId != null && sub.value !== String(preferredSubId)) {
+      sub.value = String(preferredSubId);
+    }
+    toggleCardOrderFields();
   }
-  cat.addEventListener("change", refill);
-  if (cat.value) refill();
+
+  function refillCategories(preferredCatId, preferredSubId) {
+    if (!typ) return;
+    var rows = typeMap[typ.value];
+    // Missing/invalid map: keep server-rendered options instead of wiping the select.
+    if (!Array.isArray(rows)) {
+      refillSubs(preferredSubId);
+      return;
+    }
+    var current = preferredCatId != null ? String(preferredCatId) : cat.value;
+    cat.innerHTML = "";
+    var blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = "---------";
+    cat.appendChild(blank);
+    rows.forEach(function (item) {
+      var o = document.createElement("option");
+      o.value = String(item.id);
+      o.textContent = item.name;
+      if (String(item.id) === String(current)) o.selected = true;
+      cat.appendChild(o);
+    });
+    if (preferredCatId != null && cat.value !== String(preferredCatId)) {
+      cat.value = String(preferredCatId);
+    }
+    refillSubs(preferredSubId);
+  }
+
+  function applyCardOrderPrefill() {
+    var pf = resolveCardOrderPrefill();
+    if (!pf || !typ) {
+      refillCategories();
+      toggleCardOrderFields();
+      return;
+    }
+    typ.value = pf.ticket_type || "service_request";
+    refillCategories(pf.category_id, pf.subcategory_id);
+    var level = document.getElementById("id_access_level");
+    if (level && !level.value) level.value = "1";
+    toggleCardOrderFields();
+  }
+
+  if (typ) typ.addEventListener("change", function () { refillCategories(); });
+  cat.addEventListener("change", function () { refillSubs(); });
+  sub.addEventListener("change", toggleCardOrderFields);
+  applyCardOrderPrefill();
 })();
 </script>
 {% endblock %}

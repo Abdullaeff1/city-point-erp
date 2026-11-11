@@ -55,7 +55,13 @@ def resolve_routing_rule(subcategory):
 
 
 def apply_sla(ticket, *, force_policy=None):
-    """Apply SLA due date. Prefer routing rule policy, else priority default."""
+    """Apply SLA due date using business calendar (A.1).
+
+    Prefer routing rule policy, else priority default.
+    Hours are business hours: Mon–Sat 09:00–18:00, skip Novruz/state holidays.
+    """
+    from apps.tickets.business_calendar import add_business_hours
+
     policy = force_policy
     if policy is None and ticket.subcategory_id:
         rule = resolve_routing_rule(ticket.subcategory)
@@ -63,8 +69,8 @@ def apply_sla(ticket, *, force_policy=None):
             policy = rule.sla_policy
     if policy is None:
         policy = SlaPolicy.objects.filter(priority=ticket.priority).first()
-    hours = policy.hours if policy else 24
-    ticket.sla_due_at = timezone.now() + timedelta(hours=hours)
+    hours = policy.hours if policy else 8
+    ticket.sla_due_at = add_business_hours(timezone.now(), hours)
     ticket.sla_paused_at = None
     ticket.save(update_fields=["sla_due_at", "sla_paused_at", "updated_at"])
     return policy

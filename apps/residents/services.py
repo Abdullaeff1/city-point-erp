@@ -28,7 +28,15 @@ def validate_id_document(uploaded) -> None:
 
 
 @transaction.atomic
-def create_employee_card_order(*, company, requester, full_name: str, id_document, access_level: str = AccessLevel.LEVEL_1):
+def create_employee_card_order(
+    *,
+    company,
+    requester,
+    full_name: str,
+    id_document,
+    access_level: str = AccessLevel.LEVEL_1,
+    space=None,
+):
     """Create employee (no card) + security card-order ticket + ID attachment."""
     name = (full_name or "").strip()
     if not name:
@@ -38,6 +46,8 @@ def create_employee_card_order(*, company, requester, full_name: str, id_documen
     validate_id_document(id_document)
     if access_level not in {AccessLevel.LEVEL_1, AccessLevel.LEVEL_2}:
         raise ValidationError(_("Kart səviyyəsi 1 və ya 2 olmalıdır."))
+    if space is not None and getattr(space, "resident_id", None) != company.id:
+        raise ValidationError(_("Sahə seçilmiş şirkətə aid deyil."))
 
     sub = (
         TicketSubcategory.objects.select_related("category", "routing_rule")
@@ -81,6 +91,7 @@ def create_employee_card_order(*, company, requester, full_name: str, id_documen
         category=sub.category,
         subcategory=sub,
         description=description,
+        space=space,
         related_employee=employee,
     )
     TicketAttachment.objects.create(ticket=ticket, file=ContentFile(content, name=raw_name))

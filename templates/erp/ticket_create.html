@@ -78,11 +78,17 @@
 {{ assignees|json_script:"assignee-data" }}
 {{ spaces|json_script:"space-data" }}
 {{ subcategories|json_script:"subcategory-data" }}
+{{ type_category_map|json_script:"type-category-data" }}
 <script>
 (function () {
-  function read(id) {
+  function read(id, fallback) {
     var el = document.getElementById(id);
-    try { return JSON.parse(el && el.textContent || "[]"); } catch (e) { return []; }
+    try {
+      var data = JSON.parse(el && el.textContent ? el.textContent : "");
+      return data == null ? fallback : data;
+    } catch (e) {
+      return fallback;
+    }
   }
   function norm(s) {
     return window.cpFoldSearch ? cpFoldSearch(s) : String(s || "").toLocaleLowerCase("az");
@@ -182,15 +188,18 @@
     return sync;
   }
 
-  var companies = read("company-data");
-  var assignees = read("assignee-data");
-  var spaces = read("space-data");
-  var subs = read("subcategory-data");
+  var companies = read("company-data", []);
+  var assignees = read("assignee-data", []);
+  var spaces = read("space-data", []);
+  var subs = read("subcategory-data", []);
+  var typeCats = read("type-category-data", {});
+  if (!typeCats || typeof typeCats !== "object" || Array.isArray(typeCats)) typeCats = {};
   var syncCompany = bindSearch("company-search", "id_company", "company-suggestions", companies);
   var syncAssignee = bindSearch("assignee-search", "id_assigned_employee", "assignee-suggestions", assignees);
 
   var company = document.getElementById("id_company");
   var space = document.getElementById("id_space");
+  var ticketType = document.getElementById("id_ticket_type");
   var category = document.getElementById("id_category");
   var subcategory = document.getElementById("id_subcategory");
 
@@ -237,10 +246,34 @@
       subcategory.appendChild(opt);
     });
   }
+  function refillCategories() {
+    if (!ticketType || !category) return;
+    var rows = typeCats[ticketType.value];
+    // Missing/invalid map: keep server-rendered options instead of wiping the select.
+    if (!Array.isArray(rows)) {
+      refillSubs();
+      return;
+    }
+    var current = category.value;
+    category.innerHTML = "";
+    var blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = "—";
+    category.appendChild(blank);
+    rows.forEach(function (item) {
+      var opt = document.createElement("option");
+      opt.value = String(item.id);
+      opt.textContent = item.name;
+      if (String(item.id) === String(current)) opt.selected = true;
+      category.appendChild(opt);
+    });
+    refillSubs();
+  }
   if (company) company.addEventListener("change", refillSpaces);
+  if (ticketType) ticketType.addEventListener("change", refillCategories);
   if (category) category.addEventListener("change", refillSubs);
   refillSpaces();
-  refillSubs();
+  refillCategories();
 
   var form = document.getElementById("staff-ticket-form");
   if (form) {

@@ -2,16 +2,20 @@ from django.test import TestCase
 
 from apps.erp.forms import PortalTicketForm, StaffTicketForm
 from apps.tickets.models import TicketCategory, TicketSubcategory, TicketType
+from apps.tickets.taxonomy_map import ticket_type_choices_for_forms
 
 
 class SuggestionTicketTypeTests(TestCase):
-    def test_request_type_includes_suggestion(self):
+    def test_suggestion_exists_on_model_but_not_in_forms(self):
         self.assertEqual(TicketType.SUGGESTION.label, "Təklif")
-        rendered = str(StaffTicketForm()["ticket_type"])
-        self.assertIn("Təklif", rendered)
+        values = [v for v, _ in ticket_type_choices_for_forms()]
+        self.assertNotIn(TicketType.SUGGESTION, values)
+        self.assertNotIn("Təklif", str(StaffTicketForm()["ticket_type"]))
+        self.assertNotIn("Təklif", str(PortalTicketForm()["ticket_type"]))
 
     def test_portal_description_is_optional(self):
-        category = TicketCategory.objects.create(name="Təhlükəsizlik", slug="security-opt")
+        # slug must be allowed for incident (A.2 type→category map)
+        category = TicketCategory.objects.create(name="Təhlükəsizlik", slug="security")
         subcategory = TicketSubcategory.objects.create(
             category=category,
             name="Digər",

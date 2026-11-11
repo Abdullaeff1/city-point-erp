@@ -21,7 +21,7 @@
   <div class="cp-card p-card-sm">{% translate "İçəridə" %} <strong>{{ inside }}</strong></div>
   <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ left }}</strong></div>
   {% if can_add_employee %}
-  <a class="cp-btn" href="{% url 'portal:employee_create' %}">{% translate "Yeni kart sifarişi" %}</a>
+  <a class="cp-btn" href="{% url 'portal:request_new' %}?intent=card_order">{% translate "Yeni əməkdaş" %}</a>
   {% endif %}
 </div>
 
@@ -86,7 +86,15 @@
         <td>{% if row.out_at %}{{ row.out_at|time:"H:i" }}{% else %}—{% endif %}</td>
         <td>
           {% if not row.employee.is_active %}{% translate "Arxiv" %}
-          {% elif row.card_pending %}<span class="badge badge-progress">{% translate "Kart gözləyir" %}</span>
+          {% elif row.card_pending %}
+          <span class="badge badge-progress" title="{% translate "Kart sifarişi açıqdır" %}">
+            {% if row.employee.card_order_status and row.employee.card_order_status != "none" %}
+            {% blocktranslate with status=row.employee.get_card_order_status_display %}Kart: {{ status }}{% endblocktranslate %}
+            {% else %}
+            {% translate "Kart sifarişi gözləyir" %}
+            {% endif %}
+          </span>
+          {% if row.status %}<span class="cp-meta"> · {{ row.status }}</span>{% endif %}
           {% else %}{{ row.status }}{% endif %}
         </td>
       </tr>

@@ -21,7 +21,6 @@
   <a class="cp-tab {% if tab == 'assets' %}is-active{% endif %}" href="?tab=assets">{% translate "Aktivlər" %}</a>
   <a class="cp-tab {% if tab == 'technical_plan' %}is-active{% endif %}" href="?tab=technical_plan">{% translate "Texniki plan" %}</a>
   <a class="cp-tab {% if tab == 'dwg' %}is-active{% endif %}" href="?tab=dwg">DWG</a>
-  <span class="cp-tab is-disabled">{% translate "Texniki xidmət" %}</span>
 </nav>
 
 {% if tab == 'overview' or not tab %}
@@ -56,10 +55,18 @@
   </table>
 </div>
 {% elif tab == 'documents' %}
-<div class="cp-card p-card">
+<div class="cp-card" style="padding:8px 0;">
   {% for d in documents %}
-    <div class="flex justify-between mb-3"><span>{{ d.title }}</span><span class="cp-meta">{{ d.published_at|date:"d.m.Y" }}</span></div>
-  {% empty %}<p class="cp-meta">{% translate "Sənəd yoxdur." %}</p>{% endfor %}
+  <div class="flex justify-between items-center" style="padding:14px 20px;border-bottom:1px solid var(--cp-border);">
+    <div>
+      <div style="font-weight:600;">{{ d.title }}</div>
+      <div class="cp-meta">{{ d.published_at|date:"d.m.Y" }}{% if d.size_label %} · {{ d.size_label }}{% endif %}</div>
+    </div>
+    {% if d.file %}<a href="{% url 'portal:document_download' d.pk %}">{% translate "Yüklə" %}</a>{% else %}<span class="cp-meta">{% translate "Fayl yoxdur" %}</span>{% endif %}
+  </div>
+  {% empty %}
+  <div class="cp-meta empty-pad">{% translate "Sənəd yoxdur." %}</div>
+  {% endfor %}
 </div>
 {% elif tab == 'employees' %}
 <div class="cp-card p-card">

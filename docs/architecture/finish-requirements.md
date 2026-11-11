@@ -7,9 +7,12 @@ Provide these so remaining DoD items can be closed without guessing.
 
 ## A. Business / process
 
-1. **SLA targets** (response + resolution hours) per Ticket Type / Category / priority + business calendar (work hours, holidays).
-2. **Final ticket taxonomy** confirmation vs live City Point cases (which subcategories are WO-eligible / CRM-eligible).
-3. **Card request** owners and status rules (who moves Submitted→Issued; when card_number is written).
+1. **SLA targets** (response + resolution hours) per Ticket Type / Category / priority + business calendar (work hours, holidays).  
+   **Done (2026-11-11):** high 4h / normal 8h / low 24h; Mon–Sat 09–18; Novruz + state holidays off — see [BUSINESS_DECISIONS.md](BUSINESS_DECISIONS.md).
+2. **Final ticket taxonomy** confirmation vs live City Point cases (which subcategories are WO-eligible / CRM-eligible).  
+   **Done (2026-11-11):** type→category map + all `wo_eligible=True`; suggestion removed from forms — see [BUSINESS_DECISIONS.md](BUSINESS_DECISIONS.md).
+3. **Card request** owners and status rules (who moves Submitted→Issued; when card_number is written).  
+   **Done (2026-11-11):** portal card-order → ticket create prefill; Security-only status; AxTrax-only card_number — see [BUSINESS_DECISIONS.md](BUSINESS_DECISIONS.md).
 4. **Lease commercial rules**: rent/SC calculation, indexation, deposit, parking inclusion, fit-out periods.
 5. **Billing calendar**: invoice day, due days, VAT/tax treatment, penalty rules.
 6. **Chart of Accounts** real codes (replace minimal 1000/1100/4000 seed) + who posts journals.
