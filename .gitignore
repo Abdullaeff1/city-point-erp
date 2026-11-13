@@ -2,16 +2,32 @@ __pycache__/
 *.py[cod]
 *.sqlite3
 .env
+.env.*
+!.env.example
 .venv/
 venv/
 media/
 staticfiles/
-# Lokal runtime / secret / böyük paketlər (docs/data seed faylları gitdədir)
-var/
 *.log
 .DS_Store
 .idea/
 .vscode/
 node_modules/
+**/node_modules/
+
+# Böyük deploy arxivləri (lokal USB paketləri)
 *.zip
 
+# Təhlükəsizlik / PII / turniket — paylaşılmır
+var/private_media/
+var/axtrax_*.json
+var/axtrax_*.log
+var/binada-olanlar*.xlsx
+var/camera_pdf_extract.txt
+var/probe_devices_search.py
+var/probe_reception_cards.py
+var/_axtrax_status.py
+var/_analyze_denied_only.py
+var/_verify_denied_fix.py
+var/netadmin-usb-package/
+var/netadmin-update/

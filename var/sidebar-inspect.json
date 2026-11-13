@@ -1,0 +1,232 @@
+{
+  "htmlStructure": {
+    "hasDetailsGroup": true,
+    "hasOldCpNavLabelAsSection": false,
+    "detailsCount": 7
+  },
+  "detailsCounts": {
+    "open": 1,
+    "closed": 6,
+    "total": 7
+  },
+  "closedLinkStyles": [
+    {
+      "section": "ƏMƏLİYYAT",
+      "linkText": "Qəbul",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "ƏMƏLİYYAT",
+      "linkText": "Service Desk",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "ƏMLAK",
+      "linkText": "Sahələr",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "ƏMLAK",
+      "linkText": "Rezidentlər46",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "ƏMLAK",
+      "linkText": "Parties",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "CRM",
+      "linkText": "Lidlər",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "CRM",
+      "linkText": "Təkliflər",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "TƏCHİZAT",
+      "linkText": "Anbar",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "TƏCHİZAT",
+      "linkText": "Satınalma",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "MALİYYƏ",
+      "linkText": "Billing",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "MALİYYƏ",
+      "linkText": "Mühasibat",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "MALİYYƏ",
+      "linkText": "Sənədlər",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "ANALİTİKA",
+      "linkText": "Hesabatlar",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    },
+    {
+      "section": "ANALİTİKA",
+      "linkText": "CP İşçilər",
+      "linkStyles": {
+        "display": "flex",
+        "visibility": "visible",
+        "opacity": "1",
+        "height": "auto"
+      },
+      "bodyStyles": {
+        "display": "none",
+        "visibility": "visible"
+      }
+    }
+  ],
+  "screenshotPath": "C:\\Users\\saida\\OneDrive\\Documents\\city point system\\var\\sidebar-screenshot.png",
+  "cssHideRule": ".cp-nav-group:not([open]) > .cp-nav-group-body { display: none; }",
+  "fetchOnly": {
+    "erpStatus": 200,
+    "erpUrl": "http://localhost:3001/erp/",
+    "hasDetailsGroup": true,
+    "hasOldNavLabel": false,
+    "detailsOpen": 1,
+    "detailsClosed": 6,
+    "navSnippet": "<nav class=\"cp-nav\" aria-label=\"ERP\">\n      <details class=\"cp-nav-group\" open>\n        <summary class=\"cp-nav-summary\">\n          <span class=\"cp-nav-summary-label\">İDARƏETMƏ</span>\n          <i data-lucide=\"chevron-down\" class=\"cp-nav-chevron\" width=\"14\" height=\"14\"></i>\n        </summary>\n        <div class=\"cp-nav-group-body\">\n          <a class=\"is-active\" href=\"/erp/\"><i data-lucide=\"layout-dashboard\" width=\"18\" height=\"18\"></i><span class=\"cp-nav-text\">İdarə paneli</span></a>\n        </div>\n      </details>\n\n      \n      <details class=\"cp-nav-group\" >\n        <summary class=\"cp-nav-summary\">\n          <span class=\"cp-nav-summary-label\">ƏMƏLİYYAT</span>\n          <i data-lucide=\"chevron-down\" class=\"cp-nav-chevron\" width=\"14\" height=\"14\"></i>\n        </summary>\n        <div class=\"c"
+  },
+  "error": null,
+  "visibleClosedSectionLinks": [],
+  "sectionHeaders": [
+    "İDARƏETMƏ",
+    "ƏMƏLİYYAT",
+    "ƏMLAK",
+    "CRM",
+    "TƏCHİZAT",
+    "MALİYYƏ",
+    "ANALİTİKA"
+  ]
+}
