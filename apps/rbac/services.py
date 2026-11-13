@@ -29,6 +29,8 @@ DEFAULT_PERMISSIONS = [
     ("document.edit", "Sənəd redaktə", "documents"),
     ("report.view", "Hesabat baxış", "reporting"),
     ("audit.view", "Audit baxış", "audit"),
+    # A.8: catalog only — not auto-granted to Management; Admin uses role check.
+    ("announcement.publish", "Elan nəşri", "comms"),
 ]
 
 _RECEPTION_PERMS = [
@@ -61,7 +63,8 @@ ROLE_MATRIX = {
         "reception.search",
     ],
     Role.SECURITY: ["security.view", "party.view", "residents.export_access"],
-    Role.MANAGEMENT: [p[0] for p in DEFAULT_PERMISSIONS],
+    # Management does not get announcement.publish until explicitly granted (A.8 Admin-first).
+    Role.MANAGEMENT: [p[0] for p in DEFAULT_PERMISSIONS if p[0] != "announcement.publish"],
     Role.ADMIN: [p[0] for p in DEFAULT_PERMISSIONS],
 }
 

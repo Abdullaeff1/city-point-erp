@@ -7,6 +7,7 @@ from apps.accounts.impersonation import (
 )
 from apps.accounts.models import Role
 from apps.accounts.portal_scope import MODE_ALL, get_portal_scope
+from apps.comms.announcements import can_publish_announcement
 from apps.comms.models import Notification
 
 
@@ -71,12 +72,17 @@ def role_context(request):
         "nav_property": is_adminish or role == Role.PROPERTY_FM,
         "nav_residents": nav_residents,
         "nav_docs": is_adminish,
+        "nav_announcements": bool(user and user.is_authenticated and can_publish_announcement(user)),
         "nav_reports": is_adminish,
         "nav_internal_access": is_adminish,
         # İcarələr sidebar gizlədilir — məlumat Rezident kartında (Sənədlər) saxlanır
         "nav_leases": False,
-        # İlkin MVP: CRM / Anbar / Billing thin — təqdimatda gizlədilir
-        "nav_crm": False,
+        # CRM DoD: sales/management/admin/accountant; reception yox
+        "nav_crm": bool(
+            user
+            and user.is_authenticated
+            and role in {Role.SALES, Role.MANAGEMENT, Role.ADMIN, Role.ACCOUNTANT}
+        ),
         "nav_supply": False,
         "nav_finance": False,
         "nav_audit": bool(

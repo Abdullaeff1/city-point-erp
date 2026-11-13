@@ -1,0 +1,75 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}Lid #{{ lead.pk }}{% endblock %}
+{% block heading %}{{ lead }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'erp:crm_leads' %}">← Lidlər</a></p>
+{% if duplicates %}
+<div class="cp-card" style="border-color:#b45309;margin-bottom:1rem;">
+  <strong>{% translate "Oxşar lidlər" %}:</strong>
+  {% for d in duplicates %}<a href="{% url 'erp:crm_lead_detail' d.pk %}">#{{ d.pk }} {{ d }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}
+</div>
+{% endif %}
+
+{% if can_mutate %}
+<form method="post" class="cp-card" style="margin-bottom:1rem;">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="update">
+  <div class="cp-form-grid">
+    <label>Şirkət <input name="company_name" value="{{ lead.company_name }}"></label>
+    <label>Əlaqə <input name="full_name" value="{{ lead.full_name }}"></label>
+    <label>Telefon <input name="phone" value="{{ lead.phone }}"></label>
+    <label>E-poçt <input name="email" value="{{ lead.email }}"></label>
+    <label>Mənbə
+      <select name="source">{% for v,l in sources %}<option value="{{ v }}" {% if lead.source == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    </label>
+    <label>Kvalifikasiya
+      <select name="qualification">{% for v,l in qualifications %}<option value="{{ v }}" {% if lead.qualification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    </label>
+    <label>Səbəb (qeyri-potensial) <input name="qualification_reason" value="{{ lead.qualification_reason }}"></label>
+    <label>Mərhələ
+      <select name="pipeline_stage">{% for v,l in stages %}<option value="{{ v }}" {% if lead.pipeline_stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    </label>
+    <label>Qeyd statusu
+      <select name="record_status">{% for v,l in record_statuses %}<option value="{{ v }}" {% if lead.record_status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    </label>
+    <label>Nəticə
+      <select name="outcome"><option value="">—</option>{% for v,l in outcomes %}<option value="{{ v }}" {% if lead.outcome == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    </label>
+    <label>Min m² <input name="min_area_m2" value="{{ lead.min_area_m2|default_if_none:'' }}"></label>
+    <label>Max m² <input name="max_area_m2" value="{{ lead.max_area_m2|default_if_none:'' }}"></label>
+    <label>İşçi sayı <input name="employee_count" value="{{ lead.employee_count|default_if_none:'' }}"></label>
+    <label>Qeyd <textarea name="message" rows="2">{{ lead.message }}</textarea></label>
+  </div>
+  <button type="submit" class="btn btn-primary">{% translate "Yadda saxla" %}</button>
+</form>
+<form method="post" style="display:inline;">{% csrf_token %}<input type="hidden" name="action" value="opportunity"><button class="btn">{% translate "İmkan yarat" %}</button></form>
+{% endif %}
+
+<div class="cp-card" style="margin-top:1rem;">
+  <h3>{% translate "Aktivliklər" %}</h3>
+  {% if can_mutate %}
+  <form method="post" style="margin-bottom:1rem;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="activity">
+    <select name="activity_type">{% for v,l in activity_types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+    <input name="body" placeholder="Qeyd" style="min-width:240px;">
+    <button type="submit" class="btn">{% translate "Əlavə et" %}</button>
+  </form>
+  {% endif %}
+  <ul>
+    {% for a in lead.activities.all %}
+    <li><strong>{{ a.get_activity_type_display }}</strong> — {{ a.body }} <span class="muted">{{ a.occurred_at|date:"d.m.Y H:i" }}</span></li>
+    {% empty %}<li>{% translate "Aktivlik yoxdur." %}</li>{% endfor %}
+  </ul>
+</div>
+
+<div class="cp-card" style="margin-top:1rem;">
+  <h3>{% translate "İmkanlar" %}</h3>
+  <ul>
+    {% for o in lead.opportunities.all %}
+    <li><a href="{% url 'erp:crm_opportunity_detail' o.pk %}">#{{ o.pk }} {{ o.title }}</a> — {{ o.get_pipeline_stage_display }}</li>
+    {% empty %}<li>—</li>{% endfor %}
+  </ul>
+</div>
+{% endblock %}

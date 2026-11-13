@@ -1,0 +1,46 @@
+{% extends "finance/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Manual jurnal" %}{% endblock %}
+{% block back_trail %} · <a href="{% url 'finance:journals' %}">{% translate "Jurnal" %}</a>{% endblock %}
+{% block content %}
+{% if not can_mutate %}
+<p class="cp-meta">{% translate "İcazə yoxdur." %}</p>
+{% else %}
+<div class="cp-card p-card">
+  <form method="post">
+    {% csrf_token %}
+    <label class="mb-3" style="display:block;">
+      {% translate "Memo" %}
+      <input class="cp-input mt-1" name="memo" style="width:100%;max-width:480px;">
+    </label>
+    <table class="cp-table">
+      <thead>
+        <tr>
+          <th>{% translate "Hesab" %}</th>
+          <th>{% translate "Debit" %}</th>
+          <th>{% translate "Credit" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in "1234" %}
+        <tr>
+          <td>
+            <select class="cp-input" name="account_code">
+              <option value="">—</option>
+              {% for a in accounts %}
+              <option value="{{ a.code }}">{{ a.code }} {{ a.name }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td><input class="cp-input" name="debit" type="number" step="0.01" min="0" value="0"></td>
+          <td><input class="cp-input" name="credit" type="number" step="0.01" min="0" value="0"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="cp-meta mt-2">{% translate "Debit = Credit olmalıdır. Ən azı 2 sətir." %}</p>
+    <button class="cp-btn mt-3" type="submit">{% translate "Post et" %}</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

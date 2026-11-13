@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from apps.accounting.models import Account, JournalEntry, JournalLine
+from apps.accounting.models import Account, AccountingPeriod, JournalEntry, JournalLine
 
 
 class JournalLineInline(admin.TabularInline):
@@ -26,3 +26,9 @@ class JournalEntryAdmin(admin.ModelAdmin):
 @admin.register(JournalLine)
 class JournalLineAdmin(admin.ModelAdmin):
     list_display = ("entry", "account", "debit", "credit", "memo")
+
+
+@admin.register(AccountingPeriod)
+class AccountingPeriodAdmin(admin.ModelAdmin):
+    list_display = ("year", "month", "is_closed", "closed_at", "closed_by")
+    list_filter = ("is_closed", "year")

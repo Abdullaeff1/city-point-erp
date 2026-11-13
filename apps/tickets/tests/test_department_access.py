@@ -360,18 +360,28 @@ class TicketDepartmentAccessTests(TestCase):
         self.assertEqual(self.sec_ticket.status, TicketStatus.SENT)
 
     def test_status_waiting_requires_reason(self):
+        from apps.tickets.models import WaitingReasonCode
+
         set_ticket_status(self.sec_ticket, TicketStatus.ACCEPTED, actor=self.sec_user)
         set_ticket_status(self.sec_ticket, TicketStatus.IN_PROGRESS, actor=self.sec_user)
         with self.assertRaises(DomainError):
             set_ticket_status(self.sec_ticket, TicketStatus.WAITING, actor=self.sec_user)
+        with self.assertRaises(DomainError):
+            set_ticket_status(
+                self.sec_ticket,
+                TicketStatus.WAITING,
+                actor=self.sec_user,
+                waiting_reason="Spare part",
+            )
         set_ticket_status(
             self.sec_ticket,
             TicketStatus.WAITING,
             actor=self.sec_user,
-            waiting_reason="Spare part",
+            waiting_reason_code=WaitingReasonCode.SPARE_PART,
         )
         self.sec_ticket.refresh_from_db()
         self.assertEqual(self.sec_ticket.status, TicketStatus.WAITING)
+        self.assertEqual(self.sec_ticket.waiting_reason_code, WaitingReasonCode.SPARE_PART)
 
     def test_service_desk_assigns_citypoint_employee_by_name(self):
         city = ResidentCompany.objects.create(

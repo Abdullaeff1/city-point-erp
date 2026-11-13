@@ -24,6 +24,7 @@ from apps.accounts.portal_scope import (
     eligible_companies_for,
     set_portal_scope,
 )
+from apps.accounts.routing import home_url_name_for, redirect_home
 
 
 @require_http_methods(["GET", "POST"])
@@ -102,6 +103,7 @@ def stop_role_preview(request):
 
 @login_required
 def post_login(request):
+    """Always land on the role home — never a permission-denied card."""
     if request.user.must_set_password:
         return redirect("accounts:force_set_password")
     if request.user.role == Role.RESIDENT_USER:
@@ -118,13 +120,23 @@ def post_login(request):
             set_portal_scope(request, MODE_SINGLE, [eligible[0].pk])
             return redirect("portal:home")
         return redirect("portal:choose_companies")
-    if request.user.role == Role.SECURITY:
-        return redirect("security:home")
-    if request.user.role == Role.RECEPTION:
-        return redirect("erp:reception")
-    if request.user.role == Role.SERVICE_DESK:
-        return redirect("erp:tickets")
-    return redirect("erp:dashboard")
+    return redirect(home_url_name_for(request.user))
+
+
+def permission_denied_view(request, exception=None):
+    """Wrong portal / role → send user to their home (or login). No dead 403 card."""
+    from django.urls import reverse
+
+    if getattr(request, "user", None) is not None and request.user.is_authenticated:
+        if request.user.must_set_password:
+            return redirect("accounts:force_set_password")
+        home = reverse(home_url_name_for(request.user))
+        # Avoid redirect loop if the home URL itself raised 403
+        if request.path.rstrip("/") == home.rstrip("/"):
+            logout(request)
+            return redirect("login")
+        return redirect(home)
+    return redirect("login")
 
 
 @require_http_methods(["GET", "POST"])

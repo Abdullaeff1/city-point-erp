@@ -1,0 +1,44 @@
+{% extends "finance/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Fakturalar" %}{% endblock %}
+{% block content %}
+<div class="flex gap-2 mb-3" style="flex-wrap:wrap;align-items:center;">
+  <form method="get" class="flex gap-2" style="align-items:center;">
+    <select class="cp-input" name="status" onchange="this.form.submit()">
+      <option value="">{% translate "Hamısı" %}</option>
+      {% for val, label in statuses %}
+      <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  <a class="cp-btn" href="{% url 'finance:invoices_export' %}">{% translate "Excel" %}</a>
+</div>
+<div class="cp-card p-card">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Kod" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th>{% translate "Tarix" %}</th>
+        <th>{% translate "Due" %}</th>
+        <th>{% translate "Cəm" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr>
+        <td><a href="{% url 'finance:invoice_detail' code=inv.code %}">{{ inv.code }}</a></td>
+        <td>{{ inv.party.display_name }}</td>
+        <td>{{ inv.get_status_display }}</td>
+        <td>{{ inv.issue_date|default:"—" }}</td>
+        <td>{{ inv.due_date|default:"—" }}</td>
+        <td>{{ inv.total }} {{ inv.currency }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

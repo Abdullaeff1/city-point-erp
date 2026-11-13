@@ -266,6 +266,9 @@ class Ticket(models.Model):
     )
     sla_due_at = models.DateTimeField(null=True, blank=True)
     sla_paused_at = models.DateTimeField(null=True, blank=True)
+    # 0=none, 1=SLA risk notified, 2=SLA breach escalated (Phase 6)
+    escalation_level = models.PositiveSmallIntegerField(default=0)
+    escalated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -297,23 +300,33 @@ class Ticket(models.Model):
             return False
         if self.sla_paused_at:
             return False
-        return timezone.now() >= self.sla_due_at
+        from apps.tickets.business_calendar import business_seconds_between
+
+        return business_seconds_between(timezone.now(), self.sla_due_at) <= 0
 
     @property
     def sla_risk(self):
+        """Risk when ≤2 business hours remain (not wall-clock)."""
         if not self.sla_due_at or self.status in CLOSED_STATUSES:
             return False
         if self.sla_paused_at:
             return False
-        return timezone.now() >= self.sla_due_at - timedelta(hours=4)
+        if self.sla_breached:
+            return False
+        from apps.tickets.business_calendar import business_seconds_between
+
+        remaining = business_seconds_between(timezone.now(), self.sla_due_at)
+        return 0 < remaining <= 2 * 3600
 
     @property
     def sla_remaining(self):
         if not self.sla_due_at or self.status in CLOSED_STATUSES:
             return None
-        if self.sla_paused_at:
-            return self.sla_due_at - self.sla_paused_at
-        return self.sla_due_at - timezone.now()
+        from apps.tickets.business_calendar import business_seconds_between
+
+        anchor = self.sla_paused_at or timezone.now()
+        secs = business_seconds_between(anchor, self.sla_due_at)
+        return timedelta(seconds=secs)
 
     @property
     def sla_remaining_label(self):

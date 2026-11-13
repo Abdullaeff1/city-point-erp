@@ -1,0 +1,28 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{% translate "Müraciətlər" %}{% endblock %}
+{% block heading %}{% translate "Müqavilə müraciətləri" %}{% endblock %}
+{% block content %}
+<p>
+  <a href="?queue=1">{% translate "Mühasib növbəsi" %}</a> ·
+  <a href="?">{% translate "Hamısı" %}</a>
+</p>
+<div class="cp-card">
+  <table class="cp-table">
+    <thead><tr><th>#</th><th>Şəxs/Şirkət</th><th>Sahə</th><th>Status</th><th>Təklif</th><th>İcarə</th><th></th></tr></thead>
+    <tbody>
+      {% for a in applications %}
+      <tr>
+        <td>{{ a.pk }}</td>
+        <td>{{ a.person_name|default:"—" }}</td>
+        <td>{{ a.space_label|default:a.space|default:"—" }}</td>
+        <td>{{ a.get_status_display }}</td>
+        <td>{% if a.offer_id %}<a href="{% url 'erp:crm_offer_detail' a.offer_id %}">#{{ a.offer_id }}</a>{% endif %}</td>
+        <td>{% if a.lease %}{{ a.lease.code }}{% else %}—{% endif %}</td>
+        <td><a href="{% url 'erp:crm_lease_application_detail' a.pk %}">{% translate "Aç" %}</a></td>
+      </tr>
+      {% empty %}<tr><td colspan="7">{% translate "Müraciət yoxdur." %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

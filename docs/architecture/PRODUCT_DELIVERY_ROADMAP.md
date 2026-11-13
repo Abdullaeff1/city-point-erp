@@ -191,6 +191,8 @@ Bu suallar «maraq üçün» deyil — hər biri konkret modulun **qayda mühər
 
 #### A.8 — Elan siyasəti: bina-elmi vs şirkət; kim nəşr edir
 
+**Status:** cavablandı · tətbiq olunub — bax [`BUSINESS_DECISIONS.md`](BUSINESS_DECISIONS.md)
+
 **Nə soruşulur:** Default elan bütün binaya gedir, yoxsa yalnız seçilmiş şirkətə; kim yarada/nəşr edə bilər (Admin, Management, Property); Outlook mailbox-dan avtomatik elan icazəlidirmi.
 
 **Nə üçün lazımdır:** Phase 1-də scope (building/company) kodda var; siyasət olmadan ya bütün rezidentlər yad şirkətin elanını görür, ya heç kim elan tapa bilmir. Portal trust və spam riski.

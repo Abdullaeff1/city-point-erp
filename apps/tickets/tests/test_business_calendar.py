@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from apps.tickets.business_calendar import (
     add_business_hours,
+    business_seconds_between,
     is_fixed_holiday,
     is_workday,
     next_open,
@@ -45,3 +46,14 @@ class BusinessCalendarTests(SimpleTestCase):
         # 8h left same day → 18:00; 1h → next workday after Novruz
         # 20–24 Mar holiday; 25 Mar Wed 09:00 + 1h = 10:00
         self.assertEqual(due.astimezone(BAKU).strftime("%Y-%m-%d %H:%M"), "2026-03-25 10:00")
+
+    def test_business_seconds_same_day(self):
+        start = timezone.make_aware(datetime(2026, 11, 10, 10, 0), BAKU)
+        end = timezone.make_aware(datetime(2026, 11, 10, 14, 0), BAKU)
+        self.assertEqual(business_seconds_between(start, end), 4 * 3600)
+
+    def test_business_seconds_skips_sunday(self):
+        # Sat 16:00 → Mon 11:00 = 2h Sat + 2h Mon = 4h
+        start = timezone.make_aware(datetime(2026, 11, 14, 16, 0), BAKU)
+        end = timezone.make_aware(datetime(2026, 11, 16, 11, 0), BAKU)
+        self.assertEqual(business_seconds_between(start, end), 4 * 3600)

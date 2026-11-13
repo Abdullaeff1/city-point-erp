@@ -1,5 +1,5 @@
 {% extends "portal/base.html" %}
-{% load i18n %}
+{% load i18n static %}
 {% block heading %}{% if card_order_intent %}{% translate "Yeni əməkdaş — kart sifarişi" %}{% else %}{% translate "Yeni müraciət" %}{% endif %}{% endblock %}
 {% block back_trail %}
  · <a href="{% url 'portal:requests_active' %}">{% translate "Müraciətlər" %}</a>
@@ -17,7 +17,21 @@
     {% for field in form %}
       {% if field.name == "full_name" or field.name == "access_level" or field.name == "id_document" %}
       <div data-card-order-field {% if not card_order_intent %}hidden{% endif %}>
-        {% if field.field.widget.input_type == "file" %}
+        {% if field.name == "id_document" %}
+        <span class="cp-meta">{% translate "Şəxsiyyət vəsiqəsi/müraciət forması" %}</span>
+        <div class="mt-1 flex gap-2" style="flex-wrap:wrap;align-items:center;">
+          <div class="cp-file-pick" data-cp-file>
+            {{ field }}
+            <button type="button" class="cp-btn cp-file-pick-btn">{% translate "Fayl seç" %}</button>
+            <span class="cp-meta cp-file-pick-name" hidden></span>
+          </div>
+          <a class="cp-btn-ghost" href="{% static 'docs/city-point-kart-muraciet-formasi.docx' %}" download="City Point Müraciət forması (Kartlar).docx">
+            {% translate "Kart müraciət formasını endir (DOCX)" %}
+          </a>
+        </div>
+        {% if field.help_text %}<p class="cp-meta mt-1">{{ field.help_text }}</p>{% endif %}
+        {{ field.errors }}
+        {% elif field.field.widget.input_type == "file" %}
         <span class="cp-meta">{{ field.label }}</span>
         <div class="mt-1 cp-file-pick" data-cp-file>
           {{ field }}

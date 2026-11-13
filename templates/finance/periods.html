@@ -1,0 +1,48 @@
+{% extends "finance/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Mühasibat dövrləri" %}{% endblock %}
+{% block content %}
+<div class="cp-card p-card">
+  <p class="cp-meta mb-3">{% translate "Bağlı dövrdə yeni jurnal qəbul olunmur (A.6)." %}</p>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Dövr" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th>{% translate "Bağlanma" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in periods %}
+      <tr>
+        <td>{{ p.year }}-{{ p.month|stringformat:"02d" }}</td>
+        <td>{% if p.is_closed %}{% translate "Bağlı" %}{% else %}{% translate "Açıq" %}{% endif %}</td>
+        <td>{% if p.closed_at %}{{ p.closed_at }}{% else %}—{% endif %}</td>
+        <td>
+          {% if can_close %}
+            {% if not p.is_closed %}
+            <form method="post" style="display:inline;">{% csrf_token %}
+              <input type="hidden" name="action" value="close">
+              <input type="hidden" name="year" value="{{ p.year }}">
+              <input type="hidden" name="month" value="{{ p.month }}">
+              <button class="cp-btn" type="submit">{% translate "Bağla" %}</button>
+            </form>
+            {% elif can_reopen %}
+            <form method="post" style="display:inline;">{% csrf_token %}
+              <input type="hidden" name="action" value="reopen">
+              <input type="hidden" name="year" value="{{ p.year }}">
+              <input type="hidden" name="month" value="{{ p.month }}">
+              <button class="cp-btn" type="submit">{% translate "Yenidən aç" %}</button>
+            </form>
+            {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

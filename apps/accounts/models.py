@@ -12,6 +12,8 @@ class Role(models.TextChoices):
     SERVICE_DESK = "service_desk", _("Service Desk")
     PROPERTY_FM = "property_fm", _("Property / FM")
     SECURITY = "security", _("Təhlükəsizlik")
+    ACCOUNTANT = "accountant", _("Mühasib")
+    SALES = "sales", _("Satış")
     RESIDENT_USER = "resident_user", _("Rezident")
 
 
@@ -22,11 +24,19 @@ STAFF_ROLES = {
     Role.SERVICE_DESK,
     Role.PROPERTY_FM,
     Role.SECURITY,
+    Role.ACCOUNTANT,
+    Role.SALES,
 }
 
 SECURITY_PORTAL_ROLES = {
     Role.SECURITY,
     Role.ADMIN,
+    Role.MANAGEMENT,
+}
+
+# A.7 — Admin finance modulunu görmür; yalnız mühasib + rəhbərlik
+FINANCE_PORTAL_ROLES = {
+    Role.ACCOUNTANT,
     Role.MANAGEMENT,
 }
 
@@ -65,14 +75,20 @@ class User(AbstractUser):
         return self.role in STAFF_ROLES
 
     def can_access_erp(self):
-        # Təhlükəsizlik öz portalından işləyir; tam ERP deyil
-        return self.role in STAFF_ROLES and self.role != Role.SECURITY
+        # Təhlükəsizlik / mühasib öz portalından işləyir; tam ERP deyil
+        return self.role in STAFF_ROLES and self.role not in (
+            Role.SECURITY,
+            Role.ACCOUNTANT,
+        )
 
     def can_access_security_portal(self):
         return self.role in SECURITY_PORTAL_ROLES
 
+    def can_access_finance_portal(self):
+        return self.role in FINANCE_PORTAL_ROLES
+
     def can_access_portal(self):
-        if self.role == Role.SECURITY:
+        if self.role in (Role.SECURITY, Role.ACCOUNTANT):
             return False
         return self.role == Role.RESIDENT_USER or self.is_staff_role()
 

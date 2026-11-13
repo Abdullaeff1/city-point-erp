@@ -1,21 +1,24 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
-{% block page_title %}{% translate "Offers" %}{% endblock %}
-{% block heading %}{% translate "CRM Offers" %}{% endblock %}
+{% block page_title %}{% translate "Təkliflər" %}{% endblock %}
+{% block heading %}{% translate "CRM Təkliflər" %}{% endblock %}
 {% block content %}
 <div class="cp-card">
   <table class="cp-table">
-    <thead><tr><th>{% translate "Party" %}</th><th>Sahə</th><th>Status</th><th>Kirayə</th><th>{% translate "Lease" %}</th></tr></thead>
+    <thead><tr><th>#</th><th>İmkan</th><th>Party</th><th>Sahə</th><th>Status</th><th>Net</th><th>Versiya</th><th></th></tr></thead>
     <tbody>
-      {% for offer in offers %}
+      {% for o in offers %}
       <tr>
-        <td>{{ offer.party.display_name }}</td>
-        <td>{{ offer.space.code|default:"—" }}</td>
-        <td>{{ offer.get_status_display }}</td>
-        <td>{{ offer.rent_amount }}</td>
-        <td>{% if offer.lease %}<a href="{% url 'erp:lease_detail' offer.lease.code %}">{{ offer.lease.code }}</a>{% else %}—{% endif %}</td>
+        <td>{{ o.pk }}</td>
+        <td>{% if o.opportunity_id %}<a href="{% url 'erp:crm_opportunity_detail' o.opportunity_id %}">#{{ o.opportunity_id }}</a>{% endif %}</td>
+        <td>{{ o.party }}</td>
+        <td>{{ o.space|default:"—" }}</td>
+        <td>{{ o.get_status_display }}</td>
+        <td>{{ o.rent_amount }}</td>
+        <td>{% if o.current_version %}v{{ o.current_version.version_number }}{% else %}—{% endif %}</td>
+        <td><a href="{% url 'erp:crm_offer_detail' o.pk %}">{% translate "Aç" %}</a></td>
       </tr>
-      {% empty %}<tr><td colspan="5">{% translate "Offer yoxdur." %}</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="8">{% translate "Təklif yoxdur." %}</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

@@ -10,6 +10,7 @@ def log_action(
     entity=None,
     old_values=None,
     new_values=None,
+    message: str = "",
     source: str = "erp",
     ip_address=None,
     correlation_id: str = "",
@@ -21,6 +22,11 @@ def log_action(
         ct = ContentType.objects.get_for_model(entity, for_concrete_model=False)
         eid = getattr(entity, "pk", None)
         repr_ = str(entity)[:255]
+    values = new_values
+    if message and not values:
+        values = {"detail": message}
+    elif message and isinstance(values, dict):
+        values = {**values, "detail": message}
     return AuditLog.objects.create(
         action=action,
         actor=actor if getattr(actor, "is_authenticated", False) else None,
@@ -28,7 +34,7 @@ def log_action(
         entity_id=eid,
         object_repr=repr_,
         old_values=old_values,
-        new_values=new_values,
+        new_values=values,
         source=source,
         ip_address=ip_address,
         correlation_id=correlation_id or "",

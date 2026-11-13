@@ -737,7 +737,7 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
                 "requester",
                 "assignee",
             )
-            .prefetch_related("attachments"),
+            .prefetch_related("attachments", "messages"),
             code=self.kwargs["code"],
         )
 
@@ -748,6 +748,7 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
         )
         from apps.residents.models import CardOrderStatus
         from apps.tickets.access import can_delete_ticket, can_mutate_ticket, department_assignees
+        from apps.tickets.models import WaitingReasonCode
 
         ctx = super().get_context_data(**kwargs)
         ticket = self.get_ticket()
@@ -755,6 +756,7 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
         ctx["can_mutate"] = can_mutate_ticket(self.request.user, ticket)
         ctx["can_delete"] = can_delete_ticket(self.request.user, ticket)
         ctx["staff_users"] = department_assignees(ticket)
+        ctx["waiting_reason_codes"] = WaitingReasonCode.choices
         ctx["status_events"] = ticket.status_events.select_related("actor")[:40]
         emp = ticket.related_employee
         is_card_order = bool(
@@ -806,12 +808,14 @@ class TicketDetailView(SecurityPortalMixin, TemplateView):
                 advance_ticket_status(ticket, actor=request.user)
             elif action == "waiting":
                 reason = request.POST.get("waiting_reason", "").strip()
+                reason_code = request.POST.get("waiting_reason_code", "").strip()
                 set_ticket_status(
                     ticket,
                     TicketStatus.WAITING,
                     actor=request.user,
                     note=reason,
                     waiting_reason=reason,
+                    waiting_reason_code=reason_code,
                 )
             elif action == "close":
                 set_ticket_status(ticket, TicketStatus.CLOSED, actor=request.user)

@@ -17,13 +17,28 @@ class AnnouncementAttachmentInline(admin.TabularInline):
 
 @admin.register(Announcement)
 class AnnouncementAdmin(admin.ModelAdmin):
-    list_display = ("title", "source", "visibility", "company", "severity", "published_at")
+    list_display = ("title", "source", "visibility", "company_summary", "severity", "published_at")
     list_filter = ("source", "visibility", "severity")
     search_fields = ("title", "external_message_id")
-    filter_horizontal = ("target_users",)
+    filter_horizontal = ("target_users", "companies")
     autocomplete_fields = ("company",)
     readonly_fields = ("source", "external_message_id")
     inlines = [AnnouncementAttachmentInline]
+
+    @admin.display(description="Şirkətlər")
+    def company_summary(self, obj):
+        names = list(obj.companies.values_list("name", flat=True)[:4])
+        if names:
+            extra = obj.companies.count() - len(names)
+            label = ", ".join(names)
+            return f"{label} (+{extra})" if extra > 0 else label
+        return obj.company.name if obj.company_id else "—"
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        from apps.comms.announcements import sync_legacy_company_fk
+
+        sync_legacy_company_fk(form.instance)
 
 
 @admin.register(BuildingProcedure)

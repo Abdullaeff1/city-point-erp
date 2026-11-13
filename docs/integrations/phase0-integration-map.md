@@ -30,12 +30,14 @@ Docs: [turnstile-audit.md](./turnstile-audit.md).
 | Public leads API | `/api/v1/public/leads/` + mock adapter |
 | Contract | [website-contract.md](./website-contract.md) — incomplete vs real site |
 
-## Outlook announcements (inbound)
+## Mail → announcements (inbound)
 
 | Item | Notes |
 |------|--------|
-| Shared mailbox → portal Elan | [`outlook_announcements.py`](../../apps/integrations/outlook_announcements.py), `poll_outlook_announcements` |
-| Runbook | [outlook-announcements.md](outlook-announcements.md) |
+| Zoho «all residents» → building Elan (A.8) | [`zoho_announcements.py`](../../apps/integrations/zoho_announcements.py), `poll_zoho_announcements` |
+| Zoho runbook | [zoho-announcements.md](zoho-announcements.md) |
+| Outlook shared mailbox (legacy) | [`outlook_announcements.py`](../../apps/integrations/outlook_announcements.py), `poll_outlook_announcements` |
+| Outlook runbook | [outlook-announcements.md](outlook-announcements.md) |
 
 ## Email / communications
 

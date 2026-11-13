@@ -61,6 +61,23 @@ class EmployeeCardOrderTests(TestCase):
         self.assertTrue(ticket.attachments.exists())
         self.assertEqual(ticket.department.code, "security")
         self.assertIn("Səviyyə 2", ticket.description)
+        self.assertIn("kart müraciət forması", ticket.description.lower())
+
+    def test_accepts_filled_docx_form(self):
+        docx = SimpleUploadedFile(
+            "kart-formasi.docx",
+            b"PK\x03\x04fake-docx",
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        emp, ticket = create_employee_card_order(
+            company=self.company,
+            requester=self.user,
+            full_name="Docx İşçi",
+            id_document=docx,
+            access_level="1",
+        )
+        self.assertTrue(emp.id_document.name.endswith(".docx"))
+        self.assertEqual(ticket.related_employee_id, emp.pk)
 
     def test_create_with_space(self):
         building = Building.objects.create(name="B1", code="B1-CARD")
@@ -106,6 +123,9 @@ class EmployeeCardOrderTests(TestCase):
         self.assertIn(f'value="{prefill["category_id"]}" selected', html)
         self.assertIn(f'value="{prefill["subcategory_id"]}" selected', html)
         self.assertIn("card-order-prefill", html)
+        self.assertIn("city-point-kart-muraciet-formasi.docx", html)
+        self.assertIn("Kart müraciət formasını endir", html)
+        self.assertIn("Şəxsiyyət vəsiqəsi/müraciət forması", html)
 
     def test_portal_post_creates_order_via_request_new(self):
         from apps.tickets.models import TicketCategory, TicketSubcategory

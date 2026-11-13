@@ -56,3 +56,26 @@ class JournalLine(models.Model):
 
     def __str__(self):
         return f"{self.entry_id}:{self.account_id}"
+
+
+class AccountingPeriod(models.Model):
+    """Monthly GL period — closed periods reject new journals (A.6)."""
+
+    year = models.PositiveSmallIntegerField()
+    month = models.PositiveSmallIntegerField()
+    is_closed = models.BooleanField(default=False)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(
+        "accounts.User",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="closed_accounting_periods",
+    )
+
+    class Meta:
+        unique_together = ("year", "month")
+        ordering = ["-year", "-month"]
+
+    def __str__(self):
+        return f"{self.year}-{self.month:02d}"

@@ -12,16 +12,19 @@ from apps.residents.models import AccessLevel, CardOrderStatus, ResidentEmployee
 from apps.tickets.models import TicketAttachment, TicketSubcategory, TicketType
 from apps.tickets.services import create_ticket_from_portal
 
-ALLOWED_ID_EXT = (".pdf", ".jpg", ".jpeg", ".png")
+# Blank Word template is filled by the company and uploaded (docx) or scanned (pdf/image).
+ALLOWED_ID_EXT = (".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png")
 MAX_ID_BYTES = 10 * 1024 * 1024
+CARD_ORDER_FORM_STATIC = "docs/city-point-kart-muraciet-formasi.docx"
+CARD_ORDER_FORM_DOWNLOAD_NAME = "City Point Müraciət forması (Kartlar).docx"
 
 
 def validate_id_document(uploaded) -> None:
     if not uploaded:
-        raise ValidationError(_("Şəxsiyyət vəsiqəsi mütləqdir."))
+        raise ValidationError(_("Doldurulmuş kart müraciət forması mütləqdir."))
     name = (getattr(uploaded, "name", "") or "").lower()
     if not name.endswith(ALLOWED_ID_EXT):
-        raise ValidationError(_("Yalnız PDF, JPG və ya PNG fayl yükləyin."))
+        raise ValidationError(_("Yalnız DOCX, DOC, PDF, JPG və ya PNG fayl yükləyin."))
     size = getattr(uploaded, "size", 0) or 0
     if size > MAX_ID_BYTES:
         raise ValidationError(_("Fayl ölçüsü 10 MB-dan böyük ola bilməz."))
@@ -82,7 +85,7 @@ def create_employee_card_order(
         f"İstənilən kart səviyyəsi (portal): {level_label}\n"
         f"Faktiki səviyyə AxTraxNG access group sync-indən gələcək.\n"
         f"Kart nömrəsi təyin olunmayıb — AxTrax / təhlükəsizlik tərəfindən veriləcək.\n"
-        f"Şəxsiyyət vəsiqəsi nüsxəsi əlavə olunub."
+        f"Doldurulmuş kart müraciət forması əlavə olunub."
     )
     ticket = create_ticket_from_portal(
         company=company,

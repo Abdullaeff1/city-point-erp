@@ -17,7 +17,8 @@ Provide these so remaining DoD items can be closed without guessing.
 5. **Billing calendar**: invoice day, due days, VAT/tax treatment, penalty rules.
 6. **Chart of Accounts** real codes (replace minimal 1000/1100/4000 seed) + who posts journals.
 7. **Approval matrix**: who approves lease / PR / offers / sensitive documents.
-8. **Announcement policy**: default building-wide vs company-only; who can publish.
+8. **Announcement policy**: default building-wide vs company-only; who can publish.  
+   **Done (2026-11-12):** building / 1+ companies; Admin-first publish; Zoho all-residents → building — see [BUSINESS_DECISIONS.md](BUSINESS_DECISIONS.md).
 
 ## B. Integrations (LAN-first)
 

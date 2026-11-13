@@ -100,3 +100,45 @@ def add_business_hours(start: datetime, hours: int | float) -> datetime:
         remaining -= usable
         current = next_open(close_dt + timedelta(seconds=1))
     raise RuntimeError("business_calendar: add_business_hours did not converge")
+
+
+def business_seconds_between(start: datetime, end: datetime) -> float:
+    """Business seconds from start→end. Negative if end is before start on the calendar path."""
+    start_a = _aware(start)
+    end_a = _aware(end)
+    if end_a == start_a:
+        return 0.0
+    sign = 1.0
+    if end_a < start_a:
+        sign = -1.0
+        start_a, end_a = end_a, start_a
+    total = 0.0
+    current = next_open(start_a)
+    # If start is mid-slot after open, next_open returns start when inside hours.
+    if _local(start_a) > _local(current):
+        current = next_open(start_a)
+    # Clamp: if start is inside a work window, begin at max(start, open)
+    start_local = _local(start_a)
+    if is_workday(start_local.date()):
+        open_dt = _at_open(start_local.date())
+        close_dt = _at_close(start_local.date())
+        if open_dt <= start_a < close_dt:
+            current = start_a
+    for _ in range(10_000):
+        if current >= end_a:
+            break
+        day = _local(current).date()
+        if not is_workday(day):
+            current = next_open(current + timedelta(seconds=1))
+            continue
+        close_dt = _at_close(day)
+        if current >= close_dt:
+            current = next_open(close_dt + timedelta(seconds=1))
+            continue
+        chunk_end = min(close_dt, end_a)
+        if chunk_end > current:
+            total += (chunk_end - current).total_seconds()
+        if chunk_end >= end_a:
+            break
+        current = next_open(close_dt + timedelta(seconds=1))
+    return sign * total

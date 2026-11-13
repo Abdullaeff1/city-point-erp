@@ -1,22 +1,68 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
-{% block page_title %}{% translate "CRM Leads" %}{% endblock %}
-{% block heading %}{% translate "CRM Leads" %}{% endblock %}
+{% block page_title %}{% translate "CRM Lidlər" %}{% endblock %}
+{% block heading %}{% translate "CRM Lidlər" %}{% endblock %}
 {% block content %}
+{% if can_mutate %}
+<div class="cp-card" style="margin-bottom:1rem;">
+  <h3>{% translate "Yeni lid" %}</h3>
+  <form method="post" class="cp-form-grid">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create">
+    <label>Şirkət <input name="company_name"></label>
+    <label>Əlaqə <input name="full_name"></label>
+    <label>Telefon <input name="phone"></label>
+    <label>E-poçt <input name="email" type="email"></label>
+    <label>Mənbə
+      <select name="source">{% for v,l in sources %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+    </label>
+    <label>Müraciət tarixi <input name="inquired_at" type="date"></label>
+    <label>Min m² <input name="min_area_m2"></label>
+    <label>Max m² <input name="max_area_m2"></label>
+    <label>Əlaqə yoxdursa səbəb <input name="contact_missing_reason"></label>
+    <label>Qeyd <textarea name="message" rows="2"></textarea></label>
+    <label><input type="checkbox" name="force_create" value="1"> {% translate "Təkrar yarat (duplicate xəbərdarlığını keç)" %}</label>
+    <button type="submit" class="btn btn-primary">{% translate "Yarat" %}</button>
+  </form>
+</div>
+{% endif %}
+
+<form method="get" class="cp-card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:.5rem;align-items:end;">
+  <label>Axtarış <input name="q" value="{{ filters.q }}"></label>
+  <label>Mənbə
+    <select name="source"><option value="">—</option>{% for v,l in sources %}<option value="{{ v }}" {% if filters.source == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  </label>
+  <label>Kvalifikasiya
+    <select name="qualification"><option value="">—</option>{% for v,l in qualifications %}<option value="{{ v }}" {% if filters.qualification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  </label>
+  <label>Mərhələ
+    <select name="pipeline_stage"><option value="">—</option>{% for v,l in stages %}<option value="{{ v }}" {% if filters.pipeline_stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  </label>
+  <button type="submit" class="btn">{% translate "Filter" %}</button>
+</form>
+
 <div class="cp-card">
   <table class="cp-table">
-    <thead><tr><th>Ad</th><th>{% translate "Email" %}</th><th>Mənbə</th><th>Status</th><th>Sahə</th><th>Tarix</th></tr></thead>
+    <thead>
+      <tr>
+        <th>#</th><th>Şirkət</th><th>Əlaqə</th><th>Telefon</th><th>Mənbə</th>
+        <th>Kvalifikasiya</th><th>Mərhələ</th><th>Status</th><th></th>
+      </tr>
+    </thead>
     <tbody>
       {% for lead in leads %}
       <tr>
-        <td>{{ lead.full_name }}</td>
-        <td>{{ lead.email }}</td>
+        <td>{{ lead.pk }}</td>
+        <td>{{ lead.company_name|default:"—" }}</td>
+        <td>{{ lead.full_name|default:"—" }}</td>
+        <td>{{ lead.phone|default:"—" }}</td>
         <td>{{ lead.get_source_display }}</td>
-        <td>{{ lead.get_status_display }}</td>
-        <td>{{ lead.interested_space.code|default:"—" }}</td>
-        <td>{{ lead.created_at|date:"d.m.Y H:i" }}</td>
+        <td>{{ lead.get_qualification_display }}</td>
+        <td>{{ lead.get_pipeline_stage_display }}</td>
+        <td>{{ lead.get_record_status_display }}</td>
+        <td><a href="{% url 'erp:crm_lead_detail' lead.pk %}">{% translate "Aç" %}</a></td>
       </tr>
-      {% empty %}<tr><td colspan="6">{% translate "Lead yoxdur." %}</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="9">{% translate "Lid yoxdur." %}</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

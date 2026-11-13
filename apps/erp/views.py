@@ -76,6 +76,7 @@ from apps.tickets.models import (
     TicketQueue,
     TicketStatus,
     TicketSubcategory,
+    WaitingReasonCode,
 )
 from apps.tickets.services import (
     add_message,
@@ -83,6 +84,7 @@ from apps.tickets.services import (
     assign_ticket_employee,
     attach_ticket_file,
     citypoint_ticket_assignees,
+    create_opportunity_from_ticket,
     create_ticket_from_staff,
     create_work_order_from_ticket,
     delete_ticket,
@@ -844,7 +846,13 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
             "from_queue", "to_queue", "from_department", "to_department", "actor"
         )
         ctx["priorities"] = TicketPriority.choices
+        ctx["waiting_reason_codes"] = WaitingReasonCode.choices
         ctx["work_orders"] = ticket.work_orders.select_related("contractor").order_by("-created_at")
+        ctx["can_create_opportunity"] = bool(
+            can_mutate_ticket(self.request.user, ticket)
+            and ticket.crm_eligible
+            and not ticket.opportunity_id
+        )
         from apps.property.models import Contractor
 
         ctx["contractors"] = Contractor.objects.order_by("name")
@@ -858,12 +866,14 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
                 advance_ticket_status(ticket, actor=request.user)
             elif action == "waiting":
                 reason = request.POST.get("waiting_reason", "").strip()
+                reason_code = request.POST.get("waiting_reason_code", "").strip()
                 set_ticket_status(
                     ticket,
                     TicketStatus.WAITING,
                     actor=request.user,
                     note=reason,
                     waiting_reason=reason,
+                    waiting_reason_code=reason_code,
                 )
             elif action == "close":
                 set_ticket_status(ticket, TicketStatus.CLOSED, actor=request.user)
@@ -916,6 +926,9 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
                 )
                 messages.success(request, f"{wo.code} yaradıldı. Ticket öz şöbəsində qalır.")
                 return redirect("erp:work_order_detail", code=wo.code)
+            elif action == "create_opportunity":
+                opp = create_opportunity_from_ticket(ticket, actor=request.user)
+                messages.success(request, f"Opportunity yaradıldı: {opp.title}")
             elif action == "message":
                 body = request.POST.get("body", "").strip()
                 if body:
@@ -1741,6 +1754,41 @@ class ReportsView(RoleRequiredMixin, TemplateView):
             }
         )
         return ctx
+
+
+class SlaReportView(RoleRequiredMixin, TemplateView):
+    template_name = "erp/sla_report.html"
+    allowed_roles = (Role.MANAGEMENT, Role.ADMIN, Role.SERVICE_DESK, Role.PROPERTY_FM)
+
+    def get_context_data(self, **kwargs):
+        from apps.tickets.reporting import build_sla_report
+
+        ctx = super().get_context_data(**kwargs)
+        try:
+            days = int(self.request.GET.get("days") or 30)
+        except (TypeError, ValueError):
+            days = 30
+        days = max(7, min(days, 365))
+        ctx["report"] = build_sla_report(
+            queryset=tickets_visible_to(self.request.user),
+            days=days,
+        )
+        return ctx
+
+
+class SlaReportExportView(RoleRequiredMixin, View):
+    allowed_roles = (Role.MANAGEMENT, Role.ADMIN, Role.SERVICE_DESK, Role.PROPERTY_FM)
+
+    def get(self, request, *args, **kwargs):
+        from apps.tickets.reporting import build_sla_report, sla_report_xlsx_http_response
+
+        try:
+            days = int(request.GET.get("days") or 30)
+        except (TypeError, ValueError):
+            days = 30
+        days = max(7, min(days, 365))
+        report = build_sla_report(queryset=tickets_visible_to(request.user), days=days)
+        return sla_report_xlsx_http_response(report)
 
 
 class LeaseListView(StaffRequiredMixin, ListView):

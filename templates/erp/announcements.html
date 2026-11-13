@@ -1,0 +1,61 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Elanlar" %}{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a class="cp-btn" href="{% url 'erp:announcement_create' %}">{% translate "Elan əlavə et" %}</a>
+</div>
+
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Başlıq" %}</th>
+        <th>{% translate "Görünürlük" %}</th>
+        <th>{% translate "Mənbə" %}</th>
+        <th>{% translate "Tarix" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in announcements %}
+      <tr>
+        <td>
+          <div style="font-weight:600;">{{ a.title }}</div>
+          <div class="cp-meta">{{ a.body|truncatechars:80 }}</div>
+        </td>
+        <td class="cp-meta">
+          {% if a.visibility == "building" %}
+            {% translate "Bina-ümumi" %}
+          {% elif a.visibility == "company" %}
+            {% with names=a.companies.all %}
+              {% if names %}
+                {% for c in names %}{{ c.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+              {% elif a.company %}
+                {{ a.company.name }}
+              {% else %}
+                —
+              {% endif %}
+            {% endwith %}
+          {% else %}
+            {{ a.get_visibility_display }}
+          {% endif %}
+        </td>
+        <td class="cp-meta">{{ a.get_source_display }}</td>
+        <td class="cp-meta">{{ a.published_at|date:"d.m.Y" }}</td>
+        <td>
+          <div class="flex gap-2" style="flex-wrap:wrap;justify-content:flex-end;">
+            <a class="cp-btn-ghost" href="{% url 'erp:announcement_edit' a.pk %}">{% translate "Redaktə" %}</a>
+            <form method="post" action="{% url 'erp:announcement_delete' a.pk %}" onsubmit="return confirm('{% translate "Silinsin?" %}');">{% csrf_token %}
+              <button class="cp-btn-ghost" type="submit">{% translate "Sil" %}</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Elan yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -11,3 +11,4 @@
 # App: http://localhost:3001/login/
 # Portal: office@asbc.az / asbc123
 # ERP:    admin@citypoint.az / admin123
+# Finance: accountant@citypoint.az / accountant123 → /finance/

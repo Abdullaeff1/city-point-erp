@@ -47,8 +47,62 @@ def start_axtrax_poller():
     print(f"AxTrax poller started pid={proc.pid} log={log_path}")
 
 
+def start_zoho_announcements_poller():
+    """Background poller: Zoho Mail all-residents → portal building announcements."""
+    if os.environ.get("ZOHO_POLL_ON_START", "0") != "1":
+        print("Zoho announcements poller disabled (ZOHO_POLL_ON_START!=1)")
+        return
+    log_dir = Path("var")
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / "zoho_announcements_poller.log"
+    log = open(log_path, "a", encoding="utf-8")
+    proc = subprocess.Popen(
+        [sys.executable, "manage.py", "poll_zoho_announcements"],
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    print(f"Zoho announcements poller started pid={proc.pid} log={log_path}")
+
+
+def start_ticket_sla_escalation_poller():
+    """Background poller: SLA risk/breach → escalation notifications."""
+    if os.environ.get("TICKET_SLA_POLL_ON_START", "0") != "1":
+        print("Ticket SLA escalation poller disabled (TICKET_SLA_POLL_ON_START!=1)")
+        return
+    log_dir = Path("var")
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / "ticket_sla_escalation_poller.log"
+    log = open(log_path, "a", encoding="utf-8")
+    proc = subprocess.Popen(
+        [sys.executable, "manage.py", "poll_ticket_sla_escalations"],
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    print(f"Ticket SLA escalation poller started pid={proc.pid} log={log_path}")
+
+
+def start_crm_reminder_poller():
+    """Background poller: CRM lead idle 1d + offer follow-up 3d."""
+    if os.environ.get("CRM_REMINDER_POLL_ON_START", "0") != "1":
+        print("CRM reminder poller disabled (CRM_REMINDER_POLL_ON_START!=1)")
+        return
+    log_dir = Path("var")
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / "crm_reminder_poller.log"
+    log = open(log_path, "a", encoding="utf-8")
+    proc = subprocess.Popen(
+        [sys.executable, "manage.py", "poll_crm_reminders"],
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    print(f"CRM reminder poller started pid={proc.pid} log={log_path}")
+
+
 def start_outlook_announcements_poller():
-    """Background poller: Outlook shared mailbox → portal announcements."""
+    """Legacy: Outlook shared mailbox → portal announcements (prefer Zoho)."""
     if os.environ.get("OUTLOOK_POLL_ON_START", "0") != "1":
         print("Outlook announcements poller disabled (OUTLOOK_POLL_ON_START!=1)")
         return
@@ -91,7 +145,10 @@ def main():
     if os.environ.get("SEED_DEMO", "1") == "1":
         subprocess.check_call([sys.executable, "manage.py", "seed_demo"])
     start_axtrax_poller()
+    start_zoho_announcements_poller()
     start_outlook_announcements_poller()
+    start_ticket_sla_escalation_poller()
+    start_crm_reminder_poller()
     # OneDrive-mounted trees can crash Django autoreloader with Errno 5 (I/O error).
     cmd = [sys.executable, "manage.py", "runserver", "0.0.0.0:8000"]
     if os.environ.get("RUNSERVER_NORELOAD", "1") == "1":

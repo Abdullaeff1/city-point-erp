@@ -41,6 +41,37 @@ def create_wo_from_ticket(ticket) -> WorkOrder:
     )
 
 
+def sync_ticket_from_work_order(wo: WorkOrder, *, actor=None) -> None:
+    """When the last open WO for a ticket completes, advance ticket to RESOLVED."""
+    if not wo.ticket_id or wo.status != WorkOrderStatus.COMPLETED:
+        return
+    ticket = wo.ticket
+    from apps.tickets.models import OPEN_STATUSES, TicketStatus
+    from apps.tickets.services import can_transition_to, set_ticket_status
+
+    open_siblings = (
+        WorkOrder.objects.filter(ticket_id=ticket.pk)
+        .exclude(pk=wo.pk)
+        .exclude(status__in=(WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED))
+    )
+    if open_siblings.exists():
+        return
+    if ticket.status not in OPEN_STATUSES:
+        return
+    note = f"WO {wo.code} tamamlandı"
+    # actor=None: system sync must not be blocked by mutate ACL
+    for step in (
+        TicketStatus.ACCEPTED,
+        TicketStatus.IN_PROGRESS,
+        TicketStatus.RESOLVED,
+    ):
+        ticket.refresh_from_db()
+        if ticket.status == TicketStatus.RESOLVED:
+            break
+        if can_transition_to(ticket, step):
+            set_ticket_status(ticket, step, actor=None, note=note)
+
+
 class WorkOrderService(Service):
     @classmethod
     @transaction.atomic
@@ -72,4 +103,6 @@ class WorkOrderService(Service):
                 actor=actor,
             )
         wo.save(update_fields=update)
+        if status in (WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED):
+            sync_ticket_from_work_order(wo, actor=actor)
         return wo

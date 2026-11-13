@@ -61,8 +61,11 @@
 
       {% if nav_crm %}
       <div class="cp-nav-label">{% translate "CRM" %}</div>
-      <a class="{% nav_active 'crm_leads' %}" href="{% url 'erp:crm_leads' %}"><i data-lucide="user-plus" width="18" height="18"></i><span class="cp-nav-text">{% translate "Lidlər" %}</span></a>
-      <a class="{% nav_active 'crm_offers' %}" href="{% url 'erp:crm_offers' %}"><i data-lucide="handshake" width="18" height="18"></i><span class="cp-nav-text">{% translate "Təkliflər" %}</span></a>
+      <a class="{% nav_active 'crm_leads' 'crm_lead_detail' %}" href="{% url 'erp:crm_leads' %}"><i data-lucide="user-plus" width="18" height="18"></i><span class="cp-nav-text">{% translate "Lidlər" %}</span></a>
+      <a class="{% nav_active 'crm_opportunities' 'crm_opportunity_detail' %}" href="{% url 'erp:crm_opportunities' %}"><i data-lucide="target" width="18" height="18"></i><span class="cp-nav-text">{% translate "İmkanlar" %}</span></a>
+      <a class="{% nav_active 'crm_offers' 'crm_offer_detail' %}" href="{% url 'erp:crm_offers' %}"><i data-lucide="handshake" width="18" height="18"></i><span class="cp-nav-text">{% translate "Təkliflər" %}</span></a>
+      <a class="{% nav_active 'crm_lease_applications' 'crm_lease_application_detail' %}" href="{% url 'erp:crm_lease_applications' %}"><i data-lucide="file-plus" width="18" height="18"></i><span class="cp-nav-text">{% translate "Müraciətlər" %}</span></a>
+      <a class="{% nav_active 'crm_reports' %}" href="{% url 'erp:crm_reports' %}"><i data-lucide="pie-chart" width="18" height="18"></i><span class="cp-nav-text">{% translate "CRM hesabat" %}</span></a>
       {% endif %}
 
       {% if nav_supply %}
@@ -71,7 +74,7 @@
       <a class="{% nav_active 'procurement' %}" href="{% url 'erp:procurement' %}"><i data-lucide="shopping-cart" width="18" height="18"></i><span class="cp-nav-text">{% translate "Satınalma" %}</span></a>
       {% endif %}
 
-      {% if nav_finance or nav_docs %}
+      {% if nav_finance or nav_docs or nav_announcements %}
       <div class="cp-nav-label">{% translate "MALİYYƏ" %}</div>
       {% if nav_finance %}
       <a class="{% nav_active 'billing' %}" href="{% url 'erp:billing' %}"><i data-lucide="receipt" width="18" height="18"></i><span class="cp-nav-text">{% translate "Billing" %}</span></a>
@@ -79,11 +82,12 @@
       {% endif %}
       {% if nav_docs %}<a class="{% nav_active 'documents' %}" href="{% url 'erp:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sənədlər" %}</span></a>{% endif %}
       {% if nav_docs %}<a class="{% nav_active 'building_procedures' 'building_procedure_create' 'building_procedure_edit' %}" href="{% url 'erp:building_procedures' %}"><i data-lucide="book-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Daxili prosedurlar" %}</span></a>{% endif %}
+      {% if nav_announcements %}<a class="{% nav_active 'announcements' 'announcement_create' 'announcement_edit' %}" href="{% url 'erp:announcements' %}"><i data-lucide="megaphone" width="18" height="18"></i><span class="cp-nav-text">{% translate "Elanlar" %}</span></a>{% endif %}
       {% endif %}
 
       {% if nav_reports %}
       <div class="cp-nav-label">{% translate "ANALİTİKA" %}</div>
-      <a class="{% nav_active 'reports' %}" href="{% url 'erp:reports' %}"><i data-lucide="bar-chart-3" width="18" height="18"></i><span class="cp-nav-text">{% translate "Hesabatlar" %}</span></a>
+      <a class="{% nav_active 'reports' 'sla_report' %}" href="{% url 'erp:reports' %}"><i data-lucide="bar-chart-3" width="18" height="18"></i><span class="cp-nav-text">{% translate "Hesabatlar" %}</span></a>
       {% if nav_internal_access %}
       <a class="{% nav_active 'internal_staff_access' 'internal_staff_access_detail' %}" href="{% url 'erp:internal_staff_access' %}"><i data-lucide="id-card" width="18" height="18"></i><span class="cp-nav-text">{% translate "CP İşçilər" %}</span></a>
       {% endif %}

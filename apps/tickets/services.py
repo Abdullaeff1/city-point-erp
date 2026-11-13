@@ -14,6 +14,7 @@ from apps.tickets.access import (
 from apps.tickets.models import (
     CLOSED_STATUSES,
     DELETABLE_STATUSES,
+    OPEN_STATUSES,
     STATUS_FLOW,
     RoutingRule,
     SlaPolicy,
@@ -27,6 +28,7 @@ from apps.tickets.models import (
     TicketStatus,
     TicketStatusEvent,
     TicketType,
+    WaitingReasonCode,
 )
 
 
@@ -83,9 +85,14 @@ def pause_sla(ticket):
 
 
 def resume_sla(ticket):
+    """Resume SLA using remaining business hours at pause time (not wall-clock)."""
     if ticket.sla_paused_at and ticket.sla_due_at:
-        paused_for = timezone.now() - ticket.sla_paused_at
-        ticket.sla_due_at = ticket.sla_due_at + paused_for
+        from apps.tickets.business_calendar import add_business_hours, business_seconds_between
+
+        remaining_sec = business_seconds_between(ticket.sla_paused_at, ticket.sla_due_at)
+        if remaining_sec < 0:
+            remaining_sec = 0
+        ticket.sla_due_at = add_business_hours(timezone.now(), remaining_sec / 3600.0)
         ticket.sla_paused_at = None
         ticket.save(update_fields=["sla_due_at", "sla_paused_at", "updated_at"])
 
@@ -102,7 +109,26 @@ def _schedule_notify(fn):
     transaction.on_commit(_safe)
 
 
-def notify_company_users(ticket, message, *, event_key=""):
+def _enqueue_ticket_email(user, *, message: str, template_code: str, ticket, event_key: str = ""):
+    """Outbox email for ticket events (staff + residents with an address)."""
+    recipient = (getattr(user, "email", "") or "").strip()
+    if not recipient:
+        return
+    from apps.comms.services import enqueue_email
+
+    enqueue_email(
+        recipient=recipient,
+        template_code=template_code,
+        payload={
+            "message": message,
+            "ticket_code": ticket.code,
+            "event_key": event_key,
+            "ticket_id": ticket.pk,
+        },
+    )
+
+
+def notify_company_users(ticket, message, *, event_key="", email_template="ticket.company"):
     from apps.accounts.models import User
     from apps.comms.services import notify_in_app
 
@@ -112,11 +138,16 @@ def notify_company_users(ticket, message, *, event_key=""):
         for u in users:
             key = f"{event_key}:u{u.pk}" if event_key else ""
             notify_in_app(user=u, message=message, ticket=ticket, event_key=key)
+            _enqueue_ticket_email(
+                u, message=message, template_code=email_template, ticket=ticket, event_key=key
+            )
 
     _schedule_notify(_send)
 
 
-def notify_department_users(ticket, message, *, event_key="", exclude_user_ids=None):
+def notify_department_users(
+    ticket, message, *, event_key="", exclude_user_ids=None, email_template="ticket.department"
+):
     from apps.accounts.models import User
     from apps.comms.services import notify_in_app
 
@@ -134,6 +165,29 @@ def notify_department_users(ticket, message, *, event_key="", exclude_user_ids=N
         for u in users:
             key = f"{event_key}:u{u.pk}" if event_key else ""
             notify_in_app(user=u, message=message, ticket=ticket, event_key=key)
+            _enqueue_ticket_email(
+                u, message=message, template_code=email_template, ticket=ticket, event_key=key
+            )
+
+    _schedule_notify(_send)
+
+
+def notify_management_users(ticket, message, *, event_key="", email_template="ticket.escalation"):
+    """Admin / Management escalation recipients."""
+    from apps.accounts.models import Role, User
+    from apps.comms.services import notify_in_app
+
+    users = list(
+        User.objects.filter(is_active=True, role__in=(Role.ADMIN, Role.MANAGEMENT))
+    )
+
+    def _send():
+        for u in users:
+            key = f"{event_key}:u{u.pk}" if event_key else ""
+            notify_in_app(user=u, message=message, ticket=ticket, event_key=key)
+            _enqueue_ticket_email(
+                u, message=message, template_code=email_template, ticket=ticket, event_key=key
+            )
 
     _schedule_notify(_send)
 
@@ -285,23 +339,40 @@ def _audit_status(ticket, actor, previous):
         pass
 
 
-def set_ticket_status(ticket, new_status, actor=None, note="", *, waiting_reason=""):
+def set_ticket_status(
+    ticket,
+    new_status,
+    actor=None,
+    note="",
+    *,
+    waiting_reason="",
+    waiting_reason_code="",
+):
     if new_status == ticket.status:
         return ticket
     if actor is not None and not can_mutate_ticket(actor, ticket):
         raise DomainError(_("Ticket statusunu dəyişmək icazəsi yoxdur."))
     if not can_transition_to(ticket, new_status):
         raise DomainError(_("Bu status keçidinə icazə yoxdur."))
-    if new_status == TicketStatus.WAITING and not (waiting_reason or note or "").strip():
-        raise DomainError(_("Gözləmə səbəbi tələb olunur."))
+
+    code = (waiting_reason_code or "").strip()
+    reason_text = (waiting_reason or note or "").strip()
+    if new_status == TicketStatus.WAITING:
+        if code not in dict(WaitingReasonCode.choices):
+            raise DomainError(_("Gözləmə səbəbi kodu tələb olunur."))
+        if code == WaitingReasonCode.OTHER and not reason_text:
+            raise DomainError(_("«Digər» üçün gözləmə mətni tələb olunur."))
+        if not reason_text:
+            reason_text = dict(WaitingReasonCode.choices).get(code, code)
 
     previous = ticket.status
     ticket.status = new_status
     update_fields = ["status", "updated_at"]
 
     if new_status == TicketStatus.WAITING:
-        ticket.waiting_reason = (waiting_reason or note).strip()
-        update_fields.append("waiting_reason")
+        ticket.waiting_reason = reason_text
+        ticket.waiting_reason_code = code
+        update_fields.extend(["waiting_reason", "waiting_reason_code"])
         ticket.save(update_fields=update_fields)
         pause_sla(ticket)
     elif previous == TicketStatus.WAITING and new_status in {
@@ -310,12 +381,12 @@ def set_ticket_status(ticket, new_status, actor=None, note="", *, waiting_reason
         TicketStatus.REOPENED,
     }:
         ticket.waiting_reason = ""
-        update_fields.append("waiting_reason")
+        ticket.waiting_reason_code = ""
+        update_fields.extend(["waiting_reason", "waiting_reason_code"])
         ticket.save(update_fields=update_fields)
         resume_sla(ticket)
     else:
         ticket.save(update_fields=update_fields)
-
     if new_status == TicketStatus.RESOLVED and note:
         ticket.resolution_note = note
         ticket.save(update_fields=["resolution_note", "updated_at"])
@@ -569,6 +640,94 @@ def create_work_order_from_ticket(ticket, *, actor, contractor_id=None):
             update.append("contractor")
         wo.save(update_fields=update)
     return wo
+
+
+def create_opportunity_from_ticket(ticket, *, actor):
+    """Commercial ticket → CRM Opportunity (manual; no silent auto-create)."""
+    if not can_mutate_ticket(actor, ticket):
+        raise DomainError(_("Opportunity yaratmaq icazəsi yoxdur."))
+    if not ticket.crm_eligible:
+        raise DomainError(_("Bu ticket CRM üçün uyğun deyil."))
+    if ticket.opportunity_id:
+        return ticket.opportunity
+
+    from apps.audit.services import log_action
+    from apps.crm.models import Opportunity, OpportunityStatus, PipelineStage
+    from apps.parties.resolvers import party_for_company
+
+    party = party_for_company(ticket.company, ensure=True) if ticket.company_id else None
+    title = f"{ticket.code} — {ticket.company.name if ticket.company_id else 'Commercial'}"
+    if ticket.subcategory_id:
+        title = f"{ticket.code} — {ticket.subcategory.name}"
+    opp = Opportunity.objects.create(
+        title=title[:200],
+        status=OpportunityStatus.OPEN,
+        pipeline_stage=PipelineStage.WORKING,
+        party=party,
+        notes=(ticket.description or "")[:2000],
+        created_by=actor if getattr(actor, "is_authenticated", False) else None,
+        owner=actor if getattr(actor, "is_authenticated", False) else None,
+    )
+    ticket.opportunity = opp
+    ticket.save(update_fields=["opportunity", "updated_at"])
+    log_action(
+        actor=actor,
+        action="crm.opportunity.from_ticket",
+        entity=opp,
+        message=f"{ticket.code} → opp#{opp.pk}",
+        new_values={"ticket_id": ticket.pk, "ticket_code": ticket.code},
+    )
+    return opp
+
+
+def desired_escalation_level(ticket) -> int:
+    """0=none, 1=risk (≤2 business hours), 2=breach. Waiting pauses escalation."""
+    if ticket.status in CLOSED_STATUSES or ticket.sla_paused_at or not ticket.sla_due_at:
+        return 0
+    if ticket.sla_breached:
+        return 2
+    if ticket.sla_risk:
+        return 1
+    return 0
+
+
+def escalate_ticket_if_needed(ticket) -> int | None:
+    """Raise escalation_level and notify dept + Admin/Management. Returns new level or None."""
+    level = desired_escalation_level(ticket)
+    if level <= (ticket.escalation_level or 0):
+        return None
+    ticket.escalation_level = level
+    ticket.escalated_at = timezone.now()
+    ticket.save(update_fields=["escalation_level", "escalated_at", "updated_at"])
+    if level >= 2:
+        msg = _("SLA pozuldu (eskalasiya): %(code)s") % {"code": ticket.code}
+    else:
+        msg = _("SLA riski: %(code)s") % {"code": ticket.code}
+    ek = f"ticket.escalation.{ticket.pk}.{level}.{int(ticket.escalated_at.timestamp())}"
+    notify_department_users(ticket, msg, event_key=ek, email_template="ticket.escalation")
+    notify_management_users(ticket, msg, event_key=ek, email_template="ticket.escalation")
+    return level
+
+
+def scan_ticket_escalations(*, limit: int = 500) -> dict[str, int]:
+    """Scan open tickets and escalate when SLA risk/breach. For poller / cron."""
+    stats = {"checked": 0, "escalated": 0, "risk": 0, "breach": 0}
+    qs = (
+        Ticket.objects.filter(status__in=list(OPEN_STATUSES))
+        .exclude(sla_due_at__isnull=True)
+        .order_by("sla_due_at")[:limit]
+    )
+    for ticket in qs:
+        stats["checked"] += 1
+        level = escalate_ticket_if_needed(ticket)
+        if level is None:
+            continue
+        stats["escalated"] += 1
+        if level >= 2:
+            stats["breach"] += 1
+        else:
+            stats["risk"] += 1
+    return stats
 
 
 def allowed_staff_priorities():

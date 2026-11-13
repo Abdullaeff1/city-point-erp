@@ -1,0 +1,63 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}Müraciət #{{ application.pk }}{% endblock %}
+{% block heading %}Müraciət #{{ application.pk }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'erp:crm_lease_applications' %}">← Müraciətlər</a>
+ · Status: <strong>{{ application.get_status_display }}</strong>
+{% if application.lease %} · İcarə: <a href="{% url 'erp:lease_detail' application.lease.code %}">{{ application.lease.code }}</a>{% endif %}
+</p>
+
+{% if can_mutate %}
+<form method="post" class="cp-card">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="update">
+  <div class="cp-form-grid">
+    <label>Şəxs/Şirkət <input name="person_name" value="{{ application.person_name }}"></label>
+    <label>VÖEN <input name="tax_id" value="{{ application.tax_id }}"></label>
+    <label>Hüquqi ünvan <textarea name="legal_address" rows="2">{{ application.legal_address }}</textarea></label>
+    <label>Faktiki ünvan <textarea name="actual_address" rows="2">{{ application.actual_address }}</textarea></label>
+    <label>Mərtəbə <input name="floor_label" value="{{ application.floor_label }}"></label>
+    <label>Sahə <input name="space_label" value="{{ application.space_label }}"></label>
+    <label>Təyinat <input name="use_purpose" value="{{ application.use_purpose }}"></label>
+    <label>AZN/m² <input name="rent_rate_per_m2" value="{{ application.rent_rate_per_m2|default_if_none:'' }}"></label>
+    <label>Aylıq net <input name="monthly_rent_net" value="{{ application.monthly_rent_net|default_if_none:'' }}"></label>
+    <label>Depozit <input name="deposit_amount" value="{{ application.deposit_amount|default_if_none:'' }}"></label>
+    <label>Azadolma <input name="rent_free_note" value="{{ application.rent_free_note }}"></label>
+    <label><input type="checkbox" name="cleaning_included" {% if application.cleaning_included %}checked{% endif %}> Təmizlik</label>
+    <label><input type="checkbox" name="tea_service_included" {% if application.tea_service_included %}checked{% endif %}> Çay</label>
+    <label>Başlanğıc <input type="date" name="lease_start" value="{{ application.lease_start|date:'Y-m-d' }}"></label>
+    <label>Bitmə <input type="date" name="lease_end" value="{{ application.lease_end|date:'Y-m-d' }}"></label>
+    <label>Bank <textarea name="bank_details" rows="2">{{ application.bank_details }}</textarea></label>
+    <label>Təmir <textarea name="fit_out_notes" rows="2">{{ application.fit_out_notes }}</textarea></label>
+    <label>Əlavə <textarea name="extra_notes" rows="2">{{ application.extra_notes }}</textarea></label>
+    <label>İmzalayan <input name="signer_title_name" value="{{ application.signer_title_name }}"></label>
+    <label>Satış qeydi <textarea name="sales_notes" rows="2">{{ application.sales_notes }}</textarea></label>
+    <label><input type="checkbox" name="chk_voen" {% if application.attachment_checklist.voen %}checked{% endif %}> VÖEN əlavə</label>
+    <label><input type="checkbox" name="chk_registry" {% if application.attachment_checklist.registry %}checked{% endif %}> Reyestr</label>
+    <label><input type="checkbox" name="chk_bank" {% if application.attachment_checklist.bank %}checked{% endif %}> Bank rekvizit</label>
+  </div>
+  <button type="submit" class="btn">{% translate "Yadda saxla" %}</button>
+</form>
+<form method="post" style="margin-top:.5rem;">{% csrf_token %}
+  <input type="hidden" name="action" value="submit">
+  <button class="btn btn-primary">{% translate "Mühasibə göndər" %}</button>
+</form>
+{% endif %}
+
+{% if can_review %}
+<div class="cp-card" style="margin-top:1rem;">
+  <h3>{% translate "Mühasib" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <textarea name="accountant_notes" rows="2" placeholder="Qeyd">{{ application.accountant_notes }}</textarea>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem;">
+      <button name="action" value="accept" class="btn">{% translate "Baxışa al" %}</button>
+      <button name="action" value="return" class="btn">{% translate "Düzəlişə qaytar" %}</button>
+      <button name="action" value="lease_draft" class="btn btn-primary">{% translate "İcarə qaralaması" %}</button>
+      <button name="action" value="complete" class="btn">{% translate "İmzalandı / tamamla" %}</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

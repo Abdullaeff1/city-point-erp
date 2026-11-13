@@ -26,7 +26,7 @@
   <p class="cp-meta mt-1">{% translate "Səviyyə AxTraxNG access group-dan oxunur (əl ilə dəyişilmir)." %}</p>
   {% endif %}
   {% if ticket.related_employee.id_document %}
-  <p class="mt-2"><a href="{{ ticket.related_employee.id_document.url }}" target="_blank" rel="noopener">{% translate "Şəxsiyyət vəsiqəsi" %}</a></p>
+  <p class="mt-2"><a href="{{ ticket.related_employee.id_document.url }}" target="_blank" rel="noopener">{% translate "Kart müraciət forması" %}</a></p>
   {% endif %}
   {% endif %}
 </div>
@@ -46,6 +46,19 @@
   </div>
 </div>
 {% endif %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="font-size:16px;">{% translate "Mesajlar" %}</div>
+  <ul class="mt-3 flex-col gap-2">
+    {% for m in ticket.messages.all %}
+    <li>
+      <div class="cp-meta">{{ m.created_at|date:"d.m H:i" }} · {{ m.author_label|default:"—" }}</div>
+      <div style="white-space:pre-wrap;">{{ m.body }}</div>
+    </li>
+    {% empty %}
+    <li class="cp-meta">{% translate "Mesaj yoxdur." %}</li>
+    {% endfor %}
+  </ul>
+</div>
 <div class="cp-card p-card mb-4">
   <div class="cp-section" style="font-size:16px;">{% translate "Əlavələr" %}</div>
   <ul class="mt-3 flex-col gap-2">
@@ -73,7 +86,13 @@
   <form method="post" class="flex-col gap-2">
     {% csrf_token %}
     <input type="hidden" name="action" value="waiting">
-    <input name="waiting_reason" class="cp-input" placeholder="{% translate 'Gözləmə səbəbi' %}" required>
+    <select name="waiting_reason_code" class="cp-input" required>
+      <option value="">— {% translate "Gözləmə səbəbi" %} —</option>
+      {% for value, label in waiting_reason_codes %}
+      <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+    <input name="waiting_reason" class="cp-input" placeholder="{% translate 'Əlavə mətn (Digər üçün məcburi)' %}">
     <button class="cp-btn-ghost">{% translate "Gözləməyə al" %}</button>
   </form>
   {% endif %}

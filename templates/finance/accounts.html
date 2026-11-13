@@ -1,0 +1,37 @@
+{% extends "finance/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Hesablar planı (CoA)" %}{% endblock %}
+{% block content %}
+<div class="cp-card p-card mb-4">
+  <p class="cp-meta mb-3">{% translate "A.6: 3-rəqəm beynəlxalq CoA — Excel import (code, name, type)." %}</p>
+  {% if can_mutate %}
+  <form method="post" enctype="multipart/form-data" class="flex gap-2" style="flex-wrap:wrap;align-items:end;">
+    {% csrf_token %}
+    <input class="cp-input" type="file" name="coa_file" accept=".xlsx" required>
+    <button class="cp-btn" type="submit">{% translate "Import" %}</button>
+  </form>
+  {% endif %}
+</div>
+<div class="cp-card p-card">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Kod" %}</th>
+        <th>{% translate "Ad" %}</th>
+        <th>{% translate "Tip" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in accounts %}
+      <tr>
+        <td>{{ a.code }}</td>
+        <td>{{ a.name }}</td>
+        <td>{{ a.get_account_type_display }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

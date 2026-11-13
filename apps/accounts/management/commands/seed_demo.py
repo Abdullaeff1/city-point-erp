@@ -199,6 +199,8 @@ class Command(BaseCommand):
             "fm": ("fm@citypoint.az", "Property FM", Role.PROPERTY_FM, "fm123", "webservis"),
             "manager": ("manager@citypoint.az", "Rəhbərlik", Role.MANAGEMENT, "manager123", None),
             "security": ("security@citypoint.az", "Təhlükəsizlik", Role.SECURITY, "security123", "security"),
+            "accountant": ("accountant@citypoint.az", "Mühasib", Role.ACCOUNTANT, "accountant123", None),
+            "sales": ("sales@citypoint.az", "Satış", Role.SALES, "sales123", None),
         }
         created_users = {}
         for uname, (email, first, role, password, dept_code) in staff_map.items():
@@ -379,11 +381,22 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("Demo data hazırdır."))
         from decimal import Decimal
 
-        from apps.accounting.models import Account, AccountType
-        from apps.billing.models import Charge, ChargeSource, Invoice, InvoiceLine, InvoiceStatus
+        from apps.billing.models import Charge, ChargeSource, Invoice
         from apps.billing.services import generate_invoice_from_charges
-        from apps.crm.models import Lead, LeadSource, LeadStatus, Offer, OfferStatus, Opportunity, OpportunityStatus
-        from apps.crm.services import convert_offer_to_lease_draft
+        from apps.crm.models import (
+            Lead,
+            LeadSource,
+            LeadStatus,
+            Offer,
+            OfferStatus,
+            OfferVersion,
+            Opportunity,
+            OpportunityStatus,
+            PipelineStage,
+            Qualification,
+            RecordStatus,
+        )
+        from apps.crm.services import convert_offer_to_lease_draft, default_rent_rate, default_vat_rate, compute_offer_totals
         from apps.leases.models import Lease, LeaseStatus
         from apps.leases.services import activate_lease, next_lease_code
         from apps.parties.services import PartyService
@@ -425,6 +438,7 @@ class Command(BaseCommand):
             space=space801, meter_code="EL-801", defaults={"utility_type": UtilityType.ELECTRIC, "unit": "kWh"}
         )
 
+        sales_user = created_users.get("sales")
         Lead.objects.update_or_create(
             external_id="seed-lead-502",
             defaults={
@@ -434,8 +448,16 @@ class Command(BaseCommand):
                 "company_name": "Nova Soft",
                 "source": LeadSource.WEBSITE,
                 "status": LeadStatus.QUALIFIED,
+                "qualification": Qualification.POTENTIAL,
+                "record_status": RecordStatus.OPEN,
+                "pipeline_stage": PipelineStage.NEGOTIATION,
+                "inquired_at": date.today(),
+                "min_area_m2": Decimal("80"),
+                "max_area_m2": Decimal("96"),
                 "message": "Interested in floor 5 office",
                 "interested_space": vacant_office,
+                "owner": sales_user,
+                "created_by": sales_user,
             },
         )
         lead = Lead.objects.get(external_id="seed-lead-502")
@@ -445,8 +467,12 @@ class Command(BaseCommand):
                 "lead": lead,
                 "party": asbc_party,
                 "status": OpportunityStatus.OPEN,
+                "pipeline_stage": PipelineStage.NEGOTIATION,
                 "expected_area": Decimal("96"),
+                "space": vacant_office,
                 "notes": "Seed opportunity",
+                "owner": sales_user,
+                "created_by": sales_user,
             },
         )
         # Prospect party for offer
@@ -462,22 +488,53 @@ class Command(BaseCommand):
             },
         )
         PartyRole.objects.get_or_create(party=nova, role=PartyRoleCode.PROSPECT, defaults={"is_primary": True})
+        area = Decimal("96")
+        rate = default_rent_rate()
+        vat = default_vat_rate()
+        net, vat_amt, gross = compute_offer_totals(
+            area_m2=area, rent_rate_per_m2=rate, vat_rate=vat
+        )
         offer, _ = Offer.objects.update_or_create(
             opportunity=opp,
             party=nova,
             space=vacant_office,
             defaults={
                 "status": OfferStatus.SENT,
-                "rent_amount": Decimal("2500.00"),
+                "rent_amount": net,
                 "notes": "Seed offer for 502",
+                "sent_at": timezone.now(),
+                "sent_by": sales_user,
+                "sent_to": "elnur@example.az",
             },
         )
+        ver, _ = OfferVersion.objects.update_or_create(
+            offer=offer,
+            version_number=1,
+            defaults={
+                "rent_rate_per_m2": rate,
+                "vat_rate": vat,
+                "area_m2": area,
+                "monthly_rent_net": net,
+                "monthly_vat": vat_amt,
+                "monthly_rent_gross": gross,
+                "is_locked": True,
+                "created_by": sales_user,
+            },
+        )
+        if offer.current_version_id != ver.pk:
+            offer.current_version = ver
+            offer.save(update_fields=["current_version", "updated_at"])
         if not offer.lease_id:
             convert_offer_to_lease_draft(offer)
             offer.refresh_from_db()
 
+        from apps.leases.lease_ops import refresh_lease_cached_amounts
+
         lease_asbc = Lease.objects.filter(code="LS-1001").first()
         if lease_asbc is None:
+            area = Decimal(str(getattr(space801, "rentable_area_m2", None) or getattr(space801, "area_m2", None) or 100))
+            rent_rate = Decimal("45.00")
+            sc_rate = Decimal("6.00")
             lease_asbc = Lease.objects.create(
                 code="LS-1001",
                 party=asbc_party,
@@ -485,11 +542,25 @@ class Command(BaseCommand):
                 status=LeaseStatus.SIGNED,
                 start_date=date(2025, 1, 1),
                 end_date=date(2027, 12, 31),
-                rent=Decimal("4500.00"),
-                deposit=Decimal("9000.00"),
-                service_charge=Decimal("600.00"),
+                rent_rate_per_m2=rent_rate,
+                service_rate_per_m2=sc_rate,
+                deposit_months=2,
+                parking_included_free=True,
+                parking_notes="Ödənişsiz parkinq — müqavilədə",
+                rent=area * rent_rate,
+                service_charge=area * sc_rate,
+                deposit=area * rent_rate * 2,
                 notes="ASBC primary lease",
             )
+            refresh_lease_cached_amounts(lease_asbc)
+        else:
+            if not lease_asbc.rent_rate_per_m2:
+                lease_asbc.rent_rate_per_m2 = Decimal("45.00")
+                lease_asbc.service_rate_per_m2 = Decimal("6.00")
+                lease_asbc.deposit_months = 2
+                lease_asbc.parking_included_free = True
+                lease_asbc.save()
+                refresh_lease_cached_amounts(lease_asbc)
         if lease_asbc.status != LeaseStatus.ACTIVE:
             activate_lease(lease_asbc)
 
@@ -536,19 +607,18 @@ class Command(BaseCommand):
                 period_start=date(2026, 9, 1),
                 period_end=date(2026, 9, 30),
             )
+        from apps.accounting.services import seed_minimal_coa
+        from apps.billing.services import confirm_invoice
+
         if not Invoice.objects.filter(party=asbc_party).exists():
             charge_ids = list(
                 Charge.objects.filter(party=asbc_party, invoice__isnull=True).values_list("id", flat=True)
             )
             if charge_ids:
-                generate_invoice_from_charges(asbc_party, charge_ids)
+                inv = generate_invoice_from_charges(asbc_party, charge_ids)
+                confirm_invoice(inv)
 
-        Account.objects.get_or_create(code="1000", defaults={"name": "Cash", "account_type": AccountType.ASSET})
-        Account.objects.get_or_create(code="1100", defaults={"name": "AR", "account_type": AccountType.ASSET})
-        Account.objects.get_or_create(code="4000", defaults={"name": "Rent Revenue", "account_type": AccountType.REVENUE})
-        Account.objects.get_or_create(
-            code="4100", defaults={"name": "Service Charge Revenue", "account_type": AccountType.REVENUE}
-        )
+        seed_minimal_coa()
 
         self.stdout.write(f"Scope sync: parties={sync['parties']} people={sync['people']} rbac_new={perms}")
         self.stdout.write("Portal: office@asbc.az / asbc123")
@@ -556,3 +626,5 @@ class Command(BaseCommand):
         self.stdout.write("Reception: reception@citypoint.az / reception123")
         self.stdout.write("Service Desk: desk@citypoint.az / desk123")
         self.stdout.write("Security: security@citypoint.az / security123 → /security/")
+        self.stdout.write("Accountant: accountant@citypoint.az / accountant123 → /finance/")
+        self.stdout.write("Sales: sales@citypoint.az / sales123 → /erp/crm/leads/")

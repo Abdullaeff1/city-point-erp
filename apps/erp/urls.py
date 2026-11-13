@@ -1,7 +1,14 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from apps.erp import building_procedure_views, drawing_views, resident_views, views
+from apps.erp import (
+    announcement_views,
+    building_procedure_views,
+    crm_views,
+    drawing_views,
+    resident_views,
+    views,
+)
 from apps.erp.work_orders import (
     WorkOrderDetailView,
     WorkOrderImportView,
@@ -192,8 +199,28 @@ urlpatterns = [
     ),
     path("leases/", views.LeaseListView.as_view(), name="leases"),
     path("leases/<str:code>/", views.LeaseDetailView.as_view(), name="lease_detail"),
-    path("crm/leads/", views.CrmLeadListView.as_view(), name="crm_leads"),
-    path("crm/offers/", views.CrmOfferListView.as_view(), name="crm_offers"),
+    path("crm/leads/", crm_views.CrmLeadListView.as_view(), name="crm_leads"),
+    path("crm/leads/<int:pk>/", crm_views.CrmLeadDetailView.as_view(), name="crm_lead_detail"),
+    path("crm/opportunities/", crm_views.CrmOpportunityListView.as_view(), name="crm_opportunities"),
+    path(
+        "crm/opportunities/<int:pk>/",
+        crm_views.CrmOpportunityDetailView.as_view(),
+        name="crm_opportunity_detail",
+    ),
+    path("crm/offers/", crm_views.CrmOfferListView.as_view(), name="crm_offers"),
+    path("crm/offers/<int:pk>/", crm_views.CrmOfferDetailView.as_view(), name="crm_offer_detail"),
+    path(
+        "crm/lease-applications/",
+        crm_views.CrmLeaseApplicationListView.as_view(),
+        name="crm_lease_applications",
+    ),
+    path(
+        "crm/lease-applications/<int:pk>/",
+        crm_views.CrmLeaseApplicationDetailView.as_view(),
+        name="crm_lease_application_detail",
+    ),
+    path("crm/reports/", crm_views.CrmReportView.as_view(), name="crm_reports"),
+    path("crm/reports/export.xlsx", crm_views.CrmReportExportView.as_view(), name="crm_reports_export"),
     path("work-orders/", WorkOrderListView.as_view(), name="work_orders"),
     path(
         "work-orders/<str:code>/sheet-template/",
@@ -211,6 +238,26 @@ urlpatterns = [
     path("billing/", views.BillingListView.as_view(), name="billing"),
     path("accounting/", views.AccountingListView.as_view(), name="accounting"),
     path("documents/", views.DocumentsView.as_view(), name="documents"),
+    path(
+        "announcements/",
+        announcement_views.AnnouncementListView.as_view(),
+        name="announcements",
+    ),
+    path(
+        "announcements/new/",
+        announcement_views.AnnouncementCreateView.as_view(),
+        name="announcement_create",
+    ),
+    path(
+        "announcements/<int:pk>/edit/",
+        announcement_views.AnnouncementUpdateView.as_view(),
+        name="announcement_edit",
+    ),
+    path(
+        "announcements/<int:pk>/delete/",
+        announcement_views.AnnouncementDeleteView.as_view(),
+        name="announcement_delete",
+    ),
     path(
         "procedures/",
         building_procedure_views.BuildingProcedureListView.as_view(),
@@ -237,5 +284,11 @@ urlpatterns = [
         name="building_procedure_download",
     ),
     path("reports/", views.ReportsView.as_view(), name="reports"),
+    path("reports/sla/", views.SlaReportView.as_view(), name="sla_report"),
+    path(
+        "reports/sla/export.xlsx",
+        views.SlaReportExportView.as_view(),
+        name="sla_report_export",
+    ),
     path("audit/", views.AuditLogView.as_view(), name="audit"),
 ]

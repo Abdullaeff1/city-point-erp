@@ -6,7 +6,7 @@ from apps.accounts.views import login_view, logout_view, post_login
 from apps.core.media_views import media_serve
 from apps.tickets.views_attachments import ticket_attachment_download
 
-handler403 = "django.views.defaults.permission_denied"
+handler403 = "apps.accounts.views.permission_denied_view"
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -17,6 +17,7 @@ urlpatterns = [
     path("accounts/", include("apps.accounts.urls")),
     path("portal/", include("apps.portal.urls")),
     path("security/", include("apps.security.urls")),
+    path("finance/", include("apps.finance.urls")),
     path("erp/", include("apps.erp.urls")),
     path("api/", include("apps.api.urls")),
     path(

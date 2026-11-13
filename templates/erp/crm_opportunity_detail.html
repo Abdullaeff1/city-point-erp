@@ -1,0 +1,47 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}İmkan #{{ opportunity.pk }}{% endblock %}
+{% block heading %}{{ opportunity.title }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'erp:crm_opportunities' %}">← İmkanlar</a>
+{% if opportunity.lead_id %} · <a href="{% url 'erp:crm_lead_detail' opportunity.lead_id %}">Lid #{{ opportunity.lead_id }}</a>{% endif %}
+</p>
+<p>Status: {{ opportunity.get_status_display }} · Mərhələ: {{ opportunity.get_pipeline_stage_display }} · Party: {{ opportunity.party|default:"—" }}</p>
+
+{% if can_mutate %}
+<form method="post" class="cp-card" style="margin-bottom:1rem;">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="stage">
+  <label>Mərhələ
+    <select name="pipeline_stage">{% for v,l in stages %}<option value="{{ v }}" {% if opportunity.pipeline_stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  </label>
+  <label>Nəticə
+    <select name="outcome"><option value="">—</option>{% for v,l in outcomes %}<option value="{{ v }}" {% if opportunity.outcome == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  </label>
+  <input name="outcome_note" placeholder="Qeyd" value="{{ opportunity.outcome_note }}">
+  <button type="submit" class="btn">{% translate "Yenilə" %}</button>
+</form>
+
+<form method="post" class="cp-card" style="margin-bottom:1rem;">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="create_offer">
+  <h3>{% translate "Yeni təklif" %}</h3>
+  <label>m² <input name="area_m2" value="{{ opportunity.expected_area|default_if_none:'' }}"></label>
+  <label>AZN/m² <input name="rent_rate_per_m2" value="33"></label>
+  <label>Endirim % <input name="discount_percent" value="0"></label>
+  <label>Qeyd <input name="notes"></label>
+  <button type="submit" class="btn btn-primary">{% translate "Təklif yarat" %}</button>
+</form>
+{% endif %}
+
+<div class="cp-card">
+  <h3>{% translate "Təkliflər" %}</h3>
+  <ul>
+    {% for offer in opportunity.offers.all %}
+    <li><a href="{% url 'erp:crm_offer_detail' offer.pk %}">#{{ offer.pk }}</a> — {{ offer.get_status_display }} — {{ offer.rent_amount }} AZN
+      {% if offer.space %} · {{ offer.space }}{% endif %}
+    </li>
+    {% empty %}<li>—</li>{% endfor %}
+  </ul>
+</div>
+{% endblock %}

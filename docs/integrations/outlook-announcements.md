@@ -1,4 +1,6 @@
-# Outlook → Portal elanları
+# Outlook → Portal elanları (LEGACY)
+
+> **A.8:** Mail → elan üçün əsas kanal artıq **Zoho Mail**dir — bax [`zoho-announcements.md`](zoho-announcements.md). Bu sənəd və `poll_outlook_announcements` geriyə uyğunluq üçün saxlanır.
 
 Staff Outlook-dan bina xəbərdarlığını `CC-Office` (All Residents) qrupuna BCC ilə göndərir. Shared mailbox həmin qrupun üzvüdür; ERP Microsoft Graph ilə inbox oxuyur və **bina-ümumi** (`visibility=building`) `Announcement` yaradır. Məktubdakı fayllar avtomatik `AnnouncementAttachment` olur — portal Elanlar modalında Aç / Yüklə.
 

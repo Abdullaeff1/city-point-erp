@@ -21,7 +21,8 @@ class AnnouncementVisibility(models.TextChoices):
 
 class AnnouncementSource(models.TextChoices):
     MANUAL = "manual", "Əl ilə"
-    OUTLOOK = "outlook", "Outlook"
+    OUTLOOK = "outlook", "Outlook (legacy)"
+    ZOHO = "zoho", "Zoho Mail"
 
 
 class NotificationChannel(models.TextChoices):
@@ -48,7 +49,13 @@ class Announcement(models.Model):
         blank=True,
         on_delete=models.CASCADE,
         related_name="announcements",
-        help_text="COMPANY / TARGETED üçün məcburi; BUILDING üçün boş",
+        help_text="Legacy tək şirkət / TARGETED; COMPANY üçün companies M2M üstünlük təşkil edir",
+    )
+    companies = models.ManyToManyField(
+        "residents.ResidentCompany",
+        blank=True,
+        related_name="scoped_announcements",
+        help_text="COMPANY görünürlük: bir və ya bir neçə şirkət; BUILDING üçün boş",
     )
     target_users = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
@@ -67,7 +74,7 @@ class Announcement(models.Model):
         blank=True,
         null=True,
         unique=True,
-        help_text="Outlook/Graph internetMessageId (dedup)",
+        help_text="Mail Message-ID / Graph id (dedup)",
     )
 
     class Meta:

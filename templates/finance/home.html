@@ -1,0 +1,51 @@
+{% extends "finance/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Maliyyə paneli" %}{% endblock %}
+{% block content %}
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  <a class="cp-card p-card cp-card-link" href="{% url 'finance:invoices' %}?status=draft" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{% translate "Draft faktura" %}</div>
+    <div class="cp-metric mt-2">{{ draft_count }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'finance:invoices' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{% translate "Açıq faktura" %}</div>
+    <div class="cp-metric mt-2">{{ open_invoice_count }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'finance:charges' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{% translate "Fakturasız charge" %}</div>
+    <div class="cp-metric mt-2">{{ unbilled_count }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'finance:aging' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{% translate "AR qalıq" %}</div>
+    <div class="cp-metric mt-2">{{ ar_total }}</div>
+    <div class="cp-meta mt-2">AZN</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'finance:journals' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{% translate "Unposted JE" %}</div>
+    <div class="cp-metric mt-2">{{ unposted_je }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'finance:payments' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{% translate "Ödəniş təsdiqi" %}</div>
+    <div class="cp-metric mt-2">{{ pending_payments }}</div>
+  </a>
+</div>
+
+<div class="cp-card p-card">
+  <div class="cp-section">{% translate "Tez keçidlər" %}</div>
+  <div class="flex gap-2" style="flex-wrap:wrap;margin-top:12px;">
+    <a class="cp-btn" href="{% url 'finance:charges' %}">{% translate "Charge → faktura" %}</a>
+    <a class="cp-btn" href="{% url 'finance:aging' %}">{% translate "Aging" %}</a>
+    <a class="cp-btn" href="{% url 'finance:trial_balance' %}">{% translate "Trial balance" %}</a>
+    <a class="cp-btn" href="{% url 'finance:journals' %}">{% translate "Jurnal" %}</a>
+    <a class="cp-btn" href="{% url 'finance:periods' %}">{% translate "Dövr bağla" %}</a>
+  </div>
+  <p class="cp-meta mt-3">
+    {% translate "A.5: invoice ayın 1–5; due 30 gün; ƏDV net+VAT+gross; cərimə əl ilə." %}
+    {% if in_invoice_window %}
+      · <strong>{% translate "Invoice pəncərəsi açıq" %}</strong>
+    {% else %}
+      · {% translate "Invoice pəncərəsi bağlı (1–5)" %}
+    {% endif %}
+  </p>
+</div>
+{% endblock %}

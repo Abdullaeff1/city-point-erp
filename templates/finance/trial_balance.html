@@ -1,0 +1,47 @@
+{% extends "finance/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Trial balance" %}{% endblock %}
+{% block content %}
+<form method="get" class="flex gap-2 mb-3" style="flex-wrap:wrap;align-items:end;">
+  <label>{% translate "İl" %}<input class="cp-input mt-1" type="number" name="year" value="{{ year }}"></label>
+  <label>{% translate "Ay (0=hamısı)" %}<input class="cp-input mt-1" type="number" name="month" min="0" max="12" value="{{ month }}"></label>
+  <button class="cp-btn" type="submit">{% translate "Göstər" %}</button>
+  <a class="cp-btn" href="{% url 'finance:trial_balance_export' %}?year={{ year }}&month={{ month }}">{% translate "Excel" %}</a>
+</form>
+<div class="cp-card p-card">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Kod" %}</th>
+        <th>{% translate "Ad" %}</th>
+        <th>{% translate "Tip" %}</th>
+        <th>{% translate "Debit" %}</th>
+        <th>{% translate "Credit" %}</th>
+        <th>{% translate "Balans" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.code }}</td>
+        <td>{{ r.name }}</td>
+        <td>{{ r.account_type }}</td>
+        <td>{{ r.debit }}</td>
+        <td>{{ r.credit }}</td>
+        <td>{{ r.balance }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="3">{% translate "Cəm" %}</th>
+        <th>{{ total_debit }}</th>
+        <th>{{ total_credit }}</th>
+        <th></th>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+{% endblock %}

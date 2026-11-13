@@ -1,0 +1,53 @@
+{% extends "finance/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Jurnal yazıları" %}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-2">{% translate "Bu gün unposted" %}: {{ unposted_today }}</p>
+{% if can_mutate %}
+<p class="mb-3"><a class="cp-btn" href="{% url 'finance:journal_create' %}">{% translate "Manual jurnal" %}</a></p>
+{% endif %}
+<div class="cp-card p-card">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Kod" %}</th>
+        <th>{% translate "Tarix" %}</th>
+        <th>{% translate "Memo" %}</th>
+        <th>{% translate "Mənbə" %}</th>
+        <th>{% translate "GL" %}</th>
+        <th>{% translate "Sətirlər" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td>{{ e.code }}</td>
+        <td>{{ e.entry_date }}</td>
+        <td>{{ e.memo|default:"—" }}</td>
+        <td>{{ e.source|default:"—" }}</td>
+        <td>{% if e.posted %}{% translate "Posted" %}{% else %}{% translate "Draft" %}{% endif %}</td>
+        <td>
+          <ul style="margin:0;padding-left:16px;">
+            {% for line in e.lines.all %}
+            <li>{{ line.account.code }} Dr {{ line.debit }} / Cr {{ line.credit }}</li>
+            {% endfor %}
+          </ul>
+        </td>
+        <td>
+          {% if can_mutate and not e.posted %}
+          <form method="post">{% csrf_token %}
+            <input type="hidden" name="action" value="post_gl">
+            <input type="hidden" name="entry_id" value="{{ e.pk }}">
+            <button class="cp-btn" type="submit">{% translate "Baş kitaba yaz" %}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

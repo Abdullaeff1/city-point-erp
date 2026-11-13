@@ -308,6 +308,23 @@ class ReceptionServiceTests(TestCase):
         self.assertIn("Sənəd ilə bağlı", rendered)
         self.assertNotIn("Yeni Əməkdaş", rendered)
 
+    def test_intern_reason_is_choice(self):
+        from apps.erp.forms import GuestVisitForm
+
+        intern, _ = VisitorType.objects.get_or_create(
+            code="intern",
+            defaults={"name": "Təcrübəçi", "sort_order": 95, "is_active": True},
+        )
+        if not intern.is_active or intern.name != "Təcrübəçi":
+            intern.name = "Təcrübəçi"
+            intern.is_active = True
+            intern.save(update_fields=["name", "is_active"])
+        rendered = str(GuestVisitForm()["visit_type"])
+        self.assertIn("Təcrübəçi", rendered)
+        marker = f'value="{intern.pk}"'
+        option = next(part for part in rendered.split("<option") if marker in part)
+        self.assertNotIn("data-no-host", option)
+
     def test_interview_keeps_host(self):
         from apps.erp.forms import GuestVisitForm
 

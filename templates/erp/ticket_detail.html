@@ -145,12 +145,25 @@
     {% if ticket.next_status %}
     <form method="post">{% csrf_token %}<input type="hidden" name="action" value="advance"><button class="cp-btn w-full">{% translate "Növbəti status" %} → {{ ticket.get_next_status_display }}</button></form>
     {% endif %}
-    {% if ticket.status == "in_progress" or ticket.status == "accepted" %}
+    {% if ticket.status == "in_progress" or ticket.status == "accepted" or ticket.status == "assigned" %}
     <form method="post" class="flex-col gap-2">
       {% csrf_token %}
       <input type="hidden" name="action" value="waiting">
-      <input name="waiting_reason" class="cp-input" placeholder="{% translate 'Gözləmə səbəbi' %}" required>
+      <select name="waiting_reason_code" class="cp-input" required>
+        <option value="">— {% translate "Gözləmə səbəbi" %} —</option>
+        {% for value, label in waiting_reason_codes %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input name="waiting_reason" class="cp-input" placeholder="{% translate 'Əlavə mətn (Digər üçün məcburi)' %}">
       <button class="cp-btn-ghost w-full">{% translate "Gözləməyə al" %}</button>
+    </form>
+    {% endif %}
+    {% if ticket.status != "cancelled" and ticket.status != "closed" and ticket.status != "resolved" %}
+    <form method="post" onsubmit="return confirm('{% translate "Ləğv edilsin?" %}');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="cancel">
+      <button class="cp-btn-ghost w-full" type="submit" style="color:#b91c1c;">{% translate "Ləğv et" %}</button>
     </form>
     {% endif %}
     {% if ticket.status == "resolved" %}
@@ -158,6 +171,15 @@
     {% endif %}
     {% if ticket.status == "resolved" or ticket.status == "closed" %}
     <form method="post">{% csrf_token %}<input type="hidden" name="action" value="reopen"><button class="cp-btn-ghost w-full">{% translate "Yenidən aç" %}</button></form>
+    {% endif %}
+    {% if can_create_opportunity %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create_opportunity">
+      <button class="cp-btn w-full" type="submit">{% translate "CRM Opportunity yarat" %}</button>
+    </form>
+    {% elif ticket.opportunity_id %}
+    <div class="cp-meta">{% translate "Opportunity" %}: {{ ticket.opportunity.title }}</div>
     {% endif %}
     <form method="post" id="assignee-form">
       {% csrf_token %}

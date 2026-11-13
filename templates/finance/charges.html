@@ -1,0 +1,81 @@
+{% extends "finance/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Charge-lar" %}{% endblock %}
+{% block content %}
+{% if can_mutate %}
+<div class="cp-card p-card mb-4">
+  <form method="post" class="flex gap-2" style="flex-wrap:wrap;align-items:center;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="generate_lease_charges">
+    <button class="cp-btn" type="submit">{% translate "İcarə charge yarat (m²×tarif, prorrata)" %}</button>
+    {% if not in_invoice_window %}
+    <label class="cp-meta"><input type="checkbox" name="force" value="1"> {% translate "Pəncərə xaricində (force)" %}</label>
+    {% endif %}
+    <span class="cp-meta">{% translate "A.4/A.5: net məbləğ; parkinq charge yoxdur; invoice 1–5." %}</span>
+  </form>
+</div>
+{% endif %}
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Fakturasız (şirkət üzrə)" %}</div>
+  {% if party_groups %}
+  <table class="cp-table mt-3">
+    <thead>
+      <tr>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Say" %}</th>
+        <th>{% translate "Cəm" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for g in party_groups %}
+      <tr>
+        <td>{{ g.party.display_name }}</td>
+        <td>{{ g.ids|length }}</td>
+        <td>{{ g.total }} AZN</td>
+        <td>
+          {% if can_mutate %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="invoice_party">
+            <input type="hidden" name="party_id" value="{{ g.party.pk }}">
+            <button class="cp-btn" type="submit">{% translate "Faktura yarat" %}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="cp-meta mt-2">{% translate "Fakturasız charge yoxdur." %}</p>
+  {% endif %}
+</div>
+
+<div class="cp-card p-card">
+  <div class="cp-section">{% translate "Son charge-lar" %}</div>
+  <table class="cp-table mt-3">
+    <thead>
+      <tr>
+        <th>{% translate "Təsvir" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Məbləğ" %}</th>
+        <th>{% translate "Faktura" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in charges %}
+      <tr>
+        <td>{{ c.description }}</td>
+        <td>{{ c.party.display_name }}</td>
+        <td>{{ c.amount }} {{ c.currency }}</td>
+        <td>{% if c.invoice_id %}<a href="{% url 'finance:invoice_detail' code=c.invoice.code %}">{{ c.invoice.code }}</a>{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

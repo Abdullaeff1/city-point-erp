@@ -27,8 +27,10 @@ Open http://localhost:8222/login/
 | Property/FM | `fm@citypoint.az` | `fm123` |
 | Management | `manager@citypoint.az` | `manager123` |
 | Security | `security@citypoint.az` | `security123` |
+| Accountant | `accountant@citypoint.az` | `accountant123` |
 
-Open http://localhost:8222/security/ after login as Security.
+Open http://localhost:8222/security/ after login as Security.  
+Open http://localhost:3001/finance/ after login as Accountant (Management may view/approve; Admin cannot).
 
 ## Stack
 

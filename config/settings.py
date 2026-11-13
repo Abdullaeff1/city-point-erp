@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "apps.api.apps.ApiConfig",
     "apps.portal.apps.PortalConfig",
     "apps.security.apps.SecurityConfig",
+    "apps.finance.apps.FinanceConfig",
     "apps.erp.apps.ErpConfig",
 ]
 
@@ -178,6 +179,12 @@ FLOOR_PATROL_NIGHT_CUTOFF = os.environ.get("FLOOR_PATROL_NIGHT_CUTOFF", "08:00")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
+
+# CRM / Satış — ofis paketi default tarif (A.4 / A.10)
+CRM_DEFAULT_RENT_RATE_PER_M2 = os.environ.get("CRM_DEFAULT_RENT_RATE_PER_M2", "33.00")
+CRM_VAT_RATE = os.environ.get("CRM_VAT_RATE", "18.00")
+CRM_LEAD_IDLE_REMINDER_DAYS = int(os.environ.get("CRM_LEAD_IDLE_REMINDER_DAYS", "1"))
+CRM_OFFER_FOLLOWUP_DAYS = int(os.environ.get("CRM_OFFER_FOLLOWUP_DAYS", "3"))
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "post_login"
 LOGOUT_REDIRECT_URL = "login"

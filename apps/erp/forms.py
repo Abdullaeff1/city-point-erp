@@ -128,9 +128,14 @@ class PortalEmployeeCreateForm(forms.Form):
         help_text=_("Kart sifarişi üçün. Faktiki səviyyə AxTraxNG-də təyin olunandan sonra sync ilə gəlir."),
     )
     id_document = forms.FileField(
-        label=_("Şəxsiyyət vəsiqəsi"),
-        help_text=_("PDF, JPG və ya PNG (maks. 10 MB)."),
-        widget=forms.ClearableFileInput(attrs={"class": "cp-input", "accept": ".pdf,.jpg,.jpeg,.png"}),
+        label=_("Şəxsiyyət vəsiqəsi/müraciət forması"),
+        help_text=_(
+            "Şablonu endirin, yeni əməkdaş üçün doldurun və buraya yükləyin "
+            "(DOCX, DOC, PDF, JPG və ya PNG, maks. 10 MB)."
+        ),
+        widget=forms.ClearableFileInput(
+            attrs={"class": "cp-input", "accept": ".pdf,.doc,.docx,.jpg,.jpeg,.png"}
+        ),
     )
 
     def __init__(self, *args, company=None, companies=None, require_company=False, **kwargs):
@@ -210,9 +215,14 @@ class PortalTicketForm(forms.ModelForm):
     )
     id_document = forms.FileField(
         required=False,
-        label=_("Şəxsiyyət vəsiqəsi"),
-        help_text=_("PDF, JPG və ya PNG (maks. 10 MB)."),
-        widget=forms.ClearableFileInput(attrs={"accept": ".pdf,.jpg,.jpeg,.png"}),
+        label=_("Şəxsiyyət vəsiqəsi/müraciət forması"),
+        help_text=_(
+            "Şablonu endirin, yeni əməkdaş üçün doldurun və buraya yükləyin "
+            "(DOCX, DOC, PDF, JPG və ya PNG, maks. 10 MB)."
+        ),
+        widget=forms.ClearableFileInput(
+            attrs={"accept": ".pdf,.doc,.docx,.jpg,.jpeg,.png"}
+        ),
     )
 
     class Meta:
@@ -1100,4 +1110,75 @@ class BuildingProcedureForm(forms.ModelForm):
         if self.instance and self.instance.pk and self.instance.file:
             return uploaded
         raise ValidationError(_("Fayl tələb olunur."))
+
+
+class AnnouncementForm(forms.ModelForm):
+    """ERP create/edit: building-wide or one/many companies (A.8)."""
+
+    class Meta:
+        from apps.comms.models import Announcement as _Announcement
+
+        model = _Announcement
+        fields = ("title", "body", "severity", "published_at", "visibility", "companies")
+        widgets = {
+            "title": forms.TextInput(attrs={"class": "cp-input"}),
+            "body": forms.Textarea(attrs={"class": "cp-input", "rows": 6}),
+            "severity": forms.Select(attrs={"class": "cp-input"}),
+            "published_at": forms.DateInput(attrs={"class": "cp-input", "type": "date"}),
+            "visibility": forms.Select(attrs={"class": "cp-input"}),
+            "companies": forms.SelectMultiple(attrs={"class": "cp-input", "size": 8}),
+        }
+        labels = {
+            "title": _("Başlıq"),
+            "body": _("Mətn"),
+            "severity": _("Vaciblik"),
+            "published_at": _("Nəşr tarixi"),
+            "visibility": _("Görünürlük"),
+            "companies": _("Şirkətlər"),
+        }
+
+    def __init__(self, *args, **kwargs):
+        from apps.comms.models import AnnouncementVisibility
+        from apps.residents.models import ResidentCompany
+
+        super().__init__(*args, **kwargs)
+        self.fields["visibility"].choices = [
+            (AnnouncementVisibility.BUILDING, _("Bina-ümumi")),
+            (AnnouncementVisibility.COMPANY, _("Seçilmiş şirkət(lər)")),
+        ]
+        self.fields["companies"].queryset = ResidentCompany.objects.filter(
+            is_archived=False
+        ).order_by("name")
+        self.fields["companies"].required = False
+        self.fields["companies"].help_text = _(
+            "Görünürlük «Seçilmiş şirkət(lər)» olanda ən azı birini seçin. Bina-ümumi üçün boş buraxın."
+        )
+
+    def clean(self):
+        from apps.comms.models import AnnouncementVisibility
+
+        cleaned = super().clean()
+        visibility = cleaned.get("visibility")
+        companies = cleaned.get("companies")
+        if visibility == AnnouncementVisibility.COMPANY and not companies:
+            self.add_error(
+                "companies",
+                _("Şirkət görünürlüyü üçün ən azı bir şirkət seçin."),
+            )
+        return cleaned
+
+    def save(self, commit=True):
+        from apps.comms.announcements import sync_legacy_company_fk
+        from apps.comms.models import AnnouncementVisibility
+
+        obj = super().save(commit=False)
+        if obj.visibility == AnnouncementVisibility.BUILDING:
+            obj.company = None
+        if commit:
+            obj.save()
+            self.save_m2m()
+            if obj.visibility == AnnouncementVisibility.BUILDING:
+                obj.companies.clear()
+            sync_legacy_company_fk(obj)
+        return obj
 

@@ -165,7 +165,9 @@ class EligibilityAndSessionTests(TestCase):
         deactivate_membership(user=self.user, company=self.c1)
         deactivate_membership(user=self.user, company=self.c2)
         resp = self.client.get(reverse("portal:home"))
-        self.assertEqual(resp.status_code, 403)
+        # No eligible company → login (not a dead 403 card)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login", resp["Location"])
 
     def test_switch_clears_previous_scope(self):
         self.assertEqual(self.client.session["portal_scope_mode"], MODE_ALL)

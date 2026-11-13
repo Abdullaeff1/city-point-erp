@@ -1,0 +1,36 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{% translate "CRM hesabat" %}{% endblock %}
+{% block heading %}{% translate "CRM hesabat" %}{% endblock %}
+{% block content %}
+<form method="get" class="cp-card" style="margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:.5rem;">
+  <label>From <input type="date" name="date_from" value="{{ filters.date_from }}"></label>
+  <label>To <input type="date" name="date_to" value="{{ filters.date_to }}"></label>
+  <label>Mənbə
+    <select name="source"><option value="">—</option>{% for v,l in sources %}<option value="{{ v }}" {% if filters.source == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  </label>
+  <label>Kvalifikasiya
+    <select name="qualification"><option value="">—</option>{% for v,l in qualifications %}<option value="{{ v }}" {% if filters.qualification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  </label>
+  <label>Mərhələ
+    <select name="pipeline_stage"><option value="">—</option>{% for v,l in stages %}<option value="{{ v }}" {% if filters.pipeline_stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  </label>
+  <button type="submit" class="btn">{% translate "Filter" %}</button>
+  <a class="btn" href="{% url 'erp:crm_reports_export' %}?{{ request.GET.urlencode }}">{% translate "XLSX export" %}</a>
+</form>
+
+<div class="cp-card">
+  <table class="cp-table">
+    <tr><th>Lid sayı</th><td>{{ report.lead_count }}</td></tr>
+    <tr><th>Baxış</th><td>{{ report.viewings }}</td></tr>
+    <tr><th>Görüş</th><td>{{ report.meetings }}</td></tr>
+    <tr><th>İmkan</th><td>{{ report.opportunity_count }}</td></tr>
+    <tr><th>Təklif göndərilib</th><td>{{ report.offer_sent }}</td></tr>
+    <tr><th>Won / Lost</th><td>{{ report.won }} / {{ report.lost }}</td></tr>
+    <tr><th>İmzalanmış lease</th><td>{{ report.signed_leases }}</td></tr>
+    <tr><th>Lid→İmkan %</th><td>{{ report.conversion_lead_to_opp }}</td></tr>
+    <tr><th>İmkan→Təklif %</th><td>{{ report.conversion_opp_to_offer }}</td></tr>
+    <tr><th>Təklif→İmza %</th><td>{{ report.conversion_offer_to_signed }}</td></tr>
+  </table>
+</div>
+{% endblock %}
