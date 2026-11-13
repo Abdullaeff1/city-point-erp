@@ -344,7 +344,7 @@ class CrmOfferDetailView(CrmAccessMixin, DetailView):
             {
                 "can_mutate": can_mutate_crm(self.request.user),
                 "can_approve": can_approve_offer(self.request.user),
-                "versions": self.object.versions.all(),
+                "versions": self.object.versions.select_related("approval_request").all(),
             }
         )
         return ctx

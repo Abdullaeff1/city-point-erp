@@ -96,37 +96,42 @@ class ResidentGuestPeriodTests(TestCase):
             "left": qs.filter(status=VisitStatus.LEFT).count(),
         }
 
-    def test_admin_and_management_see_matching_counts(self):
+    def test_admin_sees_matching_counts(self):
         expected = self._counts(self.today, self.today)
         self.assertEqual(expected["total"], 4)
         self.assertEqual(expected["inside"], 1)
         self.assertEqual(expected["waiting"], 1)
         self.assertEqual(expected["left"], 1)
-        for user in (self.admin, self.management):
-            self.client.force_login(user)
-            detail = self.client.get(self.detail)
-            guests = self.client.get(self.guests)
-            self.assertEqual(detail.status_code, 200)
-            self.assertEqual(guests.status_code, 200)
-            self.assertEqual(detail.context["guest_today"], 4)
-            self.assertEqual(detail.context["guest_total"], expected["total"])
-            self.assertEqual(detail.context["guest_inside"], expected["inside"])
-            self.assertEqual(detail.context["guest_waiting"], expected["waiting"])
-            self.assertEqual(detail.context["guest_left"], expected["left"])
-            self.assertEqual(guests.context["visit_total"], detail.context["guest_total"])
-            self.assertEqual(guests.context["inside"], detail.context["guest_inside"])
-            self.assertEqual(len(guests.context["visits"]), guests.context["visit_total"])
-            self.assertContains(detail, "Bugünkü qonaq")
-            self.assertContains(detail, "Resepsiya qeydləri")
-            self.assertNotContains(detail, "Açıq ticket")
-            self.assertContains(guests, "Portal Guest")
-            self.assertNotContains(guests, "OtherCo Guest")
-            self.assertNotContains(detail, "Portal Guest")
-            self.assertContains(detail, reverse("erp:resident_employees", args=[self.company.slug]))
-            residents = self.client.get(self.residents)
-            counts = {c.slug: c.guest_today for c in residents.context["companies"]}
-            self.assertEqual(counts[self.company.slug], detail.context["guest_today"])
-            self.assertEqual(counts[self.other.slug], 1)
+        self.client.force_login(self.admin)
+        detail = self.client.get(self.detail)
+        guests = self.client.get(self.guests)
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(guests.status_code, 200)
+        self.assertEqual(detail.context["guest_today"], 4)
+        self.assertEqual(detail.context["guest_total"], expected["total"])
+        self.assertEqual(detail.context["guest_inside"], expected["inside"])
+        self.assertEqual(detail.context["guest_waiting"], expected["waiting"])
+        self.assertEqual(detail.context["guest_left"], expected["left"])
+        self.assertEqual(guests.context["visit_total"], detail.context["guest_total"])
+        self.assertEqual(guests.context["inside"], detail.context["guest_inside"])
+        self.assertEqual(len(guests.context["visits"]), guests.context["visit_total"])
+        self.assertContains(detail, "Bugünkü qonaq")
+        self.assertContains(detail, "Resepsiya qeydləri")
+        self.assertNotContains(detail, "Açıq ticket")
+        self.assertContains(guests, "Portal Guest")
+        self.assertNotContains(guests, "OtherCo Guest")
+        self.assertNotContains(detail, "Portal Guest")
+        self.assertContains(detail, reverse("erp:resident_employees", args=[self.company.slug]))
+        residents = self.client.get(self.residents)
+        counts = {c.slug: c.guest_today for c in residents.context["companies"]}
+        self.assertEqual(counts[self.company.slug], detail.context["guest_today"])
+        self.assertEqual(counts[self.other.slug], 1)
+
+    def test_management_can_access_erp_ro(self):
+        self.assertTrue(self.management.can_access_erp())
+        self.client.force_login(self.management)
+        resp = self.client.get(reverse("erp:dashboard"))
+        self.assertEqual(resp.status_code, 200)
 
     def test_reception_sees_guests_not_employee_or_ticket_ops(self):
         seed_rbac_catalog()
@@ -147,8 +152,8 @@ class ResidentGuestPeriodTests(TestCase):
         self.assertNotContains(detail, reverse("erp:resident_employees", args=[self.company.slug]))
         counts = {c.slug: c.guest_today for c in residents.context["companies"]}
         self.assertEqual(counts[self.company.slug], 4)
-        self.assertEqual(self.client.get(self.employees).status_code, 403)
-        self.assertEqual(self.client.get(self.tickets).status_code, 403)
+        self.assertEqual(self.client.get(self.employees).status_code, 302)
+        self.assertEqual(self.client.get(self.tickets).status_code, 302)
 
     def test_fm_and_desk_cannot_see_guest_counters(self):
         for user in (self.fm, self.desk):
@@ -163,7 +168,7 @@ class ResidentGuestPeriodTests(TestCase):
             self.assertNotContains(detail, "Dövr üzrə ziyarət")
             self.assertNotContains(detail, "Portal Guest")
             guests = self.client.get(self.guests)
-            self.assertEqual(guests.status_code, 403)
+            self.assertEqual(guests.status_code, 302)
             residents = self.client.get(self.residents)
             self.assertFalse(residents.context["can_view_resident_guests"])
             self.assertNotContains(residents, "Bugünkü qonaq")
@@ -266,11 +271,10 @@ class ResidentGuestPeriodTests(TestCase):
         admin = self.client.get(self.residents)
         self.assertContains(admin, f"{expected} ticket")
 
-        for user in (self.reception, self.management):
-            self.client.force_login(user)
-            hidden = self.client.get(self.residents)
-            self.assertNotContains(hidden, "resident-tickets")
-            self.assertContains(hidden, "Bugünkü qonaq")
+        self.client.force_login(self.reception)
+        hidden = self.client.get(self.residents)
+        self.assertNotContains(hidden, "resident-tickets")
+        self.assertContains(hidden, "Bugünkü qonaq")
 
         tickets_url = reverse("erp:resident_tickets", args=[self.company.slug])
         self.assertContains(desk, f"{tickets_url}?tab=all")
@@ -280,7 +284,7 @@ class ResidentGuestPeriodTests(TestCase):
         self.assertContains(opened, "TK-T1")
         self.assertContains(opened, "TK-T2")
         self.client.force_login(self.fm)
-        self.assertEqual(self.client.get(tickets_url).status_code, 403)
+        self.assertEqual(self.client.get(tickets_url).status_code, 302)
 
     def test_legacy_date_query_still_selects_that_day(self):
         self.client.force_login(self.admin)

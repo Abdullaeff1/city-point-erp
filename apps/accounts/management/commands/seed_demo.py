@@ -27,6 +27,17 @@ class Command(BaseCommand):
     help = "PPTX nümunə məlumatlarını yükləyir (təkrar işlətmək təhlükəsizdir)."
 
     def handle(self, *args, **options):
+        from pathlib import Path
+
+        from django.conf import settings
+        from django.core.management import call_command
+
+        # Gitdəki tam bina icmalı (15 mərtəbə / 67 sahə) — boş və ya kiçik DB-də yüklə
+        fixture = Path(settings.BASE_DIR) / "docs" / "data" / "property_spaces.json"
+        if fixture.is_file() and Space.objects.count() < 20:
+            self.stdout.write("Loading docs/data/property_spaces.json …")
+            call_command("loaddata", str(fixture))
+
         building, _ = Building.objects.get_or_create(code="CP", defaults={"name": "City Point Business Center"})
         Floor.objects.get_or_create(building=building, code="F08", defaults={"name": "8-ci mərtəbə"})
         f10, _ = Floor.objects.get_or_create(building=building, code="F10", defaults={"name": "10-cu mərtəbə"})

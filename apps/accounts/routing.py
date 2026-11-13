@@ -17,6 +17,8 @@ def home_url_name_for(user) -> str:
         return "security:home"
     if role == Role.ACCOUNTANT:
         return "finance:home"
+    if role == Role.MANAGEMENT:
+        return "erp:dashboard"
     if role == Role.RECEPTION:
         return "erp:reception"
     if role == Role.SERVICE_DESK:

@@ -136,6 +136,18 @@ class CrmLeadFlowTests(TestCase):
         offer.refresh_from_db()
         self.assertEqual(offer.status, OfferStatus.SENT)
 
+        # Versiya təsdiqli, offer status geridə qalıbsa belə göndərmə işləsin
+        offer2 = CrmOfferService.create_offer(
+            actor=self.sales, opportunity=opp, party=party, area_m2=Decimal("80")
+        )
+        version2 = offer2.current_version
+        CrmOfferService.request_send_approval(version2, actor=self.sales)
+        CrmOfferService.decide_approval(version2, actor=self.manager, approved=True)
+        Offer.objects.filter(pk=offer2.pk).update(status=OfferStatus.PENDING_APPROVAL)
+        CrmOfferService.send_offer(version2, actor=self.sales, sent_to="z@y.az")
+        offer2.refresh_from_db()
+        self.assertEqual(offer2.status, OfferStatus.SENT)
+
     def test_lease_application_accountant_path(self):
         lead = CrmLeadService.create_lead(
             actor=self.sales, data={"company_name": "Gamma", "phone": "999"}, notify=False

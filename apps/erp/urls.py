@@ -6,6 +6,7 @@ from apps.erp import (
     building_procedure_views,
     crm_views,
     drawing_views,
+    management_views,
     resident_views,
     views,
 )
@@ -289,6 +290,18 @@ urlpatterns = [
         "reports/sla/export.xlsx",
         views.SlaReportExportView.as_view(),
         name="sla_report_export",
+    ),
+    path("approvals/", management_views.ApprovalsView.as_view(), name="approvals"),
+    path(
+        "payment-approvals/",
+        management_views.PaymentApprovalsView.as_view(),
+        name="payment_approvals",
+    ),
+    path("ar-aging/", management_views.ArAgingView.as_view(), name="ar_aging"),
+    path(
+        "accounting-periods/",
+        management_views.AccountingPeriodsView.as_view(),
+        name="accounting_periods",
     ),
     path("audit/", views.AuditLogView.as_view(), name="audit"),
 ]

@@ -11,8 +11,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--file",
-            default="var/cp_icare_ve_bos_saheler.xlsx",
-            help="Excel yolu (default: var/cp_icare_ve_bos_saheler.xlsx)",
+            default="docs/data/cp_icare_ve_bos_saheler.xlsx",
+            help="Excel yolu (default: docs/data/cp_icare_ve_bos_saheler.xlsx)",
         )
         parser.add_argument(
             "--dry-run",

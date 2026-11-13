@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load i18n cp_ui %}
+{% block title %}{% block page_title %}{% translate "Rəhbərlik" %}{% endblock %} · City Point{% endblock %}
+{% block body %}
+<div class="cp-shell">
+  <aside class="cp-sidebar">
+    <div class="cp-brand">
+      <div class="cp-brand-kicker">CITY POINT</div>
+      <div class="cp-brand-sub">{% translate "Rəhbərlik" %}</div>
+    </div>
+    <nav class="cp-nav">
+      <a class="{% nav_active 'home' %}" href="{% url 'management:home' %}"><i data-lucide="layout-dashboard" width="18" height="18"></i><span class="cp-nav-text">{% translate "Əsas" %}</span></a>
+      <div class="cp-nav-label">{% translate "TƏSDİQLƏR" %}</div>
+      <a class="{% nav_active 'approvals' %}" href="{% url 'management:approvals' %}"><i data-lucide="check-circle" width="18" height="18"></i><span class="cp-nav-text">{% translate "Növbə" %}</span></a>
+      <a class="{% nav_active 'crm_offers' 'crm_offer_detail' %}" href="{% url 'management:crm_offers' %}"><i data-lucide="file-signature" width="18" height="18"></i><span class="cp-nav-text">{% translate "CRM təkliflər" %}</span></a>
+      <a class="{% nav_active 'payments' %}" href="{% url 'management:payments' %}"><i data-lucide="banknote" width="18" height="18"></i><span class="cp-nav-text">{% translate "Ödənişlər" %}</span></a>
+      <div class="cp-nav-label">{% translate "HESABATLAR" %}</div>
+      <a class="{% nav_active 'crm_reports' %}" href="{% url 'management:crm_reports' %}"><i data-lucide="bar-chart-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "CRM KPI" %}</span></a>
+      <a class="{% nav_active 'sla' %}" href="{% url 'management:sla' %}"><i data-lucide="timer" width="18" height="18"></i><span class="cp-nav-text">{% translate "SLA" %}</span></a>
+      <a class="{% nav_active 'aging' %}" href="{% url 'management:aging' %}"><i data-lucide="clock" width="18" height="18"></i><span class="cp-nav-text">{% translate "Aging" %}</span></a>
+      <div class="cp-nav-label">{% translate "MÜHASİBAT" %}</div>
+      <a class="{% nav_active 'periods' %}" href="{% url 'management:periods' %}"><i data-lucide="calendar-check" width="18" height="18"></i><span class="cp-nav-text">{% translate "Dövrlər" %}</span></a>
+      <div class="cp-nav-label">{% translate "ERP (OXU)" %}</div>
+      <a href="{% url 'erp:dashboard' %}"><i data-lucide="layout-dashboard" width="18" height="18"></i><span class="cp-nav-text">{% translate "İdarə paneli" %}</span></a>
+      <a href="{% url 'erp:crm_leads' %}"><i data-lucide="user-plus" width="18" height="18"></i><span class="cp-nav-text">{% translate "CRM lidlər" %}</span></a>
+      <a href="{% url 'erp:building_equipment' %}"><i data-lucide="cpu" width="18" height="18"></i><span class="cp-nav-text">{% translate "Avadanlıqlar" %}</span></a>
+      <a href="{% url 'erp:building_inventory' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "İnventarlar" %}</span></a>
+      {% include "partials/role_switch_nav.html" %}
+    </nav>
+    <div class="cp-user-bar">
+      <div class="cp-avatar">{{ user.initials }}</div>
+      <div class="cp-user-meta min-0 flex-1">
+        <div class="cp-user-name">{{ user.display_name }}</div>
+        <div class="cp-user-role">{{ user.get_role_display }}</div>
+      </div>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+        <button class="cp-btn-ghost" title="{% translate 'Çıxış' %}" style="color:rgba(255,255,255,0.7);"><i data-lucide="log-out" width="16" height="16"></i></button>
+      </form>
+    </div>
+  </aside>
+  <main class="cp-main">
+    <header class="cp-header">
+      <div>
+        <p class="cp-meta">CITY POINT · {% translate "Rəhbərlik" %}</p>
+        <h1 class="cp-title">{% block heading %}{% endblock %}</h1>
+      </div>
+      <form action="{% url 'set_language' %}" method="post" class="cp-lang">
+        {% csrf_token %}
+        <input name="next" type="hidden" value="{{ request.get_full_path }}">
+        <select name="language" onchange="this.form.submit()" style="border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;">
+          {% get_current_language as LANGUAGE_CODE %}
+          {% get_available_languages as LANGUAGES %}
+          {% for lang_code, lang_name in LANGUAGES %}
+            <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>{{ lang_code|upper }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </header>
+    <div class="cp-content">
+      {% if messages %}
+      <ul class="mb-4" style="list-style:none;padding:0;">
+        {% for message in messages %}
+        <li class="cp-card p-card-sm mb-2">{{ message }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if request.resolver_match.url_name != 'home' %}
+      <p class="cp-meta mb-3" style="margin-top:-8px;">
+        <a href="{% url 'management:home' %}">← {% translate "Əsas" %}</a>{% block back_trail %}{% endblock %}
+      </p>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+<script>lucide.createIcons();</script>
+{% endblock %}

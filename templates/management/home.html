@@ -1,0 +1,71 @@
+{% extends "management/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Rəhbərlik paneli" %}{% endblock %}
+{% block content %}
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  <a class="cp-card p-card cp-card-link" href="{% url 'management:approvals' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{% translate "Gözləyən təsdiq" %}</div>
+    <div class="cp-metric mt-2">{{ pending_total }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'management:crm_offers' %}?status=pending_approval" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{% translate "CRM təklif" %}</div>
+    <div class="cp-metric mt-2">{{ pending_offers }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'management:payments' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{% translate "Ödəniş təsdiqi" %}</div>
+    <div class="cp-metric mt-2">{{ pending_payments }}</div>
+  </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'management:sla' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{% translate "SLA / eskalasiya" %}</div>
+    <div class="cp-metric mt-2">{{ escalated|length }}</div>
+  </a>
+</div>
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Tez keçidlər" %}</div>
+  <div class="flex gap-2" style="flex-wrap:wrap;margin-top:12px;">
+    <a class="cp-btn" href="{% url 'management:approvals' %}">{% translate "Təsdiq növbəsi" %}</a>
+    <a class="cp-btn" href="{% url 'management:crm_reports' %}">{% translate "CRM KPI" %}</a>
+    <a class="cp-btn" href="{% url 'management:aging' %}">{% translate "Aging" %}</a>
+    <a class="cp-btn" href="{% url 'management:periods' %}">{% translate "Dövrlər" %}</a>
+  </div>
+</div>
+
+{% if offers_pending_list %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Gözləyən təkliflər" %}</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>#</th><th>{% translate "Party" %}</th><th>{% translate "Status" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for o in offers_pending_list %}
+      <tr>
+        <td>{{ o.pk }}</td>
+        <td>{{ o.party }}</td>
+        <td>{{ o.get_status_display }}</td>
+        <td><a href="{% url 'management:crm_offer_detail' o.pk %}">{% translate "Aç" %}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if escalated %}
+<div class="cp-card p-card">
+  <div class="cp-section">{% translate "Eskalasiya olunmuş ticketlər" %}</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Kod" %}</th><th>{% translate "Şirkət" %}</th><th>{% translate "Şöbə" %}</th><th>{% translate "Səviyyə" %}</th></tr></thead>
+    <tbody>
+      {% for t in escalated %}
+      <tr>
+        <td>{{ t.code }}</td>
+        <td>{{ t.company }}</td>
+        <td>{{ t.department }}</td>
+        <td>{{ t.escalation_level }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

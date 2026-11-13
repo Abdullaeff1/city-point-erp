@@ -34,12 +34,10 @@ SECURITY_PORTAL_ROLES = {
     Role.MANAGEMENT,
 }
 
-# A.7 — Admin finance modulunu görmür; yalnız mühasib + rəhbərlik
+# A.7 — Admin/rəhbərlik finance portalına girmir; yalnız mühasib
 FINANCE_PORTAL_ROLES = {
     Role.ACCOUNTANT,
-    Role.MANAGEMENT,
 }
-
 
 class User(AbstractUser):
     email = models.EmailField("E-poçt", unique=True)
@@ -75,7 +73,7 @@ class User(AbstractUser):
         return self.role in STAFF_ROLES
 
     def can_access_erp(self):
-        # Təhlükəsizlik / mühasib öz portalından işləyir; tam ERP deyil
+        # Təhlükəsizlik / mühasib öz portalından; rəhbərlik ERP-də RO + təsdiq
         return self.role in STAFF_ROLES and self.role not in (
             Role.SECURITY,
             Role.ACCOUNTANT,
@@ -88,7 +86,8 @@ class User(AbstractUser):
         return self.role in FINANCE_PORTAL_ROLES
 
     def can_access_portal(self):
-        if self.role in (Role.SECURITY, Role.ACCOUNTANT):
+        # Security/accountant dedicated portals; management ERP (not resident portal)
+        if self.role in (Role.SECURITY, Role.ACCOUNTANT, Role.MANAGEMENT):
             return False
         return self.role == Role.RESIDENT_USER or self.is_staff_role()
 

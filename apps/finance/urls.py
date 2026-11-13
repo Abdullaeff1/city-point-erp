@@ -23,4 +23,14 @@ urlpatterns = [
         name="trial_balance_export",
     ),
     path("periods/", views.PeriodsView.as_view(), name="periods"),
+    path(
+        "building-equipment/",
+        views.BuildingEquipmentListView.as_view(),
+        name="building_equipment",
+    ),
+    path(
+        "building-inventory/",
+        views.BuildingInventoryListView.as_view(),
+        name="building_inventory",
+    ),
 ]

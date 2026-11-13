@@ -1,0 +1,91 @@
+{% extends "management/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "CRM hesabat" %}{% endblock %}
+{% block content %}
+<form method="get" class="crm-report-filters cp-card p-card-sm mb-4">
+  <label>
+    <span class="cp-meta">{% translate "Başlanğıc" %}</span>
+    <input class="cp-input mt-1" type="date" name="date_from" value="{{ filters.date_from }}">
+  </label>
+  <label>
+    <span class="cp-meta">{% translate "Son" %}</span>
+    <input class="cp-input mt-1" type="date" name="date_to" value="{{ filters.date_to }}">
+  </label>
+  <label>
+    <span class="cp-meta">{% translate "Mənbə" %}</span>
+    <select class="cp-input mt-1" name="source">
+      <option value="">—</option>
+      {% for v,l in sources %}<option value="{{ v }}" {% if filters.source == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>
+    <span class="cp-meta">{% translate "Kvalifikasiya" %}</span>
+    <select class="cp-input mt-1" name="qualification">
+      <option value="">—</option>
+      {% for v,l in qualifications %}<option value="{{ v }}" {% if filters.qualification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>
+    <span class="cp-meta">{% translate "Mərhələ" %}</span>
+    <select class="cp-input mt-1" name="pipeline_stage">
+      <option value="">—</option>
+      {% for v,l in stages %}<option value="{{ v }}" {% if filters.pipeline_stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select>
+  </label>
+  <div class="crm-report-filters-actions">
+    <button type="submit" class="cp-btn">{% translate "Filter" %}</button>
+  </div>
+</form>
+
+<section class="crm-report-section mb-4">
+  <h3 class="cp-section mb-3">{% translate "Həcm" %}</h3>
+  <div class="crm-report-kpis">
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "Lid sayı" %}</p>
+      <p class="crm-report-kpi-value">{{ report.lead_count }}</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "Baxış" %}</p>
+      <p class="crm-report-kpi-value">{{ report.viewings }}</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "Görüş" %}</p>
+      <p class="crm-report-kpi-value">{{ report.meetings }}</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "İmkan" %}</p>
+      <p class="crm-report-kpi-value">{{ report.opportunity_count }}</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "Təklif göndərilib" %}</p>
+      <p class="crm-report-kpi-value">{{ report.offer_sent }}</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">Won / Lost</p>
+      <p class="crm-report-kpi-value">{{ report.won }} / {{ report.lost }}</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "İmzalanmış lease" %}</p>
+      <p class="crm-report-kpi-value">{{ report.signed_leases }}</p>
+    </div>
+  </div>
+</section>
+
+<section class="crm-report-section">
+  <h3 class="cp-section mb-3">{% translate "Konversiya" %}</h3>
+  <div class="crm-report-kpis crm-report-kpis--conversion">
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "Lid → İmkan" %}</p>
+      <p class="crm-report-kpi-value">{{ report.conversion_lead_to_opp }}%</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "İmkan → Təklif" %}</p>
+      <p class="crm-report-kpi-value">{{ report.conversion_opp_to_offer }}%</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "Təklif → İmza" %}</p>
+      <p class="crm-report-kpi-value">{{ report.conversion_offer_to_signed }}%</p>
+    </div>
+  </div>
+</section>
+{% endblock %}

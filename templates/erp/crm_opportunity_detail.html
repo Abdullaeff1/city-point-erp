@@ -3,45 +3,136 @@
 {% block page_title %}İmkan #{{ opportunity.pk }}{% endblock %}
 {% block heading %}{{ opportunity.title }}{% endblock %}
 {% block content %}
-<p><a href="{% url 'erp:crm_opportunities' %}">← İmkanlar</a>
-{% if opportunity.lead_id %} · <a href="{% url 'erp:crm_lead_detail' opportunity.lead_id %}">Lid #{{ opportunity.lead_id }}</a>{% endif %}
-</p>
-<p>Status: {{ opportunity.get_status_display }} · Mərhələ: {{ opportunity.get_pipeline_stage_display }} · Party: {{ opportunity.party|default:"—" }}</p>
+<div class="crm-opp-detail">
+  <p class="cp-meta mb-4">
+    <a href="{% url 'erp:crm_opportunities' %}">← {% translate "İmkanlar" %}</a>
+    {% if opportunity.lead_id %}
+    · <a href="{% url 'erp:crm_lead_detail' opportunity.lead_id %}">{% translate "Lid" %} #{{ opportunity.lead_id }}</a>
+    {% endif %}
+  </p>
 
-{% if can_mutate %}
-<form method="post" class="cp-card" style="margin-bottom:1rem;">
-  {% csrf_token %}
-  <input type="hidden" name="action" value="stage">
-  <label>Mərhələ
-    <select name="pipeline_stage">{% for v,l in stages %}<option value="{{ v }}" {% if opportunity.pipeline_stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-  </label>
-  <label>Nəticə
-    <select name="outcome"><option value="">—</option>{% for v,l in outcomes %}<option value="{{ v }}" {% if opportunity.outcome == v %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-  </label>
-  <input name="outcome_note" placeholder="Qeyd" value="{{ opportunity.outcome_note }}">
-  <button type="submit" class="btn">{% translate "Yenilə" %}</button>
-</form>
+  <section class="crm-opp-detail-hero cp-card p-card mb-4">
+    <div class="crm-opp-detail-hero-top">
+      <div>
+        <p class="crm-lead-create-label">{% translate "İmkan" %}</p>
+        <h2 class="cp-section mt-1">{{ opportunity.title }}</h2>
+        <p class="cp-meta mt-2">
+          {% translate "Party" %}: <strong>{{ opportunity.party|default:"—" }}</strong>
+          {% if opportunity.space %} · {% translate "Sahə" %}: <strong>{{ opportunity.space }}</strong>{% endif %}
+          {% if opportunity.expected_area %} · {% translate "Sahə tələbi" %}: <strong>{{ opportunity.expected_area }} m²</strong>{% endif %}
+        </p>
+      </div>
+      <div class="crm-opp-detail-chips">
+        <span class="crm-opp-chip">{{ opportunity.get_status_display }}</span>
+        <span class="crm-opp-chip crm-opp-chip--accent">{{ opportunity.get_pipeline_stage_display }}</span>
+      </div>
+    </div>
+  </section>
 
-<form method="post" class="cp-card" style="margin-bottom:1rem;">
-  {% csrf_token %}
-  <input type="hidden" name="action" value="create_offer">
-  <h3>{% translate "Yeni təklif" %}</h3>
-  <label>m² <input name="area_m2" value="{{ opportunity.expected_area|default_if_none:'' }}"></label>
-  <label>AZN/m² <input name="rent_rate_per_m2" value="33"></label>
-  <label>Endirim % <input name="discount_percent" value="0"></label>
-  <label>Qeyd <input name="notes"></label>
-  <button type="submit" class="btn btn-primary">{% translate "Təklif yarat" %}</button>
-</form>
-{% endif %}
+  {% if can_mutate %}
+  <section class="crm-opp-panel cp-card p-card mb-4">
+    <div class="crm-opp-panel-head">
+      <div>
+        <h3 class="cp-section">{% translate "Mərhələ yenilə" %}</h3>
+        <p class="cp-meta mt-1">{% translate "Pipeline və nəticəni bir yerdə saxlayın." %}</p>
+      </div>
+    </div>
+    <form method="post" class="crm-opp-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="stage">
+      <div class="grid-2 crm-lead-create-grid">
+        <label>
+          <span class="cp-meta">{% translate "Mərhələ" %}</span>
+          <select class="cp-input mt-1 w-full" name="pipeline_stage">
+            {% for v,l in stages %}<option value="{{ v }}" {% if opportunity.pipeline_stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Nəticə" %}</span>
+          <select class="cp-input mt-1 w-full" name="outcome">
+            <option value="">—</option>
+            {% for v,l in outcomes %}<option value="{{ v }}" {% if opportunity.outcome == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="crm-opp-span-2">
+          <span class="cp-meta">{% translate "Qeyd" %}</span>
+          <input class="cp-input mt-1 w-full" name="outcome_note" value="{{ opportunity.outcome_note }}" placeholder="{% translate 'Qısa qeyd…' %}">
+        </label>
+      </div>
+      <div class="crm-lead-create-actions">
+        <button type="submit" class="cp-btn">{% translate "Yenilə" %}</button>
+      </div>
+    </form>
+  </section>
 
-<div class="cp-card">
-  <h3>{% translate "Təkliflər" %}</h3>
-  <ul>
-    {% for offer in opportunity.offers.all %}
-    <li><a href="{% url 'erp:crm_offer_detail' offer.pk %}">#{{ offer.pk }}</a> — {{ offer.get_status_display }} — {{ offer.rent_amount }} AZN
-      {% if offer.space %} · {{ offer.space }}{% endif %}
-    </li>
-    {% empty %}<li>—</li>{% endfor %}
-  </ul>
+  <section class="crm-opp-panel cp-card p-card mb-4">
+    <div class="crm-opp-panel-head">
+      <div>
+        <h3 class="cp-section">{% translate "Yeni təklif" %}</h3>
+        <p class="cp-meta mt-1">{% translate "Default 33 AZN/m² + ƏDV; hər sahə üçün ayrı təklif." %}</p>
+      </div>
+    </div>
+    <form method="post" class="crm-opp-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create_offer">
+      <div class="grid-2 crm-lead-create-grid">
+        <label>
+          <span class="cp-meta">{% translate "Sahə (m²)" %}</span>
+          <input class="cp-input mt-1 w-full" name="area_m2" inputmode="decimal" value="{{ opportunity.expected_area|default_if_none:'' }}" placeholder="0">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "AZN / m²" %}</span>
+          <input class="cp-input mt-1 w-full" name="rent_rate_per_m2" inputmode="decimal" value="33">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Endirim %" %}</span>
+          <input class="cp-input mt-1 w-full" name="discount_percent" inputmode="decimal" value="0">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Qeyd" %}</span>
+          <input class="cp-input mt-1 w-full" name="notes" placeholder="{% translate 'Paket / şərt qeydi' %}">
+        </label>
+      </div>
+      <div class="crm-lead-create-actions">
+        <button type="submit" class="cp-btn">{% translate "Təklif yarat" %}</button>
+      </div>
+    </form>
+  </section>
+  {% endif %}
+
+  <section class="crm-opp-panel cp-card p-card">
+    <div class="crm-opp-panel-head">
+      <div>
+        <h3 class="cp-section">{% translate "Təkliflər" %}</h3>
+        <p class="cp-meta mt-1">{% translate "Bu imkan altındakı versiyalı təkliflər." %}</p>
+      </div>
+    </div>
+    <div class="crm-opp-offers">
+      <table class="cp-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>{% translate "Status" %}</th>
+            <th>{% translate "Net" %}</th>
+            <th>{% translate "Sahə" %}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for offer in opportunity.offers.all %}
+          <tr>
+            <td>{{ offer.pk }}</td>
+            <td>{{ offer.get_status_display }}</td>
+            <td>{{ offer.rent_amount }} AZN</td>
+            <td>{{ offer.space|default:"—" }}</td>
+            <td><a href="{% url 'erp:crm_offer_detail' offer.pk %}">{% translate "Aç" %}</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5">{% translate "Təklif yoxdur." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 {% endblock %}

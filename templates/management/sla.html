@@ -1,0 +1,48 @@
+{% extends "management/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "SLA hesabatı" %}{% endblock %}
+{% block content %}
+<div class="mb-4 flex gap-2" style="flex-wrap:wrap;align-items:center;">
+  <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:center;">
+    <label class="cp-meta">{% translate "Dövr (gün)" %}
+      <input class="cp-input" type="number" name="days" min="7" max="365" value="{{ days }}" style="width:5rem;margin-left:6px;">
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Yenilə" %}</button>
+  </form>
+</div>
+
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  <div class="cp-card p-card" style="min-width:140px;flex:1;"><div class="cp-meta">{% translate "Ticketlər" %}</div><div class="cp-metric">{{ report.total }}</div></div>
+  <div class="cp-card p-card" style="min-width:140px;flex:1;"><div class="cp-meta">{% translate "Açıq / Risk / Breach" %}</div><div class="cp-metric">{{ report.open_count }} / {{ report.open_risk }} / {{ report.open_breach }}</div></div>
+  <div class="cp-card p-card" style="min-width:140px;flex:1;"><div class="cp-meta">{% translate "MTTR (iş saatı)" %}</div><div class="cp-metric">{% if report.mttr_avg_hours != None %}{{ report.mttr_avg_hours }}{% else %}—{% endif %}</div></div>
+  <div class="cp-card p-card" style="min-width:140px;flex:1;"><div class="cp-meta">{% translate "Eskalasiya" %}</div><div class="cp-metric">{{ report.escalated }}</div></div>
+</div>
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Şöbə üzrə" %}</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Şöbə" %}</th><th>{% translate "Say" %}</th><th>{% translate "Bağlı" %}</th><th>MTTR</th><th>{% translate "Breach" %}</th></tr></thead>
+    <tbody>
+      {% for r in report.by_department %}
+      <tr><td>{{ r.name }}</td><td>{{ r.count }}</td><td>{{ r.closed }}</td><td>{% if r.mttr != None %}{{ r.mttr }}{% else %}—{% endif %}</td><td>{{ r.breached }}</td></tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta">{% translate "Məlumat yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="cp-card p-card">
+  <div class="cp-section">{% translate "Prioritet üzrə" %}</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Prioritet" %}</th><th>{% translate "Say" %}</th><th>{% translate "Bağlı" %}</th><th>MTTR</th><th>{% translate "Breach" %}</th></tr></thead>
+    <tbody>
+      {% for r in report.by_priority %}
+      <tr><td>{{ r.name }}</td><td>{{ r.count }}</td><td>{{ r.closed }}</td><td>{% if r.mttr != None %}{{ r.mttr }}{% else %}—{% endif %}</td><td>{{ r.breached }}</td></tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta">{% translate "Məlumat yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

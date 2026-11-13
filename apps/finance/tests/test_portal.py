@@ -59,14 +59,15 @@ class FinancePortalAclTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp.url, reverse("finance:home"))
 
-    def test_accountant_and_manager_ok_admin_denied(self):
+    def test_accountant_ok_manager_and_admin_denied(self):
         self.client.force_login(self.accountant)
         self.assertEqual(self.client.get(reverse("finance:home")).status_code, 200)
         self.client.force_login(self.manager)
-        self.assertEqual(self.client.get(reverse("finance:home")).status_code, 200)
+        resp = self.client.get(reverse("finance:home"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, reverse("erp:dashboard"))
         self.client.force_login(self.admin)
         resp = self.client.get(reverse("finance:home"))
-        # Wrong portal → redirect to ERP home (no dead 403 card)
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp.url, reverse("erp:dashboard"))
 
@@ -238,13 +239,13 @@ class FinanceArGlTests(TestCase):
         self.assertEqual(self.client.get(reverse("finance:invoices_export")).status_code, 200)
         self.assertEqual(self.client.get(reverse("finance:trial_balance_export")).status_code, 200)
 
-    def test_manager_cannot_mutate_charges(self):
+    def test_manager_cannot_access_finance_charges(self):
+        before = Charge.objects.count()
         self.client.force_login(self.manager)
         resp = self.client.post(
             reverse("finance:charges"),
             {"action": "generate_lease_charges"},
         )
         self.assertEqual(resp.status_code, 302)
-        # no new charges from manager
-        before = Charge.objects.count()
+        self.assertEqual(resp.url, reverse("erp:dashboard"))
         self.assertEqual(Charge.objects.count(), before)

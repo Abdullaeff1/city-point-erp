@@ -1,80 +1,175 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
-{% block page_title %}Təklif #{{ offer.pk }}{% endblock %}
-{% block heading %}Təklif #{{ offer.pk }}{% endblock %}
+{% block page_title %}{% translate "Təklif" %} #{{ offer.pk }}{% endblock %}
+{% block heading %}{% translate "Təklif" %} #{{ offer.pk }}{% endblock %}
 {% block content %}
-<p><a href="{% url 'erp:crm_offers' %}">← Təkliflər</a>
- · <a href="{% url 'erp:crm_opportunity_detail' offer.opportunity_id %}">İmkan #{{ offer.opportunity_id }}</a>
-</p>
-<p>Status: <strong>{{ offer.get_status_display }}</strong>
-{% if offer.sent_at %} · Göndərilib: {{ offer.sent_at|date:"d.m.Y H:i" }} → {{ offer.sent_to }}{% endif %}
-{% if offer.lease %} · İcarə: <a href="{% url 'erp:lease_detail' offer.lease.code %}">{{ offer.lease.code }}</a>{% endif %}
-</p>
+<div class="crm-offer-detail">
+  <p class="cp-meta mb-4">
+    <a href="{% url 'erp:crm_offers' %}">← {% translate "Təkliflər" %}</a>
+    · <a href="{% url 'erp:crm_opportunity_detail' offer.opportunity_id %}">{% translate "İmkan" %} #{{ offer.opportunity_id }}</a>
+  </p>
 
-<div class="cp-card">
-  <h3>{% translate "Versiyalar" %}</h3>
-  <table class="cp-table">
-    <thead><tr><th>v</th><th>AZN/m²</th><th>m²</th><th>Net</th><th>ƏDV</th><th>Gross</th><th>Endirim</th><th>Təsdiq</th><th></th></tr></thead>
-    <tbody>
-      {% for v in versions %}
-      <tr>
-        <td>v{{ v.version_number }}{% if offer.current_version_id == v.pk %} *{% endif %}</td>
-        <td>{{ v.rent_rate_per_m2 }}</td>
-        <td>{{ v.area_m2|default:"—" }}</td>
-        <td>{{ v.monthly_rent_net }}</td>
-        <td>{{ v.monthly_vat }}</td>
-        <td>{{ v.monthly_rent_gross }}</td>
-        <td>{{ v.discount_percent }}%</td>
-        <td>{% if v.approval_request %}{{ v.approval_request.get_status_display }}{% else %}—{% endif %}</td>
-        <td>
-          {% if can_mutate and offer.current_version_id == v.pk %}
-          <form method="post" style="display:inline;">{% csrf_token %}
-            <input type="hidden" name="action" value="request_approval">
-            <input type="hidden" name="version_id" value="{{ v.pk }}">
-            <button class="btn btn-sm">{% translate "Təsdiqə göndər" %}</button>
-          </form>
-          <form method="post" style="display:inline;">{% csrf_token %}
-            <input type="hidden" name="action" value="send">
-            <input type="hidden" name="version_id" value="{{ v.pk }}">
-            <input name="sent_to" placeholder="alıcı" size="16">
-            <button class="btn btn-sm btn-primary">{% translate "Göndər" %}</button>
-          </form>
+  <section class="crm-opp-detail-hero cp-card p-card mb-4">
+    <div class="crm-opp-detail-hero-top">
+      <div>
+        <p class="crm-lead-create-label">{% translate "Təklif" %}</p>
+        <h2 class="cp-section mt-1">#{{ offer.pk }} · {{ offer.party }}</h2>
+        <p class="cp-meta mt-2">
+          {% if offer.space %}{% translate "Sahə" %}: <strong>{{ offer.space }}</strong>{% endif %}
+          {% if offer.current_version %}
+          {% if offer.space %} · {% endif %}
+          {% translate "Cari versiya" %}: <strong>v{{ offer.current_version.version_number }}</strong>
+          · {{ offer.current_version.monthly_rent_net }} AZN net
           {% endif %}
-          {% if can_approve and v.approval_request %}
-          <form method="post" style="display:inline;">{% csrf_token %}
-            <input type="hidden" name="action" value="decide">
-            <input type="hidden" name="version_id" value="{{ v.pk }}">
-            <input type="hidden" name="approved" value="1">
-            <button class="btn btn-sm">{% translate "Approve" %}</button>
-          </form>
-          <form method="post" style="display:inline;">{% csrf_token %}
-            <input type="hidden" name="action" value="decide">
-            <input type="hidden" name="version_id" value="{{ v.pk }}">
-            <input type="hidden" name="approved" value="0">
-            <button class="btn btn-sm">{% translate "Reject" %}</button>
-          </form>
+          {% if offer.sent_at %}
+          · {% translate "Göndərilib" %}: <strong>{{ offer.sent_at|date:"d.m.Y H:i" }}</strong>
+          {% if offer.sent_to %} → {{ offer.sent_to }}{% endif %}
           {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+          {% if offer.lease %}
+          · {% translate "İcarə" %}: <a href="{% url 'erp:lease_detail' offer.lease.code %}"><strong>{{ offer.lease.code }}</strong></a>
+          {% endif %}
+        </p>
+      </div>
+      <div class="crm-opp-detail-chips">
+        <span class="crm-opp-chip crm-opp-chip--accent">{{ offer.get_status_display }}</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="crm-opp-panel cp-card p-card mb-4">
+    <div class="crm-opp-panel-head">
+      <div>
+        <h3 class="cp-section">{% translate "Versiyalar" %}</h3>
+        <p class="cp-meta mt-1">{% translate "Dəyişiklik yeni versiya yaradır; göndərmə yalnız təsdiqlənmiş cari versiya üçündür." %}</p>
+      </div>
+    </div>
+    <div class="crm-offer-versions">
+      <table class="cp-table">
+        <thead>
+          <tr>
+            <th>v</th>
+            <th>AZN/m²</th>
+            <th>m²</th>
+            <th>{% translate "Net" %}</th>
+            <th>{% translate "ƏDV" %}</th>
+            <th>{% translate "Gross" %}</th>
+            <th>{% translate "Endirim" %}</th>
+            <th>{% translate "Təsdiq" %}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in versions %}
+          <tr class="{% if offer.current_version_id == v.pk %}crm-offer-version-current{% endif %}">
+            <td>
+              v{{ v.version_number }}
+              {% if offer.current_version_id == v.pk %}
+              <span class="crm-opp-chip crm-offer-current-tag">{% translate "cari" %}</span>
+              {% endif %}
+            </td>
+            <td>{{ v.rent_rate_per_m2 }}</td>
+            <td>{{ v.area_m2|default:"—" }}</td>
+            <td>{{ v.monthly_rent_net }}</td>
+            <td>{{ v.monthly_vat }}</td>
+            <td>{{ v.monthly_rent_gross }}</td>
+            <td>{{ v.discount_percent }}%</td>
+            <td>{% if v.approval_request %}{{ v.approval_request.get_status_display }}{% else %}—{% endif %}</td>
+            <td>
+              <div class="crm-offer-row-actions">
+                {% if can_mutate and offer.current_version_id == v.pk %}
+                  {% if not v.approval_request or v.approval_request.status == "rejected" %}
+                  <form method="post" class="crm-offer-inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="request_approval">
+                    <input type="hidden" name="version_id" value="{{ v.pk }}">
+                    <button type="submit" class="cp-btn crm-offer-btn-secondary">{% translate "Təsdiqə göndər" %}</button>
+                  </form>
+                  {% endif %}
+                  {% if v.approval_request and v.approval_request.status == "approved" %}
+                  <form method="post" class="crm-offer-inline-form crm-offer-send-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="send">
+                    <input type="hidden" name="version_id" value="{{ v.pk }}">
+                    <input class="cp-input" name="sent_to" placeholder="{% translate 'alıcı e-poçt' %}" value="{{ offer.sent_to }}">
+                    <button type="submit" class="cp-btn">{% translate "Göndər" %}</button>
+                  </form>
+                  {% endif %}
+                {% endif %}
+                {% if can_approve and v.approval_request and v.approval_request.status == "pending" %}
+                <form method="post" class="crm-offer-inline-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="decide">
+                  <input type="hidden" name="version_id" value="{{ v.pk }}">
+                  <input type="hidden" name="approved" value="1">
+                  <button type="submit" class="cp-btn">{% translate "Təsdiq et" %}</button>
+                </form>
+                <form method="post" class="crm-offer-inline-form">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="decide">
+                  <input type="hidden" name="version_id" value="{{ v.pk }}">
+                  <input type="hidden" name="approved" value="0">
+                  <button type="submit" class="cp-btn crm-offer-btn-secondary">{% translate "Rədd et" %}</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="9">{% translate "Versiya yoxdur." %}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {% if can_mutate %}
+  <section class="crm-opp-panel cp-card p-card mb-4">
+    <div class="crm-opp-panel-head">
+      <div>
+        <h3 class="cp-section">{% translate "Yeni versiya" %}</h3>
+        <p class="cp-meta mt-1">{% translate "Tarif, sahə və ya endirim dəyişəndə yeni versiya yaradın." %}</p>
+      </div>
+    </div>
+    <form method="post" class="crm-opp-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="new_version">
+      <div class="grid-2 crm-lead-create-grid">
+        <label>
+          <span class="cp-meta">{% translate "AZN / m²" %}</span>
+          <input class="cp-input mt-1 w-full" name="rent_rate_per_m2" inputmode="decimal" value="{{ offer.current_version.rent_rate_per_m2|default:'33' }}">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Sahə (m²)" %}</span>
+          <input class="cp-input mt-1 w-full" name="area_m2" inputmode="decimal" value="{{ offer.current_version.area_m2|default_if_none:'' }}">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Endirim %" %}</span>
+          <input class="cp-input mt-1 w-full" name="discount_percent" inputmode="decimal" value="0">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Qeyd" %}</span>
+          <input class="cp-input mt-1 w-full" name="notes" placeholder="{% translate 'Paket / şərt qeydi' %}">
+        </label>
+      </div>
+      <div class="crm-lead-create-actions">
+        <button type="submit" class="cp-btn">{% translate "Versiya yarat" %}</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="crm-opp-panel cp-card p-card">
+    <div class="crm-opp-panel-head">
+      <div>
+        <h3 class="cp-section">{% translate "Müqavilə müraciəti" %}</h3>
+        <p class="cp-meta mt-1">{% translate "Qəbuldan sonra mühasibə ötürmə formu yaradın." %}</p>
+      </div>
+    </div>
+    <form method="post" class="crm-lead-create-actions">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="lease_application">
+      <button type="submit" class="cp-btn">{% translate "Müqavilə müraciət formu" %}</button>
+    </form>
+  </section>
+  {% endif %}
 </div>
-
-{% if can_mutate %}
-<form method="post" class="cp-card" style="margin-top:1rem;">
-  {% csrf_token %}
-  <input type="hidden" name="action" value="new_version">
-  <h3>{% translate "Yeni versiya" %}</h3>
-  <label>AZN/m² <input name="rent_rate_per_m2" value="{{ offer.current_version.rent_rate_per_m2|default:'33' }}"></label>
-  <label>m² <input name="area_m2" value="{{ offer.current_version.area_m2|default_if_none:'' }}"></label>
-  <label>Endirim % <input name="discount_percent" value="0"></label>
-  <label>Qeyd <input name="notes"></label>
-  <button type="submit" class="btn">{% translate "Versiya yarat" %}</button>
-</form>
-<form method="post" style="margin-top:.5rem;">{% csrf_token %}
-  <input type="hidden" name="action" value="lease_application">
-  <button class="btn btn-primary">{% translate "Müqavilə müraciət formu" %}</button>
-</form>
-{% endif %}
 {% endblock %}

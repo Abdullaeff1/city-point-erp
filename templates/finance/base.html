@@ -20,8 +20,9 @@
       <a class="{% nav_active 'journals' 'journal_create' %}" href="{% url 'finance:journals' %}"><i data-lucide="book-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Jurnal" %}</span></a>
       <a class="{% nav_active 'trial_balance' 'trial_balance_export' %}" href="{% url 'finance:trial_balance' %}"><i data-lucide="scale" width="18" height="18"></i><span class="cp-nav-text">{% translate "Trial balance" %}</span></a>
       <a class="{% nav_active 'periods' %}" href="{% url 'finance:periods' %}"><i data-lucide="calendar-check" width="18" height="18"></i><span class="cp-nav-text">{% translate "Dövrlər" %}</span></a>
-      <div class="cp-nav-label">{% translate "CRM" %}</div>
-      <a href="{% url 'erp:crm_lease_applications' %}?queue=1"><i data-lucide="file-plus" width="18" height="18"></i><span class="cp-nav-text">{% translate "Müqavilə müraciətləri" %}</span></a>
+      <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
+      <a class="{% nav_active 'building_equipment' %}" href="{% url 'finance:building_equipment' %}"><i data-lucide="cpu" width="18" height="18"></i><span class="cp-nav-text">{% translate "Avadanlıqlar" %}</span></a>
+      <a class="{% nav_active 'building_inventory' %}" href="{% url 'finance:building_inventory' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "İnventarlar" %}</span></a>
       {% include "partials/role_switch_nav.html" %}
     </nav>
     <div class="cp-user-bar">

@@ -30,7 +30,8 @@ Open http://localhost:8222/login/
 | Accountant | `accountant@citypoint.az` | `accountant123` |
 
 Open http://localhost:8222/security/ after login as Security.  
-Open http://localhost:3001/finance/ after login as Accountant (Management may view/approve; Admin cannot).
+Open http://localhost:3001/finance/ after login as Accountant (Management may view/approve; Admin cannot).  
+Management login → `/erp/` (təsdiqlər + RO; ayrıca portal yoxdur).
 
 ## Stack
 

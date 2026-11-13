@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "apps.portal.apps.PortalConfig",
     "apps.security.apps.SecurityConfig",
     "apps.finance.apps.FinanceConfig",
+    "apps.management.apps.ManagementConfig",
     "apps.erp.apps.ErpConfig",
 ]
 

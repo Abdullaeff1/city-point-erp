@@ -2,6 +2,22 @@
 {% load i18n cp_ui %}
 {% block heading %}{% translate "İdarə paneli" %}{% endblock %}
 {% block content %}
+{% if show_approvals and pending_total %}
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  <a class="cp-card p-card-sm cp-card-link" href="{% url 'erp:approvals' %}" style="min-width:140px;flex:1;">
+    <div class="cp-meta">{% translate "Gözləyən təsdiq" %}</div>
+    <div class="cp-metric mt-2">{{ pending_total }}</div>
+  </a>
+  <a class="cp-card p-card-sm cp-card-link" href="{% url 'erp:crm_offers' %}?status=pending_approval" style="min-width:140px;flex:1;">
+    <div class="cp-meta">{% translate "CRM təklif" %}</div>
+    <div class="cp-metric mt-2">{{ pending_offers }}</div>
+  </a>
+  <a class="cp-card p-card-sm cp-card-link" href="{% url 'erp:payment_approvals' %}" style="min-width:140px;flex:1;">
+    <div class="cp-meta">{% translate "Ödəniş təsdiqi" %}</div>
+    <div class="cp-metric mt-2">{{ pending_payments }}</div>
+  </a>
+</div>
+{% endif %}
 <div class="grid-kpi mb-5{% if not show_tickets or not show_guests %} grid-kpi--compact{% endif %}">
   {% if show_guests %}
   <div class="cp-card p-card-sm">

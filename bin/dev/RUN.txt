@@ -12,3 +12,9 @@
 # Portal: office@asbc.az / asbc123
 # ERP:    admin@citypoint.az / admin123
 # Finance: accountant@citypoint.az / accountant123 → /finance/
+# Management: manager@citypoint.az / manager123 → /erp/
+#
+# Sahələr (git pull sonrası — DB boşdursa seed_demo avtomatik yükləyir):
+#   docker compose -f bin/dev/docker-compose.yml exec web python manage.py loaddata docs/data/property_spaces.json
+# Excel alternativ: import_lease_spaces --file docs/data/cp_icare_ve_bos_saheler.xlsx
+# Qeyd: .env, var/private_media, loglar gitdə deyil (secret / lokal).

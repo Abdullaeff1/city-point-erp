@@ -33,6 +33,12 @@ from apps.billing.services import (
     record_payment,
 )
 from apps.core.services import DomainError
+from apps.erp.views import (
+    BuildingEquipmentListView as ErpBuildingEquipmentListView,
+)
+from apps.erp.views import (
+    BuildingInventoryListView as ErpBuildingInventoryListView,
+)
 from apps.finance.access import (
     can_approve_payment,
     can_close_period,
@@ -515,3 +521,17 @@ class PeriodsView(FinancePortalMixin, TemplateView):
         except DomainError as exc:
             messages.error(request, str(exc))
         return redirect("finance:periods")
+
+
+class BuildingEquipmentListView(FinancePortalMixin, ErpBuildingEquipmentListView):
+    """Avadanlıq — maliyyə shell (ERP chrome dəyişməsin)."""
+
+    template_name = "finance/building_assets.html"
+    list_url_name = "finance:building_equipment"
+
+
+class BuildingInventoryListView(FinancePortalMixin, ErpBuildingInventoryListView):
+    """İnventar — maliyyə shell."""
+
+    template_name = "finance/building_assets.html"
+    list_url_name = "finance:building_inventory"

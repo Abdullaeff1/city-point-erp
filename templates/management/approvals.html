@@ -1,0 +1,57 @@
+{% extends "management/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Təsdiq növbəsi" %}{% endblock %}
+{% block content %}
+<div class="cp-card p-card">
+  <p class="cp-meta mb-3">{% translate "CRM təklif göndərişi və maliyyə ödənişləri." %}</p>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Növ" %}</th>
+        <th>{% translate "Sorğu" %}</th>
+        <th>{% translate "Tarix" %}</th>
+        <th>{% translate "Detal" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for req in pending %}
+      <tr>
+        <td>
+          {% if req.workflow_code == "crm.offer.send" %}{% translate "CRM təklif" %}
+          {% elif req.workflow_code == "finance.payment" %}{% translate "Ödəniş" %}
+          {% else %}{{ req.workflow_code }}{% endif %}
+        </td>
+        <td>{{ req.requested_by }}</td>
+        <td>{{ req.created_at }}</td>
+        <td>
+          {% if req.workflow_code == "finance.payment" %}
+            {{ req.payload.invoice_code|default:"—" }} · {{ req.payload.amount }} {{ req.payload.method }}
+          {% else %}
+            #{{ req.object_id }}
+          {% endif %}
+        </td>
+        <td>
+          {% if can_decide %}
+          <form method="post" style="display:inline;">{% csrf_token %}
+            <input type="hidden" name="approval_id" value="{{ req.pk }}">
+            <input type="hidden" name="action" value="approve">
+            <input class="cp-input" name="comment" placeholder="{% translate 'şərh' %}" style="width:8rem;">
+            <button class="cp-btn" type="submit">{% translate "Təsdiq" %}</button>
+          </form>
+          <form method="post" style="display:inline;">{% csrf_token %}
+            <input type="hidden" name="approval_id" value="{{ req.pk }}">
+            <input type="hidden" name="action" value="reject">
+            <input class="cp-input" name="comment" placeholder="{% translate 'şərh' %}" style="width:8rem;">
+            <button class="cp-btn" type="submit">{% translate "Rədd" %}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta">{% translate "Gözləyən təsdiq yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

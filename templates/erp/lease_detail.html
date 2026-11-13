@@ -6,33 +6,129 @@
  · <a href="{% url 'erp:leases' %}">{% translate "İcarələr" %}</a>
 {% endblock %}
 {% block content %}
-<div class="grid gap-4" style="display:grid;grid-template-columns:2fr 1fr;gap:16px;">
-  <div class="cp-card">
-    <p class="cp-meta">{% translate "Party" %}</p>
-    <p class="cp-section">{{ lease.party.display_name }}</p>
-    <p class="cp-meta mt-4">Sahə</p>
-    <p>{{ lease.space.code|default:"—" }}</p>
-    <p class="cp-meta mt-4">Status</p>
-    <p>{{ lease.get_status_display }}</p>
-    <p class="cp-meta mt-4">Şərtlər</p>
-    <p>Kirayə: {{ lease.rent }} {{ lease.currency }} · Depozit: {{ lease.deposit }} · {% translate "Service charge" %}: {{ lease.service_charge }}</p>
-    <p class="cp-meta mt-2">{{ lease.start_date|default:"—" }} → {{ lease.end_date|default:"—" }}</p>
-    {% if lease.notes %}<p class="mt-4">{{ lease.notes }}</p>{% endif %}
-  </div>
-  <div class="cp-card">
-    <p class="cp-meta">{% translate "Flags" %}</p>
-    <p>{% translate "Billing" %}: {{ lease.billing_active|yesno:"aktiv,deaktiv" }}</p>
-    <p>{% translate "Portal" %}: {{ lease.portal_eligible|yesno:"aktiv,deaktiv" }}</p>
-    <p>{% translate "Access" %}: {{ lease.access_eligible|yesno:"aktiv,deaktiv" }}</p>
-    <form method="post" class="mt-4 flex-col gap-2">
-      {% csrf_token %}
-      {% if lease.status != "active" and lease.status != "terminated" %}
-      <button class="cp-btn w-full" name="action" value="activate">{% translate "Activate" %}</button>
+<div class="lease-detail">
+  <section class="lease-detail-hero cp-card p-card mb-4">
+    <div class="lease-detail-hero-top">
+      <div class="min-0">
+        <p class="crm-lead-create-label">{% translate "İcarə" %}</p>
+        <h2 class="cp-section mt-1">{{ lease.party.display_name }}</h2>
+        <p class="cp-meta mt-2">
+          {% translate "Sahə" %}: <strong>{{ lease.space.code|default:"—" }}</strong>
+          {% if lease.space and lease.space.area_m2 %}
+          · {{ lease.space.area_m2 }} m²
+          {% endif %}
+        </p>
+        <p class="cp-meta mt-1">
+          {{ lease.start_date|date:"d.m.Y"|default:"—" }}
+          →
+          {{ lease.end_date|date:"d.m.Y"|default:"—" }}
+        </p>
+      </div>
+      <div class="lease-detail-chips">
+        <span class="lease-chip lease-chip--status">{{ lease.get_status_display }}</span>
+        {% if lease.currency %}<span class="lease-chip">{{ lease.currency }}</span>{% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="mb-4">
+    <h3 class="cp-section mb-3">{% translate "Şərtlər" %}</h3>
+    <div class="lease-detail-kpis">
+      <div class="cp-card p-card-sm lease-kpi">
+        <p class="cp-meta">{% translate "Kirayə" %}</p>
+        <p class="lease-kpi-value">{{ lease.rent }} <span class="lease-kpi-unit">{{ lease.currency }}</span></p>
+      </div>
+      <div class="cp-card p-card-sm lease-kpi">
+        <p class="cp-meta">{% translate "Depozit" %}</p>
+        <p class="lease-kpi-value">{{ lease.deposit }} <span class="lease-kpi-unit">{{ lease.currency }}</span></p>
+      </div>
+      <div class="cp-card p-card-sm lease-kpi">
+        <p class="cp-meta">{% translate "Xidmət haqqı" %}</p>
+        <p class="lease-kpi-value">{{ lease.service_charge }} <span class="lease-kpi-unit">{{ lease.currency }}</span></p>
+      </div>
+      {% if lease.rent_rate_per_m2 %}
+      <div class="cp-card p-card-sm lease-kpi">
+        <p class="cp-meta">{% translate "Tarif" %}</p>
+        <p class="lease-kpi-value">{{ lease.rent_rate_per_m2 }} <span class="lease-kpi-unit">{{ lease.currency }}/m²</span></p>
+      </div>
       {% endif %}
-      {% if lease.status == "active" or lease.status == "expiring" %}
-      <button class="cp-btn-ghost w-full" name="action" value="terminate">{% translate "Terminate" %}</button>
-      {% endif %}
-    </form>
+    </div>
+  </section>
+
+  <div class="lease-detail-grid">
+    <section class="cp-card p-card lease-detail-panel">
+      <h3 class="cp-section">{% translate "Əlavə məlumat" %}</h3>
+      <dl class="lease-detail-facts mt-3">
+        {% if lease.deposit_months %}
+        <div>
+          <dt class="cp-meta">{% translate "Depozit müddəti" %}</dt>
+          <dd>{{ lease.deposit_months }} {% translate "ay" %}</dd>
+        </div>
+        {% endif %}
+        {% if lease.parking_notes %}
+        <div>
+          <dt class="cp-meta">{% translate "Parkinq" %}</dt>
+          <dd>{{ lease.parking_notes }}</dd>
+        </div>
+        {% endif %}
+        {% if lease.fit_out_notes %}
+        <div>
+          <dt class="cp-meta">{% translate "Fit-out" %}</dt>
+          <dd>{{ lease.fit_out_notes }}</dd>
+        </div>
+        {% endif %}
+        {% if lease.parent_lease_id %}
+        <div>
+          <dt class="cp-meta">{% translate "Əsas müqavilə" %}</dt>
+          <dd><a href="{% url 'erp:lease_detail' lease.parent_lease.code %}">{{ lease.parent_lease.code }}</a></dd>
+        </div>
+        {% endif %}
+        {% if lease.notes %}
+        <div class="lease-detail-notes">
+          <dt class="cp-meta">{% translate "Qeyd" %}</dt>
+          <dd>{{ lease.notes }}</dd>
+        </div>
+        {% else %}
+        <div class="lease-detail-notes">
+          <dt class="cp-meta">{% translate "Qeyd" %}</dt>
+          <dd class="cp-meta">—</dd>
+        </div>
+        {% endif %}
+      </dl>
+    </section>
+
+    <aside class="cp-card p-card lease-detail-aside">
+      <h3 class="cp-section">{% translate "Status və əməliyyat" %}</h3>
+      <ul class="lease-flag-list mt-3">
+        <li>
+          <span class="cp-meta">{% translate "Billing" %}</span>
+          <span class="lease-flag {% if lease.billing_active %}is-on{% endif %}">
+            {{ lease.billing_active|yesno:"aktiv,deaktiv" }}
+          </span>
+        </li>
+        <li>
+          <span class="cp-meta">{% translate "Portal" %}</span>
+          <span class="lease-flag {% if lease.portal_eligible %}is-on{% endif %}">
+            {{ lease.portal_eligible|yesno:"aktiv,deaktiv" }}
+          </span>
+        </li>
+        <li>
+          <span class="cp-meta">{% translate "Access" %}</span>
+          <span class="lease-flag {% if lease.access_eligible %}is-on{% endif %}">
+            {{ lease.access_eligible|yesno:"aktiv,deaktiv" }}
+          </span>
+        </li>
+      </ul>
+      <form method="post" class="lease-detail-actions mt-4">
+        {% csrf_token %}
+        {% if lease.status != "active" and lease.status != "terminated" %}
+        <button class="cp-btn w-full" name="action" value="activate" type="submit">{% translate "Aktivləşdir" %}</button>
+        {% endif %}
+        {% if lease.status == "active" or lease.status == "expiring" %}
+        <button class="cp-btn-ghost w-full" name="action" value="terminate" type="submit">{% translate "Dayandır" %}</button>
+        {% endif %}
+      </form>
+    </aside>
   </div>
 </div>
 {% endblock %}

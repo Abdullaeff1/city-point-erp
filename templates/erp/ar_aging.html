@@ -1,0 +1,104 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "AR Aging" %}{% endblock %}
+{% block content %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Current" %} · {{ totals.current }} AZN</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Faktura" %}</th><th>{% translate "Şirkət" %}</th><th>{% translate "Due" %}</th><th>{% translate "Qalıq" %}</th><th>{% translate "Gün" %}</th></tr></thead>
+    <tbody>
+      {% for row in buckets.current %}
+      <tr>
+        <td>{{ row.invoice.code }}</td>
+        <td>{{ row.invoice.party.display_name }}</td>
+        <td>{{ row.invoice.due_date|default:"—" }}</td>
+        <td>{{ row.balance }}</td>
+        <td>{{ row.days_overdue }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">1–30 · {{ totals.1_30 }} AZN</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Faktura" %}</th><th>{% translate "Şirkət" %}</th><th>{% translate "Due" %}</th><th>{% translate "Qalıq" %}</th><th>{% translate "Gün" %}</th></tr></thead>
+    <tbody>
+      {% for row in buckets.1_30 %}
+      <tr>
+        <td>{{ row.invoice.code }}</td>
+        <td>{{ row.invoice.party.display_name }}</td>
+        <td>{{ row.invoice.due_date|default:"—" }}</td>
+        <td>{{ row.balance }}</td>
+        <td>{{ row.days_overdue }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">31–60 · {{ totals.31_60 }} AZN</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Faktura" %}</th><th>{% translate "Şirkət" %}</th><th>{% translate "Due" %}</th><th>{% translate "Qalıq" %}</th><th>{% translate "Gün" %}</th></tr></thead>
+    <tbody>
+      {% for row in buckets.31_60 %}
+      <tr>
+        <td>{{ row.invoice.code }}</td>
+        <td>{{ row.invoice.party.display_name }}</td>
+        <td>{{ row.invoice.due_date|default:"—" }}</td>
+        <td>{{ row.balance }}</td>
+        <td>{{ row.days_overdue }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">61–90 · {{ totals.61_90 }} AZN</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Faktura" %}</th><th>{% translate "Şirkət" %}</th><th>{% translate "Due" %}</th><th>{% translate "Qalıq" %}</th><th>{% translate "Gün" %}</th></tr></thead>
+    <tbody>
+      {% for row in buckets.61_90 %}
+      <tr>
+        <td>{{ row.invoice.code }}</td>
+        <td>{{ row.invoice.party.display_name }}</td>
+        <td>{{ row.invoice.due_date|default:"—" }}</td>
+        <td>{{ row.balance }}</td>
+        <td>{{ row.days_overdue }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">90+ · {{ totals.90_plus }} AZN</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Faktura" %}</th><th>{% translate "Şirkət" %}</th><th>{% translate "Due" %}</th><th>{% translate "Qalıq" %}</th><th>{% translate "Gün" %}</th></tr></thead>
+    <tbody>
+      {% for row in buckets.90_plus %}
+      <tr>
+        <td>{{ row.invoice.code }}</td>
+        <td>{{ row.invoice.party.display_name }}</td>
+        <td>{{ row.invoice.due_date|default:"—" }}</td>
+        <td>{{ row.balance }}</td>
+        <td>{{ row.days_overdue }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "management/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "CRM təkliflər" %}{% endblock %}
+{% block content %}
+<form method="get" class="mb-3 flex gap-2" style="flex-wrap:wrap;align-items:center;">
+  <select class="cp-input" name="status" onchange="this.form.submit()">
+    <option value="">{% translate "Bütün statuslar" %}</option>
+    {% for v,l in statuses %}
+    <option value="{{ v }}" {% if filters.status == v %}selected{% endif %}>{{ l }}</option>
+    {% endfor %}
+  </select>
+</form>
+<div class="cp-card p-card">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>{% translate "Party" %}</th>
+        <th>{% translate "Sahə" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th>{% translate "Net" %}</th>
+        <th>{% translate "Versiya" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in offers %}
+      <tr>
+        <td>{{ o.pk }}</td>
+        <td>{{ o.party }}</td>
+        <td>{{ o.space|default:"—" }}</td>
+        <td>{{ o.get_status_display }}</td>
+        <td>{{ o.rent_amount }}</td>
+        <td>{% if o.current_version %}v{{ o.current_version.version_number }}{% else %}—{% endif %}</td>
+        <td><a href="{% url 'management:crm_offer_detail' o.pk %}">{% translate "Aç" %}</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="cp-meta">{% translate "Təklif yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

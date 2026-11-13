@@ -28,14 +28,28 @@ class BuildingAssetPageTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        self.accountant = User.objects.create_user(
+            username="acct-assets",
+            email="acct-assets@test.az",
+            password="Pass12345!",
+            role=Role.ACCOUNTANT,
+            is_staff=True,
+        )
+        self.manager = User.objects.create_user(
+            username="mgr-assets",
+            email="mgr-assets@test.az",
+            password="Pass12345!",
+            role=Role.MANAGEMENT,
+            is_staff=True,
+        )
         building = Building.objects.create(code="CP-BA", name="City Point")
         self.floor = Floor.objects.create(building=building, code="F1", name="1-ci mərtəbə")
         self.client = Client()
 
-    def test_fm_adds_equipment_with_monthly_inspection(self):
-        self.client.force_login(self.fm)
+    def test_accountant_adds_equipment_with_monthly_inspection(self):
+        self.client.force_login(self.accountant)
         response = self.client.post(
-            reverse("erp:building_equipment"),
+            reverse("finance:building_equipment"),
             {
                 "name": "Lift 1",
                 "category": "lift",
@@ -52,13 +66,19 @@ class BuildingAssetPageTests(TestCase):
         self.assertEqual(asset.floor_id, self.floor.pk)
         self.assertEqual(asset.quantity, 2)
         self.assertEqual(asset.next_inspection_on, date(2026, 2, 15))
-        page = self.client.get(reverse("erp:building_equipment"))
+        page = self.client.get(reverse("finance:building_equipment"))
+        self.assertEqual(page.status_code, 200)
         self.assertContains(page, "Lift 1")
         self.assertContains(page, "Avadanlıqlar")
-        inventory = self.client.get(reverse("erp:building_inventory"))
+        self.assertContains(page, "Maliyyə")
+        self.assertTrue(page.context["can_mutate_assets"])
+        inventory = self.client.get(reverse("finance:building_inventory"))
         self.assertNotContains(inventory, "Lift 1")
+        erp_redirect = self.client.get(reverse("erp:building_equipment"))
+        self.assertEqual(erp_redirect.status_code, 302)
+        self.assertEqual(erp_redirect.url, reverse("finance:building_equipment"))
         updated = self.client.post(
-            reverse("erp:building_equipment"),
+            reverse("finance:building_equipment"),
             {
                 "action": "update",
                 "asset_id": asset.pk,
@@ -74,10 +94,32 @@ class BuildingAssetPageTests(TestCase):
         self.assertEqual(asset.location, "Blok A")
         self.assertEqual(asset.next_inspection_on, date(2026, 4, 10))
 
+    def test_fm_and_manager_view_only(self):
+        BuildingAsset.objects.create(
+            name="Nasos",
+            kind=BuildingAssetKind.EQUIPMENT,
+            floor=self.floor,
+            quantity=1,
+        )
+        for user in (self.fm, self.manager):
+            self.client.force_login(user)
+            page = self.client.get(reverse("erp:building_equipment"))
+            self.assertEqual(page.status_code, 200)
+            self.assertFalse(page.context["can_mutate_assets"])
+            self.assertContains(page, "Nasos")
+            self.assertContains(page, "yalnız oxuma")
+            before = BuildingAsset.objects.count()
+            resp = self.client.post(
+                reverse("erp:building_equipment"),
+                {"name": "Blocked", "category": "other", "quantity": "1"},
+            )
+            self.assertEqual(resp.status_code, 302)
+            self.assertEqual(BuildingAsset.objects.count(), before)
+
     def test_inventory_page_separate(self):
-        self.client.force_login(self.fm)
+        self.client.force_login(self.accountant)
         response = self.client.post(
-            reverse("erp:building_inventory"),
+            reverse("finance:building_inventory"),
             {
                 "name": "Ofis masası",
                 "category": "furniture",
@@ -88,10 +130,15 @@ class BuildingAssetPageTests(TestCase):
         self.assertEqual(response.status_code, 302)
         asset = BuildingAsset.objects.get(name="Ofis masası")
         self.assertEqual(asset.kind, BuildingAssetKind.INVENTORY)
-        page = self.client.get(reverse("erp:building_inventory"))
+        page = self.client.get(reverse("finance:building_inventory"))
         self.assertContains(page, "Ofis masası")
         self.assertContains(page, "İnventarlar")
-        self.assertNotContains(self.client.get(reverse("erp:building_equipment")), "Ofis masası")
+        self.assertContains(page, "Maliyyə")
+        equip = self.client.get(reverse("finance:building_equipment"))
+        self.assertNotContains(equip, "Ofis masası")
+        erp_redirect = self.client.get(reverse("erp:building_inventory"))
+        self.assertEqual(erp_redirect.status_code, 302)
+        self.assertEqual(erp_redirect.url, reverse("finance:building_inventory"))
 
     def test_service_desk_opens_both_pages(self):
         self.client.force_login(self.desk)
@@ -127,16 +174,16 @@ class BuildingAssetPageTests(TestCase):
         )
 
     def test_xlsx_import_sets_next_inspection(self):
-        self.client.force_login(self.fm)
+        self.client.force_login(self.accountant)
         preview = self.client.post(
-            reverse("erp:building_equipment"),
+            reverse("finance:building_equipment"),
             {"action": "import", "asset_file": self._xlsx()},
             follow=True,
         )
         self.assertContains(preview, "Lift 1")
         self.assertContains(preview, "Siyahıya yaz")
         saved = self.client.post(
-            reverse("erp:building_equipment"), {"action": "import_save"}, follow=True
+            reverse("finance:building_equipment"), {"action": "import_save"}, follow=True
         )
         self.assertEqual(saved.status_code, 200)
         asset = BuildingAsset.objects.get(name="Lift 1", code="L-1")
@@ -148,18 +195,18 @@ class BuildingAssetPageTests(TestCase):
         self.assertEqual(asset.last_inspected_on, date(2026, 1, 15))
         self.assertEqual(asset.next_inspection_on, date(2026, 2, 15))
         again = self.client.post(
-            reverse("erp:building_equipment"),
+            reverse("finance:building_equipment"),
             {"action": "import", "asset_file": self._xlsx()},
             follow=True,
         )
         self.assertEqual(again.status_code, 200)
-        self.client.post(reverse("erp:building_equipment"), {"action": "import_save"})
+        self.client.post(reverse("finance:building_equipment"), {"action": "import_save"})
         self.assertEqual(BuildingAsset.objects.filter(name="Lift 1", code="L-1").count(), 1)
 
     def test_docx_line_imports_by_name(self):
         from docx import Document
 
-        self.client.force_login(self.fm)
+        self.client.force_login(self.accountant)
         document = Document()
         document.add_paragraph("Nasos otağı")
         buffer = io.BytesIO()
@@ -170,22 +217,22 @@ class BuildingAssetPageTests(TestCase):
             content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
         self.client.post(
-            reverse("erp:building_equipment"),
+            reverse("finance:building_equipment"),
             {"action": "import", "asset_file": uploaded},
         )
-        self.client.post(reverse("erp:building_equipment"), {"action": "import_save"})
+        self.client.post(reverse("finance:building_equipment"), {"action": "import_save"})
         asset = BuildingAsset.objects.get(name="Nasos otağı")
         self.assertEqual(asset.kind, BuildingAssetKind.EQUIPMENT)
         self.assertEqual(asset.category, "other")
 
-    def test_service_desk_imports_xlsx(self):
+    def test_service_desk_cannot_import(self):
         self.client.force_login(self.desk)
+        before = BuildingAsset.objects.count()
         response = self.client.post(
             reverse("erp:building_equipment"),
             {"action": "import", "asset_file": self._xlsx()},
             follow=True,
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Lift 1")
-        self.client.post(reverse("erp:building_equipment"), {"action": "import_save"})
-        self.assertTrue(BuildingAsset.objects.filter(name="Lift 1", code="L-1").exists())
+        self.assertEqual(BuildingAsset.objects.count(), before)
+        self.assertFalse(response.context["can_mutate_assets"])

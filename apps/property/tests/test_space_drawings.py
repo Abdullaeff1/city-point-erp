@@ -101,7 +101,8 @@ class SpaceDrawingPermissionTests(TestCase):
     def test_reception_cannot_download(self):
         self.client.force_login(self.reception)
         resp = self.client.get(reverse("erp:space_drawing_download", args=[self.drawing.pk]))
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, reverse("erp:reception"))
 
     def test_admin_download_ok(self):
         self.client.force_login(self.admin)

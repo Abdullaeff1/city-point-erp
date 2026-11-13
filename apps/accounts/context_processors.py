@@ -25,7 +25,7 @@ def role_context(request):
             open_rapid_alerts = RapidCardSwipeAlert.objects.filter(acknowledged_at__isnull=True).count()
             open_shaft_alerts = ShaftAccessAlert.objects.filter(acknowledged_at__isnull=True).count()
     role = getattr(user, "role", None) if user and user.is_authenticated else None
-    is_adminish = role in {Role.ADMIN, Role.MANAGEMENT}
+    is_adminish = role == Role.ADMIN
     nav_residents = is_adminish or role in {Role.SERVICE_DESK, Role.PROPERTY_FM, Role.RECEPTION}
     if user and user.is_authenticated and nav_residents:
         from apps.residents.models import ResidentCompany
@@ -70,18 +70,33 @@ def role_context(request):
         "nav_reception": is_adminish or role == Role.RECEPTION,
         "nav_tickets": is_adminish or role in {Role.SERVICE_DESK, Role.PROPERTY_FM},
         "nav_property": is_adminish or role == Role.PROPERTY_FM,
+        "nav_building_assets": bool(
+            user
+            and user.is_authenticated
+            and role
+            in {
+                Role.ADMIN,
+                Role.PROPERTY_FM,
+                Role.SERVICE_DESK,
+                Role.MANAGEMENT,
+                Role.ACCOUNTANT,
+            }
+        ),
         "nav_residents": nav_residents,
         "nav_docs": is_adminish,
         "nav_announcements": bool(user and user.is_authenticated and can_publish_announcement(user)),
-        "nav_reports": is_adminish,
+        "nav_reports": is_adminish or role == Role.MANAGEMENT,
+        "nav_approvals": bool(
+            user and user.is_authenticated and role in {Role.ADMIN, Role.MANAGEMENT}
+        ),
         "nav_internal_access": is_adminish,
         # İcarələr sidebar gizlədilir — məlumat Rezident kartında (Sənədlər) saxlanır
         "nav_leases": False,
-        # CRM DoD: sales/management/admin/accountant; reception yox
+        # CRM: sales mutate; management/admin/accountant RO (+ accountant applications)
         "nav_crm": bool(
             user
             and user.is_authenticated
-            and role in {Role.SALES, Role.MANAGEMENT, Role.ADMIN, Role.ACCOUNTANT}
+            and role in {Role.SALES, Role.ADMIN, Role.ACCOUNTANT, Role.MANAGEMENT}
         ),
         "nav_supply": False,
         "nav_finance": False,
@@ -93,6 +108,7 @@ def role_context(request):
                 or (impersonator and can_start_impersonation(impersonator))
             )
         ),
+        "is_adminish": is_adminish,
         "nav_role_switch": can_switch,
         "role_switch_targets": role_targets,
         "is_impersonating": impersonating,

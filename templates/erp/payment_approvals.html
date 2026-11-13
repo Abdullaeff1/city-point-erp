@@ -1,0 +1,73 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Ödəniş təsdiqləri" %}{% endblock %}
+{% block content %}
+{% if pending %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Gözləyən təsdiqlər" %}</div>
+  <table class="cp-table mt-2">
+    <thead>
+      <tr>
+        <th>{% translate "Faktura" %}</th>
+        <th>{% translate "Məbləğ" %}</th>
+        <th>{% translate "Sorğu" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for req in pending %}
+      <tr>
+        <td>{{ req.payload.invoice_code|default:"—" }}</td>
+        <td>{{ req.payload.amount }} · {{ req.payload.method }}</td>
+        <td>{{ req.requested_by }} · {{ req.created_at }}</td>
+        <td>
+          {% if can_approve %}
+          <form method="post" style="display:inline;">{% csrf_token %}
+            <input type="hidden" name="action" value="approve_pay">
+            <input type="hidden" name="approval_id" value="{{ req.pk }}">
+            <button class="cp-btn" type="submit">{% translate "Təsdiq" %}</button>
+          </form>
+          <form method="post" style="display:inline;">{% csrf_token %}
+            <input type="hidden" name="action" value="reject_pay">
+            <input type="hidden" name="approval_id" value="{{ req.pk }}">
+            <button class="cp-btn" type="submit">{% translate "Rədd" %}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="cp-card p-card">
+  <div class="cp-section">{% translate "Qeydə alınmış ödənişlər" %}</div>
+  <table class="cp-table mt-2">
+    <thead>
+      <tr>
+        <th>{% translate "Tarix" %}</th>
+        <th>{% translate "Faktura" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Məbləğ" %}</th>
+        <th>{% translate "Metod" %}</th>
+        <th>{% translate "Ref" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in payments %}
+      <tr>
+        <td>{{ p.paid_at }}</td>
+        <td>{{ p.invoice.code }}</td>
+        <td>{{ p.invoice.party.display_name }}</td>
+        <td>{{ p.amount }} {{ p.currency }}</td>
+        <td>{{ p.method }}</td>
+        <td>{{ p.reference|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

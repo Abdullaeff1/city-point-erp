@@ -10,8 +10,11 @@ from django.views.generic import CreateView, DeleteView, FormView, ListView, Tem
 import json
 
 from apps.accounts.impersonation import can_start_impersonation, get_impersonator, is_impersonating
+from django.contrib.auth.mixins import LoginRequiredMixin
+
 from apps.accounts.mixins import RoleRequiredMixin, StaffRequiredMixin
 from apps.accounts.models import Role, User
+from apps.accounts.routing import redirect_home
 from apps.core.services import DomainError
 from apps.documents.models import Document
 from apps.erp.forms import FloorForm, GuestVisitForm, SpaceForm, StaffTicketForm
@@ -145,6 +148,19 @@ class DashboardView(StaffRequiredMixin, TemplateView):
             from apps.integrations.axtrax_health import axtrax_sync_health
 
             axtrax = axtrax_sync_health()
+        pending_offers = 0
+        pending_payments = 0
+        pending_total = 0
+        if role in {Role.ADMIN, Role.MANAGEMENT}:
+            from apps.workflows.models import ApprovalRequest, ApprovalStatus
+
+            pending = ApprovalRequest.objects.filter(
+                workflow_code__in=("crm.offer.send", "finance.payment"),
+                status=ApprovalStatus.PENDING,
+            )
+            pending_offers = pending.filter(workflow_code="crm.offer.send").count()
+            pending_payments = pending.filter(workflow_code="finance.payment").count()
+            pending_total = pending.count()
         ctx.update(
             {
                 "show_tickets": show_tickets,
@@ -170,6 +186,10 @@ class DashboardView(StaffRequiredMixin, TemplateView):
                     else []
                 ),
                 "axtrax_health": axtrax,
+                "pending_offers": pending_offers,
+                "pending_payments": pending_payments,
+                "pending_total": pending_total,
+                "show_approvals": role in {Role.ADMIN, Role.MANAGEMENT},
             }
         )
         return ctx
@@ -1058,14 +1078,46 @@ class SpaceDeleteView(RoleRequiredMixin, DeleteView):
         return super().form_valid(form)
 
 
-class BuildingAssetListView(RoleRequiredMixin, TemplateView):
+BUILDING_ASSET_VIEW_ROLES = {
+    Role.PROPERTY_FM,
+    Role.SERVICE_DESK,
+    Role.MANAGEMENT,
+    Role.ADMIN,
+    Role.ACCOUNTANT,
+}
+
+
+def can_mutate_building_assets(user) -> bool:
+    return bool(user and user.is_authenticated and user.role == Role.ACCOUNTANT)
+
+
+class BuildingAssetListView(LoginRequiredMixin, TemplateView):
+    """Avadanlıq/inventar: baxış çoxrollu; əlavə/redaktə yalnız mühasib."""
+
     template_name = "erp/building_assets.html"
-    allowed_roles = (Role.PROPERTY_FM, Role.SERVICE_DESK)
     asset_kind = BuildingAssetKind.EQUIPMENT
     list_url_name = "erp:building_equipment"
 
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        if request.user.role not in BUILDING_ASSET_VIEW_ROLES:
+            return redirect_home(request.user)
+        # Mühasib ERP shell-ə düşməsin — finance portal URL-ə yönləndir
+        if request.user.role == Role.ACCOUNTANT and str(self.list_url_name).startswith("erp:"):
+            dest = (
+                "finance:building_inventory"
+                if self.asset_kind == BuildingAssetKind.INVENTORY
+                else "finance:building_equipment"
+            )
+            return redirect(dest)
+        return super().dispatch(request, *args, **kwargs)
+
     def get(self, request, *args, **kwargs):
         if request.GET.get("template") == "1":
+            if not can_mutate_building_assets(request.user):
+                messages.error(request, _("Yalnız mühasib şablon yükləyə bilər."))
+                return redirect(self.list_url_name)
             from apps.property.asset_import import asset_template_response
 
             return asset_template_response(kind=self.asset_kind)
@@ -1090,9 +1142,13 @@ class BuildingAssetListView(RoleRequiredMixin, TemplateView):
         ctx["categories"] = categories_for_kind(self.asset_kind)
         ctx["today"] = timezone.localdate()
         ctx["import_preview"] = self.request.session.get(session_key_for(self.asset_kind)) or []
+        ctx["can_mutate_assets"] = can_mutate_building_assets(self.request.user)
         return ctx
 
     def post(self, request, *args, **kwargs):
+        if not can_mutate_building_assets(request.user):
+            messages.error(request, _("Əlavə / redaktə yalnız mühasib üçündür."))
+            return redirect(self.list_url_name)
         action = request.POST.get("action") or ""
         if action in {"import", "import_save", "import_cancel"}:
             return self._import_post(request, action)

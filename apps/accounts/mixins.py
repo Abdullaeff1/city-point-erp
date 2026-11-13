@@ -11,9 +11,10 @@ from apps.accounts.routing import redirect_home
 
 def _portal_home_redirect(user):
     """Send dedicated-portal roles to their home instead of a bare 403 on ERP."""
-    if getattr(user, "role", None) == Role.ACCOUNTANT:
+    role = getattr(user, "role", None)
+    if role == Role.ACCOUNTANT:
         return redirect("finance:home")
-    if getattr(user, "role", None) == Role.SECURITY:
+    if role == Role.SECURITY:
         return redirect("security:home")
     return None
 
@@ -88,7 +89,7 @@ class FinancePortalMixin(LoginRequiredMixin):
 
 
 class CrmAccessMixin(LoginRequiredMixin):
-    """CRM view access — sales/management/admin/accountant; reception → home."""
+    """CRM view access — sales mutate; management/admin/accountant view; approve separate."""
 
     require_mutate: bool = False
     require_approve: bool = False

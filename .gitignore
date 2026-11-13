@@ -6,8 +6,12 @@ __pycache__/
 venv/
 media/
 staticfiles/
+# Lokal runtime / secret / böyük paketlər (docs/data seed faylları gitdədir)
 var/
 *.log
 .DS_Store
 .idea/
 .vscode/
+node_modules/
+*.zip
+

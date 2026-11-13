@@ -1,0 +1,66 @@
+{% extends "management/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Təklif" %} #{{ offer.pk }}{% endblock %}
+{% block back_trail %} · <a href="{% url 'management:crm_offers' %}">{% translate "Təkliflər" %}</a>{% endblock %}
+{% block content %}
+<div class="cp-card p-card mb-4">
+  <p class="cp-meta">
+    {{ offer.party }}
+    {% if offer.space %} · {% translate "Sahə" %}: {{ offer.space }}{% endif %}
+    · <strong>{{ offer.get_status_display }}</strong>
+    {% if offer.sent_at %} · {% translate "Göndərilib" %}: {{ offer.sent_at|date:"d.m.Y H:i" }}{% endif %}
+  </p>
+</div>
+
+<div class="cp-card p-card">
+  <div class="cp-section">{% translate "Versiyalar" %}</div>
+  <p class="cp-meta mt-1 mb-3">{% translate "Yalnız təsdiq/rədd — göndərmə satışda qalır." %}</p>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>v</th>
+        <th>AZN/m²</th>
+        <th>m²</th>
+        <th>{% translate "Net" %}</th>
+        <th>{% translate "ƏDV" %}</th>
+        <th>{% translate "Gross" %}</th>
+        <th>{% translate "Endirim" %}</th>
+        <th>{% translate "Təsdiq" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in versions %}
+      <tr>
+        <td>v{{ v.version_number }}{% if offer.current_version_id == v.pk %} · {% translate "cari" %}{% endif %}</td>
+        <td>{{ v.rent_rate_per_m2 }}</td>
+        <td>{{ v.area_m2|default:"—" }}</td>
+        <td>{{ v.monthly_rent_net }}</td>
+        <td>{{ v.monthly_vat }}</td>
+        <td>{{ v.monthly_rent_gross }}</td>
+        <td>{{ v.discount_percent }}%</td>
+        <td>{% if v.approval_request %}{{ v.approval_request.get_status_display }}{% else %}—{% endif %}</td>
+        <td>
+          {% if can_approve and v.approval_request and v.approval_request.status == "pending" %}
+          <form method="post" style="display:inline;">{% csrf_token %}
+            <input type="hidden" name="version_id" value="{{ v.pk }}">
+            <input type="hidden" name="approved" value="1">
+            <input class="cp-input" name="comment" placeholder="{% translate 'şərh' %}" style="width:7rem;">
+            <button type="submit" class="cp-btn">{% translate "Təsdiq" %}</button>
+          </form>
+          <form method="post" style="display:inline;">{% csrf_token %}
+            <input type="hidden" name="version_id" value="{{ v.pk }}">
+            <input type="hidden" name="approved" value="0">
+            <input class="cp-input" name="comment" placeholder="{% translate 'şərh' %}" style="width:7rem;">
+            <button type="submit" class="cp-btn">{% translate "Rədd" %}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="9" class="cp-meta">{% translate "Versiya yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

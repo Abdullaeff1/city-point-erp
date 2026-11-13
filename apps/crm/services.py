@@ -385,11 +385,12 @@ class CrmOfferService(Service):
         from apps.workflows.services import ApprovalService
         from apps.workflows.models import ApprovalStatus
 
+        version = OfferVersion.objects.select_for_update().get(pk=version.pk)
         req = version.approval_request
         if not req or req.status != ApprovalStatus.PENDING:
             raise DomainError(_("Gözləyən təsdiq yoxdur."))
         ApprovalService.decide(req, approved=approved, decided_by=actor, comment=comment)
-        offer = version.offer
+        offer = Offer.objects.select_for_update().get(pk=version.offer_id)
         if approved:
             offer.status = OfferStatus.APPROVED
         else:
@@ -411,14 +412,17 @@ class CrmOfferService(Service):
         assert_can_mutate_crm(actor)
         from apps.workflows.models import ApprovalStatus
 
-        offer = version.offer
+        # Fresh rows — UI «Təsdiqlənib» versiya approval_request-ə görədir
+        offer = Offer.objects.select_for_update().get(pk=version.offer_id)
+        version = OfferVersion.objects.select_for_update().get(pk=version.pk)
         if offer.current_version_id != version.pk:
             raise DomainError(_("Yalnız cari versiya göndərilə bilər."))
         req = version.approval_request
         if not req or req.status != ApprovalStatus.APPROVED:
-            raise DomainError(_("Təsdiqsiz təklif göndərilə bilməz."))
+            raise DomainError(_("Təsdiqsiz təklif göndərilə bilməz. Əvvəl rəhbərlik təsdiqi lazımdır."))
+        # Versiya təsdiqlidirsə offer statusu geridə qalıbsa düzəlt (köhnə uyğunsuzluq)
         if offer.status not in (OfferStatus.APPROVED, OfferStatus.SENT):
-            raise DomainError(_("Təklif təsdiqlənməyib."))
+            offer.status = OfferStatus.APPROVED
         offer.status = OfferStatus.SENT
         offer.sent_at = timezone.now()
         offer.sent_by = actor

@@ -18,6 +18,7 @@ urlpatterns = [
     path("portal/", include("apps.portal.urls")),
     path("security/", include("apps.security.urls")),
     path("finance/", include("apps.finance.urls")),
+    path("management/", include("apps.management.urls")),
     path("erp/", include("apps.erp.urls")),
     path("api/", include("apps.api.urls")),
     path(

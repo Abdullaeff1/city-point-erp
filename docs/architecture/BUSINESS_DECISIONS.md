@@ -136,7 +136,7 @@ Yalnız burada qeyd olunan cavablar kod/ops-da tətbiq olunur; digər suallar a�
 | Mövzu | Qərar |
 |-------|--------|
 | Modul | Bir ERP bloku CRM/Satış; Reception CRM yox |
-| Rol | `sales` (mutate); Management (offer approval); Accountant (LeaseApplication→Lease); Admin read-only |
+| Rol | `sales` (mutate); Management ERP (offer approval RO); Accountant (LeaseApplication→Lease); Admin read-only |
 | Huni | Lid → Qualification → İmkan → Təklif → Management → Müraciət formu → Mühasib → Lease/Documents |
 | Qualification | `unreviewed` / `potential` / `non_potential` (+ səbəb) |
 | Pipeline stage | Excel map: working…won/lost/on_hold (canonical kodlar) |
@@ -189,11 +189,31 @@ Yalnız burada qeyd olunan cavablar kod/ops-da tətbiq olunur; digər suallar a�
 | Mövzu | Qərar |
 |-------|--------|
 | Ödəniş / kreditor | Bütün ödəniş əməliyyatları → **Management** təsdiqi |
-| Finance portal | Yalnız **Accountant + Management** (Admin görmür) |
-| Mutate (charge/invoice/JE) | Accountant; Management = baxış + ödəniş təsdiqi |
+| Finance portal | Yalnız **Accountant** (Admin/Management görmür) |
+| Mutate (charge/invoice/JE) | Accountant; Management ödəniş təsdiqi ERP-də |
 | CRM offer göndərişi | **Bütün** təkliflər (endirimli və ya yox) → Management `crm.offer.send` |
+| CRM mutate | Yalnız **Sales**; Management lid/təklif redaktə etmir — yalnız approve/reject + RO |
+| Avadanlıq / inventar | Baxış: FM, desk, management, admin, accountant; **mutate yalnız Accountant** |
 
-**Kod:** `FINANCE_PORTAL_ROLES`; `ApprovalService` `finance.payment` / `crm.offer.send`.
+**Kod:** `FINANCE_PORTAL_ROLES`; `ApprovalService` `finance.payment` / `crm.offer.send`; `can_mutate_building_assets`; ERP `approvals` / `payment_approvals`.
+
+---
+
+## Rəhbərlik (ERP daxilində)
+
+**Status:** tətbiq olunur (2026-11-13)
+
+Ayrı `/management/` shell yoxdur — rəhbər **ERP** istifadə edir. Login → `/erp/`. Köhnə `/management/*` bookmark-ları ERP-yə redirect olunur.
+
+| Funksiya | Harada |
+|----------|--------|
+| Təsdiq növbəsi | `/erp/approvals/` |
+| Ödəniş təsdiqi | `/erp/payment-approvals/` |
+| CRM | ERP CRM RO (+ offer approve); mutate yalnız sales |
+| Avadanlıq/inventar | ERP RO; mutate yalnız accountant |
+| SLA / Aging / Dövrlər | ERP nav |
+
+Demo: `manager@citypoint.az` / `manager123`.
 
 ---
 
@@ -201,4 +221,4 @@ Yalnız burada qeyd olunan cavablar kod/ops-da tətbiq olunur; digər suallar a�
 
 **Status:** A.4–A.7 uyğunlaşdırılır (2026-11-12)
 
-Ayrı portal `/finance/` — Security kimi. Rol: `accountant` (+ `management` baxış/təsdiq). **Admin birbaşa görmür** (role-switch preview istisna). Demo: `accountant@citypoint.az` / `accountant123`.
+Ayrı portal `/finance/` — Security kimi. Rol: yalnız `accountant`. **Admin/Management girmir** (ödəniş təsdiqi ERP-də). Avadanlıq/inventar `/finance/building-equipment/` və `/finance/building-inventory/` — **eyni Maliyyə shell** (navbar/brand dəyişmir); ERP URL-ləri digər rollar üçündür, mühasib ERP asset URL-indən finance-ə redirect olur. Demo: `accountant@citypoint.az` / `accountant123`.
