@@ -96,7 +96,7 @@ def role_context(request):
         "nav_crm": bool(
             user
             and user.is_authenticated
-            and role in {Role.SALES, Role.ADMIN, Role.ACCOUNTANT, Role.MANAGEMENT}
+            and role in {Role.SALES, Role.ACCOUNTANT, Role.MANAGEMENT}
         ),
         "nav_supply": False,
         "nav_finance": False,

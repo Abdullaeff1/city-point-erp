@@ -229,7 +229,16 @@ class CrmOpportunityService(Service):
 
     @classmethod
     @transaction.atomic
-    def set_stage(cls, opportunity: Opportunity, *, actor, stage: str, outcome: str = "", note: str = "") -> Opportunity:
+    def set_stage(
+        cls,
+        opportunity: Opportunity,
+        *,
+        actor,
+        stage: str,
+        outcome: str = "",
+        note: str = "",
+        contact_channels: list | None = None,
+    ) -> Opportunity:
         assert_can_mutate_crm(actor)
         opportunity.pipeline_stage = stage
         if stage == PipelineStage.WON:
@@ -239,20 +248,60 @@ class CrmOpportunityService(Service):
             opportunity.status = OpportunityStatus.LOST
             if not outcome:
                 raise DomainError(_("İtirilmiş imkan üçün nəticə məcburidir."))
+            if outcome == Outcome.OTHER and not (note or "").strip():
+                raise DomainError(_("«Digər» itirmə səbəbi üçün izah məcburidir."))
             opportunity.outcome = outcome
         if note:
             opportunity.outcome_note = note
+        if contact_channels is not None:
+            opportunity.contact_channels = list(contact_channels)
         opportunity.save()
         if opportunity.lead_id:
             lead = opportunity.lead
             lead.pipeline_stage = stage
             if opportunity.outcome:
                 lead.outcome = opportunity.outcome
+                lead.outcome_note = opportunity.outcome_note
             if stage in (PipelineStage.WON, PipelineStage.LOST):
                 lead.record_status = RecordStatus.CLOSED
             lead.save()
+        LeadActivity.objects.create(
+            lead=opportunity.lead,
+            opportunity=opportunity,
+            activity_type=ActivityType.STATUS_CHANGE,
+            body=_("Mərhələ: %(stage)s") % {"stage": stage},
+            created_by=actor,
+        )
         log_action(actor=actor, action="crm.opportunity.stage", entity=opportunity, message=stage)
         return opportunity
+
+    @classmethod
+    @transaction.atomic
+    def add_activity(
+        cls,
+        opportunity: Opportunity,
+        *,
+        actor,
+        activity_type: str = ActivityType.NOTE,
+        body: str = "",
+        occurred_at=None,
+    ) -> LeadActivity:
+        assert_can_mutate_crm(actor)
+        act = LeadActivity.objects.create(
+            lead=opportunity.lead,
+            opportunity=opportunity,
+            activity_type=activity_type or ActivityType.NOTE,
+            body=body or "",
+            occurred_at=occurred_at or timezone.now(),
+            created_by=actor,
+        )
+        log_action(
+            actor=actor,
+            action="crm.opportunity.activity",
+            entity=opportunity,
+            message=activity_type,
+        )
+        return act
 
 
 class CrmOfferService(Service):
@@ -408,8 +457,26 @@ class CrmOfferService(Service):
 
     @classmethod
     @transaction.atomic
+    def generate_pdf(cls, version: OfferVersion, *, actor=None, force: bool = False) -> OfferVersion:
+        from apps.crm.pdf import ensure_offer_version_pdf
+
+        version = OfferVersion.objects.select_for_update().get(pk=version.pk)
+        ensure_offer_version_pdf(version, force=force)
+        if actor:
+            log_action(
+                actor=actor,
+                action="crm.offer.pdf",
+                entity=version.offer,
+                message=f"v{version.version_number}",
+            )
+        return version
+
+    @classmethod
+    @transaction.atomic
     def send_offer(cls, version: OfferVersion, *, actor, sent_to: str = "") -> Offer:
         assert_can_mutate_crm(actor)
+        from django.conf import settings
+
         from apps.workflows.models import ApprovalStatus
 
         # Fresh rows — UI «Təsdiqlənib» versiya approval_request-ə görədir
@@ -420,6 +487,9 @@ class CrmOfferService(Service):
         req = version.approval_request
         if not req or req.status != ApprovalStatus.APPROVED:
             raise DomainError(_("Təsdiqsiz təklif göndərilə bilməz. Əvvəl rəhbərlik təsdiqi lazımdır."))
+        # PDF hazır olsun (göndərmə = status + PDF + email stub/log)
+        cls.generate_pdf(version, actor=actor)
+        version.refresh_from_db()
         # Versiya təsdiqlidirsə offer statusu geridə qalıbsa düzəlt (köhnə uyğunsuzluq)
         if offer.status not in (OfferStatus.APPROVED, OfferStatus.SENT):
             offer.status = OfferStatus.APPROVED
@@ -434,6 +504,34 @@ class CrmOfferService(Service):
         if opp.lead_id:
             opp.lead.pipeline_stage = PipelineStage.OFFER_SENT
             opp.lead.save(update_fields=["pipeline_stage", "updated_at"])
+        # Email via NotificationDispatch after commit (default off: CRM_OFFER_SEND_EMAIL=0).
+        # Failures are recorded on the dispatch row — SENT status is not rolled back.
+        if getattr(settings, "CRM_OFFER_SEND_EMAIL", False) and offer.sent_to:
+            from apps.comms.mail import send_templated_email
+
+            recipient = offer.sent_to
+            subject = f"City Point təklif #{offer.pk}"
+            body = _("Təklif PDF-i sistemdə hazırdır (v%(v)s).") % {
+                "v": version.version_number
+            }
+            payload = {
+                "offer_id": offer.pk,
+                "version_number": version.version_number,
+            }
+
+            def _send():
+                try:
+                    send_templated_email(
+                        recipient=recipient,
+                        subject=subject,
+                        body=body,
+                        template_code="crm.offer.sent",
+                        payload=payload,
+                    )
+                except Exception:  # noqa: BLE001 — dispatch row already marked failed
+                    pass
+
+            transaction.on_commit(_send)
         log_action(
             actor=actor,
             action="crm.offer.send",
@@ -441,6 +539,26 @@ class CrmOfferService(Service):
             message=f"v{version.version_number} → {offer.sent_to}",
         )
         return offer
+
+
+def compose_bank_details(requisites: dict | None) -> str:
+    """Word forma bank alt sahələrindən oxunaqlı mətn."""
+    req = requisites or {}
+    labels = (
+        ("currency", "Valyuta"),
+        ("bank_name", "Bankın adı"),
+        ("branch_code", "Filialın kodu"),
+        ("voen", "VÖEN"),
+        ("swift", "SWIFT"),
+        ("current_account", "M.H."),
+        ("correspondent", "H.H."),
+    )
+    lines = []
+    for key, label in labels:
+        val = (req.get(key) or "").strip()
+        if val:
+            lines.append(f"{label}: {val}")
+    return "\n".join(lines)
 
 
 class LeaseApplicationService(Service):
@@ -462,13 +580,36 @@ class LeaseApplicationService(Service):
             "tea_service_included": app.tea_service_included,
             "lease_start": app.lease_start.isoformat() if app.lease_start else "",
             "lease_end": app.lease_end.isoformat() if app.lease_end else "",
+            "application_date": app.application_date.isoformat() if app.application_date else "",
             "bank_details": app.bank_details,
+            "bank_requisites": app.bank_requisites or {},
             "fit_out_notes": app.fit_out_notes,
             "extra_notes": app.extra_notes,
             "signer_title_name": app.signer_title_name,
             "is_legal_entity": app.is_legal_entity,
             "attachment_checklist": app.attachment_checklist or {},
         }
+
+    @classmethod
+    def _apply_bank_requisites(cls, app: LeaseApplication, requisites: dict | None) -> None:
+        if requisites is None:
+            return
+        cleaned = {
+            k: (str(requisites.get(k) or "").strip())[:255]
+            for k in (
+                "currency",
+                "bank_name",
+                "branch_code",
+                "voen",
+                "swift",
+                "current_account",
+                "correspondent",
+            )
+        }
+        app.bank_requisites = cleaned
+        composed = compose_bank_details(cleaned)
+        if composed:
+            app.bank_details = composed
 
     @classmethod
     @transaction.atomic
@@ -480,17 +621,21 @@ class LeaseApplicationService(Service):
                 raise DomainError(_("Müraciət formu üçün təklif göndərilmiş/qəbul olunmuş olmalıdır."))
         ver = offer.current_version
         data = data or {}
+        party_name = ""
+        if offer.party_id:
+            party_name = getattr(offer.party, "legal_name", None) or str(offer.party)
         app = LeaseApplication(
             offer=offer,
             offer_version=ver,
             opportunity=offer.opportunity,
             space=offer.space,
-            person_name=data.get("person_name") or (offer.party.name if offer.party_id else "")[:200],
+            person_name=data.get("person_name") or (party_name or "")[:200],
             tax_id=(data.get("tax_id") or "")[:32],
             rent_rate_per_m2=data.get("rent_rate_per_m2") or (ver.rent_rate_per_m2 if ver else None),
             monthly_rent_net=data.get("monthly_rent_net") or (ver.monthly_rent_net if ver else None),
             space_label=(data.get("space_label") or (str(offer.space) if offer.space_id else ""))[:128],
             floor_label=(data.get("floor_label") or "")[:64],
+            application_date=data.get("application_date") or timezone.localdate(),
             created_by=actor,
             status=LeaseApplicationStatus.DRAFT,
         )
@@ -511,9 +656,12 @@ class LeaseApplicationService(Service):
             "is_legal_entity",
             "attachment_checklist",
             "sales_notes",
+            "application_date",
         ):
-            if field in data:
+            if field in data and data[field] is not None:
                 setattr(app, field, data[field])
+        if "bank_requisites" in data:
+            cls._apply_bank_requisites(app, data.get("bank_requisites") or {})
         app.form_snapshot = cls._snapshot(app)
         app.save()
         if offer.opportunity_id:
@@ -531,9 +679,14 @@ class LeaseApplicationService(Service):
             LeaseApplicationStatus.RETURNED_FOR_CORRECTION,
         ):
             raise DomainError(_("Yalnız qaralama / düzəliş statusunda redaktə olunur."))
+        requisites = data.get("bank_requisites") if "bank_requisites" in data else None
         for field, value in data.items():
+            if field == "bank_requisites":
+                continue
             if hasattr(app, field) and field not in ("status", "lease", "id"):
                 setattr(app, field, value)
+        if requisites is not None:
+            cls._apply_bank_requisites(app, requisites)
         app.form_snapshot = cls._snapshot(app)
         app.save()
         return app
@@ -636,7 +789,11 @@ class LeaseApplicationService(Service):
     @classmethod
     @transaction.atomic
     def mark_signed_and_complete(cls, app: LeaseApplication, *, actor, upsert_party: bool = True) -> LeaseApplication:
+        """İmza: Signed/Upcoming → start_date-də Active; resident+portal; opportunity Won."""
         assert_can_review_lease_application(actor)
+        from apps.leases.models import LeaseStatus
+        from apps.leases.services import activate_lease
+        from apps.parties.models import PartyRole, PartyRoleCode, PartyStatus
         from apps.parties.resolvers import party_for_company
         from apps.residents.models import ResidentCompany
 
@@ -644,15 +801,58 @@ class LeaseApplicationService(Service):
         app.reviewed_by = actor
         app.reviewed_at = timezone.now()
         app.save(update_fields=["status", "reviewed_by", "reviewed_at", "updated_at"])
+
+        party = None
+        if app.offer_id and app.offer.party_id:
+            party = app.offer.party
         if upsert_party and app.person_name:
-            # Prefer linking existing resident company by tax_id / name after signed contract
             company = None
             if app.tax_id:
                 company = ResidentCompany.objects.filter(voen=app.tax_id).first()
             if company is None and app.person_name:
                 company = ResidentCompany.objects.filter(name__iexact=app.person_name).first()
             if company is not None:
-                party_for_company(company, ensure=True)
+                party = party_for_company(company, ensure=True) or party
+
+        lease = app.lease
+        if lease:
+            today = timezone.localdate()
+            start = lease.start_date or app.lease_start or today
+            if not lease.start_date:
+                lease.start_date = start
+            # İmza → Signed; start_date ≤ bugün → Active (+ billing)
+            if start <= today:
+                activate_lease(lease, actor=actor)
+            else:
+                lease.status = LeaseStatus.SIGNED
+                lease.billing_active = False
+                lease.portal_eligible = False
+                lease.access_eligible = False
+                lease.save(
+                    update_fields=[
+                        "status",
+                        "start_date",
+                        "billing_active",
+                        "portal_eligible",
+                        "access_eligible",
+                        "updated_at",
+                    ]
+                )
+            party = party or lease.party
+
+        # Resident aktivləşmə yalnız imzada; prospect erkən qala bilər
+        if party:
+            if party.status != PartyStatus.ACTIVE and (
+                lease and lease.status == LeaseStatus.ACTIVE
+            ):
+                party.status = PartyStatus.ACTIVE
+                party.save(update_fields=["status", "updated_at"])
+            PartyRole.objects.get_or_create(
+                party=party,
+                role=PartyRoleCode.RESIDENT,
+                defaults={"is_primary": True},
+            )
+
         app.status = LeaseApplicationStatus.COMPLETED
         app.save(update_fields=["status", "updated_at"])
         if app.opportunity_id:
@@ -690,12 +890,13 @@ def notify_sales_new_lead(lead: Lead) -> None:
 
 
 def scan_lead_activity_reminders(*, limit: int = 200) -> dict[str, int]:
-    """1 calendar day without activity → sales reminder (idempotent)."""
+    """24 iş saatı lid aktivliksiz → sales reminder (idempotent)."""
     from apps.comms.models import Notification
     from apps.comms.services import notify_in_app
+    from apps.tickets.business_calendar import add_business_hours
 
     stats = {"checked": 0, "reminded": 0}
-    cutoff = timezone.now() - timedelta(days=1)
+    now = timezone.now()
     qs = (
         Lead.objects.filter(record_status=RecordStatus.OPEN)
         .exclude(qualification=Qualification.NON_POTENTIAL)
@@ -704,15 +905,16 @@ def scan_lead_activity_reminders(*, limit: int = 200) -> dict[str, int]:
     for lead in qs:
         stats["checked"] += 1
         created = lead.created_at
-        if created > cutoff:
+        due = add_business_hours(created, 24)
+        if now < due:
             continue
         if lead.activities.exclude(activity_type=ActivityType.STATUS_CHANGE).exists():
             continue
         day_key = timezone.localdate(created).isoformat()
-        ek = f"crm.lead.idle1d.{lead.pk}.{day_key}"
+        ek = f"crm.lead.idle24bh.{lead.pk}.{day_key}"
         if Notification.objects.filter(event_key=ek).exists():
             continue
-        msg = _("Lid 1 gündür aktivliksiz: %(name)s") % {"name": str(lead)}
+        msg = _("Lid 24 iş saatı aktivliksiz: %(name)s") % {"name": str(lead)}
         targets = list(sales_users())
         if lead.owner_id and lead.owner not in targets:
             targets.append(lead.owner)
@@ -722,7 +924,6 @@ def scan_lead_activity_reminders(*, limit: int = 200) -> dict[str, int]:
             if note:
                 sent_any = True
         if sent_any:
-            # Anchor key so re-scan skips even if users list empty next time
             if targets:
                 notify_in_app(user=targets[0], message=msg[:255], event_key=ek)
             stats["reminded"] += 1

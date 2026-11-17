@@ -18,6 +18,18 @@ from apps.residents.models import AccessLevel, CompanyStatus, ResidentCompany, R
 
 AXTRAX_SYSTEM = "axtraxng"
 
+# Stale/wrong-name AxTrax emp ids → canonical emp id (same physical person).
+# Sync must not create a second ResidentEmployee when AxTrax still emits the bad name.
+AXTRAX_EMP_ALIASES: dict[int, int] = {
+    628: 1662,  # L.B.Audit — "NƏRGİZ ARZU MƏMMƏDOVA" → Nərgiz İsmayıl Məmmədova
+}
+
+# Locked ERP display names for canonical AxTrax emp ids (survive bad AxTrax tFullName).
+AXTRAX_DISPLAY_NAME_LOCKS: dict[int, str] = {
+    1662: "Nərgiz İsmayıl Məmmədova",
+    1661: "Ülkər İsmayıl Məmmədova",
+}
+
 # Known AxTrax department labels → stable ERP slugs (especially ASBC).
 DEPARTMENT_SLUG_ALIASES = {
     "asbc": "asbc",
@@ -389,25 +401,60 @@ def _sync_people_payload(payload: dict) -> dict:
         PartyService.upsert_from_resident_company(company)
 
         for emp in dept["employees"].values():
-            seen_emp_ids.add(emp["employee_id"])
-            full_name = clean_person_name(emp["first_name"], emp["middle_name"], emp["last_name"])
-            ext_emp = f"emp:{emp['employee_id']}"
-            identity = ExternalIdentity.objects.filter(system=AXTRAX_SYSTEM, external_id=ext_emp).first()
+            raw_emp_id = int(emp["employee_id"])
+            canonical_emp_id = AXTRAX_EMP_ALIASES.get(raw_emp_id, raw_emp_id)
+            seen_emp_ids.add(raw_emp_id)
+            seen_emp_ids.add(canonical_emp_id)
+            axtrax_name = clean_person_name(emp["first_name"], emp["middle_name"], emp["last_name"])
+            locked_name = AXTRAX_DISPLAY_NAME_LOCKS.get(canonical_emp_id)
+            full_name = locked_name or axtrax_name
+            ext_emp = f"emp:{raw_emp_id}"
+            ext_canonical = f"emp:{canonical_emp_id}"
+            is_alias_row = canonical_emp_id != raw_emp_id
+            name_locked = canonical_emp_id in AXTRAX_DISPLAY_NAME_LOCKS
+
+            # Alias rows always prefer the canonical emp's ResidentEmployee (never the ARZU twin).
+            identity = None
             employee = None
-            if identity:
-                employee = ResidentEmployee.objects.filter(pk=identity.entity_id).first()
+            if is_alias_row:
+                canon_ident = ExternalIdentity.objects.filter(
+                    system=AXTRAX_SYSTEM, external_id=ext_canonical
+                ).first()
+                if canon_ident:
+                    employee = ResidentEmployee.objects.filter(pk=canon_ident.entity_id).first()
+                stats["emp_aliases_applied"] = stats.get("emp_aliases_applied", 0) + 1
+            if employee is None:
+                identity = ExternalIdentity.objects.filter(
+                    system=AXTRAX_SYSTEM, external_id=ext_emp
+                ).first()
+                if identity is None and is_alias_row:
+                    identity = ExternalIdentity.objects.filter(
+                        system=AXTRAX_SYSTEM, external_id=ext_canonical
+                    ).first()
+                if identity:
+                    employee = ResidentEmployee.objects.filter(pk=identity.entity_id).first()
 
             level = resolve_access_level_for_row(emp, group_lookup)
             badge = normalize_identification(emp.get("badge_number") or "")
             # If another AxTrax person owns this badge in this export, do not keep it here.
-            if badge and badge_winners.get(badge) != emp["employee_id"]:
-                badge = ""
-                stats["badge_conflicts_skipped"] += 1
+            # Alias rows: badge winner is keyed by raw id; allow badge when winner is alias or canonical.
+            badge_owner = badge_winners.get(badge) if badge else None
+            if badge and badge_owner not in (None, raw_emp_id, canonical_emp_id):
+                # Also allow if this raw id aliases to the winner
+                if AXTRAX_EMP_ALIASES.get(raw_emp_id) != badge_owner and AXTRAX_EMP_ALIASES.get(
+                    badge_owner
+                ) != raw_emp_id:
+                    badge = ""
+                    stats["badge_conflicts_skipped"] += 1
 
             now_active = bool(emp["is_enabled"])
 
-            if employee and _normalize_person_name(employee.full_name) != _normalize_person_name(
-                full_name
+            if (
+                employee
+                and not name_locked
+                and not is_alias_row
+                and _normalize_person_name(employee.full_name)
+                != _normalize_person_name(axtrax_name)
             ):
                 # AxTrax reused this emp id for a different person — do not rename
                 # the old ResidentEmployee (that would glue two people's access history).
@@ -420,8 +467,12 @@ def _sync_people_payload(payload: dict) -> dict:
 
             if employee:
                 employee.company = company
-                employee.full_name = full_name
-                if employee.card_number != badge:
+                if not name_locked:
+                    employee.full_name = full_name
+                elif employee.full_name != full_name:
+                    employee.full_name = full_name
+                    stats["name_locks_applied"] = stats.get("name_locks_applied", 0) + 1
+                if badge and employee.card_number != badge:
                     employee.card_number = badge
                     stats["cards_updated"] += 1
                 was_active = employee.is_active
@@ -439,13 +490,26 @@ def _sync_people_payload(payload: dict) -> dict:
                 employee.save()
                 stats["employees_updated"] += 1
             else:
-                employee = _find_unlinked_employee_by_name(
-                    company, full_name
-                ) or _find_employee_by_name_in_company(company, full_name)
+                # Alias rows must attach to canonical employee, never create ARZU-named twin.
+                if is_alias_row:
+                    canon_ident = ExternalIdentity.objects.filter(
+                        system=AXTRAX_SYSTEM, external_id=ext_canonical
+                    ).first()
+                    if canon_ident:
+                        employee = ResidentEmployee.objects.filter(pk=canon_ident.entity_id).first()
+                if employee is None and not is_alias_row:
+                    employee = _find_unlinked_employee_by_name(
+                        company, full_name
+                    ) or _find_employee_by_name_in_company(company, full_name)
+                elif employee is None and is_alias_row:
+                    # Prefer locked/canonical name match only (never AxTrax ARZU string).
+                    employee = _find_unlinked_employee_by_name(
+                        company, full_name
+                    ) or _find_employee_by_name_in_company(company, full_name)
                 if employee:
                     employee.company = company
                     employee.full_name = full_name
-                    if employee.card_number != badge:
+                    if badge and employee.card_number != badge:
                         employee.card_number = badge
                         stats["cards_updated"] += 1
                     employee.is_active = now_active
@@ -483,6 +547,8 @@ def _sync_people_payload(payload: dict) -> dict:
                     stats["card_orders_issued"] = stats.get("card_orders_issued", 0) + 1
 
             _upsert_external(AXTRAX_SYSTEM, ext_emp, employee)
+            if is_alias_row:
+                _upsert_external(AXTRAX_SYSTEM, ext_canonical, employee)
             PartyService.upsert_person_from_employee(employee)
 
     # Soft-deactivate all AxTrax-linked employees missing from the full export (any company).

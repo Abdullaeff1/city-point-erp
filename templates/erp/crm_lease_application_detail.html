@@ -1,63 +1,250 @@
 {% extends "erp/base.html" %}
-{% load i18n %}
+{% load i18n static %}
 {% block page_title %}Müraciət #{{ application.pk }}{% endblock %}
 {% block heading %}Müraciət #{{ application.pk }}{% endblock %}
 {% block content %}
-<p><a href="{% url 'erp:crm_lease_applications' %}">← Müraciətlər</a>
- · Status: <strong>{{ application.get_status_display }}</strong>
-{% if application.lease %} · İcarə: <a href="{% url 'erp:lease_detail' application.lease.code %}">{{ application.lease.code }}</a>{% endif %}
-</p>
+<div class="crm-lease-app-detail">
+  <p class="cp-meta mb-4">
+    <a href="{% url 'erp:crm_lease_applications' %}">← {% translate "Müraciətlər" %}</a>
+    {% if application.offer_id %}
+    · <a href="{% url 'erp:crm_offer_detail' application.offer_id %}">{% translate "Təklif" %} #{{ application.offer_id }}</a>
+    {% endif %}
+    {% if application.lease %}
+    · {% translate "İcarə" %}: <a href="{% url 'erp:lease_detail' application.lease.code %}"><strong>{{ application.lease.code }}</strong></a>
+    {% endif %}
+    · <a href="{% static 'docs/muqavile-muraciet-formasi-cp.docx' %}">{% translate "Blank forma" %}</a>
+  </p>
 
-{% if can_mutate %}
-<form method="post" class="cp-card">
-  {% csrf_token %}
-  <input type="hidden" name="action" value="update">
-  <div class="cp-form-grid">
-    <label>Şəxs/Şirkət <input name="person_name" value="{{ application.person_name }}"></label>
-    <label>VÖEN <input name="tax_id" value="{{ application.tax_id }}"></label>
-    <label>Hüquqi ünvan <textarea name="legal_address" rows="2">{{ application.legal_address }}</textarea></label>
-    <label>Faktiki ünvan <textarea name="actual_address" rows="2">{{ application.actual_address }}</textarea></label>
-    <label>Mərtəbə <input name="floor_label" value="{{ application.floor_label }}"></label>
-    <label>Sahə <input name="space_label" value="{{ application.space_label }}"></label>
-    <label>Təyinat <input name="use_purpose" value="{{ application.use_purpose }}"></label>
-    <label>AZN/m² <input name="rent_rate_per_m2" value="{{ application.rent_rate_per_m2|default_if_none:'' }}"></label>
-    <label>Aylıq net <input name="monthly_rent_net" value="{{ application.monthly_rent_net|default_if_none:'' }}"></label>
-    <label>Depozit <input name="deposit_amount" value="{{ application.deposit_amount|default_if_none:'' }}"></label>
-    <label>Azadolma <input name="rent_free_note" value="{{ application.rent_free_note }}"></label>
-    <label><input type="checkbox" name="cleaning_included" {% if application.cleaning_included %}checked{% endif %}> Təmizlik</label>
-    <label><input type="checkbox" name="tea_service_included" {% if application.tea_service_included %}checked{% endif %}> Çay</label>
-    <label>Başlanğıc <input type="date" name="lease_start" value="{{ application.lease_start|date:'Y-m-d' }}"></label>
-    <label>Bitmə <input type="date" name="lease_end" value="{{ application.lease_end|date:'Y-m-d' }}"></label>
-    <label>Bank <textarea name="bank_details" rows="2">{{ application.bank_details }}</textarea></label>
-    <label>Təmir <textarea name="fit_out_notes" rows="2">{{ application.fit_out_notes }}</textarea></label>
-    <label>Əlavə <textarea name="extra_notes" rows="2">{{ application.extra_notes }}</textarea></label>
-    <label>İmzalayan <input name="signer_title_name" value="{{ application.signer_title_name }}"></label>
-    <label>Satış qeydi <textarea name="sales_notes" rows="2">{{ application.sales_notes }}</textarea></label>
-    <label><input type="checkbox" name="chk_voen" {% if application.attachment_checklist.voen %}checked{% endif %}> VÖEN əlavə</label>
-    <label><input type="checkbox" name="chk_registry" {% if application.attachment_checklist.registry %}checked{% endif %}> Reyestr</label>
-    <label><input type="checkbox" name="chk_bank" {% if application.attachment_checklist.bank %}checked{% endif %}> Bank rekvizit</label>
-  </div>
-  <button type="submit" class="btn">{% translate "Yadda saxla" %}</button>
-</form>
-<form method="post" style="margin-top:.5rem;">{% csrf_token %}
-  <input type="hidden" name="action" value="submit">
-  <button class="btn btn-primary">{% translate "Mühasibə göndər" %}</button>
-</form>
-{% endif %}
-
-{% if can_review %}
-<div class="cp-card" style="margin-top:1rem;">
-  <h3>{% translate "Mühasib" %}</h3>
-  <form method="post">
-    {% csrf_token %}
-    <textarea name="accountant_notes" rows="2" placeholder="Qeyd">{{ application.accountant_notes }}</textarea>
-    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem;">
-      <button name="action" value="accept" class="btn">{% translate "Baxışa al" %}</button>
-      <button name="action" value="return" class="btn">{% translate "Düzəlişə qaytar" %}</button>
-      <button name="action" value="lease_draft" class="btn btn-primary">{% translate "İcarə qaralaması" %}</button>
-      <button name="action" value="complete" class="btn">{% translate "İmzalandı / tamamla" %}</button>
+  <section class="crm-opp-detail-hero cp-card p-card mb-4">
+    <div class="crm-opp-detail-hero-top">
+      <div>
+        <p class="crm-lead-create-label">{% translate "Müqavilə ilə bağlı müraciət forması" %}</p>
+        <h2 class="cp-section mt-1">{{ application.person_name|default:"—" }}</h2>
+        <p class="cp-meta mt-2">
+          {% if application.application_date %}{% translate "Tarix" %}: <strong>{{ application.application_date|date:"d.m.Y" }}</strong>{% endif %}
+          {% if application.space_label %} · {% translate "Sahə" %}: <strong>{{ application.space_label }}</strong>{% endif %}
+          {% if application.monthly_rent_net %} · {{ application.monthly_rent_net }} AZN{% endif %}
+        </p>
+      </div>
+      <div class="crm-opp-detail-chips">
+        <span class="crm-opp-chip crm-opp-chip--accent">{{ application.get_status_display }}</span>
+        <span class="crm-opp-chip">{% if application.is_legal_entity %}{% translate "Hüquqi şəxs" %}{% else %}{% translate "Fərdi sahibkar" %}{% endif %}</span>
+      </div>
     </div>
-  </form>
+  </section>
+
+  {% if can_mutate %}
+  <section class="crm-opp-panel cp-card p-card mb-4">
+    <div class="crm-opp-panel-head">
+      <div>
+        <h3 class="cp-section">{% translate "Satış — müraciət formu" %}</h3>
+        <p class="cp-meta mt-1">{% translate "Word blank ilə eyni sahələr; mühasibə göndərmədən əvvəl tamamlayın." %}</p>
+      </div>
+    </div>
+    <form method="post" class="crm-opp-form" id="lease-app-form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="update">
+      <div class="grid-2 crm-lead-create-grid">
+        <label>
+          <span class="cp-meta">{% translate "Tarix / Date" %}</span>
+          <input class="cp-input mt-1 w-full" type="date" name="application_date" value="{{ application.application_date|date:'Y-m-d' }}">
+        </label>
+        <div>
+          <span class="cp-meta">{% translate "Subyekt tipi" %}</span>
+          <div class="crm-channel-checks">
+            <label>
+              <input type="radio" name="is_legal_entity" value="1" {% if application.is_legal_entity %}checked{% endif %} data-legal-toggle>
+              <span>{% translate "Hüquqi şəxs" %}</span>
+            </label>
+            <label>
+              <input type="radio" name="is_legal_entity" value="0" {% if not application.is_legal_entity %}checked{% endif %} data-legal-toggle>
+              <span>{% translate "Fərdi sahibkar" %}</span>
+            </label>
+          </div>
+        </div>
+        <label>
+          <span class="cp-meta">{% translate "Şəxsin Adı" %}</span>
+          <input class="cp-input mt-1 w-full" name="person_name" value="{{ application.person_name }}">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "VÖEN" %}</span>
+          <input class="cp-input mt-1 w-full" name="tax_id" value="{{ application.tax_id }}">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Hüquqi ünvan" %}</span>
+          <textarea class="cp-input mt-1 w-full" name="legal_address" rows="2">{{ application.legal_address }}</textarea>
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Faktiki ünvan" %}</span>
+          <textarea class="cp-input mt-1 w-full" name="actual_address" rows="2">{{ application.actual_address }}</textarea>
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Müraciət edilən sahənin yerləşdiyi mərtəbə" %}</span>
+          <input class="cp-input mt-1 w-full" name="floor_label" value="{{ application.floor_label }}">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Müraciət edilən sahə" %}</span>
+          <input class="cp-input mt-1 w-full" name="space_label" value="{{ application.space_label }}">
+        </label>
+        <label class="crm-opp-span-2">
+          <span class="cp-meta">{% translate "Sahədən istifadə təyinatı" %}</span>
+          <input class="cp-input mt-1 w-full" name="use_purpose" value="{{ application.use_purpose }}">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "1 m² aylıq icarə haqqı (ƏDV xaric)" %}</span>
+          <input class="cp-input mt-1 w-full" name="rent_rate_per_m2" value="{{ application.rent_rate_per_m2|default_if_none:'' }}">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Aylıq ümumi icarə haqqı (ƏDV xaric)" %}</span>
+          <input class="cp-input mt-1 w-full" name="monthly_rent_net" value="{{ application.monthly_rent_net|default_if_none:'' }}">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Zəmanət məbləği" %}</span>
+          <input class="cp-input mt-1 w-full" name="deposit_amount" value="{{ application.deposit_amount|default_if_none:'' }}">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Azadolma müddəti (əgər varsa)" %}</span>
+          <input class="cp-input mt-1 w-full" name="rent_free_note" value="{{ application.rent_free_note }}">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "İcarə müddətinin başlanması tarixi" %}</span>
+          <input class="cp-input mt-1 w-full" type="date" name="lease_start" value="{{ application.lease_start|date:'Y-m-d' }}">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "İcarə müddətinin bitmə tarixi" %}</span>
+          <input class="cp-input mt-1 w-full" type="date" name="lease_end" value="{{ application.lease_end|date:'Y-m-d' }}">
+        </label>
+        <label class="crm-lead-create-check">
+          <input type="checkbox" name="cleaning_included" {% if application.cleaning_included %}checked{% endif %}>
+          <span>{% translate "Təmizlik xidməti (icarə haqqına daxil)" %}</span>
+        </label>
+        <label class="crm-lead-create-check">
+          <input type="checkbox" name="tea_service_included" {% if application.tea_service_included %}checked{% endif %}>
+          <span>{% translate "Çay xidməti (icarə haqqına daxil)" %}</span>
+        </label>
+      </div>
+
+      <div class="crm-lead-create-section mt-4">
+        <p class="crm-lead-create-label">{% translate "Bank rekvizitləri" %}</p>
+        <div class="grid-2 crm-lead-create-grid">
+          <label>
+            <span class="cp-meta">{% translate "Valyuta" %}</span>
+            <input class="cp-input mt-1 w-full" name="bank_currency" value="{{ bank_requisites.currency|default:'' }}">
+          </label>
+          <label>
+            <span class="cp-meta">{% translate "Bankın adı" %}</span>
+            <input class="cp-input mt-1 w-full" name="bank_name" value="{{ bank_requisites.bank_name|default:'' }}">
+          </label>
+          <label>
+            <span class="cp-meta">{% translate "Filialın kodu" %}</span>
+            <input class="cp-input mt-1 w-full" name="bank_branch_code" value="{{ bank_requisites.branch_code|default:'' }}">
+          </label>
+          <label>
+            <span class="cp-meta">{% translate "VÖEN" %}</span>
+            <input class="cp-input mt-1 w-full" name="bank_voen" value="{{ bank_requisites.voen|default:'' }}">
+          </label>
+          <label>
+            <span class="cp-meta">{% translate "SWIFT" %}</span>
+            <input class="cp-input mt-1 w-full" name="bank_swift" value="{{ bank_requisites.swift|default:'' }}">
+          </label>
+          <label>
+            <span class="cp-meta">{% translate "M.H." %}</span>
+            <input class="cp-input mt-1 w-full" name="bank_current_account" value="{{ bank_requisites.current_account|default:'' }}">
+          </label>
+          <label class="crm-opp-span-2">
+            <span class="cp-meta">{% translate "H.H." %}</span>
+            <input class="cp-input mt-1 w-full" name="bank_correspondent" value="{{ bank_requisites.correspondent|default:'' }}">
+          </label>
+        </div>
+      </div>
+
+      <div class="grid-2 crm-lead-create-grid mt-4">
+        <label class="crm-opp-span-2">
+          <span class="cp-meta">{% translate "Sahənin təmiri ilə bağlı qeydlər" %}</span>
+          <textarea class="cp-input mt-1 w-full" name="fit_out_notes" rows="3" placeholder="{% translate 'Təmirə ehtiyac; kim tərəfindən / kimin hesabına' %}">{{ application.fit_out_notes }}</textarea>
+        </label>
+        <label class="crm-opp-span-2">
+          <span class="cp-meta">{% translate "Əlavə qeydlər" %}</span>
+          <textarea class="cp-input mt-1 w-full" name="extra_notes" rows="2">{{ application.extra_notes }}</textarea>
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "İmzalayan şəxsin vəzifəsi və S.A.A." %}</span>
+          <input class="cp-input mt-1 w-full" name="signer_title_name" value="{{ application.signer_title_name }}">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Satış qeydi" %}</span>
+          <textarea class="cp-input mt-1 w-full" name="sales_notes" rows="2">{{ application.sales_notes }}</textarea>
+        </label>
+      </div>
+
+      <div class="crm-lead-create-section mt-4">
+        <p class="crm-lead-create-label">{% translate "Əlavələr (checklist)" %}</p>
+        <p class="cp-meta mt-1">{% translate "Hüquqi şəxs: VÖEN + reyestr çıxarışı + bank rekvizitləri. Fərdi sahibkar: VÖEN + bank rekvizitləri." %}</p>
+        <div class="crm-channel-checks">
+          <label class="crm-lead-create-check">
+            <input type="checkbox" name="chk_voen" {% if application.attachment_checklist.voen %}checked{% endif %}>
+            <span>{% translate "VÖEN əlavə" %}</span>
+          </label>
+          <label class="crm-lead-create-check" id="chk-registry-wrap" {% if not application.is_legal_entity %}style="display:none"{% endif %}>
+            <input type="checkbox" name="chk_registry" {% if application.attachment_checklist.registry %}checked{% endif %}>
+            <span>{% translate "Dövlət reyestrindən çıxarış" %}</span>
+          </label>
+          <label class="crm-lead-create-check">
+            <input type="checkbox" name="chk_bank" {% if application.attachment_checklist.bank %}checked{% endif %}>
+            <span>{% translate "Bank tərəfindən verilmiş rekvizitlər" %}</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="crm-lead-create-actions mt-4">
+        <button type="submit" class="cp-btn soft">{% translate "Yadda saxla" %}</button>
+      </div>
+    </form>
+    <form method="post" class="crm-lead-create-actions mt-3">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="submit">
+      <button class="cp-btn">{% translate "Mühasibə göndər" %}</button>
+    </form>
+  </section>
+  <script>
+  (function () {
+    var wrap = document.getElementById('chk-registry-wrap');
+    if (!wrap) return;
+    document.querySelectorAll('[data-legal-toggle]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        var legal = document.querySelector('input[name="is_legal_entity"]:checked');
+        wrap.style.display = (legal && legal.value === '1') ? '' : 'none';
+      });
+    });
+  })();
+  </script>
+  {% endif %}
+
+  {% if can_review %}
+  <section class="crm-opp-panel cp-card p-card">
+    <div class="crm-opp-panel-head">
+      <div>
+        <h3 class="cp-section">{% translate "Mühasib baxışı" %}</h3>
+        <p class="cp-meta mt-1">{% translate "İcarə qaralaması və imza — resident/portal yalnız imzadan sonra." %}</p>
+      </div>
+    </div>
+    {% if application.bank_details %}
+    <p class="cp-meta mb-3"><strong>{% translate "Bank" %}:</strong> {{ application.bank_details|linebreaksbr }}</p>
+    {% endif %}
+    <form method="post" class="crm-opp-form">
+      {% csrf_token %}
+      <label>
+        <span class="cp-meta">{% translate "Mühasib qeydi" %}</span>
+        <textarea class="cp-input mt-1 w-full" name="accountant_notes" rows="2">{{ application.accountant_notes }}</textarea>
+      </label>
+      <div class="crm-lead-create-actions" style="flex-wrap:wrap">
+        <button name="action" value="accept" class="cp-btn soft">{% translate "Baxışa al" %}</button>
+        <button name="action" value="return" class="cp-btn soft">{% translate "Düzəlişə qaytar" %}</button>
+        <button name="action" value="lease_draft" class="cp-btn">{% translate "İcarə qaralaması" %}</button>
+        <button name="action" value="complete" class="cp-btn">{% translate "İmzalandı / tamamla" %}</button>
+      </div>
+    </form>
+  </section>
+  {% endif %}
 </div>
-{% endif %}
 {% endblock %}

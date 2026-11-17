@@ -30,20 +30,39 @@ def validate_id_document(uploaded) -> None:
         raise ValidationError(_("Fayl ölçüsü 10 MB-dan böyük ola bilməz."))
 
 
+def compose_employee_full_name(
+    first_name: str = "",
+    last_name: str = "",
+    patronymic: str = "",
+) -> str:
+    """AxTrax/AZ order: Ad + Ata adı + Soyad."""
+    parts = []
+    for raw in (first_name, patronymic, last_name):
+        cleaned = " ".join((raw or "").split()).strip(" ,.-")
+        if cleaned:
+            parts.append(cleaned)
+    return " ".join(parts)[:160]
+
+
 @transaction.atomic
 def create_employee_card_order(
     *,
     company,
     requester,
-    full_name: str,
     id_document,
+    full_name: str = "",
+    first_name: str = "",
+    last_name: str = "",
+    patronymic: str = "",
     access_level: str = AccessLevel.LEVEL_1,
     space=None,
 ):
     """Create employee (no card) + security card-order ticket + ID attachment."""
-    name = (full_name or "").strip()
+    name = (full_name or "").strip() or compose_employee_full_name(
+        first_name, last_name, patronymic
+    )
     if not name:
-        raise ValidationError(_("Əməkdaşın adı mütləqdir."))
+        raise ValidationError(_("Ad Soyad Ata adı mütləqdir."))
     if company is None or getattr(company, "is_internal", False):
         raise ValidationError(_("Bu şirkət üçün portal əlavəsi icazəli deyil."))
     validate_id_document(id_document)

@@ -91,6 +91,23 @@ def start_crm_reminder_poller():
     print(f"CRM reminder poller started pid={proc.pid} log={log_path}")
 
 
+def start_lease_lifecycle_poller():
+    if os.environ.get("LEASE_LIFECYCLE_POLL_ON_START", "0") != "1":
+        print("Lease lifecycle poller disabled (LEASE_LIFECYCLE_POLL_ON_START!=1)")
+        return
+    log_dir = Path("var")
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / "lease_lifecycle_poller.log"
+    log = open(log_path, "a", encoding="utf-8")
+    proc = subprocess.Popen(
+        [sys.executable, "manage.py", "poll_lease_lifecycle"],
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    print(f"Lease lifecycle poller started pid={proc.pid} log={log_path}")
+
+
 def start_outlook_announcements_poller():
     """Legacy: Outlook shared mailbox → portal announcements (prefer Zoho)."""
     if os.environ.get("OUTLOOK_POLL_ON_START", "0") != "1":
@@ -117,6 +134,7 @@ def main():
     start_outlook_announcements_poller()
     start_ticket_sla_escalation_poller()
     start_crm_reminder_poller()
+    start_lease_lifecycle_poller()
     os.execvp(
         sys.executable,
         [

@@ -1,75 +1,37 @@
-"""CRM pipeline helpers — manual steps, no silent auto-create."""
+"""CRM pipeline strip counts for hunisi UI."""
 
 from __future__ import annotations
 
-from django.db import transaction
+from django.db.models import Q
 
-from apps.core.services import Service
-from apps.crm.models import Lead, LeadStatus, Offer, Opportunity, Qualification
-from apps.crm.services import (
-    CrmLeadService,
-    CrmOfferService,
-    CrmOpportunityService,
-    convert_offer_to_lease_draft,
-)
+from apps.crm.models import Lead, LeaseApplication, Offer, Opportunity, OfferStatus, Qualification
 
 
-class CrmService(Service):
-    @classmethod
-    def qualify_lead(cls, lead: Lead, *, actor=None) -> Lead:
-        if actor is not None:
-            return CrmLeadService.update_lead(
-                lead,
-                actor=actor,
-                data={"qualification": Qualification.POTENTIAL, "status": LeadStatus.QUALIFIED},
-            )
-        lead.qualification = Qualification.POTENTIAL
-        lead.status = LeadStatus.QUALIFIED
-        lead.save(update_fields=["qualification", "status", "updated_at"])
-        return lead
-
-    @classmethod
-    @transaction.atomic
-    def create_opportunity_from_lead(cls, lead: Lead, *, title: str = "", actor=None) -> Opportunity:
-        if actor is not None:
-            return CrmOpportunityService.create_from_lead(lead, actor=actor, title=title)
-        from apps.crm.models import OpportunityStatus, PipelineStage
-
-        opp = Opportunity.objects.create(
-            lead=lead,
-            title=(title or f"{lead.full_name or lead.company_name or 'Lead'} — İmkan")[:200],
-            status=OpportunityStatus.OPEN,
-            pipeline_stage=PipelineStage.WORKING,
-            party=lead.party,
-            expected_area=lead.max_area_m2 or lead.min_area_m2,
-            employee_count=lead.employee_count,
-            space=lead.interested_space,
-            notes=lead.message or "",
+def pipeline_strip_counts() -> list[dict]:
+    """Lid → İmkan → Təklif → Müqavilə stage counts for strip UI."""
+    leads = Lead.objects.filter(
+        ~Q(qualification=Qualification.NON_POTENTIAL),
+        record_status__in=("open", "waiting"),
+    ).count()
+    opps = Opportunity.objects.filter(status="open").count()
+    offers = Offer.objects.filter(
+        status__in=(
+            OfferStatus.DRAFT,
+            OfferStatus.PENDING_APPROVAL,
+            OfferStatus.APPROVED,
+            OfferStatus.SENT,
+            OfferStatus.NEGOTIATION,
         )
-        lead.status = LeadStatus.QUALIFIED
-        lead.qualification = Qualification.POTENTIAL
-        lead.save(update_fields=["status", "qualification", "updated_at"])
-        return opp
-
-    @classmethod
-    @transaction.atomic
-    def create_offer(cls, *, opportunity, party, space=None, proposed_rent=0, notes="", actor=None):
-        if actor is not None:
-            return CrmOfferService.create_offer(
-                actor=actor,
-                opportunity=opportunity,
-                party=party,
-                space=space,
-                notes=notes,
-            )
-        return Offer.objects.create(
-            opportunity=opportunity,
-            party=party,
-            space=space,
-            rent_amount=proposed_rent or 0,
-            notes=notes or "",
-        )
-
-    @classmethod
-    def accept_offer_to_lease(cls, offer: Offer):
-        return convert_offer_to_lease_draft(offer)
+    ).count()
+    apps = LeaseApplication.objects.exclude(status__in=("completed", "cancelled")).count()
+    return [
+        {"key": "leads", "label": "Lid", "count": leads, "url_name": "erp:crm_leads"},
+        {"key": "opportunities", "label": "İmkan", "count": opps, "url_name": "erp:crm_opportunities"},
+        {"key": "offers", "label": "Təklif", "count": offers, "url_name": "erp:crm_offers"},
+        {
+            "key": "applications",
+            "label": "Müqavilə",
+            "count": apps,
+            "url_name": "erp:crm_lease_applications",
+        },
+    ]

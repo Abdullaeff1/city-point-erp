@@ -3,23 +3,70 @@
 {% block page_title %}{% translate "Təkliflər" %}{% endblock %}
 {% block heading %}{% translate "CRM Təkliflər" %}{% endblock %}
 {% block content %}
-<div class="cp-card">
-  <table class="cp-table">
-    <thead><tr><th>#</th><th>İmkan</th><th>Party</th><th>Sahə</th><th>Status</th><th>Net</th><th>Versiya</th><th></th></tr></thead>
-    <tbody>
-      {% for o in offers %}
-      <tr>
-        <td>{{ o.pk }}</td>
-        <td>{% if o.opportunity_id %}<a href="{% url 'erp:crm_opportunity_detail' o.opportunity_id %}">#{{ o.opportunity_id }}</a>{% endif %}</td>
-        <td>{{ o.party }}</td>
-        <td>{{ o.space|default:"—" }}</td>
-        <td>{{ o.get_status_display }}</td>
-        <td>{{ o.rent_amount }}</td>
-        <td>{% if o.current_version %}v{{ o.current_version.version_number }}{% else %}—{% endif %}</td>
-        <td><a href="{% url 'erp:crm_offer_detail' o.pk %}">{% translate "Aç" %}</a></td>
-      </tr>
-      {% empty %}<tr><td colspan="8">{% translate "Təklif yoxdur." %}</td></tr>{% endfor %}
-    </tbody>
-  </table>
-</div>
+{% include "partials/crm_pipeline_strip.html" %}
+
+<section class="crm-list-hero mb-4">
+  <div>
+    <h2 class="cp-section">{% translate "Kommersiya təklifləri" %}</h2>
+    <p class="cp-meta mt-1">{% translate "Versiyalı təkliflər — Management təsdiqi və göndərmə." %}</p>
+  </div>
+</section>
+
+<form method="get" class="crm-list-filters cp-card p-card-sm mb-4">
+  <label>
+    <span class="cp-meta">{% translate "Status" %}</span>
+    <select class="cp-input mt-1" name="status">
+      <option value="">—</option>
+      {% for v,l in offer_statuses %}<option value="{{ v }}" {% if filters.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+    </select>
+  </label>
+  <div class="crm-list-filters-actions">
+    <button type="submit" class="cp-btn">{% translate "Filtrlə" %}</button>
+    <a class="cp-btn soft" href="{% url 'erp:crm_offers' %}">{% translate "Sıfırla" %}</a>
+  </div>
+</form>
+
+<section class="cp-card p-card">
+  <div class="crm-list-panel-head mb-3">
+    <h3 class="cp-section">{% translate "Təklif siyahısı" %}</h3>
+  </div>
+  {% if offers %}
+  <div class="table-wrap">
+    <table class="cp-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>{% translate "İmkan" %}</th>
+          <th>{% translate "Party" %}</th>
+          <th>{% translate "Sahə" %}</th>
+          <th>{% translate "Status" %}</th>
+          <th>{% translate "Net" %}</th>
+          <th>{% translate "Versiya" %}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in offers %}
+        <tr class="crm-list-row" onclick="location.href='{% url 'erp:crm_offer_detail' o.pk %}'">
+          <td>{{ o.pk }}</td>
+          <td>{% if o.opportunity_id %}#{{ o.opportunity_id }}{% else %}—{% endif %}</td>
+          <td>{{ o.party }}</td>
+          <td>{{ o.space|default:"—" }}</td>
+          <td><span class="crm-status-chip">{{ o.get_status_display }}</span></td>
+          <td>{{ o.rent_amount }}</td>
+          <td>{% if o.current_version %}v{{ o.current_version.version_number }}{% else %}—{% endif %}</td>
+          <td><a class="cp-btn soft" href="{% url 'erp:crm_offer_detail' o.pk %}" onclick="event.stopPropagation()">{% translate "Aç" %}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="crm-empty-state">
+    <p class="cp-section">{% translate "Təklif yoxdur" %}</p>
+    <p class="cp-meta mt-1">{% translate "İmkan detallarından yeni təklif yaradın." %}</p>
+    <a class="cp-btn mt-3" href="{% url 'erp:crm_opportunities' %}">{% translate "İmkanlara keç" %}</a>
+  </div>
+  {% endif %}
+</section>
 {% endblock %}

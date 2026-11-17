@@ -211,6 +211,11 @@ urlpatterns = [
     path("crm/offers/", crm_views.CrmOfferListView.as_view(), name="crm_offers"),
     path("crm/offers/<int:pk>/", crm_views.CrmOfferDetailView.as_view(), name="crm_offer_detail"),
     path(
+        "crm/offers/<int:pk>/versions/<int:version_id>/pdf/",
+        crm_views.CrmOfferVersionPdfView.as_view(),
+        name="crm_offer_version_pdf",
+    ),
+    path(
         "crm/lease-applications/",
         crm_views.CrmLeaseApplicationListView.as_view(),
         name="crm_lease_applications",

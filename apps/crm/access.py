@@ -1,4 +1,4 @@
-"""CRM ACL — sales mutate; management approve; accountant applications; admin RO; reception deny."""
+"""CRM ACL — sales mutate; management approve; accountant applications; admin görmür (A.10 V2)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ from apps.accounts.models import Role
 CRM_VIEW_ROLES = {
     Role.SALES,
     Role.MANAGEMENT,
-    Role.ADMIN,
     Role.ACCOUNTANT,
 }
 
@@ -55,7 +54,7 @@ def assert_can_mutate_crm(user) -> None:
     from apps.core.services import DomainError
 
     if not can_mutate_crm(user):
-        raise DomainError("CRM dəyişiklik icazəniz yoxdur (Admin yalnız oxuya bilər).")
+        raise DomainError("CRM dəyişiklik icazəniz yoxdur (yalnız satış).")
 
 
 def assert_can_approve_offer(user) -> None:

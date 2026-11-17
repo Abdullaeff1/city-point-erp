@@ -1,31 +1,33 @@
 # Phase 0.3 — Module Status
 
+**Updated:** 2026-11-17 (functional readiness pass).  
 Classification: **REAL** = production-usable ops MVP · **THIN** = models + partial UI/services · **SCAFFOLD** = models + list/read UI only.
 
-| Module | Status | Evidence |
-|--------|--------|----------|
+| Module | Status | Evidence / acceptance |
+|--------|--------|------------------------|
 | accounts (auth/invite) | REAL | Invite, reset, must_set_password, tests |
-| portal | REAL (MVP) | Full routes; gaps: portal_active, announcement scope |
+| portal | REAL (MVP) | Scope/session; tickets, employees, guests, card order (Ad Soyad Ata adı) |
 | reception | REAL | Services + ERP UI + API + tests |
 | tickets / service desk | REAL (foundation) | Taxonomy, routing, SLA, portal+ERP UI |
 | residents | REAL | Companies, employees, access events, card order |
 | security portal | REAL | Alerts, companies, tickets, tests |
-| AxTrax read sync | REAL (ops-dependent) | People/events sync + poller script; not a Windows service |
-| property / spaces | THIN→REAL ops | Building/Floor/Space UI; parking/meters models exist |
-| parties | THIN | Models + ERP list + sync_parties command |
-| leases | THIN | Activate/terminate services; list/detail UI |
-| crm | THIN | Models + convert_offer service; list UI |
+| AxTrax read sync | REAL (ops-dependent) | People/events sync + poller; **no vendor write** |
+| property / spaces | THIN→REAL ops | Building/Floor/Space UI; occupancy bridged from Lease activate |
+| parties | THIN | Models + dual-write bridge; Resident* remains SoT for portal |
+| leases | THIN→REAL ops | Activate/terminate cascade; **lifecycle poller** (SIGNED→ACTIVE, ACTIVE→EXPIRING) |
+| crm | REAL (sales MVP) | Lead→Opp→Offer versions/approval→LeaseApplication; PDF; Excel import; reports |
 | maintenance / WO | THIN | Models + create_wo_from_ticket; list UI |
-| documents | THIN | Catalog; versions unused in portal; often no file |
-| comms | THIN | In-app notifications; Dispatch outbox unused for SMTP |
+| documents | THIN | Catalog; versions unused in portal |
+| comms | THIN | In-app + NotificationDispatch; CRM offer email via `send_templated_email` when flagged |
 | rbac | THIN | Tables exist; not enforced everywhere |
-| workflows / approval | SCAFFOLD | ApprovalRequest model only |
+| workflows / approval | THIN | Offer approval wired; generic engine still limited |
 | warehouse | SCAFFOLD | Models + apply_movement + list UI |
 | procurement | SCAFFOLD | Models + list UI; RFQ placeholder |
-| billing | SCAFFOLD | Models + generate_invoice helper + list |
-| accounting | SCAFFOLD | CoA + journals models + list |
+| billing | THIN | Charges, invoice confirm, payments; journal errors **surface**; race-safe invoice codes |
+| accounting | THIN | CoA placeholder + journals; **not** full GL product |
 | api public | THIN | spaces/leads stubs + mock adapters |
-| reporting / BI | THIN | KPI cards on ERP reports only |
-| access_control app | MISSING | Logic split across residents + integrations |
+| reporting / BI | THIN | ERP KPI + CRM dual reports |
+| access_control app | MISSING | Logic in residents + integrations |
 
-**Do not market THIN/SCAFFOLD as production-complete.**
+**Do not market THIN/SCAFFOLD as production-complete.**  
+**Security/TLS/NetAdmin:** deferred — functional UAT first, then harden ([bin/prod](../../bin/prod)).

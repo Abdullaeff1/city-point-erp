@@ -216,3 +216,87 @@ class EventCardSnapshotTests(TestCase):
         cid, cname = _snapshot_company(employee)
         self.assertEqual(cid, 9)
         self.assertEqual(cname, "Demo Co")
+
+
+class AxTraxEmpAliasNameLockTests(TestCase):
+    def test_alias_628_does_not_recreate_arzu_name(self):
+        """L.B.Audit: emp:628 (ARZU) must attach to emp:1662 (İsmayıl), not twin active row."""
+        from apps.integrations.axtrax_people_sync import AXTRAX_DISPLAY_NAME_LOCKS
+
+        dept = "L.B.Audit"
+        sync_people_from_payload(
+            _payload(
+                [
+                    _row(
+                        dept_id=13,
+                        dept_name=dept,
+                        emp_id=1662,
+                        first="Nərgiz",
+                        last="Məmmədova",
+                        identification="003959",
+                        enabled=True,
+                    ),
+                ]
+            )
+        )
+        # Force middle name via second sync with alias bad name still in AxTrax
+        rows = [
+            {
+                "department_id": 13,
+                "department_name": dept,
+                "employee_id": 1662,
+                "first_name": "Nərgiz",
+                "middle_name": "İsmayıl",
+                "last_name": "Məmmədova",
+                "email": "",
+                "mobile": "",
+                "identification": "003959",
+                "access_group_id": 1,
+                "access_group_name": "Front",
+                "has_turn_back": False,
+                "is_enabled": True,
+                "card_code": "1",
+                "card_status": 1,
+            },
+            {
+                "department_id": 13,
+                "department_name": dept,
+                "employee_id": 628,
+                "first_name": "NƏRGİZ",
+                "middle_name": "ARZU",
+                "last_name": "MƏMMƏDOVA",
+                "email": "",
+                "mobile": "",
+                "identification": "006299",
+                "access_group_id": 1,
+                "access_group_name": "Front",
+                "has_turn_back": False,
+                "is_enabled": True,
+                "card_code": "2",
+                "card_status": 1,
+            },
+        ]
+        sync_people_from_payload(_payload(rows))
+
+        locked = AXTRAX_DISPLAY_NAME_LOCKS[1662]
+        active = list(
+            ResidentEmployee.objects.filter(company__name=dept, is_active=True).order_by("pk")
+        )
+        nergiz_active = [e for e in active if "Nərgiz" in e.full_name or "NƏRG" in e.full_name]
+        self.assertEqual(len(nergiz_active), 1, [e.full_name for e in nergiz_active])
+        self.assertEqual(nergiz_active[0].full_name, locked)
+        self.assertFalse(
+            ResidentEmployee.objects.filter(
+                company__name=dept, is_active=True, full_name__icontains="ARZU"
+            ).exists()
+        )
+        ct = ContentType.objects.get_for_model(ResidentEmployee)
+        eids = set(
+            ExternalIdentity.objects.filter(
+                system=AXTRAX_SYSTEM,
+                entity_type=ct,
+                entity_id=nergiz_active[0].pk,
+            ).values_list("external_id", flat=True)
+        )
+        self.assertIn("emp:1662", eids)
+        self.assertIn("emp:628", eids)

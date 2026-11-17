@@ -3,6 +3,7 @@
 {% block page_title %}{% translate "CRM Lidlər" %}{% endblock %}
 {% block heading %}{% translate "CRM Lidlər" %}{% endblock %}
 {% block content %}
+{% include "partials/crm_pipeline_strip.html" %}
 {% if can_mutate %}
 <section class="crm-lead-create cp-card p-card mb-4">
   <details class="crm-lead-create-fold">

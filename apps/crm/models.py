@@ -61,9 +61,21 @@ class PipelineStage(models.TextChoices):
 class Outcome(models.TextChoices):
     COOPERATION_SECURED = "cooperation_secured", _("Əməkdaşlıq təmin olunub")
     OFFER_REJECTED = "offer_rejected", _("Təklif qəbul olunmayıb")
-    NO_RESPONSE = "no_response", _("Geri dönüş yoxdur")
+    PRICE = "price", _("Qiymət")
+    AREA = "area", _("Sahə")
+    PARKING = "parking", _("Parkinq")
+    NO_RESPONSE = "no_response", _("Cavabsız / geri dönüş yoxdur")
     NOT_INTERESTED = "not_interested", _("Maraqlı deyil")
     INVALID_REQUEST = "invalid_request", _("Yanlış sorğu")
+    OTHER = "other", _("Digər")
+
+
+class ContactChannel(models.TextChoices):
+    PHONE = "phone", _("Telefon")
+    EMAIL = "email", _("E-poçt")
+    WHATSAPP = "whatsapp", _("WhatsApp")
+    MEETING = "meeting", _("Görüş")
+    VISIT = "visit", _("Ofis ziyarəti")
     OTHER = "other", _("Digər")
 
 
@@ -192,7 +204,16 @@ class Lead(models.Model):
 
 
 class LeadActivity(models.Model):
-    lead = models.ForeignKey(Lead, on_delete=models.CASCADE, related_name="activities")
+    lead = models.ForeignKey(
+        Lead, null=True, blank=True, on_delete=models.CASCADE, related_name="activities"
+    )
+    opportunity = models.ForeignKey(
+        "crm.Opportunity",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="activities",
+    )
     activity_type = models.CharField(max_length=24, choices=ActivityType.choices, default=ActivityType.NOTE)
     occurred_at = models.DateTimeField(default=timezone.now)
     body = models.TextField(blank=True)
@@ -210,7 +231,11 @@ class LeadActivity(models.Model):
         verbose_name_plural = "lead activities"
 
     def __str__(self):
-        return f"{self.lead_id}:{self.activity_type}"
+        return f"{self.lead_id or self.opportunity_id}:{self.activity_type}"
+
+    def clean(self):
+        if not self.lead_id and not self.opportunity_id:
+            raise ValidationError(_("Fəaliyyət lid və ya imkana bağlanmalıdır."))
 
 
 class Opportunity(models.Model):
@@ -242,6 +267,7 @@ class Opportunity(models.Model):
     budget = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     outcome = models.CharField(max_length=32, choices=Outcome.choices, blank=True)
     outcome_note = models.TextField(blank=True)
+    contact_channels = models.JSONField(default=list, blank=True)
     space = models.ForeignKey(
         "property.Space",
         null=True,
@@ -420,7 +446,9 @@ class LeaseApplication(models.Model):
     tea_service_included = models.BooleanField(null=True, blank=True)
     lease_start = models.DateField(null=True, blank=True)
     lease_end = models.DateField(null=True, blank=True)
+    application_date = models.DateField(null=True, blank=True)
     bank_details = models.TextField(blank=True)
+    bank_requisites = models.JSONField(default=dict, blank=True)
     fit_out_notes = models.TextField(blank=True)
     extra_notes = models.TextField(blank=True)
     signer_title_name = models.CharField(max_length=255, blank=True)

@@ -1,9 +1,15 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
 {% block page_title %}{% translate "CRM hesabat" %}{% endblock %}
-{% block heading %}{% translate "CRM hesabat" %}{% endblock %}
+{% block heading %}{% translate "CRM / Satış hesabat" %}{% endblock %}
 {% block content %}
+<nav class="crm-report-tabs mb-4" aria-label="{% translate 'Hesabat növü' %}">
+  <a class="cp-btn{% if tab != 'crm' %} soft{% endif %}" href="?tab=crm">{% translate "CRM" %}</a>
+  <a class="cp-btn{% if tab != 'sales' %} soft{% endif %}" href="?tab=sales">{% translate "Satış" %}</a>
+</nav>
+
 <form method="get" class="crm-report-filters cp-card p-card-sm mb-4">
+  <input type="hidden" name="tab" value="{{ tab }}">
   <label>
     <span class="cp-meta">{% translate "Başlanğıc" %}</span>
     <input class="cp-input mt-1" type="date" name="date_from" value="{{ filters.date_from }}">
@@ -26,49 +32,73 @@
       {% for v,l in qualifications %}<option value="{{ v }}" {% if filters.qualification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
     </select>
   </label>
-  <label>
-    <span class="cp-meta">{% translate "Mərhələ" %}</span>
-    <select class="cp-input mt-1" name="pipeline_stage">
-      <option value="">—</option>
-      {% for v,l in stages %}<option value="{{ v }}" {% if filters.pipeline_stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
-    </select>
-  </label>
   <div class="crm-report-filters-actions">
     <button type="submit" class="cp-btn">{% translate "Filter" %}</button>
-    <a class="cp-btn-ghost" href="{% url 'erp:crm_reports_export' %}?{{ request.GET.urlencode }}">{% translate "XLSX" %}</a>
+    <a class="cp-btn soft" href="{% url 'erp:crm_reports_export' %}?tab={{ tab }}&{{ request.GET.urlencode }}">{% translate "XLSX" %}</a>
   </div>
 </form>
 
+{% if tab == "crm" %}
 <section class="crm-report-section mb-4">
-  <h3 class="cp-section mb-3">{% translate "Həcm" %}</h3>
+  <h3 class="cp-section mb-3">{% translate "CRM — mənbə və kvalifikasiya" %}</h3>
   <div class="crm-report-kpis">
     <div class="cp-card p-card-sm crm-report-kpi">
       <p class="cp-meta">{% translate "Lid sayı" %}</p>
-      <p class="crm-report-kpi-value">{{ report.lead_count }}</p>
+      <p class="crm-report-kpi-value">{{ crm_report.lead_count }}</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "Potensial" %}</p>
+      <p class="crm-report-kpi-value">{{ crm_report.potential }}</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "Qeyri-potensial" %}</p>
+      <p class="crm-report-kpi-value">{{ crm_report.non_potential }}</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "İlk fəaliyyət örtüyü" %}</p>
+      <p class="crm-report-kpi-value">{{ crm_report.response_coverage_pct }}%</p>
+    </div>
+  </div>
+</section>
+{% else %}
+<section class="crm-report-section mb-4">
+  <h3 class="cp-section mb-3">{% translate "Satış — huni və həcm" %}</h3>
+  <div class="crm-report-kpis">
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "İmkan" %}</p>
+      <p class="crm-report-kpi-value">{{ sales_report.opportunity_count }}</p>
     </div>
     <div class="cp-card p-card-sm crm-report-kpi">
       <p class="cp-meta">{% translate "Baxış" %}</p>
-      <p class="crm-report-kpi-value">{{ report.viewings }}</p>
+      <p class="crm-report-kpi-value">{{ sales_report.viewings }}</p>
     </div>
     <div class="cp-card p-card-sm crm-report-kpi">
       <p class="cp-meta">{% translate "Görüş" %}</p>
-      <p class="crm-report-kpi-value">{{ report.meetings }}</p>
-    </div>
-    <div class="cp-card p-card-sm crm-report-kpi">
-      <p class="cp-meta">{% translate "İmkan" %}</p>
-      <p class="crm-report-kpi-value">{{ report.opportunity_count }}</p>
+      <p class="crm-report-kpi-value">{{ sales_report.meetings }}</p>
     </div>
     <div class="cp-card p-card-sm crm-report-kpi">
       <p class="cp-meta">{% translate "Təklif göndərilib" %}</p>
-      <p class="crm-report-kpi-value">{{ report.offer_sent }}</p>
+      <p class="crm-report-kpi-value">{{ sales_report.offer_sent }}</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "Müraciət" %}</p>
+      <p class="crm-report-kpi-value">{{ sales_report.applications }}</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "İmza" %}</p>
+      <p class="crm-report-kpi-value">{{ sales_report.signed_leases }}</p>
     </div>
     <div class="cp-card p-card-sm crm-report-kpi">
       <p class="cp-meta">Won / Lost</p>
-      <p class="crm-report-kpi-value">{{ report.won }} / {{ report.lost }}</p>
+      <p class="crm-report-kpi-value">{{ sales_report.won }} / {{ sales_report.lost }}</p>
     </div>
     <div class="cp-card p-card-sm crm-report-kpi">
-      <p class="cp-meta">{% translate "İmzalanmış lease" %}</p>
-      <p class="crm-report-kpi-value">{{ report.signed_leases }}</p>
+      <p class="cp-meta">{% translate "m² (göndərilmiş)" %}</p>
+      <p class="crm-report-kpi-value">{{ sales_report.total_m2 }}</p>
+    </div>
+    <div class="cp-card p-card-sm crm-report-kpi">
+      <p class="cp-meta">{% translate "AZN net" %}</p>
+      <p class="crm-report-kpi-value">{{ sales_report.total_azn }}</p>
     </div>
   </div>
 </section>
@@ -78,16 +108,17 @@
   <div class="crm-report-kpis crm-report-kpis--conversion">
     <div class="cp-card p-card-sm crm-report-kpi">
       <p class="cp-meta">{% translate "Lid → İmkan" %}</p>
-      <p class="crm-report-kpi-value">{{ report.conversion_lead_to_opp }}%</p>
+      <p class="crm-report-kpi-value">{{ sales_report.conversion_lead_to_opp }}%</p>
     </div>
     <div class="cp-card p-card-sm crm-report-kpi">
       <p class="cp-meta">{% translate "İmkan → Təklif" %}</p>
-      <p class="crm-report-kpi-value">{{ report.conversion_opp_to_offer }}%</p>
+      <p class="crm-report-kpi-value">{{ sales_report.conversion_opp_to_offer }}%</p>
     </div>
     <div class="cp-card p-card-sm crm-report-kpi">
       <p class="cp-meta">{% translate "Təklif → İmza" %}</p>
-      <p class="crm-report-kpi-value">{{ report.conversion_offer_to_signed }}%</p>
+      <p class="crm-report-kpi-value">{{ sales_report.conversion_offer_to_signed }}%</p>
     </div>
   </div>
 </section>
+{% endif %}
 {% endblock %}

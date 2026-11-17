@@ -1,6 +1,9 @@
-# CRM — Excel / form → canonical mapping (A.10 T0)
+# CRM — Excel / form → canonical mapping (A.10)
 
 ## Excel sütunları → Lead / Opportunity
+
+Mənbə fayl: `docs/data/yeni_musteri_sorgulari_v2.xlsx`  
+Import: `python manage.py import_crm_leads_xlsx [--apply] [--sheet NAME]`
 
 | Excel | CRM sahə | Tip |
 |-------|----------|-----|
@@ -9,13 +12,17 @@
 | Əlaqə Nöm | `Lead.phone` | Char |
 | Müraciət Tarixi | `Lead.inquired_at` | Date |
 | Lid mənbəyi | `Lead.source` (+ `source_note`) | Choice |
-| Tələb olunan sahə | `min_area_m2` / `max_area_m2` (+ `initial_note`) | Decimal |
-| Seçim edilən sahə | Offer/Opportunity → `Space` FK | FK |
-| Qiymət | OfferVersion snapshot | Decimal |
-| Lid statusu | `pipeline_stage` / activity | Choice |
-| Nəticə | `outcome` + `outcome_note` | Choice |
+| Tələb olunan sahə | `min_area_m2` / `max_area_m2` (+ note) | Decimal |
+| Seçim / Təklif edilən sahə | `initial_note` | Text |
+| Qiymət | `initial_note` (Offer import-da yox) | Text |
+| Lid statusu | `pipeline_stage` | Choice |
+| Nəticə | `outcome` (+ qeyd heuristic) | Choice |
 | Sorğu statusu | `record_status` | Choice |
-| Qeydlər | `LeadActivity` | Timeline |
+| Qeydlər | `Lead.message` + `LeadActivity` | Timeline |
+
+**Import sheet-lər (Phase 1):** `Ümumi müştərilər`, `Pərvanə x müştəriləri`  
+**Atlanır:** `Meeting room`, aylıq sheet-lər (təkrar riski)  
+**Idempotent:** `external_id = xlsx:{sheet}:{№}`
 
 ## Mənbə alias → canonical
 
@@ -27,7 +34,7 @@
 | Walk-in | `walk_in` |
 | Yönləndirmə / Referral | `referral` |
 | Targeting reklamı | `targeting` |
-| Soyuq zənglər | `cold_call` |
+| Soyuq zənglər / Soyuq zənqlər | `cold_call` |
 | Sosial Şəbəkə / SMM / Instagram | `social_media` |
 | Bilboard | `billboard` |
 | Birbaşa müraciət / Birbaşa görüşlər | `direct` |
@@ -70,15 +77,23 @@
 |--------------|-----|
 | Əməkdaşlıq təmin olunub | `cooperation_secured` |
 | Təklif qəbul olunmayıb | `offer_rejected` |
+| Qiymət / bahadır | `price` |
+| Sahə uyğun deyil | `area` |
+| Parkinq | `parking` |
 | Müştəri geri dönüş etməyib | `no_response` |
 | Maraqlı deyil / köçüblər | `not_interested` |
 | Yanlış sorğu | `invalid_request` |
 | Digər | `other` |
 
-## LeaseApplication — müqavilə müraciət forması (18+ )
+Qeyd heuristic (`infer_outcome_from_notes`): yalnız Excel `Nəticə` boş olanda.
+
+## LeaseApplication — müqavilə müraciət forması (Word CP)
+
+Blank: `docs/data/muqavile-muraciet-formasi-cp.docx` / `static/docs/muqavile-muraciet-formasi-cp.docx`
 
 | # | Forma sahəsi | Model / snapshot key |
 |---|--------------|----------------------|
+| — | Tarix / Date | `application_date` |
 | 1 | Şəxsin Adı | `person_name` |
 | 2 | VÖEN | `tax_id` |
 | 3 | Hüquqi ünvan | `legal_address` |
@@ -94,18 +109,25 @@
 | 13 | Çay xidməti daxil? | `tea_service_included` |
 | 14 | İcarə başlanğıc | `lease_start` |
 | 15 | İcarə bitmə | `lease_end` |
-| 16 | Bank rekvizitləri | `bank_details` |
+| 16 | Bank rekvizitləri | `bank_requisites` → `bank_details` |
 | 17 | Təmir qeydləri | `fit_out_notes` |
 | 18 | Əlavə qeydlər | `extra_notes` |
 | + | İmzalayan vəzifə/S.A.A. | `signer_title_name` |
-| + | Əlavələr checklist | attachments JSON |
+| + | Hüquqi / FS | `is_legal_entity` |
+| + | Əlavələr checklist | `attachment_checklist` |
+
+### bank_requisites JSON
+
+`currency`, `bank_name`, `branch_code`, `voen`, `swift`, `current_account` (M.H.), `correspondent` (H.H.)
+
+Checklist: hüquqi şəxs → VÖEN + reyestr + bank; fərdi sahibkar → VÖEN + bank.
 
 ## Reminder qaydası
 
-- Lid: `inquired_at`/`created_at` + **1 calendar day**, activity yoxdursa; closed/non_potential istisna; idempotent event_key.
+- Lid: `created_at` + **24 iş saatı**, activity yoxdursa; closed/non_potential istisna; idempotent event_key.
 - Offer: `sent_at` + **3 calendar days**, cavabsız; avto-expire yox.
 
 ## Scope
 
-- Ofis/sahə icarəsi: bu modul.
-- Meeting Room / website / reklam / Excel bulk import: Phase 2.
+- Ofis/sahə icarəsi + Excel lid import: bu modul.
+- Meeting Room / website / reklam / corporate PDF upload: Phase 2.

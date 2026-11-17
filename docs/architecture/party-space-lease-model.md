@@ -88,3 +88,15 @@ Lease *──* DocumentVersion
 - [ ] Keep `ResidentCompany.slug` as Party external code?
 
 **Until signed:** implement Party/Person + bridge only; do not remove `Space.resident`.
+
+## 7. Occupancy source of truth (2026-11 functional readiness)
+
+| Question | Rule (current) |
+|----------|----------------|
+| Who is the space’s commercial occupant? | Prefer **active/expiring Lease** (`Lease.party` → `legacy_resident_company`). `Space.resident` is updated by `activate_lease` / cleared on terminate — bridge, not independent SoT. |
+| Multi-space lease? | Prefer `LeaseLine` rows; primary `Lease.space` may hold the main unit. Each activate/terminate should eventually sync all lines (today: primary space + `sync_space_from_lease`). |
+| When does portal access open? | `activate_lease`: `portal_eligible` / `access_eligible` / company `portal_active`. |
+| When does occupancy notice start? | `process_lease_lifecycle`: ACTIVE → EXPIRING when `end_date` within `LEASE_EXPIRING_NOTICE_DAYS` (default 90); Space `commercial_status=notice`. |
+| Party cutover? | **Not in this pass.** Keep dual-write; portal/ops SoT remains `ResidentCompany` / `ResidentEmployee`. |
+
+Scheduled job: `manage.py poll_lease_lifecycle` (`LEASE_LIFECYCLE_POLL_ON_START=1`).

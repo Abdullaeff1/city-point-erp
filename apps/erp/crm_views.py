@@ -17,6 +17,7 @@ from apps.core.services import DomainError
 from apps.crm.access import can_approve_offer, can_mutate_crm, can_review_lease_application
 from apps.crm.models import (
     ActivityType,
+    ContactChannel,
     Lead,
     LeadSource,
     LeaseApplication,
@@ -30,7 +31,12 @@ from apps.crm.models import (
     Qualification,
     RecordStatus,
 )
-from apps.crm.reports import build_crm_report, export_crm_xlsx
+from apps.crm.pipeline import pipeline_strip_counts
+from apps.crm.reports import (
+    build_crm_funnel_report,
+    build_sales_report,
+    export_crm_xlsx,
+)
 from apps.crm.services import (
     CrmLeadService,
     CrmOfferService,
@@ -38,6 +44,10 @@ from apps.crm.services import (
     LeaseApplicationService,
     find_duplicate_leads,
 )
+
+
+def _pipeline_ctx(active: str) -> dict:
+    return {"pipeline_steps": pipeline_strip_counts(), "pipeline_active": active}
 
 
 def _dec(raw):
@@ -83,6 +93,7 @@ class CrmLeadListView(CrmAccessMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        ctx.update(_pipeline_ctx("leads"))
         ctx.update(
             {
                 "can_mutate": can_mutate_crm(self.request.user),
@@ -241,11 +252,21 @@ class CrmOpportunityListView(CrmAccessMixin, ListView):
     context_object_name = "opportunities"
 
     def get_queryset(self):
-        return Opportunity.objects.select_related("lead", "party", "space", "owner").order_by("-created_at")
+        qs = Opportunity.objects.select_related("lead", "party", "space", "owner").order_by("-created_at")
+        stage = self.request.GET.get("pipeline_stage")
+        if stage:
+            qs = qs.filter(pipeline_stage=stage)
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+        return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        ctx.update(_pipeline_ctx("opportunities"))
         ctx["can_mutate"] = can_mutate_crm(self.request.user)
+        ctx["stages"] = PipelineStage.choices
+        ctx["filters"] = self.request.GET
         return ctx
 
 
@@ -264,6 +285,26 @@ class CrmOpportunityDetailView(CrmAccessMixin, DetailView):
                 "can_mutate": can_mutate_crm(self.request.user),
                 "stages": PipelineStage.choices,
                 "outcomes": Outcome.choices,
+                "lost_outcomes": [
+                    (Outcome.PRICE, Outcome.PRICE.label),
+                    (Outcome.AREA, Outcome.AREA.label),
+                    (Outcome.PARKING, Outcome.PARKING.label),
+                    (Outcome.NO_RESPONSE, Outcome.NO_RESPONSE.label),
+                    (Outcome.OFFER_REJECTED, Outcome.OFFER_REJECTED.label),
+                    (Outcome.NOT_INTERESTED, Outcome.NOT_INTERESTED.label),
+                    (Outcome.OTHER, Outcome.OTHER.label),
+                ],
+                "contact_channels": ContactChannel.choices,
+                "activity_types": [
+                    (ActivityType.CALL, ActivityType.CALL.label),
+                    (ActivityType.EMAIL, ActivityType.EMAIL.label),
+                    (ActivityType.WHATSAPP, ActivityType.WHATSAPP.label),
+                    (ActivityType.MEETING, ActivityType.MEETING.label),
+                    (ActivityType.VIEWING, ActivityType.VIEWING.label),
+                    (ActivityType.NOTE, ActivityType.NOTE.label),
+                ],
+                "activities": self.object.activities.select_related("created_by").all()[:50],
+                "selected_channels": set(self.object.contact_channels or []),
             }
         )
         return ctx
@@ -276,14 +317,24 @@ class CrmOpportunityDetailView(CrmAccessMixin, DetailView):
         action = request.POST.get("action")
         try:
             if action == "stage":
+                channels = request.POST.getlist("contact_channels")
                 CrmOpportunityService.set_stage(
                     opp,
                     actor=request.user,
                     stage=request.POST.get("pipeline_stage") or opp.pipeline_stage,
                     outcome=request.POST.get("outcome") or "",
                     note=request.POST.get("outcome_note") or "",
+                    contact_channels=channels,
                 )
                 messages.success(request, "Mərhələ yeniləndi.")
+            elif action == "activity":
+                CrmOpportunityService.add_activity(
+                    opp,
+                    actor=request.user,
+                    activity_type=request.POST.get("activity_type") or ActivityType.NOTE,
+                    body=request.POST.get("body") or "",
+                )
+                messages.success(request, "Fəaliyyət əlavə olundu.")
             elif action == "create_offer":
                 if not opp.party_id:
                     from apps.parties.models import Party, PartyRole, PartyRoleCode
@@ -317,14 +368,21 @@ class CrmOfferListView(CrmAccessMixin, ListView):
     context_object_name = "offers"
 
     def get_queryset(self):
-        return Offer.objects.select_related(
+        qs = Offer.objects.select_related(
             "party", "space", "opportunity", "lease", "current_version"
         ).order_by("-id")
+        status = self.request.GET.get("status")
+        if status:
+            qs = qs.filter(status=status)
+        return qs
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        ctx.update(_pipeline_ctx("offers"))
         ctx["can_mutate"] = can_mutate_crm(self.request.user)
         ctx["can_approve"] = can_approve_offer(self.request.user)
+        ctx["offer_statuses"] = OfferStatus.choices
+        ctx["filters"] = self.request.GET
         return ctx
 
 
@@ -389,6 +447,10 @@ class CrmOfferDetailView(CrmAccessMixin, DetailView):
                     version, actor=request.user, sent_to=request.POST.get("sent_to", "")
                 )
                 messages.success(request, "Təklif göndərildi.")
+            elif action == "generate_pdf":
+                version = get_object_or_404(OfferVersion, pk=request.POST.get("version_id"), offer=offer)
+                CrmOfferService.generate_pdf(version, actor=request.user, force=True)
+                messages.success(request, "PDF yaradıldı.")
             elif action == "lease_application":
                 app = LeaseApplicationService.create_from_offer(offer, actor=request.user)
                 messages.success(request, f"Müraciət formu #{app.pk} yaradıldı.")
@@ -396,6 +458,23 @@ class CrmOfferDetailView(CrmAccessMixin, DetailView):
         except Exception as exc:  # noqa: BLE001
             messages.error(request, str(exc))
         return redirect("erp:crm_offer_detail", pk=offer.pk)
+
+
+class CrmOfferVersionPdfView(CrmAccessMixin, View):
+    def get(self, request, pk, version_id):
+        offer = get_object_or_404(Offer, pk=pk)
+        version = get_object_or_404(OfferVersion, pk=version_id, offer=offer)
+        if not version.pdf_file:
+            CrmOfferService.generate_pdf(version, actor=request.user)
+            version.refresh_from_db()
+        if not version.pdf_file:
+            messages.error(request, "PDF yaradıla bilmədi.")
+            return redirect("erp:crm_offer_detail", pk=offer.pk)
+        response = HttpResponse(version.pdf_file.read(), content_type="application/pdf")
+        response["Content-Disposition"] = (
+            f'inline; filename="offer_{offer.pk}_v{version.version_number}.pdf"'
+        )
+        return response
 
 
 class CrmLeaseApplicationListView(CrmAccessMixin, ListView):
@@ -422,9 +501,11 @@ class CrmLeaseApplicationListView(CrmAccessMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        ctx.update(_pipeline_ctx("applications"))
         ctx["can_mutate"] = can_mutate_crm(self.request.user)
         ctx["can_review"] = can_review_lease_application(self.request.user)
         ctx["statuses"] = LeaseApplicationStatus.choices
+        ctx["filters"] = self.request.GET
         return ctx
 
 
@@ -437,6 +518,7 @@ class CrmLeaseApplicationDetailView(CrmAccessMixin, DetailView):
         ctx = super().get_context_data(**kwargs)
         ctx["can_mutate"] = can_mutate_crm(self.request.user)
         ctx["can_review"] = can_review_lease_application(self.request.user)
+        ctx["bank_requisites"] = self.object.bank_requisites or {}
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -444,6 +526,15 @@ class CrmLeaseApplicationDetailView(CrmAccessMixin, DetailView):
         action = request.POST.get("action")
         try:
             if action == "update":
+                is_legal = request.POST.get("is_legal_entity", "1") == "1"
+                checklist = {
+                    "voen": request.POST.get("chk_voen") == "on",
+                    "bank": request.POST.get("chk_bank") == "on",
+                }
+                if is_legal:
+                    checklist["registry"] = request.POST.get("chk_registry") == "on"
+                else:
+                    checklist["registry"] = False
                 LeaseApplicationService.update_draft(
                     app,
                     actor=request.user,
@@ -463,16 +554,23 @@ class CrmLeaseApplicationDetailView(CrmAccessMixin, DetailView):
                         "tea_service_included": request.POST.get("tea_service_included") == "on",
                         "lease_start": parse_date(request.POST.get("lease_start") or "") or None,
                         "lease_end": parse_date(request.POST.get("lease_end") or "") or None,
-                        "bank_details": request.POST.get("bank_details", ""),
+                        "application_date": parse_date(request.POST.get("application_date") or "")
+                        or None,
+                        "bank_requisites": {
+                            "currency": request.POST.get("bank_currency", ""),
+                            "bank_name": request.POST.get("bank_name", ""),
+                            "branch_code": request.POST.get("bank_branch_code", ""),
+                            "voen": request.POST.get("bank_voen", ""),
+                            "swift": request.POST.get("bank_swift", ""),
+                            "current_account": request.POST.get("bank_current_account", ""),
+                            "correspondent": request.POST.get("bank_correspondent", ""),
+                        },
                         "fit_out_notes": request.POST.get("fit_out_notes", ""),
                         "extra_notes": request.POST.get("extra_notes", ""),
                         "signer_title_name": request.POST.get("signer_title_name", ""),
                         "sales_notes": request.POST.get("sales_notes", ""),
-                        "attachment_checklist": {
-                            "voen": request.POST.get("chk_voen") == "on",
-                            "registry": request.POST.get("chk_registry") == "on",
-                            "bank": request.POST.get("chk_bank") == "on",
-                        },
+                        "is_legal_entity": is_legal,
+                        "attachment_checklist": checklist,
                     },
                 )
                 messages.success(request, "Forma yeniləndi.")
@@ -514,7 +612,13 @@ class CrmReportView(CrmAccessMixin, TemplateView):
             "record_status": self.request.GET.get("record_status") or "",
             "outcome": self.request.GET.get("outcome") or "",
         }
-        ctx["report"] = build_crm_report(params)
+        tab = self.request.GET.get("tab") or "crm"
+        if tab not in ("crm", "sales"):
+            tab = "crm"
+        ctx["tab"] = tab
+        ctx["crm_report"] = build_crm_funnel_report(params)
+        ctx["sales_report"] = build_sales_report(params)
+        ctx["report"] = ctx["crm_report"] if tab == "crm" else ctx["sales_report"]
         ctx["filters"] = self.request.GET
         ctx["sources"] = LeadSource.choices
         ctx["qualifications"] = Qualification.choices
@@ -535,10 +639,13 @@ class CrmReportExportView(CrmAccessMixin, View):
             "record_status": request.GET.get("record_status") or "",
             "outcome": request.GET.get("outcome") or "",
         }
-        data = export_crm_xlsx(params)
+        tab = request.GET.get("tab") or "crm"
+        if tab not in ("crm", "sales"):
+            tab = "crm"
+        data = export_crm_xlsx(params, tab=tab)
         resp = HttpResponse(
             data,
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        resp["Content-Disposition"] = 'attachment; filename="crm_report.xlsx"'
+        resp["Content-Disposition"] = f'attachment; filename="crm_{tab}_report.xlsx"'
         return resp

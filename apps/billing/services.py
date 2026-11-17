@@ -10,14 +10,27 @@ from apps.core.services import DomainError
 
 
 def next_invoice_code():
-    codes = Invoice.objects.filter(code__startswith="INV-").values_list("code", flat=True)
-    numbers = []
-    for code in codes:
+    """Allocate next INV-* code under row lock (call inside transaction.atomic)."""
+    latest = (
+        Invoice.objects.select_for_update()
+        .filter(code__startswith="INV-")
+        .order_by("-pk")
+        .values_list("code", flat=True)
+        .first()
+    )
+    nxt = 1001
+    if latest:
         try:
-            numbers.append(int(code.split("-")[1]))
+            nxt = int(str(latest).split("-", 1)[1]) + 1
         except (IndexError, ValueError):
-            continue
-    nxt = (max(numbers) + 1) if numbers else 1001
+            codes = Invoice.objects.filter(code__startswith="INV-").values_list("code", flat=True)
+            numbers = []
+            for code in codes:
+                try:
+                    numbers.append(int(str(code).split("-", 1)[1]))
+                except (IndexError, ValueError):
+                    continue
+            nxt = (max(numbers) + 1) if numbers else 1001
     return f"INV-{nxt}"
 
 
@@ -41,6 +54,8 @@ def generate_invoice_from_charges(party, charge_ids, *, apply_vat: bool = True) 
     lease = next((c.lease for c in charges if c.lease_id), None)
     issue = timezone.localdate()
 
+    # Lock invoice table slice before allocating code (concurrency).
+    Invoice.objects.select_for_update().filter(code__startswith="INV-").order_by("-pk")[:1]
     invoice = Invoice.objects.create(
         code=next_invoice_code(),
         party=party,
@@ -91,12 +106,14 @@ def confirm_invoice(invoice: Invoice, *, actor=None) -> Invoice:
     vat_lines = [ln for ln in invoice.lines.all() if (ln.description or "").startswith("ƏDV")]
     vat = sum((ln.amount for ln in vat_lines), Decimal("0"))
     net = (invoice.total or Decimal("0")) - vat
-    try:
-        from apps.accounting.services import AccountingService
+    from apps.accounting.services import AccountingService
 
+    try:
         AccountingService.journal_from_invoice(invoice, net=net, vat=vat, posted=False)
-    except Exception:
-        pass
+    except DomainError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise DomainError(f"Mühasibat jurnalı yaradılmadı: {exc}") from exc
     return invoice
 
 
@@ -120,12 +137,14 @@ def record_payment(*, invoice: Invoice, amount, method: str = "bank", reference:
         bus.PAYMENT_RECEIVED,
         payload={"payment_id": payment.pk, "invoice_id": invoice.pk, "amount": str(amount)},
     )
-    try:
-        from apps.accounting.services import AccountingService
+    from apps.accounting.services import AccountingService
 
+    try:
         AccountingService.journal_from_payment(payment, posted=False)
-    except Exception:
-        pass
+    except DomainError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise DomainError(f"Ödəniş jurnalı yaradılmadı: {exc}") from exc
     return payment
 
 

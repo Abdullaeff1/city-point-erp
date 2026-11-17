@@ -114,8 +114,14 @@ class PortalEmployeeCreateForm(forms.Form):
     )
     full_name = forms.CharField(
         max_length=160,
-        label=_("Əməkdaşın adı"),
-        widget=forms.TextInput(attrs={"class": "cp-input", "placeholder": _("Ad Soyad")}),
+        label=_("Ad Soyad Ata adı"),
+        widget=forms.TextInput(
+            attrs={
+                "class": "cp-input",
+                "placeholder": _("Ad Soyad Ata adı"),
+                "autocomplete": "name",
+            }
+        ),
     )
     access_level = forms.ChoiceField(
         label=_("İstənilən kart səviyyəsi"),
@@ -154,9 +160,9 @@ class PortalEmployeeCreateForm(forms.Form):
                 field.widget.attrs.setdefault("class", "cp-input")
 
     def clean_full_name(self):
-        value = (self.cleaned_data.get("full_name") or "").strip()
+        value = " ".join((self.cleaned_data.get("full_name") or "").split()).strip()
         if not value:
-            raise forms.ValidationError(_("Əməkdaşın adı mütləqdir."))
+            raise forms.ValidationError(_("Ad Soyad Ata adı mütləqdir."))
         return value
 
     def clean_id_document(self):
@@ -199,8 +205,13 @@ class PortalTicketForm(forms.ModelForm):
     full_name = forms.CharField(
         max_length=160,
         required=False,
-        label=_("Əməkdaşın adı"),
-        widget=forms.TextInput(attrs={"placeholder": _("Ad Soyad")}),
+        label=_("Ad Soyad Ata adı"),
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": _("Ad Soyad Ata adı"),
+                "autocomplete": "name",
+            }
+        ),
     )
     access_level = forms.ChoiceField(
         required=False,
@@ -351,10 +362,10 @@ class PortalTicketForm(forms.ModelForm):
             self.add_error("subcategory", _("Alt kateqoriya seçilmiş kateqoriyaya aid deyil."))
 
         if self._is_card_order_subcategory(subcategory):
-            name = (cleaned.get("full_name") or "").strip()
+            name = " ".join((cleaned.get("full_name") or "").split()).strip()
             cleaned["full_name"] = name
             if not name:
-                self.add_error("full_name", _("Əməkdaşın adı mütləqdir."))
+                self.add_error("full_name", _("Ad Soyad Ata adı mütləqdir."))
             level = cleaned.get("access_level") or ""
             if level not in {"1", "2"}:
                 self.add_error("access_level", _("Kart səviyyəsi 1 və ya 2 olmalıdır."))

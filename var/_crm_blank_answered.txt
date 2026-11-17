@@ -1,0 +1,222 @@
+City Point — CRM / Satış modul sualları (cavab blankı)
+Format: hər sualın altında «N - » sətirinə cavabınızı yazın.
+Tarix: ____________    Dolduran: ____________    Rol: ____________
+1. Modul sərhədi
+1. CRM və Satış ERP-də necə görünsün — bir blok, yoxsa iki ayrı menyu?
+1 - Bir blok — “CRM / Satış”. Lidlər, müştəri əlaqələri, imkanlar, fəaliyyətlər, sahəyə baxışlar, təkliflər və satış hesabatları eyni modulda olsun. Beləliklə satış əməkdaşı icarə sorğusunu ilk müraciətdən təklifə qədər bir yerdə izləyir. Müqavilə və Lease prosesi CRM/Satışdan ayrıca qalır və təsdiqlənmiş müraciət mühasibə ötürülür. Gələcəkdə komanda və proseslər böyüsə, alt bölmələr ayrıca menyuya çevrilə bilər.
+______________________________________________________________________
+______________________________________________________________________
+2. Satış hunisinin mərhələləri hansılardır? Lid → İmkan → Təklif → İcarə (Lease) kifayətdirmi?
+2 - Yüksək səviyyəli huni üçün Lid → İmkan → Təklif → İcarə kifayətdir. Sahəyə baxış, görüş və danışıqlar ayrıca əsas mərhələlər yox, İmkan daxilində status və fəaliyyətlər kimi izlənilsin. Təklif göndərilməzdən əvvəl rəhbərlik tərəfindən təsdiqlənsin. Müştəri təklifi qəbul etdikdən sonra müraciət forması satış tərəfindən hüquqşünansa ötürülsün; Lease və müqavilə prosesini hüquqşünans icra etsin. İmzalanmış müqavilə sistemə yüklənəndə satış imkanı “Qazanıldı” kimi bağlansın. LOI mərhələsi hazırda tələb olunmur.
+______________________________________________________________________
+______________________________________________________________________
+3. Bu modul yalnız ofis/sahə icarəsi üçündür, yoxsa digər gəlir növləri də (event, reklam, fit-out podrat) CRM/Satışa düşür?
+3 - Binada olan MeetingRoomu da saatlarla və ya fərqli günlərlə icarəyə vermədə var 
+sonra event reklam da olacaq hansiki bina dazxilinde olacaq reklam panelleri ile
+______________________________________________________________________
+______________________________________________________________________
+2. Rollar və icazələr
+4. Yeni lid (maraqlanan şəxs/şirkət) yaratmaq kimə icazəli olsun?
+4 - Crm və satış bir olduğundan lidleride teklifleride crm/satis yaradir 
+teklifler rehberlik terefinden tesdiqlenenden sonra musteriye oturulur
+_Yeni mushteri bazasi satish temsilchisi terefinden yaradila biler ve parallel olaraq satish kanallari vasitesile(website, SMM kanallari ile) formalashir. Prossesde satish emekdashlari yeni lidlerle danishiqlar apararaq potensial mushterileri ve istekleri deqiqleshdirir, Potensial mushterilere sahe planinin gonderilmesi ve muqavile merhelesi rehberlik terefinden tesdiq esasinda icra edilir
+______________________________________________________________________
+______________________________________________________________________
+5. İmkan (Opportunity) və Təklif (Offer) yaratmaq / redaktə etmək kimə icazəli olsun?
+5 - Sahelerin standart deyeri ilkin teklif formasin satish numayendeleri terefinde teqdim edilir. Elave muqavile shertleri ve endirim kimi melumatlar umumilikde rehberlik terefinden qerar verilerek mushteri ile razilashdirilir
+______________________________________________________________________
+______________________________________________________________________
+6. Təklifi qəbul edib Lease (icarə müqaviləsi draft) yaratmaq kimə icazəli olsun?
+6 - Rehberlik mushteri ile razilasharsa  
+satış müştəriyə, müraciət forması yollayır sonra müştəri müraciət formasını doldurur və geri göndərir . Bundan sonra satış müraciət formasını huquqshunansa yonlendirilir muqavile hazirlanir ve imzaya verilir.
+______________________________________________________________________
+______________________________________________________________________
+7. Admin (IT/sistem admin) CRM/Satış modulunu görüb işləyə bilsin, yoxsa yalnız Property + Management?
+7 - İT Admin görmesin mushteri melumatlarini yalniz prossesin texniki problemleri ish axininda chetinlik olarsa mudaxile ede bilsin.
+______________________________________________________________________
+______________________________________________________________________
+8. Hər lid/imkan/təklif üçün məsul şəxs (owner) məcburi sahə olsunmu?
+8 - Umumilikde mushteri ile bagli ishlerin Hamisi satish komandasinin uzerinde olmaqla davam etmelidir. Prosseslerin ardicilligi ve danishiqlar modulda qeyd edilmekle istenilen emekdash danishiqlarin hansi merhelede olmasini bilerek prossesi davam etdire biler
+______________________________________________________________________
+______________________________________________________________________
+3. Lid (Lead)
+9. Lid mənbələrinin son siyahısı hansıdır?
+9 - Excel-də istifadə olunan mənbələr əsas götürülsün və ilkin mərhələdə aşağıdakı siyahı tətbiq edilsin: Vebsayt, telefon, e-poçt, birbaşa müraciət/görüş, sosial şəbəkə (SMM), hədəfli reklam (Targeting), billboard, soyuq zəng, e-poçt marketinqi, yönləndirmə və digər. “Digər” seçiləndə izah yazılması tələb olunsun. Broker, LinkedIn və tədbir kimi yeni mənbələr sonradan əlavə edilə bilsin. Mənbə ilə reklam kampaniyası və əlaqə kanalı ayrı məlumatlar kimi saxlanılsın ki, hesabatlar dəqiq olsun.
+______________________________________________________________________
+______________________________________________________________________
+10. Lid yaratarkən hansı sahələr məcburi olsun?
+10 - Lid yaratmaq mümkün qədər sürətli olsun. İlkin qeyd zamanı müraciət tarixi sistem tərəfindən avtomatik yazılsın və lazım gəldikdə dəyişdirilə bilsin; lid mənbəyi məcburi seçilsin. Müştərini tanımaq üçün şirkət adı, əlaqəli şəxs, telefon və e-poçtdan ən azı biri daxil edilməlidir. Telefon və e-poçt birlikdə məcburi olmasın. “Digər” mənbə seçilərsə, izah tələb olunsun.
+Tələb olunan sahə, şirkətin işçi sayı və büdcə lid yaradılarkən doldurula bilən sahələr olsun, lakin məlumat hələ məlum deyilsə lidin qeydiyyatını bloklamasın. Lidi “Potensial” kimi təsdiqləməzdən və təklif hazırlamazdan əvvəl tələb olunan sahə (və ya müştərinin sahə tələbinin hələ dəqiqləşmədiyi qeyd) və işçi sayı (və ya “məlum deyil”) dəqiqləşdirilsin. Büdcə məlum deyilsə boş qala bilsin.:::writing_variant_nonexistent
+______________________________________________________________________
+______________________________________________________________________
+11. Lid statusları hansılar olsun və nə deməkdir?
+11 - Lid üçün kvalifikasiya statusları üç dəyərdən ibarət olsun:
+Yeni — hələ satış əməkdaşı tərəfindən qiymətləndirilməyib.
+Potensial — tələb olunan sahə, qiymət və digər ehtiyaclar City Point-in təkliflərinə uyğundur.
+Qeyri-potensial — tələb hazırkı təkliflərə uyğun deyil; səbəb seçilməli, “Digər” seçilərsə izah yazılmalıdır.
+“Çevrilib” ayrıca əl ilə seçilən status olmasın: liddən Opportunity yaradıldıqda sistem onu əlaqələndirsin və çevrilmə tarixçəsini qeyd etsin. Əlaqə qurulur, cavab gözlənilir, sahəyə baxış, görüş, danışıqlar və təklif mərhələləri Opportunity-də status/fəaliyyət kimi izlənilsin. Excel-dəki açıq/gözləntidə/bağlı vəziyyəti və nəticə səbəbləri də kvalifikasiya statusundan ayrı saxlanılsın. Kvalifikasiya sonradan dəyişdirilərsə, əvvəlki qərar tarixçədə qalsın.
+Lidin istədiyi sahə və qiymət uyğun olmursa – qeyri-potensial
+Lidin istədiyi sahə və qiymət uyğun olarsa – potensial
+bunu ERP-de sistemde sahe ve qiymet uygunsuzluqlarini ayrica gostersin.. 
+
+Elaqe yaradildi
+Gorush teyin edildi
+Baxish kechirildi
+Imtina edildi
+Razilashdirildi
+______________________________________________________________________
+______________________________________________________________________
+12. Eyni email/telefon/şirkət təkrar gələndə nə olsun (duplicate)?
+12 -Eyni lidə bağlı olsun lakin fəqləndirici tarixdə olsun 
+lead-ler shirket adlari ve email ve telefon nomreleri her hansi biri systemin bazasinda olan kohne melumatlarla ust uste dusherse bunu tekrar muraciet kimi gore bilek
+______________________________________________________________________
+______________________________________________________________________
+13. Website-dən avtomatik lid (B.4) go-live üçün lazımdır, yoxsa yalnız əl ilə qeyd kifayətdir?
+13 -Gələcəkdə systemin crm hissəsi vebsayt ilədə əlaqədə olacaq hansı ki orada müştəri özü sorğu yarada biləcək 
+burada qeyd olunacaq sual 10 dakı bütün cavablar sistemdəki ilə eyni və yeni lid kimi sistemə avtomatik düşəcək və satış tərəfindən təsdiq olunacaq sonra lidə düşəcək həmin lidlər veb sayt/gözləyir statusunda olacaq
+______________________________________________________________________
+______________________________________________________________________
+4. İmkan (Opportunity)
+14. İmkan həmişə liddən yaransın, yoxsa birbaşa da açıla bilsin (məs. mövcud rezident əlavə sahə istəyir)?
+14 - Buna ehtiyac yoxdur çünkü həmin resident öz portalından ticket yarada bilir hansı ki kommersialın alt kateqoriyalarında sahə ilə bağlı var gelecek bu ticket kateqoriyasi bashligi altinda olan sorgular satisha tekrar daxili mushteri kimi gelecek.
+______________________________________________________________________
+______________________________________________________________________
+15. Commercial ticket → Opportunity axını saxlanılsınmı? Hansı ticket növləri CRM-ə düşməlidir?
+15 - Ticketden gelen commercial muracietler tekrar daxili mushteri kimi qeydiyyata dushsun
+______________________________________________________________________
+______________________________________________________________________
+16. İmkan «Lost» (itirildi) olanda səbəb siyahısı lazımdırmı?
+16 -Cavabsiz
+qeyd edilen kateqoriya sechilende hansi elaqe vasiteleri ile cehd edilib wp-nomre ile zeng-email kimi sechimleri radio button-la eyni anda bir nechesini sechmek imkani olsun 
+Qiymet 
+Sahe
+Parking yerin az olmasi
+diger – sechilende buna elave olaraq qeyd yeri achilsin sebeb qeyd edilmesi uchun
+______________________________________________________________________
+______________________________________________________________________
+17. Bir İmkan altında bir neçə sahə (Space) seçilə bilməlidirmi?
+17 - Bəzən müştərilər 500 m² sahə istəyir bu zaman tək 500 lük ofis yoxdursa iki ayrı ofis birdən təklif oluna bilir hansı ki məsələn biri 200 biri 300 amma bu sahələrin müqavilələri ayrı ayrı hazırlanır
+______________________________________________________________________
+______________________________________________________________________
+5. Təklif (Offer) və qiymət
+18. Təklifdə qiymət necə hesablansın: m² × tarif (A.4), sabit aylıq məbləğ, yoxsa hər ikisi?
+18 - Normalda bütün lidlərə təklif olunan qiymət 1kvm a 33 manatdır +18% ƏDV həmçinin müştərilər ilə real danışıqlarda və görüşlərdə endirimlərdə tətbiq oluna bilir amma bu endirimlər əvvəlcə rəhbərlik tərəfdən təsdiqlənməlidir
+Bu qiymətə bütün komunal xidmətlər (internet xaric),təmizlik,təhlükəsizlik,reception,7/24 giriş çıxış imkanıda daxildir
+______________________________________________________________________
+______________________________________________________________________
+19. Təklif formasında hansı sahələr məcburi olsun (SC, depozit, parkinq qeydi, fit-out, digər)?
+19 - Müraciət formasını sənə göndərəcəm orda hər bir sahə yazılıb
+______________________________________________________________________
+______________________________________________________________________
+20. Təklifin default etibar müddəti (valid_until) neçə gün olsun?
+20 - Müddətsizdir
+______________________________________________________________________
+______________________________________________________________________
+21. Eyni İmkan üçün bir neçə təklif versiyası (reviziya) lazımdırmı?
+21 - Bəli versiyalar qalsın
+______________________________________________________________________
+______________________________________________________________________
+22. Endirim / xüsusi şərt olanda kim təsdiq edir və limit varmı (faiz və ya AZN)?
+22 - Hər bir endirimdə qiymətlə bağlı dəyişikdə rəhbərliyin təsdiqi olmalıdır 
+endirimdə faiz limiti yoxdur
+______________________________________________________________________
+______________________________________________________________________
+6. Təsdiq (Approval) və sənədlər
+23. Təklif müştəriyə göndərilməzdən əvvəl daxili təsdiq lazımdırmı? Kim?
+23 - Göndərmədən əvvəl təklif rəhbər tərəfindən təsdiqlənməlidir
+______________________________________________________________________
+______________________________________________________________________
+24. Hansı məbləğ və ya sahə (m²) həddindən yuxarı ikinci imza (Management) məcburi olsun?
+24 - Bütün təklifləri rəhbərlik təsdikləməlidir
+______________________________________________________________________
+______________________________________________________________________
+25. Təklif PDF şablonu varmı? Dil (AZ/EN/RU), logo, hüquqi mətn kim tərəfindən veriləcək?
+25 - Bəli təklif sənədi var yüklənəcək oda sistemə
+______________________________________________________________________
+______________________________________________________________________
+26. Qəbul olunmuş təklifdən sonra hüquqi müqavilə PDF-i CRM modulunda saxlansın, yoxsa Lease / Documents-də?
+26 - Müqavilənin bir nüsxəsi normalda yəni real həyatda satışdada olurdu
+müqavilənin saxlanma yeri 1 ədəd olur lakin satişda və ya digər əlaqəli moduldada görmək mümkün olsun
+______________________________________________________________________
+______________________________________________________________________
+7. Lease keçidi
+27. Offer accept sonrası Lease hansı statusda açılsın (draft, negotiation, signed…)?
+27 - Müştəri təklifi qəbul etdikdən və müraciət forması mühasibə ötürüldükdən sonra Lease müqaviləsini mühasib hazırlasın. Müqavilə imzalandıqda sistemə yüklənib Signed/Upcoming statusunda saxlanılsın. Lease müqavilənin başlama tarixində avtomatik Active statusuna keçsin; müqavilənin yükləndiyi tarix statusu aktiv etməsin. Billing də müqavilənin başlama tarixinə əsasən başlasın. Müqavilənin bitmə tarixi izlənilsin, bitmə tarixi yaxınlaşdıqda sistem məsul şəxslərə xəbərdarlıq göndərsin və müqavilə bitdikdə statusu uyğun qaydada yenilənsin. Xəbərdarlıqların neçə gün əvvəl göndəriləcəyi konfiqurasiya edilə bilsin; avtomatik yenilənmə və ya uzadılma baş verməsin.
+______________________________________________________________________
+______________________________________________________________________
+28. Yeni şirkət/party nə vaxt yaradılsın — lid mərhələsində, təklifdə, yoxsa yalnız qəbulda?
+28 - Təsdiq olunub imzalanmış Müqavilə sistemə yükləndikdən sonra
+______________________________________________________________________
+______________________________________________________________________
+29. Mövcud rezident əlavə sahə götürəndə: yeni Lease, yoxsa mövcud müqaviləyə amendment (əlavə)?
+29 - Yeni müqavilə hazırlanır
+______________________________________________________________________
+______________________________________________________________________
+8. Proses və SLA
+30. Yeni lidə ilk cavab üçün hədəf müddət varmı (saat/gün)?
+30 - Sistemə düşmüş Lid 24 iş saatı ərzində cavablandırılmadıqda xatırlatma olsun
+______________________________________________________________________
+______________________________________________________________________
+31. Təklif göndərildikdən sonra follow-up xatırlatma lazımdırmı? Neçə gündən bir?
+31 -3 gün ərzində qarşı tərəfdən cavab gəlmədikdə xatırlatma göstərilsin
+______________________________________________________________________
+______________________________________________________________________
+32. Etibar müddəti bitmiş təklif avtomatik expired/rejected statusuna keçsinmi?
+32 - Xeyr əl ilə
+______________________________________________________________________
+______________________________________________________________________
+9. Hunisi, hesabat və bildiriş
+33. Rəhbərlik üçün əsas KPI-lər hansılardır?
+33 - CRM və Satış hesabatları ayrı modullar və ayrı hesabat məntiqi ilə qurulsun.
+CRM hesabatı lid axınını və mənbələrin effektivliyini göstərsin:
+dövr üzrə hər kanal və mənbədən gələn lidlərin sayı;
+hər mənbə üzrə baxılan, potensial, qeyri-potensial, imtina edilən və digər statuslardakı lidlərin sayı və payı;
+mənbədən potensiala, imkana və sonrakı mərhələlərə keçid faizi;
+lidə ilk baxılma/cavab müddəti;
+cari vəziyyət və seçilən tarix aralığı üzrə hesabat.
+Satış hesabatı real satış danışığına və kommersiya nəticəsinə keçmiş imkanları göstərsin:
+aktiv imkanlar və danışıqlar;
+sahəyə baxış və görüşlər;
+Management təsdiqində olan və göndərilmiş təkliflər;
+müştəriyə göndərilmiş və geri alınmış müqavilə müraciət formaları;
+bron edilmiş sahələr;
+imzalanmış müqavilələr, sahə m²-si və aylıq icarə məbləği;
+satış mərhələləri üzrə cari vəziyyət və tarix aralığı üzrə nəticələr.
+Hər iki hesabatda cari vəziyyətə və seçilən dövrə baxmaq mümkün olsun. Keçmişdə konkret günün sonunda statusların necə olduğunu görmək üçün status və mərhələ dəyişiklikləri tarixçədə saxlanılsın və gündəlik hesabat göstəricilərinin snapshot-u yaradılsın. Hesabatlar Bakı yerli vaxtı ilə günün sonuna görə formalaşsın.
+Sistemin verilənlər bazası da hər gün avtomatik backup edilsin. Hesabat snapshot-ları ilə database backup ayrı məqsədlərə xidmət edir: snapshot keçmiş hesabatı göstərir, backup isə sistem məlumatlarını bərpa etmək üçündür. Backup-lar sıxılmış, giriş hüquqları məhdud və retention qaydasına uyğun saxlanılsın; bərpa sınağı mütəmadi aparılsın. Bu gündəlik proses lokal serverdə internet olmadan işləməli və son uğurlu backup/snapshot vaxtı sistemdə görünməlidir.
+CRM və satış üçün Hesabat ekranı mütləq olsun 
+hal hazırda satış hesabatı necə verirdisə onunda filesini səninlə bölüşəcəm
+______________________________________________________________________
+______________________________________________________________________
+34. Hunisi görünüşü: Kanban lövhə (sütunlar), yoxsa cədvəl + filter kifayətdir?
+34 - Kanban olmadan həm səliqəli, həm də istifadəsi rahat görünüş üçün mərhələ zolağı + cədvəl təklif edirəm:
+Yuxarıda Lid → İmkan → Təklif → Müqavilə mərhələlərini və hər mərhələdəki qeydlərin sayını göstərən kompakt zolaq.
+Aşağıda seçilmiş mərhələnin məlumatları cədvəldə: şirkət, əlaqəli şəxs, mənbə, tələb olunan m², status, son fəaliyyət və növbəti addım.
+Axtarış, tarix/status/mənbə filtrləri və aydın status nişanları.
+Sətir seçildikdə lidin və ya imkanın detalları ayrıca paneldə açılsın.
+Beləliklə huni vizual görünür, amma kartları sürükləməklə mərhələni səhvən dəyişmək riski olmur. 34-cü sual üçün cavab: “Kanban əvəzinə mərhələ göstəricisi olan cədvəl görünüşü; mərhələ seçildikcə cədvəl həmin mərhələnin qeydlərini göstərsin.”
+______________________________________________________________________
+______________________________________________________________________
+35. Status dəyişəndə (yeni lid, təklif göndərildi, qəbul) kimə in-app və/və ya email bildiriş getsin?
+35 - Lidlər ilə bağlı notficationa ehtiyyac yoxdur
+______________________________________________________________________
+______________________________________________________________________
+10. Dil, demo və go-live
+36. CRM/Satış UI dil prioriteti hansıdır (AZ / EN / RU)?
+36 - əsas dil Azərbaycan dilidir
+______________________________________________________________________
+______________________________________________________________________
+37. Demo/seed üçün neçə nümunə lid, imkan və təklif kifayətdir?
+37 - Ilkin versiya üçün demo lidlər yaradılsın
+______________________________________________________________________
+______________________________________________________________________
+38. ERP sidebar-da CRM menyusu (nav_crm) nə vaxt açılsın — indi (qismən), yoxsa modul hazır olandan sonra?
+38 - Modul hazır olandan sonra
+______________________________________________________________________
+______________________________________________________________________
+Əlavə qeydlər
+39 -
+______________________________________________________________________
+______________________________________________________________________
+______________________________________________________________________
+______________________________________________________________________

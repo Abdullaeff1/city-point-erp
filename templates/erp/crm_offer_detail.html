@@ -22,8 +22,7 @@
           · {{ offer.current_version.monthly_rent_net }} AZN net
           {% endif %}
           {% if offer.sent_at %}
-          · {% translate "Göndərilib" %}: <strong>{{ offer.sent_at|date:"d.m.Y H:i" }}</strong>
-          {% if offer.sent_to %} → {{ offer.sent_to }}{% endif %}
+          · <span class="crm-opp-chip">{% translate "Göndərilib" %} {{ offer.sent_at|date:"d.m.Y H:i" }}{% if offer.sent_to %} → {{ offer.sent_to }}{% endif %}</span>
           {% endif %}
           {% if offer.lease %}
           · {% translate "İcarə" %}: <a href="{% url 'erp:lease_detail' offer.lease.code %}"><strong>{{ offer.lease.code }}</strong></a>
@@ -55,6 +54,7 @@
             <th>{% translate "Gross" %}</th>
             <th>{% translate "Endirim" %}</th>
             <th>{% translate "Təsdiq" %}</th>
+            <th>{% translate "PDF" %}</th>
             <th></th>
           </tr>
         </thead>
@@ -74,6 +74,17 @@
             <td>{{ v.monthly_rent_gross }}</td>
             <td>{{ v.discount_percent }}%</td>
             <td>{% if v.approval_request %}{{ v.approval_request.get_status_display }}{% else %}—{% endif %}</td>
+            <td>
+              <a class="cp-btn soft" href="{% url 'erp:crm_offer_version_pdf' offer.pk v.pk %}">{% translate "Bax/Yüklə" %}</a>
+              {% if can_mutate and offer.current_version_id == v.pk %}
+              <form method="post" class="crm-offer-inline-form" style="display:inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="generate_pdf">
+                <input type="hidden" name="version_id" value="{{ v.pk }}">
+                <button type="submit" class="cp-btn soft">{% translate "PDF yarat" %}</button>
+              </form>
+              {% endif %}
+            </td>
             <td>
               <div class="crm-offer-row-actions">
                 {% if can_mutate and offer.current_version_id == v.pk %}
@@ -115,7 +126,7 @@
             </td>
           </tr>
           {% empty %}
-          <tr><td colspan="9">{% translate "Versiya yoxdur." %}</td></tr>
+          <tr><td colspan="10">{% translate "Versiya yoxdur." %}</td></tr>
           {% endfor %}
         </tbody>
       </table>

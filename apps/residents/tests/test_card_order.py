@@ -126,6 +126,8 @@ class EmployeeCardOrderTests(TestCase):
         self.assertIn("city-point-kart-muraciet-formasi.docx", html)
         self.assertIn("Kart müraciət formasını endir", html)
         self.assertIn("Şəxsiyyət vəsiqəsi/müraciət forması", html)
+        self.assertIn("Ad Soyad Ata adı", html)
+        self.assertIn('placeholder="Ad Soyad Ata adı"', html)
 
     def test_portal_post_creates_order_via_request_new(self):
         from apps.tickets.models import TicketCategory, TicketSubcategory
@@ -140,7 +142,7 @@ class EmployeeCardOrderTests(TestCase):
                 "ticket_type": TicketType.SERVICE_REQUEST,
                 "category": cat.pk,
                 "subcategory": sub.pk,
-                "full_name": "Portal İşçi",
+                "full_name": "Portal Test İşçi",
                 "access_level": "1",
                 "id_document": SimpleUploadedFile(
                     "id.png", b"\x89PNG\r\n", content_type="image/png"
@@ -149,7 +151,7 @@ class EmployeeCardOrderTests(TestCase):
             },
         )
         self.assertEqual(resp.status_code, 302)
-        emp = ResidentEmployee.objects.get(company=self.company, full_name="Portal İşçi")
+        emp = ResidentEmployee.objects.get(company=self.company, full_name="Portal Test İşçi")
         self.assertEqual(emp.card_number, "")
         self.assertEqual(emp.access_level, "1")
         self.assertEqual(emp.card_order_status, CardOrderStatus.SUBMITTED)

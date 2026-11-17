@@ -1,0 +1,434 @@
+PARAS 420
+P0|City Point — CRM / Satış modul sualları
+P1|Məqsəd: Tam funksional CRM/Satış (Phase 4) qurmazdan əvvəl biznes qərarlarını toplamaq. Lid = potensial kiracı qeydi; İmkan = ciddi danışıq; Təklif = kommersiya təklifi; Lease = icarə müqaviləsi sistem qeydi.
+
+Hər sualın altında «Cavab» sətirlərinə yazın. Cavablar BUSINESS_DECISIONS (A.10) və icra planına köçürüləcək.
+Tarix: ________________    Dolduran: Sona Babayeva________________    Rol: Satış/CRM________________
+P2|1. Modul sərhədi
+P3|Bu blok CRM ilə Satışın eyni menyuda, yoxsa ayrı olacağını və huninin mərhələlərini müəyyən edir.
+P4|1.1. CRM və Satış ERP-də necə görünsün — bir blok, yoxsa iki ayrı menyu?
+P5|Nədir / izah: «Bir blok» o deməkdir ki, sidebar-da «CRM / Satış» altında Lidlər, İmkanlar, Təkliflər, Hunisi bir yerdədir. «İki menyu» o deməkdir ki, məsələn CRM = yalnız lid/əlaqə, Satış = təklif/müqavilə.
+P6|Nə üçün lazımdır: Nav strukturu, icazələr və hansı komandanın hansı ekranı açacağı buna bağlıdır. Səhv seçim sonradan ekranları parçalamağa və ya birləşdirməyə məcbur edir.
+P7|Cavab nümunəsi: Nümunə: «Bir blok — CRM/Satış»; və ya «İki menyu: CRM (lid) + Satış (təklif)».
+P8|Cavab:
+P9|Bir Blok CRM və Satis 1 sexs idare edir
+P11|Bir blok — “CRM / Satış”. Lidlər, müştəri əlaqələri, imkanlar, fəaliyyətlər, sahəyə baxışlar, təkliflər və satış hesabatları eyni modulda olsun. Beləliklə satış əməkdaşı icarə sorğusunu ilk müraciətdən təklifə qədər bir yerdə izləyir. Müqavilə və Lease prosesi CRM/Satışdan ayrıca qalır və təsdiqlənmiş müraciət mühasibə ötürülür. Gələcəkdə komanda və proseslər böyüsə, alt bölmələr ayrıca menyuya çevrilə bilər.
+P12|______________________________________________
+P13|_______________________________________________
+P14|_______________________________________________
+P15|1.2. Satış hunisinin mərhələləri hansılardır? Lid → İmkan → Təklif → İcarə (Lease) kifayətdirmi?
+P16|Nədir / izah: Huni = potensial müştərinin müqaviləyə qədər keçdiyi addımlar. Lid = maraqlanan; İmkan = ciddi danışıq; Təklif = yazılı kommersiya təklifi; Lease = icarə müqaviləsi qeydi.
+P17|Nə üçün lazımdır: Əlavə mərhələ (məs. sayt baxışı, LOI, hüquqi razılaşma) varsa, ekran, status və hesabat buna görə qurulmalıdır. Əks halda artıq mürəkkəblik yaranır.
+P18|Cavab nümunəsi: Nümunə: «Kifayətdir» və ya «Əlavə: Sayt baxışı, LOI».
+P19|Cavab:
+P20|Yüksək səviyyəli huni üçün Lid → İmkan → Təklif → İcarə kifayətdir. Sahəyə baxış, görüş və danışıqlar ayrıca əsas mərhələlər yox, İmkan daxilində status və fəaliyyətlər kimi izlənilsin. Təklif göndərilməzdən əvvəl rəhbərlik tərəfindən təsdiqlənsin. Müştəri təklifi qəbul etdikdən sonra müraciət forması satış tərəfindən hüquqşünansa ötürülsün; Lease və müqavilə prosesini hüquqşünans icra etsin. İmzalanmış müqavilə sistemə yüklənəndə satış imkanı “Qazanıldı” kimi bağlansın. LOI mərhələsi hazırda tələb olunmur.
+P21|Kifayətdir_______________________________________________
+P22|_______________________________________________
+P23|_______________________________________________
+P24|1.3. Bu modul yalnız ofis/sahə icarəsi üçündür, yoxsa digər gəlir növləri də (event, reklam, fit-out podrat) CRM/Satışa düşür?
+P25|Nədir / izah: İndi sistem biznes mərkəzi sahə icarəsinə fokuslanır. Digər gəlirlər ayrıca proses və qiymət modeli tələb edə bilər.
+P26|Nə üçün lazımdır: Əhatə genişlənsə, təklif forması, məhsul tipi və hesabat dəyişir. Dar saxlamaq go-live-ı sürətləndirir.
+P27|Cavab nümunəsi: Nümunə: «Yalnız sahə icarəsi»; «Sonra event/reklam».
+P28|Cavab:
+P29|Binada olan MeetingRoomu da saatlarla və ya fərqli günlərlə icarəyə vermədə var 
+sonra event reklam da olacaq hansiki bina dazxilinde olacaq reklam panelleri ile_______________________________________________
+P30|_______________________________________________
+P31|_______________________________________________
+P32|2. Rollar və icazələr
+P33|Kim lid/təklif yarada, kim təsdiq edə, kim müqaviləyə keçirə bilər — bunu aydınlaşdırır.
+P34|4. Yeni lid (maraqlanan şəxs/şirkət) yaratmaq kimə icazəli olsun?
+P35|Nədir / izah: Reception zəng/walk-in qəbul edir; Property kommersiya danışır; Management rəhbərlikdir. Bir neçə rol seçilə bilər.
+P36|Nə üçün lazımdır: Səhv icazə ya hər kəsin qarışıq lid yaratmasına, ya da Reception-ın qeyd edə bilməməsinə gətirib çıxarır.
+P37|Cavab nümunəsi: Nümunə: «Reception + Property + Management».
+P38|Cavab:
+P39|Reception satis veya crm ile elaqesi yoxdur
+Crm və satış bir olduğundan lidleride teklifleride crm/satis yaradir 
+teklifler rehberlik terefinden tesdiqlenenden sonra musteriye oturulur
+P40|_Yeni mushteri bazasi satish temsilchisi terefinden yaradila biler ve parallel olaraq satish kanallari vasitesile(website, SMM kanallari ile) formalashir. Prossesde satish emekdashlari yeni lidlerle danishiqlar apararaq potensial mushterileri ve istekleri deqiqleshdirir, Potensial mushterilere sahe planinin gonderilmesi ve muqavile merhelesi rehberlik terefinden tesdiq esasinda icra edilir ______________________________________________
+P41|_______________________________________________
+P42|_______________________________________________
+P43|5. İmkan (Opportunity) və Təklif (Offer) yaratmaq / redaktə etmək kimə icazəli olsun?
+P44|Nədir / izah: İmkan = ciddi satış işi; Təklif = qiymət və şərtlər. Adətən kommersiya (Property) və rəhbərlik.
+P45|Nə üçün lazımdır: Qiymət və şərtləri yanlış rolun dəyişməsi maliyyə/müqavilə riskidir.
+P46|Cavab nümunəsi: Nümunə: «Yalnız Property və Management».
+P47|Cavab:
+P48|Sahelerin standart deyeri ilkin teklif formasin satish numayendeleri terefinde teqdim edilir. Elave muqavile shertleri ve endirim kimi melumatlar umumilikde rehberlik terefinden qerar verilerek mushteri ile razilashdirilir _______________________________________________
+P49|_______________________________________________
+P50|_______________________________________________
+P51|6. Təklifi qəbul edib Lease (icarə müqaviləsi draft) yaratmaq kimə icazəli olsun?
+P52|Nədir / izah: Bu addım sistemdə rəsmi icarə qeydini açır və sonradan billing-ə yol verir.
+P53|Nə üçün lazımdır: Kiminsə təsadüfən «qəbul» basması boş və ya səhv müqavilə yarada bilər.
+P54|Cavab nümunəsi: Nümunə: «Property; Management təsdiqindən sonra».
+P55|Cavab:
+P56|Rehberlik mushteri ile razilasharsa  
+satış müştəriyə, müraciət forması yollayır sonra müştəri müraciət formasını doldurur və geri göndərir . Bundan sonra satış müraciət formasını huquqshunansa yonlendirilir muqavile hazirlanir ve imzaya verilir.
+P57|_______________________________________________
+P58|_______________________________________________
+P59|_______________________________________________
+P60|7. Admin (IT/sistem admin) CRM/Satış modulunu görüb işləyə bilsin, yoxsa yalnız Property + Management?
+P61|Nədir / izah: Finance-də A.7 kimi Admin-in görməməsi seçilmişdi. CRM üçün eyni və ya fərqli qayda ola bilər.
+P62|Nə üçün lazımdır: Adminə açmaq texniki dəstək asanlaşdırır; bağlamaq kommersiya məlumatını məhdudlaşdırır.
+P63|Cavab nümunəsi: Nümunə: «Admin görsün (read-only)» / «Admin görməsin».
+P64|Cavab:
+P65|İT Admin görmesin mushteri melumatlarini yalniz prossesin texniki problemleri ish axininda chetinlik olarsa mudaxile ede bilsin.
+P66|_______________________________________________
+P67|_______________________________________________
+P68|_______________________________________________
+P69|8. Hər lid/imkan/təklif üçün məsul şəxs (owner) məcburi sahə olsunmu?
+P70|Nədir / izah: Owner = bu işə cavabdeh əməkdaş. Filter və xatırlatmalar buna bağlanır.
+P71|Nə üçün lazımdır: Ownersuz qeydlər «heç kimin işi» olub itir. Məcburi etmək intizam yaradır, amma Reception üçün əlavə addım ola bilər.
+P72|Cavab nümunəsi: Nümunə: «Bəli, məcburi»; «İxtiyari, default yaradan şəxs».
+P73|Cavab:
+P74|Umumilikde mushteri ile bagli ishlerin Hamisi satish komandasinin uzerinde olmaqla davam etmelidir. Prosseslerin ardicilligi ve danishiqlar modulda qeyd edilmekle istenilen emekdash danishiqlarin hansi merhelede olmasini bilerek prossesi davam etdire biler
+P75|_______________________________________________
+P76|_______________________________________________
+P77|_______________________________________________
+P78|3. Lid (Lead) — potensial kiracı
+P79|Lid = hələ müqaviləsi olmayan, amma marağı olan şəxs/şirkət qeydi.
+P80|9. Lid mənbələrinin son siyahısı hansıdır?
+P81|Nədir / izah: Sistemdə hazırda: website, telefon, email, walk-in, referral, manual, other. Broker, LinkedIn, event və s. əlavə oluna bilər.
+P82|Nə üçün lazımdır: Mənbə hesabatı «haradan gəlir» göstərir; marketinq və Reception prosesi buna görə qurulur.
+P83|Cavab nümunəsi: Siyahını yazın və ya «mövcud siyahı kifayətdir» deyin.
+P84|Cavab:
+P86|Excel-də istifadə olunan mənbələr əsas götürülsün və ilkin mərhələdə aşağıdakı siyahı tətbiq edilsin: Vebsayt, telefon, e-poçt, birbaşa müraciət/görüş, sosial şəbəkə (SMM), hədəfli reklam (Targeting), billboard, soyuq zəng, e-poçt marketinqi, yönləndirmə və digər. “Digər” seçiləndə izah yazılması tələb olunsun. Broker, LinkedIn və tədbir kimi yeni mənbələr sonradan əlavə edilə bilsin. Mənbə ilə reklam kampaniyası və əlaqə kanalı ayrı məlumatlar kimi saxlanılsın ki, hesabatlar dəqiq olsun.
+P87|_______________________________________________
+P88|_______________________________________________
+P89|_______________________________________________
+P90|10. Lid yaratarkən hansı sahələr məcburi olsun?
+P91|Nədir / izah: Məsələn: ad, telefon və/və ya email, şirkət adı, maraqlı sahə/m², büdcə, qeyd.
+P92|Nə üçün lazımdır: Həddən artıq məcburi sahə Reception-ı yavaşladır; çox azı isə sonradan əlaqəni mümkünsüz edir.
+P93|Cavab nümunəsi: Nümunə: «Ad + telefon məcburi; email/şirkət ixtiyari».
+P94|Cavab:
+P96|Lid yaratmaq mümkün qədər sürətli olsun. İlkin qeyd zamanı müraciət tarixi sistem tərəfindən avtomatik yazılsın və lazım gəldikdə dəyişdirilə bilsin; lid mənbəyi məcburi seçilsin. Müştərini tanımaq üçün şirkət adı, əlaqəli şəxs, telefon və e-poçtdan ən azı biri daxil edilməlidir. Telefon və e-poçt birlikdə məcburi olmasın. “Digər” mənbə seçilərsə, izah tələb olunsun.
+P97|Tələb olunan sahə, şirkətin işçi sayı və büdcə lid yaradılarkən doldurula bilən sahələr olsun, lakin məlumat hələ məlum deyilsə lidin qeydiyyatını bloklamasın. Lidi “Potensial” kimi təsdiqləməzdən və təklif hazırlamazdan əvvəl tələb olunan sahə (və ya müştərinin sahə tələbinin hələ dəqiqləşmədiyi qeyd) və işçi sayı (və ya “məlum deyil”) dəqiqləşdirilsin. Büdcə məlum deyilsə boş qala bilsin.:::writing_variant_nonexistent
+P102|_Bizim saytda olan melumatlar hansilar ki muraciet formasinda var onlarin Hamisi optional olmaq sherti ile 
+Shirketi adi
+Fealiyyet sahesi – adindan belli olmazsa qeyd edile biler
+P103|Axtardigi sahe 
+ishchi sayi 
+Parking zerureti
+_____________________________________________
+P104|_______________________________________________
+P105|_______________________________________________
+P106|11. Lid statusları hansılar olsun və nə deməkdir?
+P107|Nədir / izah: Hazırda: Yeni, Keyfiyyətli (qualified), Keyfiyyətsiz (disqualified), Çevrilib (converted). Əlavə: «Əlaqə qurulur», «Gözləmə» və s.
+P108|Nə üçün lazımdır: Status hunisi və KPI-ləri idarə edir; qeyri-müəyyən status hesabatı pozur.
+P109|Cavab nümunəsi: Mövcud statusları təsdiq edin və ya dəyişiklik yazın.
+P110|Cavab:
+P111|Lid üçün kvalifikasiya statusları üç dəyərdən ibarət olsun:
+P112|Yeni — hələ satış əməkdaşı tərəfindən qiymətləndirilməyib.
+P113|Potensial — tələb olunan sahə, qiymət və digər ehtiyaclar City Point-in təkliflərinə uyğundur.
+P114|Qeyri-potensial — tələb hazırkı təkliflərə uyğun deyil; səbəb seçilməli, “Digər” seçilərsə izah yazılmalıdır.
+P115|“Çevrilib” ayrıca əl ilə seçilən status olmasın: liddən Opportunity yaradıldıqda sistem onu əlaqələndirsin və çevrilmə tarixçəsini qeyd etsin. Əlaqə qurulur, cavab gözlənilir, sahəyə baxış, görüş, danışıqlar və təklif mərhələləri Opportunity-də status/fəaliyyət kimi izlənilsin. Excel-dəki açıq/gözləntidə/bağlı vəziyyəti və nəticə səbəbləri də kvalifikasiya statusundan ayrı saxlanılsın. Kvalifikasiya sonradan dəyişdirilərsə, əvvəlki qərar tarixçədə qalsın.
+P121|Lidin istədiyi sahə və qiymət uyğun olmursa – qeyri-potensial
+P122|Lidin istədiyi sahə və qiymət uyğun olarsa – potensial
+bunu ERP-de sistemde sahe ve qiymet uygunsuzluqlarini ayrica gostersin.. 
+
+Elaqe yaradildi
+Gorush teyin edildi
+Baxish kechirildi
+Imtina edildi
+Razilashdirildi
+P123|_______________________________________________
+P124|_______________________________________________
+P125|_______________________________________________
+P126|12. Eyni email/telefon/şirkət təkrar gələndə nə olsun (duplicate)?
+P127|Nədir / izah: Seçimlər: xəbərdarlıq göstər; avtomatik mövcud lidə bağla; həmişə yeni yaz; əl ilə birləşdir.
+P128|Nə üçün lazımdır: Duplicate-lər hunini şişirdir və eyni müştəriyə iki nəfərin zəng etməsinə səbəb olur.
+P129|Cavab nümunəsi: Nümunə: «Xəbərdarlıq + mövcud lidə keçid».
+P130|Cavab:
+P131|Eyni lidə bağlı olsun lakin fəqləndirici tarixdə olsun 
+lead-ler shirket adlari ve email ve telefon nomreleri her hansi biri systemin bazasinda olan kohne melumatlarla ust uste dusherse bunu tekrar muraciet kimi gore bilek
+_______________________________________________
+P132|_______________________________________________
+P133|_______________________________________________
+P134|13. Website-dən avtomatik lid (B.4) go-live üçün lazımdır, yoxsa yalnız əl ilə qeyd kifayətdir?
+P135|Nədir / izah: Air-gap/LAN mühitdə website→ERP birbaşa olmaya bilər; VPN/relay və ya sonra əlavə olunur.
+P136|Nə üçün lazımdır: «Website lid» DoD-ni bloklamamaq üçün aydın qərar lazımdır; əks hala stub «hazır» kimi qalır, trafik gəlmir.
+P137|Cavab nümunəsi: Nümunə: «İndi yalnız əl ilə»; «LAN-da website lazımdır».
+P138|Cavab:
+P139|Gələcəkdə systemin crm hissəsi vebsayt ilədə əlaqədə olacaq hansı ki orada müştəri özü sorğu yarada biləcək 
+burada qeyd olunacaq sual 10 dakı bütün cavablar sistemdəki ilə eyni və yeni lid kimi sistemə avtomatik düşəcək və satış tərəfindən təsdiq olunacaq sonra lidə düşəcək həmin lidlər veb sayt/gözləyir statusunda olacaq _______________________________________________
+P140|_______________________________________________
+P141|_______________________________________________
+P142|4. İmkan (Opportunity)
+P143|İmkan = lid keyfiyyətli sayılıb ciddi danışıq/satış işinə çevrilmiş mərhələ.
+P144|14. İmkan həmişə liddən yaransın, yoxsa birbaşa da açıla bilsin (məs. mövcud rezident əlavə sahə istəyir)?
+P145|Nədir / izah: Mövcud kiracı genişlənmə istəyəndə yeni «lid» mənasız ola bilər; birbaşa İmkan/Təklif daha təbii olur.
+P146|Nə üçün lazımdır: Proses və UI: «yalnız liddən» sadədir; «birbaşa da» real əməliyyata uyğundur.
+P147|Cavab nümunəsi: Nümunə: «Hər ikisi — lid və birbaşa».
+P148|Cavab:
+P149|Buna ehtiyac yoxdur çünkü həmin resident öz portalından ticket yarada bilir hansı ki kommersialın alt kateqoriyalarında sahə ilə bağlı var gelecek bu ticket kateqoriyasi bashligi altinda olan sorgular satisha tekrar daxili mushteri kimi gelecek.
+P150|_______________________________________________
+P151|_______________________________________________
+P152|_______________________________________________
+P153|15. Commercial ticket → Opportunity axını saxlanılsınmı? Hansı ticket növləri CRM-ə düşməlidir?
+P154|Nədir / izah: Sistemdə CRM-eligible ticket-lərdən «Opportunity yarat» düyməsi var (məs. sahə genişlənmə, kommersiya sorğusu).
+P155|Nə üçün lazımdır: Service Desk növbəsi ilə satış hunisinin qarışmaması üçün sərhəd lazımdır.
+P156|Cavab nümunəsi: Nümunə: «Bəli saxla; yalnız crm_eligible altkateqoriyalar».
+P157|Cavab:
+P158|Ticketden gelen commercial muracietler tekrar daxili mushteri kimi qeydiyyata dushsun._______________________________________________
+P159|_______________________________________________
+P160|_______________________________________________
+P161|16. İmkan «Lost» (itirildi) olanda səbəb siyahısı lazımdırmı?
+P162|Nədir / izah: Məsələn: qiymət, rəqib bina, yer/mərtəbə, timing, büdcə yoxdur, cavabsız.
+P163|Nə üçün lazımdır: Rəhbərlik niyə uduzduğunu görə bilər; səbəbsiz Lost hesabatı boş qalır.
+P164|Cavab nümunəsi: Səbəbləri yazın və ya «ixtiyari mətn kifayətdir».
+P165|Cavab:
+P166|Cavabsiz
+qeyd edilen kateqoriya sechilende hansi elaqe vasiteleri ile cehd edilib wp-nomre ile zeng-email kimi sechimleri radio button-la eyni anda bir nechesini sechmek imkani olsun 
+Qiymet 
+Sahe
+Parking yerin az olmasi
+diger – sechilende buna elave olaraq qeyd yeri achilsin sebeb qeyd edilmesi uchun_______________________________________________
+P167|_______________________________________________
+P168|_______________________________________________
+P169|17. Bir İmkan altında bir neçə sahə (Space) seçilə bilməlidirmi?
+P170|Nədir / izah: Bəzi müştərilər 2–3 ofis və ya ofis+anbar istəyir; təklif də çoxsətirli ola bilər.
+P171|Nə üçün lazımdır: Tək sahə sadədir; çoxsahə model və PDF-i mürəkkəbləşdirir.
+P172|Cavab nümunəsi: Nümunə: «MVP-də bir sahə; sonra çoxsahə».
+P173|Cavab:
+P174|Bəzən müştərilər 500 m² sahə istəyir bu zaman tək 500 lük ofis yoxdursa iki ayrı ofis birdən təklif oluna bilir hansı ki məsələn biri 200 biri 300 amma bu sahələrin müqavilələri ayrı ayrı hazırlanır
+P175|_______________________________________________
+P176|_______________________________________________
+P177|_______________________________________________
+P178|5. Təklif (Offer) və qiymət
+P179|Təklif = yazılı kommersiya şərtləri (sahə, kirayə, SC, müddət və s.).
+P180|18. Təklifdə qiymət necə hesablansın: m² × tarif (A.4), sabit aylıq məbləğ, yoxsa hər ikisi?
+P181|Nədir / izah: A.4 qərarı: icarə adətən rentable m² × AZN/m² (ƏDV-siz). Bəzən razılaşdırılmış sabit məbləğ də olur.
+P182|Nə üçün lazımdır: Billing və faktura eyni məntiqlə işləməlidir; təkliflə lease uyğunsuz olsa mübahisə yaranır.
+P183|Cavab nümunəsi: Nümunə: «Əsas m²×tarif; istisna olaraq sabit override».
+P184|Cavab:
+P185|Normalda bütün lidlərə təklif olunan qiymət 1kvm a 33 manatdır +18% ƏDV həmçinin müştərilər ilə real danışıqlarda və görüşlərdə endirimlərdə tətbiq oluna bilir amma bu endirimlər əvvəlcə rəhbərlik tərəfdən təsdiqlənməlidir
+P186|Bu qiymətə bütün komunal xidmətlər (internet xaric),təmizlik,təhlükəsizlik,reception,7/24 giriş çıxış imkanıda daxildir
+P187|_______________________________________________
+P188|_______________________________________________
+P189|_______________________________________________
+P190|19. Təklif formasında hansı sahələr məcburi olsun (SC, depozit, parkinq qeydi, fit-out, digər)?
+P191|Nədir / izah: A.4: parkinq ödənişsiz müqavilədə qeyd; depozit adətən 2 ay; SC ayrıca; fit-out avtomatik güzəşt yox.
+P192|Nə üçün lazımdır: Boş buraxılan sahələr sonra lease və fakturada sürpriz yaradır.
+P193|Cavab nümunəsi: Məcburi siyahını yazın.
+P194|Cavab:
+P195|Müraciət formasını sənə göndərəcəm orda hər bir sahə yazılıb_______________________________________________
+P196|_______________________________________________
+P197|_______________________________________________
+P198|20. Təklifin default etibar müddəti (valid_until) neçə gün olsun?
+P199|Nədir / izah: Məsələn 7, 14 və ya 30 gün. Müddət bitəndə təklif «köhnəlmiş» sayılır.
+P200|Nə üçün lazımdır: Köhnə qiymətlə qəbul riskini azaldır; follow-up prosesini dəqiq edir.
+P201|Cavab nümunəsi: Nümunə: «14 gün».
+P202|Cavab:
+P203|Müddətsizdir
+P204|_______________________________________________
+P205|_______________________________________________
+P206|_______________________________________________
+P207|21. Eyni İmkan üçün bir neçə təklif versiyası (reviziya) lazımdırmı?
+P208|Nədir / izah: Məsələn v1 göndərildi, müştəri endirim istədi, v2 yaradıldı. Köhnə versiya tarixçədə qalır.
+P209|Nə üçün lazımdır: Tək təklifi overwrite etmək audit və «nə razılaşdıq» izini itirir.
+P210|Cavab nümunəsi: Nümunə: «Bəli, versiyalar»; «MVP-də bir aktiv təklif».
+P211|Cavab:
+P212|Bəli versiyalar qalsın
+P213|_______________________________________________
+P214|_______________________________________________
+P215|_______________________________________________
+P216|22. Endirim / xüsusi şərt olanda kim təsdiq edir və limit varmı (faiz və ya AZN)?
+P217|Nədir / izah: Məsələn 5%-ə qədər Property; üstü Management.
+P218|Nə üçün lazımdır: Nəzarətsiz endirim marjanı və A.4/A.7 uyğunluğunu pozur.
+P219|Cavab nümunəsi: Nümunə: «≤5% Property; >5% Management».
+P220|Cavab:
+P221|Hər bir endirimdə qiymətlə bağlı dəyişikdə rəhbərliyin təsdiqi olmalıdır 
+endirimdə faiz limiti yoxdur
+P222|_______________________________________________
+P223|_______________________________________________
+P224|_______________________________________________
+P225|6. Təsdiq (Approval) və sənədlər
+P226|Kim təklifi rəsmən göndərə / qəbul edə bilər və PDF harada yaşayır.
+P227|23. Təklif müştəriyə göndərilməzdən əvvəl daxili təsdiq lazımdırmı? Kim?
+P228|Nədir / izah: Seçimlər: təsdiqsiz göndər; Property; Management; əvvəl Property sonra Management.
+P229|Nə üçün lazımdır: A.7 approval matrix-in CRM hissəsidir; boş qalsa ya hamı göndərir, ya heç kim.
+P230|Cavab nümunəsi: Nümunə: «Göndərmədən əvvəl Management».
+P231|Cavab:
+P232|Göndərmədən əvvəl təklif rəhbər tərəfindən təsdiqlənməlidir
+_______________________________________________
+P233|_______________________________________________
+P234|_______________________________________________
+P235|24. Hansı məbləğ və ya sahə (m²) həddindən yuxarı ikinci imza (Management) məcburi olsun?
+P236|Nədir / izah: Kiçik ofislər sürətli keçsin; böyük deal-lər rəhbərlikdə dayansın.
+P237|Nə üçün lazımdır: Hədd olmadan ya hər şey yavaşlayır, ya böyük risklər nəzarətsiz qalır.
+P238|Cavab nümunəsi: Nümunə: «>50.000 AZN/il və ya >200 m² → Management».
+P239|Cavab:
+P240|Bütün təklifləri rəhbərlik təsdikləməlidir
+P241|_______________________________________________
+P242|_______________________________________________
+P243|_______________________________________________
+P244|25. Təklif PDF şablonu varmı? Dil (AZ/EN/RU), logo, hüquqi mətn kim tərəfindən veriləcək?
+P245|Nədir / izah: PDF olmadan təklif yalnız ekranda qalır; müştəriyə göndərmək üçün şablon lazımdır.
+P246|Nə üçün lazımdır: Şablon geciksə Phase 4 DoD «offer PDF» natamam qalır.
+P247|Cavab nümunəsi: «Şablon əlavə olunacaq (fayl adı…)» / «Əvvəlcə ekran, PDF sonra».
+P248|Cavab:
+P249|Bəli təklif sənədi var yüklənəcək oda sistemə
+P250|_______________________________________________
+P251|_______________________________________________
+P252|_______________________________________________
+P253|26. Qəbul olunmuş təklifdən sonra hüquqi müqavilə PDF-i CRM modulunda saxlansın, yoxsa Lease / Documents-də?
+P254|Nədir / izah: CRM = satış; Lease/Documents = rəsmi müqavilə arxivi. Təkrar saxlama qarışıqlıq yarada bilər.
+P255|Nə üçün lazımdır: SoT (single source of truth) aydın olmalıdır — audit və portal sənədləri üçün.
+P256|Cavab nümunəsi: Nümunə: «Müqavilə yalnız Lease/Documents; CRM-də link».
+P257|Cavab:
+P258|Müqavilənin bir nüsxəsi normalda yəni real həyatda satışdada olurdu
+müqavilənin saxlanma yeri 1 ədəd olur lakin satişda və ya digər əlaqəli moduldada görmək mümkün olsun
+P259|_______________________________________________
+P260|_______________________________________________
+P261|_______________________________________________
+P262|7. Lease keçidi və digər modullarla əlaqə
+P263|Təklif qəbulundan sonra icarə qeydi və şirkət (party) nə vaxt yaranır.
+P264|27. Offer accept sonrası Lease hansı statusda açılsın (draft, negotiation, signed…)?
+P265|Nədir / izah: Draft = hələ imzasız; Signed/Active = artıq rəsmi. Billing adətən Active + billing_active tələb edir.
+P266|Nə üçün lazımdır: Səhv status dərhal charge/faktura yarada və ya əksinə prosesi dayandıra bilər.
+P267|Cavab nümunəsi: Nümunə: «Həmişə Draft; imza ayrı addım».
+P268|Cavab:
+P269|Müqavilə hissəsi ancaq mühasib tərəfindən icra olunur
+P270|Sadəcə nüsxəsi satışda saxlanılır
+P272|Müştəri təklifi qəbul etdikdən və müraciət forması mühasibə ötürüldükdən sonra Lease müqaviləsini mühasib hazırlasın. Müqavilə imzalandıqda sistemə yüklənib Signed/Upcoming statusunda saxlanılsın. Lease müqavilənin başlama tarixində avtomatik Active statusuna keçsin; müqavilənin yükləndiyi tarix statusu aktiv etməsin. Billing də müqavilənin başlama tarixinə əsasən başlasın. Müqavilənin bitmə tarixi izlənilsin, bitmə tarixi yaxınlaşdıqda sistem məsul şəxslərə xəbərdarlıq göndərsin və müqavilə bitdikdə statusu uyğun qaydada yenilənsin. Xəbərdarlıqların neçə gün əvvəl göndəriləcəyi konfiqurasiya edilə bilsin; avtomatik yenilənmə və ya uzadılma baş verməsin.
+P274|_______________________________________________
+P275|_______________________________________________
+P276|_______________________________________________
+P277|28. Yeni şirkət/party nə vaxt yaradılsın — lid mərhələsində, təklifdə, yoxsa yalnız qəbulda?
+P278|Nədir / izah: Party = sistemdə şirkət/şəxs master qeydi (lease, invoice, portal buna bağlanır).
+P279|Nə üçün lazımdır: Tez yaratmaq duplicate party riski; gec yaratmaq isə təklifi «boş» saxlayır.
+P280|Cavab nümunəsi: Nümunə: «Qualify/İmkan zamanı party bağla və ya yarat».
+P281|Cavab:
+P282|Təsdiq olunub imzalanmış Müqavilə sistemə yükləndikdən sonra
+P283|_______________________________________________
+P284|_______________________________________________
+P285|_______________________________________________
+P286|29. Mövcud rezident əlavə sahə götürəndə: yeni Lease, yoxsa mövcud müqaviləyə amendment (əlavə)?
+P287|Nədir / izah: Yeni lease = ayrıca müqavilə kodu; amendment = parent_lease ilə bağlı dəyişiklik.
+P288|Nə üçün lazımdır: Billing, depozit və xitam qaydaları fərqlənir; hüquqi praktikanıza uyğun seçilməlidir.
+P289|Cavab nümunəsi: Nümunə: «Adətən yeni lease»; «Böyük dəyişiklikdə amendment».
+P290|Cavab:
+P291|Yeni müqavilə hazırlanır
+P292|_______________________________________________
+P293|_______________________________________________
+P294|_______________________________________________
+P295|8. Proses və SLA
+P296|Vaxt intizamı: nə qədər tez cavab, xatırlatma, müddəti bitmiş təklif.
+P297|30. Yeni lidə ilk cavab üçün hədəf müddət varmı (saat/gün)?
+P298|Nədir / izah: Məsələn 4 iş saatı və ya 1 iş günü. Sistem xatırlatma/KPI göstərə bilər.
+P299|Nə üçün lazımdır: Gec cavab conversion-u aşağı salır; hədəf olmadan KPI boşdur.
+P300|Cavab nümunəsi: Nümunə: «1 iş günü»; «SLA yox, yalnız manual».
+P301|Cavab:
+P302|Sistemə düşmüş Lid 24 iş saatı ərzində cavablandırılmadıqda xatırlatma olsun
+P303|_______________________________________________
+P304|_______________________________________________
+P305|_______________________________________________
+P306|31. Təklif göndərildikdən sonra follow-up xatırlatma lazımdırmı? Neçə gündən bir?
+P307|Nədir / izah: Məsələn 3 və 7-ci günə tapşırıq/bildiriş.
+P308|Nə üçün lazımdır: Göndərilib unudulan təkliflər hunidə «ölü» qalır.
+P309|Cavab nümunəsi: Nümunə: «3 gün sonra xatırlat»; «Lazım deyil».
+P310|Cavab:
+P311|3 gün ərzində qarşı tərəfdən cavab gəlmədikdə xatırlatma göstərilsin
+P312|_______________________________________________
+P313|_______________________________________________
+P314|_______________________________________________
+P315|32. Etibar müddəti bitmiş təklif avtomatik expired/rejected statusuna keçsinmi?
+P316|Nədir / izah: Avtomatik bağlama tarixçəni təmiz saxlayır; əl ilə bağlama isə çeviklik verir.
+P317|Nə üçün lazımdır: Köhnə «sent» təkliflər pipeline məbləğini şişirdə bilər.
+P318|Cavab nümunəsi: Nümunə: «Bəli, avtomatik expired»; «Xeyr, əl ilə».
+P319|Cavab:
+P320|Xeyr əl ilə
+P321|_______________________________________________
+P322|_______________________________________________
+P323|_______________________________________________
+P324|9. Hunisi, hesabat və bildiriş
+P325|Rəhbərlik nəyi izləsin və status dəyişəndə kim xəbərdar olsun.
+P326|33. Rəhbərlik üçün əsas KPI-lər hansılardır?
+P327|Nədir / izah: Məsələn: yeni lid sayı, conversion % (lid→lease), orta cycle günü, açıq pipeline AZN, uduzma səbəbləri.
+P328|Nə üçün lazımdır: Hesabat ekranı və dashboard buna görə qurulur; hər metrik əlavə işdir.
+P329|Cavab nümunəsi: 3–5 əsas metriki seçin.
+P330|Cavab:
+P333|CRM və Satış hesabatları ayrı modullar və ayrı hesabat məntiqi ilə qurulsun.
+P334|CRM hesabatı lid axınını və mənbələrin effektivliyini göstərsin:
+P335|dövr üzrə hər kanal və mənbədən gələn lidlərin sayı;
+P336|hər mənbə üzrə baxılan, potensial, qeyri-potensial, imtina edilən və digər statuslardakı lidlərin sayı və payı;
+P337|mənbədən potensiala, imkana və sonrakı mərhələlərə keçid faizi;
+P338|lidə ilk baxılma/cavab müddəti;
+P339|cari vəziyyət və seçilən tarix aralığı üzrə hesabat.
+P340|Satış hesabatı real satış danışığına və kommersiya nəticəsinə keçmiş imkanları göstərsin:
+P341|aktiv imkanlar və danışıqlar;
+P342|sahəyə baxış və görüşlər;
+P343|Management təsdiqində olan və göndərilmiş təkliflər;
+P344|müştəriyə göndərilmiş və geri alınmış müqavilə müraciət formaları;
+P345|bron edilmiş sahələr;
+P346|imzalanmış müqavilələr, sahə m²-si və aylıq icarə məbləği;
+P347|satış mərhələləri üzrə cari vəziyyət və tarix aralığı üzrə nəticələr.
+P348|Hər iki hesabatda cari vəziyyətə və seçilən dövrə baxmaq mümkün olsun. Keçmişdə konkret günün sonunda statusların necə olduğunu görmək üçün status və mərhələ dəyişiklikləri tarixçədə saxlanılsın və gündəlik hesabat göstəricilərinin snapshot-u yaradılsın. Hesabatlar Bakı yerli vaxtı ilə günün sonuna görə formalaşsın.
+P349|Sistemin verilənlər bazası da hər gün avtomatik backup edilsin. Hesabat snapshot-ları ilə database backup ayrı məqsədlərə xidmət edir: snapshot keçmiş hesabatı göstərir, backup isə sistem məlumatlarını bərpa etmək üçündür. Backup-lar sıxılmış, giriş hüquqları məhdud və retention qaydasına uyğun saxlanılsın; bərpa sınağı mütəmadi aparılsın. Bu gündəlik proses lokal serverdə internet olmadan işləməli və son uğurlu backup/snapshot vaxtı sistemdə görünməlidir.
+P351|CRM və satış üçün Hesabat ekranı mütləq olsun 
+hal hazırda satış hesabatı necə verirdisə onunda filesini səninlə bölüşəcəm
+P352|_______________________________________________
+P353|_______________________________________________
+P354|_______________________________________________
+P355|34. Hunisi görünüşü: Kanban lövhə (sütunlar), yoxsa cədvəl + filter kifayətdir?
+P356|Nədir / izah: Kanban vizualdır, sürüklə-burax status dəyişir; cədvəl daha sadə və sürətli qurulur.
+P357|Nə üçün lazımdır: UI mürəkkəbliyi və sprint həcmi buna bağlıdır.
+P358|Cavab nümunəsi: Nümunə: «Əvvəl cədvəl; Kanban sonra».
+P359|Cavab:
+P361|Kanban olmadan həm səliqəli, həm də istifadəsi rahat görünüş üçün mərhələ zolağı + cədvəl təklif edirəm:
+P362|Yuxarıda Lid → İmkan → Təklif → Müqavilə mərhələlərini və hər mərhələdəki qeydlərin sayını göstərən kompakt zolaq.
+P363|Aşağıda seçilmiş mərhələnin məlumatları cədvəldə: şirkət, əlaqəli şəxs, mənbə, tələb olunan m², status, son fəaliyyət və növbəti addım.
+P364|Axtarış, tarix/status/mənbə filtrləri və aydın status nişanları.
+P365|Sətir seçildikdə lidin və ya imkanın detalları ayrıca paneldə açılsın.
+P366|Beləliklə huni vizual görünür, amma kartları sürükləməklə mərhələni səhvən dəyişmək riski olmur. 34-cü sual üçün cavab: “Kanban əvəzinə mərhələ göstəricisi olan cədvəl görünüşü; mərhələ seçildikcə cədvəl həmin mərhələnin qeydlərini göstərsin.”
+P369|Cədvəl olsun
+P370|_______________________________________________
+P371|_______________________________________________
+P372|_______________________________________________
+P373|35. Status dəyişəndə (yeni lid, təklif göndərildi, qəbul) kimə in-app və/və ya email bildiriş getsin?
+P374|Nədir / izah: Owner, Management, Reception və s. seçilə bilər.
+P375|Nə üçün lazımdır: Həddən artıq mail ignore olunur; az bildirmək isə deal-i gecikdirir.
+P376|Cavab nümunəsi: Nümunə: «Owner + Management; email yalnız qəbul/rejected».
+P377|Cavab:
+P378|Lidlər ilə bağlı notficationa ehtiyyac yoxdur 
+_______________________________________________
+P379|_______________________________________________
+P380|_______________________________________________
+P381|10. Dil, demo və go-live
+P382|İstifadə dili, nümunə data və menyunun nə vaxt açılacağı.
+P383|36. CRM/Satış UI dil prioriteti hansıdır (AZ / EN / RU)?
+P384|Nədir / izah: Sistem çoxdillidir; əsas dil təlim və PDF default-unu müəyyən edir.
+P385|Nə üçün lazımdır: Tərcümə və şablon sırası buna görə planlaşdırılır.
+P386|Cavab nümunəsi: Nümunə: «AZ əsas; EN ikinci».
+P387|Cavab:
+P388|əsas dil Azərbaycan dilidir
+P389|_______________________________________________
+P390|_______________________________________________
+P391|_______________________________________________
+P392|37. Demo/seed üçün neçə nümunə lid, imkan və təklif kifayətdir?
+P393|Nədir / izah: Təqdimat və test üçün hazır nümunələr (məs. 5 lid, 2 təklif, 1 qəbul→lease).
+P394|Nə üçün lazımdır: Boş modul demo-da «işləmir» təəssüratı yaradır.
+P395|Cavab nümunəsi: Nümunə: «5 lid / 3 imkan / 2 təklif».
+P396|Cavab:
+P397|Ilkin versiya üçün demo lidlər yaradılsın
+P398|_______________________________________________
+P399|_______________________________________________
+P400|_______________________________________________
+P401|38. ERP sidebar-da CRM menyusu (nav_crm) nə vaxt açılsın — indi (qismən), yoxsa modul hazır olandan sonra?
+P402|Nədir / izah: Hazırda MVP üçün nav_crm gizlidir; birbaşa URL ilə listlər var.
+P403|Nə üçün lazımdır: Tez açmaq natamam UI göstərir; gec açmaq isə istifadəyə başlamağı gecikdirir.
+P404|Cavab nümunəsi: Nümunə: «CRUD hazır olandan sonra aç».
+P405|Cavab:
+P406|Modul hazır olandan sonra
+P407|_______________________________________________
+P408|_______________________________________________
+P409|_______________________________________________
+P410|Əlavə qeydlər
+P411|Buraya yuxarıya sığmayan proses, istisna və hüquqi tələbləri yazın:
+P412|_______________________________________________
+P413|_______________________________________________
+P414|_______________________________________________
+P415|_______________________________________________
+P416|_______________________________________________
+P417|_______________________________________________
+P418|_______________________________________________
+P419|_______________________________________________
+---TABLES 0

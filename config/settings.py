@@ -186,6 +186,10 @@ CRM_DEFAULT_RENT_RATE_PER_M2 = os.environ.get("CRM_DEFAULT_RENT_RATE_PER_M2", "3
 CRM_VAT_RATE = os.environ.get("CRM_VAT_RATE", "18.00")
 CRM_LEAD_IDLE_REMINDER_DAYS = int(os.environ.get("CRM_LEAD_IDLE_REMINDER_DAYS", "1"))
 CRM_OFFER_FOLLOWUP_DAYS = int(os.environ.get("CRM_OFFER_FOLLOWUP_DAYS", "3"))
+# Offer email via apps.comms.mail (NotificationDispatch). Off by default (air-gapped / file outbox).
+CRM_OFFER_SEND_EMAIL = os.environ.get("CRM_OFFER_SEND_EMAIL", "0") == "1"
+LEASE_EXPIRING_NOTICE_DAYS = int(os.environ.get("LEASE_EXPIRING_NOTICE_DAYS", "90"))
+LEASE_LIFECYCLE_POLL_INTERVAL = int(os.environ.get("LEASE_LIFECYCLE_POLL_INTERVAL", "3600"))
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "post_login"
 LOGOUT_REDIRECT_URL = "login"

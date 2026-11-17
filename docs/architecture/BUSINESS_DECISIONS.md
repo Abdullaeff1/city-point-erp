@@ -131,22 +131,37 @@ Yalnız burada qeyd olunan cavablar kod/ops-da tətbiq olunur; digər suallar a�
 
 ## A.10 — CRM / Satış əhatəsi
 
-**Status:** cavablandı · tətbiq olunur (2026-11-12) · owner: Satış/CRM
+**Status:** cavablandı · V2 blank (2026-11-17) · owner: Satış/CRM
 
 | Mövzu | Qərar |
 |-------|--------|
 | Modul | Bir ERP bloku CRM/Satış; Reception CRM yox |
-| Rol | `sales` (mutate); Management ERP (offer approval RO); Accountant (LeaseApplication→Lease); Admin read-only |
+| Rol | `sales` (mutate); Management (offer approve + RO); Accountant (LeaseApplication→Lease); **Admin CRM görmür** (texniki dəstək role-switch) |
 | Huni | Lid → Qualification → İmkan → Təklif → Management → Müraciət formu → Mühasib → Lease/Documents |
+| UI | Kanban yox — mərhələ zolağı + cədvəl; AZ dil |
 | Qualification | `unreviewed` / `potential` / `non_potential` (+ səbəb) |
 | Pipeline stage | Excel map: working…won/lost/on_hold (canonical kodlar) |
-| Offer | Versiyalı; default 33 AZN/m²; bütün göndərişlər Management təsdiqi; müddətsiz; 3 gün follow-up |
-| Lease | Satış yaratmır — `LeaseApplication` → mühasib; Party imzadan sonra |
+| Offer | Versiyalı; default 33 AZN/m² bundled +18% ƏDV; bütün göndərişlər Management təsdiqi; müddətsiz; PDF; 3 gün follow-up |
+| Lease | Satış yaratmır — `LeaseApplication` → **mühasib** (hüquqşünas Phase 2); SoT Documents/Lease + CRM link |
+| Party | Prospect təklif/imkan zamanı; resident/portal aktiv yalnız imzalı lease-dən sonra |
 | Multi-space | Ayrı Offer + ayrı LeaseApplication + ayrı Lease |
-| Reminder | Lid 1 calendar day; Offer sent+3; idempotent |
-| Scope xaric | Meeting Room, website intake, reklam, Excel tarixi import → Phase 2 |
+| Reminder | Lid 24 iş saatı; Offer sent+3; lid mail bildirişi yox; idempotent |
+| Hesabat | Ayrı CRM (mənbə/kvalifikasiya) və Satış (imkan/təklif/imza) tabları; snapshot/backup Phase 2 |
+| Scope xaric | Meeting Room, website intake, reklam, commercial ticket→daxili lid, hüquqşünas rolu → Phase 2 |
 
 **Kod:** `apps/crm`; ERP CRM views; `ApprovalService` `crm.offer.send`. Mapping: `docs/architecture/CRM_FIELD_MAPPING.md`.
+
+### A.10 Phase 2 backlog (CRM)
+
+| Maddə | Qeyd |
+|-------|------|
+| Meeting Room | Saatlıq icarə — ofis hunisindən ayrı |
+| Bina reklam panelləri | Kommersiya inventar |
+| Website lid | Form → `website_pending` → sales təsdiqi |
+| Commercial ticket → daxili müştəri lid | Tickets bridge |
+| Günlük report snapshot + DB backup | Ops job; CRM UI-dan ayrı |
+| Hüquqşünas rolu | Mühasibdən ayrı lazım olarsa |
+| Offer PDF corporate şablon upload | Default AZ generator Phase 1-də qalır |
 
 ---
 
@@ -209,7 +224,7 @@ Ayrı `/management/` shell yoxdur — rəhbər **ERP** istifadə edir. Login →
 |----------|--------|
 | Təsdiq növbəsi | `/erp/approvals/` |
 | Ödəniş təsdiqi | `/erp/payment-approvals/` |
-| CRM | ERP CRM RO (+ offer approve); mutate yalnız sales |
+| CRM | Management RO + offer approve; Sales mutate; Admin CRM yox |
 | Avadanlıq/inventar | ERP RO; mutate yalnız accountant |
 | SLA / Aging / Dövrlər | ERP nav |
 

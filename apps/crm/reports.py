@@ -1,10 +1,11 @@
-"""CRM report metrics + XLSX export helpers."""
+"""CRM vs Satış report metrics + XLSX export helpers."""
 
 from __future__ import annotations
 
+from decimal import Decimal
 from io import BytesIO
 
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
 
 from apps.crm.models import (
@@ -17,6 +18,7 @@ from apps.crm.models import (
     OfferStatus,
     Opportunity,
     OpportunityStatus,
+    Qualification,
 )
 
 
@@ -43,127 +45,207 @@ def filtered_leads(params: dict):
     return qs
 
 
-def build_crm_report(params: dict | None = None) -> dict:
-    params = params or {}
-    leads = filtered_leads(params)
-    lead_ids = list(leads.values_list("pk", flat=True))
+def _scoped_opps(params: dict, lead_ids: list[int]):
     opps = Opportunity.objects.filter(Q(lead_id__in=lead_ids) | Q(lead__isnull=True))
     if params.get("date_from"):
         opps = opps.filter(created_at__date__gte=params["date_from"])
     if params.get("date_to"):
         opps = opps.filter(created_at__date__lte=params["date_to"])
+    return opps
+
+
+def build_crm_funnel_report(params: dict | None = None) -> dict:
+    """CRM tab: mənbə / kvalifikasiya / cavab müddəti KPI."""
+    params = params or {}
+    leads = filtered_leads(params)
+    lead_ids = list(leads.values_list("pk", flat=True))
+    source_breakdown = list(
+        leads.values("source").annotate(c=Count("id")).order_by("-c")
+    )
+    qual_breakdown = list(
+        leads.values("qualification").annotate(c=Count("id")).order_by("-c")
+    )
+    outcome_breakdown = list(
+        leads.exclude(outcome="").values("outcome").annotate(c=Count("id")).order_by("-c")
+    )
+    potential = leads.filter(qualification=Qualification.POTENTIAL).count()
+    non_potential = leads.filter(qualification=Qualification.NON_POTENTIAL).count()
+    with_activity = (
+        LeadActivity.objects.filter(lead_id__in=lead_ids)
+        .exclude(activity_type=ActivityType.STATUS_CHANGE)
+        .values("lead_id")
+        .distinct()
+        .count()
+    )
+    lead_count = leads.count()
+
+    def _pct(num, den):
+        return round((num / den) * 100, 1) if den else 0.0
+
+    return {
+        "tab": "crm",
+        "lead_count": lead_count,
+        "potential": potential,
+        "non_potential": non_potential,
+        "with_first_activity": with_activity,
+        "response_coverage_pct": _pct(with_activity, lead_count),
+        "source_breakdown": source_breakdown,
+        "qualification_breakdown": qual_breakdown,
+        "outcome_breakdown": outcome_breakdown,
+        "generated_at": timezone.now(),
+    }
+
+
+def build_sales_report(params: dict | None = None) -> dict:
+    """Satış tab: imkan / baxış / təklif / müraciət / imza / m² / AZN."""
+    params = params or {}
+    leads = filtered_leads(params)
+    lead_ids = list(leads.values_list("pk", flat=True))
+    opps = _scoped_opps(params, lead_ids)
     offers = Offer.objects.filter(opportunity__in=opps)
     apps = LeaseApplication.objects.filter(opportunity__in=opps)
 
     viewings = LeadActivity.objects.filter(
-        lead_id__in=lead_ids, activity_type=ActivityType.VIEWING
+        Q(lead_id__in=lead_ids) | Q(opportunity__in=opps),
+        activity_type=ActivityType.VIEWING,
     ).count()
     meetings = LeadActivity.objects.filter(
-        lead_id__in=lead_ids, activity_type=ActivityType.MEETING
+        Q(lead_id__in=lead_ids) | Q(opportunity__in=opps),
+        activity_type=ActivityType.MEETING,
     ).count()
 
-    lead_count = leads.count()
-    opp_count = opps.count()
-    offer_sent = offers.filter(status=OfferStatus.SENT).count() + offers.filter(
-        status=OfferStatus.ACCEPTED
+    offer_sent = offers.filter(
+        status__in=(OfferStatus.SENT, OfferStatus.ACCEPTED, OfferStatus.NEGOTIATION)
     ).count()
-    won = opps.filter(status=OpportunityStatus.WON).count()
-    lost = opps.filter(status=OpportunityStatus.LOST).count()
+    apps_count = apps.exclude(status=LeaseApplicationStatus.CANCELLED).count()
     signed = apps.filter(
         status__in=(
             LeaseApplicationStatus.SIGNED_DOCUMENTS_RECEIVED,
             LeaseApplicationStatus.COMPLETED,
         )
     ).count()
+    won = opps.filter(status=OpportunityStatus.WON).count()
+    lost = opps.filter(status=OpportunityStatus.LOST).count()
+
+    area_agg = offers.filter(
+        status__in=(OfferStatus.SENT, OfferStatus.ACCEPTED),
+        current_version__isnull=False,
+    ).aggregate(total_m2=Sum("current_version__area_m2"), total_azn=Sum("rent_amount"))
+    total_m2 = area_agg["total_m2"] or Decimal("0")
+    total_azn = area_agg["total_azn"] or Decimal("0")
 
     def _pct(num, den):
         return round((num / den) * 100, 1) if den else 0.0
 
-    outcome_breakdown = list(
-        leads.exclude(outcome="")
-        .values("outcome")
-        .annotate(c=Count("id"))
-        .order_by("-c")
-    )
-    stage_breakdown = list(
-        leads.values("pipeline_stage").annotate(c=Count("id")).order_by("-c")
-    )
-
+    opp_count = opps.count()
     return {
-        "lead_count": lead_count,
+        "tab": "sales",
+        "opportunity_count": opp_count,
         "viewings": viewings,
         "meetings": meetings,
-        "opportunity_count": opp_count,
         "offer_sent": offer_sent,
+        "applications": apps_count,
+        "signed_leases": signed,
         "won": won,
         "lost": lost,
-        "signed_leases": signed,
-        "conversion_lead_to_opp": _pct(opp_count, lead_count),
+        "total_m2": total_m2,
+        "total_azn": total_azn,
+        "conversion_lead_to_opp": _pct(opp_count, leads.count()),
         "conversion_opp_to_offer": _pct(offer_sent, opp_count),
         "conversion_offer_to_signed": _pct(signed, offer_sent or offers.count()),
-        "outcome_breakdown": outcome_breakdown,
-        "stage_breakdown": stage_breakdown,
         "generated_at": timezone.now(),
     }
 
 
-def export_crm_xlsx(params: dict | None = None) -> bytes:
+def build_crm_report(params: dict | None = None) -> dict:
+    """Legacy combined payload (CRM + Satış metrics) for older callers/tests."""
+    params = params or {}
+    crm = build_crm_funnel_report(params)
+    sales = build_sales_report(params)
+    return {
+        **{k: v for k, v in crm.items() if k != "tab"},
+        **{k: v for k, v in sales.items() if k not in ("tab", "generated_at")},
+        "stage_breakdown": list(
+            filtered_leads(params).values("pipeline_stage").annotate(c=Count("id")).order_by("-c")
+        ),
+        "generated_at": timezone.now(),
+    }
+
+
+def export_crm_xlsx(params: dict | None = None, *, tab: str = "crm") -> bytes:
     from openpyxl import Workbook
 
     params = params or {}
-    report = build_crm_report(params)
-    leads = filtered_leads(params).select_related("owner", "interested_space")
     wb = Workbook()
     ws = wb.active
-    ws.title = "Summary"
-    ws.append(["Metric", "Value"])
-    for key in (
-        "lead_count",
-        "viewings",
-        "meetings",
-        "opportunity_count",
-        "offer_sent",
-        "won",
-        "lost",
-        "signed_leases",
-        "conversion_lead_to_opp",
-        "conversion_opp_to_offer",
-        "conversion_offer_to_signed",
-    ):
-        ws.append([key, report[key]])
-
-    ws2 = wb.create_sheet("Leads")
-    ws2.append(
-        [
-            "ID",
-            "Company",
-            "Contact",
-            "Phone",
-            "Email",
-            "Source",
-            "Qualification",
-            "Stage",
-            "Record",
-            "Outcome",
-            "Created",
-        ]
-    )
-    for lead in leads.iterator():
+    if tab == "sales":
+        report = build_sales_report(params)
+        ws.title = "Sales"
+        ws.append(["Metric", "Value"])
+        for key in (
+            "opportunity_count",
+            "viewings",
+            "meetings",
+            "offer_sent",
+            "applications",
+            "signed_leases",
+            "won",
+            "lost",
+            "total_m2",
+            "total_azn",
+            "conversion_lead_to_opp",
+            "conversion_opp_to_offer",
+            "conversion_offer_to_signed",
+        ):
+            ws.append([key, str(report.get(key, ""))])
+    else:
+        report = build_crm_funnel_report(params)
+        ws.title = "CRM"
+        ws.append(["Metric", "Value"])
+        for key in (
+            "lead_count",
+            "potential",
+            "non_potential",
+            "with_first_activity",
+            "response_coverage_pct",
+        ):
+            ws.append([key, report[key]])
+        ws2 = wb.create_sheet("Leads")
         ws2.append(
             [
-                lead.pk,
-                lead.company_name,
-                lead.full_name,
-                lead.phone,
-                lead.email,
-                lead.source,
-                lead.qualification,
-                lead.pipeline_stage,
-                lead.record_status,
-                lead.outcome,
-                lead.created_at.isoformat() if lead.created_at else "",
+                "ID",
+                "Company",
+                "Contact",
+                "Phone",
+                "Email",
+                "Source",
+                "Qualification",
+                "Stage",
+                "Record",
+                "Outcome",
+                "Created",
             ]
         )
+        for lead in filtered_leads(params).iterator():
+            ws2.append(
+                [
+                    lead.pk,
+                    lead.company_name,
+                    lead.full_name,
+                    lead.phone,
+                    lead.email,
+                    lead.source,
+                    lead.qualification,
+                    lead.pipeline_stage,
+                    lead.record_status,
+                    lead.outcome,
+                    lead.created_at.isoformat() if lead.created_at else "",
+                ]
+            )
+        ws3 = wb.create_sheet("Sources")
+        ws3.append(["Source", "Count"])
+        for row in report["source_breakdown"]:
+            ws3.append([row["source"], row["c"]])
 
     buf = BytesIO()
     wb.save(buf)

@@ -471,6 +471,47 @@ class Command(BaseCommand):
                 "created_by": sales_user,
             },
         )
+        Lead.objects.update_or_create(
+            external_id="seed-lead-walkin",
+            defaults={
+                "full_name": "Aysel Həsənova",
+                "email": "aysel@demo.az",
+                "phone": "+994552223344",
+                "company_name": "Horizon Agency",
+                "source": LeadSource.WALK_IN,
+                "status": LeadStatus.NEW,
+                "qualification": Qualification.UNREVIEWED,
+                "record_status": RecordStatus.OPEN,
+                "pipeline_stage": PipelineStage.WORKING,
+                "inquired_at": date.today(),
+                "min_area_m2": Decimal("40"),
+                "max_area_m2": Decimal("60"),
+                "message": "Demo lid — kvalifikasiya gözləyir",
+                "owner": sales_user,
+                "created_by": sales_user,
+            },
+        )
+        Lead.objects.update_or_create(
+            external_id="seed-lead-referral",
+            defaults={
+                "full_name": "Rauf Quliyev",
+                "email": "rauf@demo.az",
+                "phone": "+994703334455",
+                "company_name": "Pixel Labs",
+                "source": LeadSource.REFERRAL,
+                "status": LeadStatus.QUALIFIED,
+                "qualification": Qualification.POTENTIAL,
+                "record_status": RecordStatus.OPEN,
+                "pipeline_stage": PipelineStage.VIEWING_SCHEDULED,
+                "inquired_at": date.today(),
+                "min_area_m2": Decimal("100"),
+                "max_area_m2": Decimal("120"),
+                "message": "Demo lid — baxış planlaşdırılıb",
+                "interested_space": vacant_office,
+                "owner": sales_user,
+                "created_by": sales_user,
+            },
+        )
         lead = Lead.objects.get(external_id="seed-lead-502")
         opp, _ = Opportunity.objects.update_or_create(
             title="Nova Soft F05",
@@ -482,6 +523,21 @@ class Command(BaseCommand):
                 "expected_area": Decimal("96"),
                 "space": vacant_office,
                 "notes": "Seed opportunity",
+                "owner": sales_user,
+                "created_by": sales_user,
+            },
+        )
+        lead_ref = Lead.objects.get(external_id="seed-lead-referral")
+        Opportunity.objects.update_or_create(
+            title="Pixel Labs baxış",
+            defaults={
+                "lead": lead_ref,
+                "status": OpportunityStatus.OPEN,
+                "pipeline_stage": PipelineStage.VIEWING_SCHEDULED,
+                "expected_area": Decimal("110"),
+                "space": vacant_office,
+                "notes": "Demo imkan — baxış mərhələsi",
+                "contact_channels": ["phone", "meeting"],
                 "owner": sales_user,
                 "created_by": sales_user,
             },

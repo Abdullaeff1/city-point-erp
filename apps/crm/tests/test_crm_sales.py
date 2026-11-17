@@ -14,9 +14,13 @@ from apps.crm.models import (
     Offer,
     OfferStatus,
     Opportunity,
+    Outcome,
     PipelineStage,
     Qualification,
 )
+from apps.crm.pdf import build_offer_pdf_bytes
+from apps.crm.pipeline import pipeline_strip_counts
+from apps.crm.reports import build_crm_funnel_report, build_sales_report, export_crm_xlsx
 from apps.crm.services import (
     CrmLeadService,
     CrmOfferService,
@@ -49,11 +53,18 @@ class CrmAclTests(TestCase):
     def test_roles(self):
         self.assertTrue(can_view_crm(self.sales))
         self.assertTrue(can_mutate_crm(self.sales))
-        self.assertTrue(can_view_crm(self.admin))
+        self.assertFalse(can_view_crm(self.admin))
         self.assertFalse(can_mutate_crm(self.admin))
         self.assertFalse(can_view_crm(self.reception))
         self.assertTrue(can_view_crm(self.accountant))
         self.assertFalse(can_mutate_crm(self.accountant))
+
+    def test_admin_crm_denied_http(self):
+        c = Client()
+        c.force_login(self.admin)
+        resp = c.get(reverse("erp:crm_leads"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, reverse("erp:dashboard"))
 
     def test_reception_denied_http(self):
         c = Client()
@@ -134,7 +145,11 @@ class CrmLeadFlowTests(TestCase):
         CrmOfferService.decide_approval(version, actor=self.manager, approved=True)
         CrmOfferService.send_offer(version, actor=self.sales, sent_to="x@y.az")
         offer.refresh_from_db()
+        version.refresh_from_db()
         self.assertEqual(offer.status, OfferStatus.SENT)
+        self.assertTrue(bool(version.pdf_file))
+        pdf = build_offer_pdf_bytes(version)
+        self.assertTrue(pdf.startswith(b"%PDF"))
 
         # Versiya təsdiqli, offer status geridə qalıbsa belə göndərmə işləsin
         offer2 = CrmOfferService.create_offer(
@@ -173,11 +188,54 @@ class CrmLeadFlowTests(TestCase):
         app.refresh_from_db()
         self.assertIsNotNone(app.lease_id)
 
+    def test_opportunity_lost_and_activity(self):
+        lead = CrmLeadService.create_lead(
+            actor=self.sales,
+            data={"company_name": "Lost Co", "phone": "222", "qualification": Qualification.POTENTIAL},
+            notify=False,
+        )
+        CrmLeadService.update_lead(
+            lead, actor=self.sales, data={"qualification": Qualification.POTENTIAL}
+        )
+        opp = CrmOpportunityService.create_from_lead(lead, actor=self.sales)
+        CrmOpportunityService.add_activity(
+            opp, actor=self.sales, activity_type="viewing", body="Baxış"
+        )
+        CrmOpportunityService.set_stage(
+            opp,
+            actor=self.sales,
+            stage=PipelineStage.LOST,
+            outcome=Outcome.PRICE,
+            contact_channels=["phone", "email"],
+        )
+        opp.refresh_from_db()
+        self.assertEqual(opp.status, "lost")
+        self.assertEqual(opp.outcome, Outcome.PRICE)
+        self.assertEqual(set(opp.contact_channels), {"phone", "email"})
+        self.assertGreaterEqual(opp.activities.count(), 2)
+
+    def test_dual_reports_and_pipeline(self):
+        CrmLeadService.create_lead(
+            actor=self.sales, data={"company_name": "Rep Co", "phone": "333"}, notify=False
+        )
+        crm = build_crm_funnel_report({})
+        sales = build_sales_report({})
+        self.assertIn("lead_count", crm)
+        self.assertIn("opportunity_count", sales)
+        xlsx = export_crm_xlsx({}, tab="crm")
+        self.assertTrue(len(xlsx) > 100)
+        xlsx2 = export_crm_xlsx({}, tab="sales")
+        self.assertTrue(len(xlsx2) > 100)
+        steps = pipeline_strip_counts()
+        self.assertEqual(len(steps), 4)
+        self.assertEqual(steps[0]["key"], "leads")
+
     def test_reminder_idempotent(self):
         lead = CrmLeadService.create_lead(
             actor=self.sales, data={"company_name": "Idle Co", "phone": "111"}, notify=False
         )
-        Lead.objects.filter(pk=lead.pk).update(created_at=timezone.now() - timedelta(days=2))
+        # 24 iş saatı — bir neçə təqvim günü ehtiyatı
+        Lead.objects.filter(pk=lead.pk).update(created_at=timezone.now() - timedelta(days=5))
         s1 = scan_lead_activity_reminders()
         s2 = scan_lead_activity_reminders()
         self.assertGreaterEqual(s1["reminded"], 1)

@@ -1,0 +1,13 @@
+{% load i18n %}
+<nav class="crm-pipeline-strip mb-4" aria-label="{% translate 'Satış hunisi' %}">
+  {% for step in pipeline_steps %}
+  <a
+    class="crm-pipeline-step{% if pipeline_active == step.key %} is-active{% endif %}"
+    href="{% url step.url_name %}"
+  >
+    <span class="crm-pipeline-step-label">{{ step.label }}</span>
+    <span class="crm-pipeline-step-count">{{ step.count }}</span>
+  </a>
+  {% if not forloop.last %}<span class="crm-pipeline-arrow" aria-hidden="true">→</span>{% endif %}
+  {% endfor %}
+</nav>
