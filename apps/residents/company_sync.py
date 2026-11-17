@@ -1,4 +1,4 @@
-"""Single write path for ResidentCompany + Party.tax_id (VÖEN) sync."""
+"""Single write path for ResidentCompany + Party dual-write (via PartyService)."""
 
 from __future__ import annotations
 
@@ -8,39 +8,14 @@ from django.utils import timezone
 from django.utils.translation import gettext as _
 
 from apps.audit.services import log_action
-from apps.parties.models import Party, PartyRole, PartyRoleCode, PartyStatus, PartyType
-from apps.parties.resolvers import party_for_company
-from apps.residents.models import CompanyStatus, ResidentCompany
+from apps.parties.models import Party
+from apps.parties.services import PartyService
+from apps.residents.models import ResidentCompany
 
 
 def _sync_party_tax_id(company: ResidentCompany) -> Party | None:
-    party = party_for_company(company, ensure=True)
-    if party is None:
-        return None
-    voen = (company.voen or "").strip()
-    status = PartyStatus.ACTIVE if company.status == CompanyStatus.ACTIVE else PartyStatus.INACTIVE
-    changed = False
-    if party.tax_id != voen:
-        party.tax_id = voen
-        changed = True
-    if party.legal_name != company.name:
-        party.legal_name = company.name
-        party.brand_name = company.name
-        changed = True
-    if party.contact_email != (company.contact_email or ""):
-        party.contact_email = company.contact_email or ""
-        changed = True
-    if party.status != status:
-        party.status = status
-        changed = True
-    if changed:
-        party.save()
-    PartyRole.objects.get_or_create(
-        party=party,
-        role=PartyRoleCode.RESIDENT,
-        defaults={"is_primary": True},
-    )
-    return party
+    """Canonical Company→Party sync (M1: single implementation)."""
+    return PartyService.upsert_from_resident_company(company, audit=False)
 
 
 def company_has_blocking_relations(company: ResidentCompany) -> bool:

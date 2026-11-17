@@ -1,33 +1,69 @@
-# Phase 0.3 — Module Status
+# Modul statusu — cari vəziyyət
 
-**Updated:** 2026-11-17 (functional readiness pass).  
-Classification: **REAL** = production-usable ops MVP · **THIN** = models + partial UI/services · **SCAFFOLD** = models + list/read UI only.
+**Yenilənib:** 2026-11-17  
+**Qayda:** Bu sənəd yalnız status qeydidir. Mövcud funksiyalar silinmir və “tam məhsul” kimi marketinq olunmur.
 
-| Module | Status | Evidence / acceptance |
-|--------|--------|------------------------|
-| accounts (auth/invite) | REAL | Invite, reset, must_set_password, tests |
-| portal | REAL (MVP) | Scope/session; tickets, employees, guests, card order (Ad Soyad Ata adı) |
-| reception | REAL | Services + ERP UI + API + tests |
-| tickets / service desk | REAL (foundation) | Taxonomy, routing, SLA, portal+ERP UI |
-| residents | REAL | Companies, employees, access events, card order |
-| security portal | REAL | Alerts, companies, tickets, tests |
-| AxTrax read sync | REAL (ops-dependent) | People/events sync + poller; **no vendor write** |
-| property / spaces | THIN→REAL ops | Building/Floor/Space UI; occupancy bridged from Lease activate |
-| parties | THIN | Models + dual-write bridge; Resident* remains SoT for portal |
-| leases | THIN→REAL ops | Activate/terminate cascade; **lifecycle poller** (SIGNED→ACTIVE, ACTIVE→EXPIRING) |
-| crm | REAL (sales MVP) | Lead→Opp→Offer versions/approval→LeaseApplication; PDF; Excel import; reports |
-| maintenance / WO | THIN | Models + create_wo_from_ticket; list UI |
-| documents | THIN | Catalog; versions unused in portal |
-| comms | THIN | In-app + NotificationDispatch; CRM offer email via `send_templated_email` when flagged |
-| rbac | THIN | Tables exist; not enforced everywhere |
-| workflows / approval | THIN | Offer approval wired; generic engine still limited |
-| warehouse | SCAFFOLD | Models + apply_movement + list UI |
-| procurement | SCAFFOLD | Models + list UI; RFQ placeholder |
-| billing | THIN | Charges, invoice confirm, payments; journal errors **surface**; race-safe invoice codes |
-| accounting | THIN | CoA placeholder + journals; **not** full GL product |
-| api public | THIN | spaces/leads stubs + mock adapters |
-| reporting / BI | THIN | ERP KPI + CRM dual reports |
-| access_control app | MISSING | Logic in residents + integrations |
+## Production qəbul qapısı (CRM)
 
-**Do not market THIN/SCAFFOLD as production-complete.**  
-**Security/TLS/NetAdmin:** deferred — functional UAT first, then harden ([bin/prod](../../bin/prod)).
+Cari branch-dəki CRM/Satış dəyişiklikləri (**migration `0004`/`0005`**, PDF, Excel import, V2 UI, Admin CRM-dən çıxarılması və s.) **qəbul edilənə qədər production-hazır hesab olunmur.**
+
+| Şərt | Status |
+|------|--------|
+| Kod `main` / branch-də mövcud | Bəli (lokal commit ola bilər) |
+| `origin` / production deploy | Yalnız **yazılı qəbul** + UAT (A bölməsi) Pass-dan sonra |
+| Marketinq / istifadəçi təlimatı “CRM hazırdır” | **Xeyr** — qəbuldan əvvəl |
+
+Qəbul checklist: [../uat/functional-readiness-checklist.md](../uat/functional-readiness-checklist.md) §A.  
+Qərar: [BUSINESS_DECISIONS.md](BUSINESS_DECISIONS.md) §A.10.
+
+## Təsnifat
+
+| Kod | Azərbaycan | Məna |
+|-----|------------|------|
+| **işlək** | REAL / MVP | Gündəlik əməliyyatda istifadə oluna bilər; UAT və ops asılılıqları qeyd olunub |
+| **qismən** | THIN | Model + xidmət və/və ya UI var; proses tam bağlanmayıb və ya təsdiq/CoA çatışmır |
+| **skelet** | SCAFFOLD | Əsasən model / siyahı / redirect; istehsal prosesi sayılmır |
+
+## Modul cədvəli
+
+| Modul | Status | Qısa əsas |
+|-------|--------|-----------|
+| accounts (auth / invite) | **işlək** | Login, invite, şifrə sıfırlama, `must_set_password`, testlər |
+| portal (rezident) | **işlək** | Scope/sessiya; ticket, əməkdaş, qonaq, kart sifarişi |
+| reception | **işlək** | ERP UI + API + xidmətlər + testlər |
+| tickets / service desk | **işlək** | Taxonomy, routing, SLA, queue; portal/ERP/security UI |
+| residents | **işlək** | Şirkət, əməkdaş, access event, kart sifarişi, export |
+| security portal | **işlək** | Hadisə, şirkət, alert, ticket, plan/patrul UI + testlər |
+| integrations / AxTrax oxu | **işlək** | People/event sync + poller; **yazma yoxdur** (vendor) |
+| crm / satış | **qismən** (prod gate) | Kodda sales MVP var; **production qəbulu gözlənilir** — yuxarıdakı qapıya bax |
+| finance portal | **işlək** | `/finance/` UI, export, testlər — **mühasibat tam məhsul deyil** |
+| property / spaces | **qismən** | Building/Floor/Space UI, drawings; occupancy Lease activate ilə körpü |
+| leases | **qismən** | Activate/terminate cascade + lifecycle poller; UAT/siyasət açıq |
+| parties | **qismən** | Party/Person + dual-write; portal SoT hələ Resident* |
+| maintenance / work order | **qismən** | WO xidmətləri + ERP siyahı; preventiv/material zənciri natamam |
+| documents | **qismən** | Kataloq + endirmə; versiya/retention siyasəti zəif |
+| comms | **qismən** | In-app, elan, NotificationDispatch; SMTP ops asılı |
+| rbac | **qismən** | Cədvəl/seed; hər yerdə enforce olunmur |
+| workflows / approval | **qismən** | Offer/finance approval bağlı; ümumi mühərrik məhdud |
+| billing | **qismən** | Charge/invoice/payment; journal xətası gizlənmir; real CoA yoxdur |
+| accounting | **qismən** | Journal, trial balance, dövr; placeholder CoA |
+| warehouse | **qismən** | Stock/hərəkət xidmətləri + ERP UI; inventar UAT yoxdur |
+| procurement | **qismən** | PR→PO→receive xidmətləri + ERP UI; RFQ müqayisəsi zəif |
+| api (public / reception) | **qismən** | JSON endpoint-lər; public lead/space stub |
+| reporting / BI (ERP KPI) | **qismən** | ERP reports hub + CRM dual reports; BI məhsulu deyil |
+| management_portal | **skelet** | `/management/` əsasən ERP redirect; ayrı portal məhsulu deyil |
+| access_control (ayrı app) | **skelet** | Ayrı app yoxdur; məntiq residents + integrations-də |
+
+## Qəbul qeydləri
+
+- **işlək** = ops MVP, tam ERP və ya statutory mühasibat demək deyil.
+- AxTrax kart “verildi” ERP statusu ≠ AxTrax-a yazılma.
+- Billing/accounting **işlək finance shell** ilə birlikdə hələ **qismən** maliyyə nüvəsidir (CoA/VAT mühasib təsdiqi lazımdır).
+- TLS / NetAdmin / production hardening ayrıca backlog-dadır; bu cədvəli dəyişmir.
+
+## Əlaqəli sənədlər
+
+- Boşluqlar: [phase0-business-gaps.md](phase0-business-gaps.md)
+- UAT checklist: [../uat/functional-readiness-checklist.md](../uat/functional-readiness-checklist.md)
+- Mərhələ qəbul meyarları + sübut: [../uat/phase-acceptance-criteria.md](../uat/phase-acceptance-criteria.md)
+- Occupancy SoT: [party-space-lease-model.md](party-space-lease-model.md)

@@ -416,6 +416,10 @@ class ReceptionView(RoleRequiredMixin, FormView):
         if not user_has_permission(self.request.user, "reception.create_visit"):
             raise PermissionDenied("Qonaq yaratmaq icazəsi yoxdur.")
         try:
+            held = bool(form.cleaned_data.get("id_document_held"))
+            allow_override = (not held) and user_has_permission(
+                self.request.user, "reception.override_id"
+            )
             ReceptionService.register_walk_in(
                 fin_code=form.cleaned_data["fin_code"],
                 first_name=form.cleaned_data["first_name"],
@@ -424,11 +428,12 @@ class ReceptionView(RoleRequiredMixin, FormView):
                 company=form.cleaned_data["company"],
                 host=form.cleaned_data.get("host"),
                 visit_type=form.cleaned_data.get("visit_type"),
-                id_document_held=bool(form.cleaned_data.get("id_document_held")),
+                id_document_held=held,
                 guest_card_number=form.cleaned_data.get("guest_card_number") or "",
+                id_override_reason=form.cleaned_data.get("id_override_reason") or "",
                 notes=form.cleaned_data.get("notes") or "",
                 actor=self.request.user,
-                allow_id_override=False,
+                allow_id_override=allow_override,
             )
         except DomainError as exc:
             messages.error(self.request, str(exc))
@@ -496,6 +501,8 @@ class ReceptionStatusView(RoleRequiredMixin, View):
                 ReceptionService.cancel_visit(visit, actor=request.user)
                 messages.success(request, "Ziyarət ləğv edildi.")
             elif action == "no_show":
+                if not user_has_permission(request.user, "reception.cancel_visit"):
+                    raise PermissionDenied()
                 ReceptionService.mark_no_show(visit, actor=request.user)
                 messages.success(request, "Gəlmədi qeydə alındı.")
         except DomainError as exc:
@@ -975,9 +982,17 @@ class SpaceListView(RoleRequiredMixin, ListView):
         floors = Floor.objects.prefetch_related("spaces__resident").order_by("code")
         floor_rows = []
         for floor in floors:
+            from apps.property.models import CommercialStatus, Occupancy
+
             spaces = list(floor.spaces.all())
             total = len(spaces)
-            occupied = sum(1 for s in spaces if s.resident_id)
+            # Prefer lease-driven commercial/occupancy flags over stale Space.resident
+            occupied = sum(
+                1
+                for s in spaces
+                if s.occupancy == Occupancy.ACTIVE_LEASE
+                or s.commercial_status in {CommercialStatus.ACTIVE, CommercialStatus.NOTICE}
+            )
             pct = int(occupied / total * 100) if total else 0
             floor_rows.append({"floor": floor, "total": total, "occupied": occupied, "pct": pct, "spaces": spaces})
         ctx.update(
@@ -1613,6 +1628,22 @@ class ResidentEmployeeAccessDetailView(RoleRequiredMixin, TemplateView):
             company__is_internal=False,
         )
 
+    def post(self, request, *args, **kwargs):
+        from apps.residents.services import deactivate_resident_employee
+
+        employee = self.get_employee()
+        if request.POST.get("action") == "deactivate":
+            if not employee.is_active:
+                messages.info(request, _("Əməkdaş artıq deaktivdir."))
+            else:
+                deactivate_resident_employee(employee, actor=request.user, clear_card=True)
+                messages.success(request, _("Əməkdaş deaktiv edildi (kart təmizləndi)."))
+        return redirect(
+            "erp:resident_employee_access",
+            slug=employee.company.slug,
+            pk=employee.pk,
+        )
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         employee = self.get_employee()
@@ -1621,6 +1652,7 @@ class ResidentEmployeeAccessDetailView(RoleRequiredMixin, TemplateView):
             {
                 "employee": employee,
                 "company": employee.company,
+                "can_deactivate_employee": employee.is_active,
                 **period,
             }
         )
@@ -1851,6 +1883,11 @@ class LeaseListView(StaffRequiredMixin, ListView):
     template_name = "erp/leases.html"
     context_object_name = "leases"
 
+    def dispatch(self, request, *args, **kwargs):
+        if not user_has_permission(request.user, "lease.view"):
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
     def get_queryset(self):
         from apps.leases.models import Lease
 
@@ -1860,11 +1897,24 @@ class LeaseListView(StaffRequiredMixin, ListView):
 class LeaseDetailView(StaffRequiredMixin, TemplateView):
     template_name = "erp/lease_detail.html"
 
+    def dispatch(self, request, *args, **kwargs):
+        if not user_has_permission(request.user, "lease.view"):
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         from apps.leases.models import Lease
 
         ctx = super().get_context_data(**kwargs)
-        ctx["lease"] = get_object_or_404(Lease.objects.select_related("party", "space"), code=self.kwargs["code"])
+        lease = get_object_or_404(
+            Lease.objects.select_related("party", "space", "space__floor").prefetch_related(
+                "lines__space__floor"
+            ),
+            code=self.kwargs["code"],
+        )
+        ctx["lease"] = lease
+        ctx["lease_lines"] = list(lease.lines.select_related("space", "space__floor"))
+        ctx["can_edit_lease"] = user_has_permission(self.request.user, "lease.edit")
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -1872,6 +1922,8 @@ class LeaseDetailView(StaffRequiredMixin, TemplateView):
         from apps.leases.services import activate_lease, terminate_lease
         from apps.leases.lease_ops import generate_monthly_lease_charges
 
+        if not user_has_permission(request.user, "lease.edit"):
+            raise PermissionDenied
         lease = get_object_or_404(Lease, code=kwargs["code"])
         action = request.POST.get("action")
         if action == "activate":

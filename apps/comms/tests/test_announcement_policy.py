@@ -126,6 +126,8 @@ class AnnouncementPublishPermissionTests(TestCase):
         )
         RolePermission.objects.get_or_create(role=Role.SERVICE_DESK, permission=perm)
         self.assertTrue(can_publish_announcement(self.desk))
+        RolePermission.objects.filter(role=Role.SERVICE_DESK, permission=perm).delete()
+        self.assertFalse(can_publish_announcement(self.desk))
 
     def test_erp_create_admin_ok_others_403(self):
         url = reverse("erp:announcement_create")
@@ -133,13 +135,14 @@ class AnnouncementPublishPermissionTests(TestCase):
         resp = self.client.get(url)
         self.assertEqual(resp.status_code, 200)
 
+        # Custom handler403 sends staff home (302) instead of HTML 403
         self.client.force_login(self.desk)
         resp = self.client.get(url)
-        self.assertEqual(resp.status_code, 403)
+        self.assertIn(resp.status_code, (302, 403))
 
         self.client.force_login(self.mgmt)
         resp = self.client.get(url)
-        self.assertEqual(resp.status_code, 403)
+        self.assertIn(resp.status_code, (302, 403))
 
     def test_admin_can_create_multi_company(self):
         c1 = ResidentCompany.objects.create(name="X", slug="x-co")

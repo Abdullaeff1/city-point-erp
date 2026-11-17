@@ -89,7 +89,7 @@ class FinancePortalMixin(LoginRequiredMixin):
 
 
 class CrmAccessMixin(LoginRequiredMixin):
-    """CRM view access — sales mutate; management/admin/accountant view; approve separate."""
+    """CRM view access — sales mutate; management/accountant view (Admin out, A.10); approve separate."""
 
     require_mutate: bool = False
     require_approve: bool = False

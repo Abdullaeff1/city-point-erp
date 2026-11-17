@@ -34,8 +34,7 @@ Admin/Management) edə bilər — `can_mutate_ticket`.
 
 ## ADMIN / MANAGEMENT
 
-`ticket_department` boş qala bilər. Bütün ticketləri görür və idarə edir; şöbələrarası handoff
-yalnız onlar üçündür.
+`ticket_department` boş qala bilər. Bütün ticketləri görür və idarə edir.
 
 ## Access helper-lər (`apps/tickets/access.py`)
 
@@ -45,8 +44,9 @@ yalnız onlar üçündür.
 | `tickets_visible_to` | all / dept FK / `.none()` |
 | `can_view_ticket` | staff şöbə görünüşü |
 | `can_mutate_ticket` | staff mutate; rezident həmişə `False` |
-| `can_access_ticket_attachment` | staff: `can_view_ticket`; rezident: eyni şirkət |
-| `can_handoff_ticket` | yalnız Admin / Management |
+| `can_access_ticket_attachment` | staff: `can_view_ticket`; rezident: membership/session scope (M2) |
+| `can_handoff_ticket` | ticket-i tutan şöbənin staff-ı + Admin/Management (`can_mutate_ticket`) |
+| `can_delete_ticket` | erkən status; staff mutate və ya rezident company scope |
 
 ## Attachment
 
@@ -64,12 +64,13 @@ xətalar mövcud `DomainError` ilə qayıdır (yeni exception tipi yoxdur).
 
 - `set_ticket_status` / `advance_ticket_status`: mutate + `can_transition_to`; WAITING səbəbi məcburi
 - `assign_ticket`: assignee eyni `ticket_department`
-- `handoff_ticket`: yalnız Admin/Management; `TicketRoutingEvent` yazılır
+- `handoff_ticket`: tutan şöbə (mutate) + Admin/Management; `TicketRoutingEvent` yazılır
 
 ## Bildirişlər
 
-`notify_company_users` + `notify_department_users` — `transaction.on_commit`; xəta ticket-i
-geri çevirmir.
+`notify_company_users` (membership ∪ primary FK) + `notify_department_users` —
+`transaction.on_commit`; email `enqueue_email` → `flush_email_outbox` (TD-08).
+Xəta ticket-i geri çevirmir.
 
 **Dedup:** sabit `event_key` (məs. `ticket.status.{id}.{status_event_id}`). Eyni `(user, event_key)`
 təkrar insert olunmur. Eyni mətnli iki ayrı hadisə fərqli `event_key` → hər ikisi göndərilir.

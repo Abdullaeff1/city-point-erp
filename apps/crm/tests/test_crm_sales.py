@@ -10,6 +10,7 @@ from apps.accounts.models import Role
 from apps.crm.access import can_mutate_crm, can_view_crm
 from apps.crm.mapping import map_pipeline_stage, map_source, legacy_status_to_fields
 from apps.crm.models import (
+    ActivityType,
     Lead,
     Offer,
     OfferStatus,
@@ -18,6 +19,7 @@ from apps.crm.models import (
     PipelineStage,
     Qualification,
 )
+from apps.leases.models import LeaseLine
 from apps.crm.pdf import build_offer_pdf_bytes
 from apps.crm.pipeline import pipeline_strip_counts
 from apps.crm.reports import build_crm_funnel_report, build_sales_report, export_crm_xlsx
@@ -115,7 +117,11 @@ class CrmLeadFlowTests(TestCase):
         )
         opp = CrmOpportunityService.create_from_lead(lead, actor=self.sales)
         self.assertEqual(opp.lead_id, lead.pk)
-        self.assertEqual(lead.activities.count(), 2)
+        # create + qualification STATUS_CHANGE (+ any opp-side notes on lead)
+        self.assertGreaterEqual(lead.activities.count(), 2)
+        self.assertTrue(
+            lead.activities.filter(activity_type=ActivityType.STATUS_CHANGE).exists()
+        )
 
     def test_offer_send_requires_approval(self):
         lead = CrmLeadService.create_lead(
@@ -187,6 +193,48 @@ class CrmLeadFlowTests(TestCase):
         LeaseApplicationService.create_lease_draft(app, actor=self.accountant)
         app.refresh_from_db()
         self.assertIsNotNone(app.lease_id)
+        self.assertTrue(LeaseLine.objects.filter(lease_id=app.lease_id).exists() or app.lease.space_id is None)
+        if app.tax_id:
+            self.assertIn(app.tax_id, app.lease.notes)
+
+    def test_lead_update_writes_status_activity(self):
+        lead = CrmLeadService.create_lead(
+            actor=self.sales, data={"company_name": "Act Co", "phone": "444"}, notify=False
+        )
+        before = lead.activities.count()
+        CrmLeadService.update_lead(
+            lead, actor=self.sales, data={"qualification": Qualification.POTENTIAL}
+        )
+        self.assertGreater(lead.activities.count(), before)
+        self.assertTrue(
+            lead.activities.filter(activity_type=ActivityType.STATUS_CHANGE).exists()
+        )
+
+    def test_pending_lead_restored_after_duplicate_warn(self):
+        CrmLeadService.create_lead(
+            actor=self.sales,
+            data={"company_name": "Dup Co", "phone": "+994501112233"},
+            notify=False,
+        )
+        client = Client()
+        client.force_login(self.sales)
+        resp = client.post(
+            reverse("erp:crm_leads"),
+            {
+                "action": "create",
+                "company_name": "Dup Co",
+                "phone": "+994501112233",
+                "email": "dup@test.az",
+                "full_name": "Dup Person",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        resp = client.get(reverse("erp:crm_leads"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.context["pending_lead_open"])
+        self.assertEqual(resp.context["pending_lead"]["company_name"], "Dup Co")
+        self.assertContains(resp, "Dup Co")
+        self.assertContains(resp, "value=\"1\" checked", html=False)
 
     def test_opportunity_lost_and_activity(self):
         lead = CrmLeadService.create_lead(

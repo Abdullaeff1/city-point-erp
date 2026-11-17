@@ -23,6 +23,18 @@ def new_invite_code() -> str:
     return secrets.token_urlsafe(8)[:12].upper()
 
 
+# Visit types that may enter without ID held / seriya (no override required).
+ID_OPTIONAL_VISIT_CODES = frozenset({"courier"})
+
+
+def id_policy_skips_document(*, visit_type=None, list_import_id=None) -> bool:
+    """Guest-list import and courier-style visits may skip ID hold."""
+    if list_import_id:
+        return True
+    code = getattr(visit_type, "code", None) or ""
+    return code in ID_OPTIONAL_VISIT_CODES
+
+
 def _audit(action: str, actor=None, entity=None, old=None, new=None):
     try:
         from apps.audit.services import log_action
@@ -125,10 +137,18 @@ class ReceptionService(Service):
         cls.require(company is not None, "Şirkət seçilməlidir.")
         held = bool(id_document_held)
         card = (guest_card_number or "").strip()
-        # Seriya optional (məs. kuryer) — yalnız vəsiqə saxlanılanda mütləqdir
+        fin = normalize_fin(fin_code)
+        reason = (id_override_reason or "").strip()
+        # Seriya/kart when ID held; else override (+ reason) unless courier/list policy
         if held:
-            cls.require(bool(normalize_fin(fin_code)), "Seriya nömrəsi tələb olunur.")
+            cls.require(bool(fin), "Seriya nömrəsi tələb olunur.")
             cls.require(bool(card), "Qonaq kartı nömrəsi tələb olunur.")
+        elif not id_policy_skips_document(visit_type=visit_type):
+            cls.require(
+                allow_id_override,
+                "Vəsiqəsiz giriş üçün override icazəsi (reception.override_id) lazımdır.",
+            )
+            cls.require(bool(reason), "Override səbəbi tələb olunur.")
         if host is not None:
             cls.require(host.company_id == company.id, "Host seçilmiş şirkətə aid deyil.")
             cls.require(host.is_active, "Host aktiv deyil.")
@@ -158,7 +178,7 @@ class ReceptionService(Service):
             check_in_at=now,
             created_by=actor if getattr(actor, "is_authenticated", False) else None,
             id_document_held=held,
-            id_override_reason=(id_override_reason.strip() if not held else ""),
+            id_override_reason=(reason if not held else ""),
             notes=notes or "",
             pre_registered=False,
         )
@@ -273,8 +293,7 @@ class ReceptionService(Service):
         )
         held = bool(id_document_held)
         card = (guest_card_number or "").strip()
-        if held:
-            cls.require(bool(card), "Qonaq kartı nömrəsi tələb olunur.")
+        reason = (id_override_reason or "").strip()
         guest = visit.guest
         if fin_code:
             guest.fin_code = normalize_fin(fin_code)
@@ -285,6 +304,19 @@ class ReceptionService(Service):
         if first_name or last_name or fin_code:
             guest.full_name = f"{guest.first_name} {guest.last_name}".strip() or guest.full_name
             guest.save()
+
+        fin = normalize_fin(guest.fin_code)
+        if held:
+            cls.require(bool(fin), "Seriya nömrəsi tələb olunur.")
+            cls.require(bool(card), "Qonaq kartı nömrəsi tələb olunur.")
+        elif not id_policy_skips_document(
+            visit_type=visit.visit_type, list_import_id=visit.list_import_id
+        ):
+            cls.require(
+                allow_id_override,
+                "Vəsiqəsiz check-in üçün override icazəsi (reception.override_id) lazımdır.",
+            )
+            cls.require(bool(reason), "Override səbəbi tələb olunur.")
 
         other = (
             GuestVisit.objects.select_for_update()
@@ -297,7 +329,7 @@ class ReceptionService(Service):
         visit.status = VisitStatus.INSIDE
         visit.check_in_at = timezone.now()
         visit.id_document_held = held
-        visit.id_override_reason = id_override_reason.strip() if not held else ""
+        visit.id_override_reason = reason if not held else ""
         visit.save(
             update_fields=[
                 "status",
@@ -316,6 +348,7 @@ class ReceptionService(Service):
             bus.VISITOR_CHECKED_IN,
             payload={"visit_id": visit.pk, "company_id": visit.company_id, "entity_model": "visit"},
             actor=actor,
+            event_key=f"visitor.checked_in.{visit.pk}",
         )
         return visit
 
@@ -453,8 +486,11 @@ def pre_register_visit(
         email=email or "",
         phone=phone or "",
     )
-    if host is not None and host.company_id != company.id:
-        raise DomainError("Host seçilmiş şirkətə aid deyil.")
+    if host is not None:
+        if host.company_id != company.id:
+            raise DomainError("Host seçilmiş şirkətə aid deyil.")
+        if not host.is_active:
+            raise DomainError("Host aktiv deyil.")
     return GuestVisit.objects.create(
         guest=guest,
         company=company,

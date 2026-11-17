@@ -47,6 +47,8 @@ class DomainEvent:
 
 
 _handlers: dict[str, list[Handler]] = defaultdict(list)
+# In-process emit dedupe: (event_name, event_key) → True. Cleared with clear_handlers().
+_emitted_keys: set[str] = set()
 
 
 def subscribe(event_name: str, handler: Handler) -> None:
@@ -58,8 +60,13 @@ def clear_handlers(event_name: str | None = None) -> None:
     """Test helper."""
     if event_name is None:
         _handlers.clear()
+        _emitted_keys.clear()
     else:
         _handlers.pop(event_name, None)
+        prefix = f"{event_name}:"
+        for key in list(_emitted_keys):
+            if key.startswith(prefix):
+                _emitted_keys.discard(key)
     # Allow register_default_handlers to run again after clear
     try:
         from apps.core import event_handlers
@@ -69,7 +76,21 @@ def clear_handlers(event_name: str | None = None) -> None:
         pass
 
 
-def emit(event_name: str, *, payload: dict | None = None, actor=None, correlation_id: str = "") -> DomainEvent:
+def emit(
+    event_name: str,
+    *,
+    payload: dict | None = None,
+    actor=None,
+    correlation_id: str = "",
+    event_key: str = "",
+) -> DomainEvent | None:
+    """Emit a domain event. If ``event_key`` is set, skip duplicate (name, key) in this process."""
+    if event_key:
+        dedupe = f"{event_name}:{event_key}"
+        if dedupe in _emitted_keys:
+            logger.debug("domain_event_skipped_duplicate name=%s event_key=%s", event_name, event_key)
+            return None
+        _emitted_keys.add(dedupe)
     event = DomainEvent(
         name=event_name,
         payload=payload or {},

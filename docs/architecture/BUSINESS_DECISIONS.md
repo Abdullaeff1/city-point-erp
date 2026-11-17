@@ -133,6 +133,8 @@ Yalnız burada qeyd olunan cavablar kod/ops-da tətbiq olunur; digər suallar a�
 
 **Status:** cavablandı · V2 blank (2026-11-17) · owner: Satış/CRM
 
+**Production gate:** Cari branch-dəki CRM dəyişiklikləri (V2 migration, UI, import, PDF) **qəbul olunana qədər production-hazır sayılmır.** Deploy yalnız Satış/CRM yazılı qəbulu + UAT §A Pass-dan sonra. Status cədvəli: `phase0-module-status.md`.
+
 | Mövzu | Qərar |
 |-------|--------|
 | Modul | Bir ERP bloku CRM/Satış; Reception CRM yox |
@@ -149,7 +151,8 @@ Yalnız burada qeyd olunan cavablar kod/ops-da tətbiq olunur; digər suallar a�
 | Hesabat | Ayrı CRM (mənbə/kvalifikasiya) və Satış (imkan/təklif/imza) tabları; snapshot/backup Phase 2 |
 | Scope xaric | Meeting Room, website intake, reklam, commercial ticket→daxili lid, hüquqşünas rolu → Phase 2 |
 
-**Kod:** `apps/crm`; ERP CRM views; `ApprovalService` `crm.offer.send`. Mapping: `docs/architecture/CRM_FIELD_MAPPING.md`.
+**Kod:** `apps/crm`; ERP CRM views; `ApprovalService` `crm.offer.send`. Mapping: `docs/architecture/CRM_FIELD_MAPPING.md`.  
+**M4 (2026-11-17):** hunisi möhkəmləndirmə (pending lead restore, activity, LeaseLine, PDF email attach) — [m4-crm-funnel.md](m4-crm-funnel.md). **Gate hələ açıq.**
 
 ### A.10 Phase 2 backlog (CRM)
 

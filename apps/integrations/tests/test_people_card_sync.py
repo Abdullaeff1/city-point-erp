@@ -3,7 +3,11 @@
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from apps.integrations.axtrax_people_sync import AXTRAX_SYSTEM, sync_people_from_payload
+from apps.integrations.axtrax_people_sync import (
+    AXTRAX_SYSTEM,
+    _find_unlinked_employee_by_name,
+    sync_people_from_payload,
+)
 from apps.integrations.models import ExternalIdentity
 from apps.residents.models import ResidentCompany, ResidentEmployee
 
@@ -300,3 +304,13 @@ class AxTraxEmpAliasNameLockTests(TestCase):
         )
         self.assertIn("emp:1662", eids)
         self.assertIn("emp:628", eids)
+
+
+class AxTraxNameMatchAmbiguityTests(TestCase):
+    def test_duplicate_unlinked_names_skip(self):
+        company = ResidentCompany.objects.create(name="Amb Co", slug="amb-co")
+        ResidentEmployee.objects.create(company=company, full_name="Eyni Ad", is_active=True)
+        ResidentEmployee.objects.create(company=company, full_name="Eyni Ad", is_active=True)
+        self.assertIsNone(_find_unlinked_employee_by_name(company, "Eyni Ad"))
+        only = ResidentEmployee.objects.create(company=company, full_name="Tək Ad", is_active=True)
+        self.assertEqual(_find_unlinked_employee_by_name(company, "Tək Ad").pk, only.pk)

@@ -629,6 +629,12 @@ class GuestVisitForm(forms.Form):
         max_length=64,
         widget=forms.TextInput(attrs={"placeholder": _("Kart nömrəsi"), "autocomplete": "off"}),
     )
+    id_override_reason = forms.CharField(
+        required=False,
+        label=_("Vəsiqəsiz giriş səbəbi"),
+        max_length=255,
+        help_text=_("Vəsiqə saxlanılmadıqda (kuryer istisna) override icazəsi + səbəb"),
+    )
     notes = forms.CharField(
         required=False,
         label=_("Qeyd"),

@@ -50,7 +50,7 @@ _RECEPTION_PERMS = [
 
 ROLE_MATRIX = {
     Role.RECEPTION: _RECEPTION_PERMS,
-    Role.SERVICE_DESK: ["ticket.view", "ticket.edit", "party.view", "document.view"],
+    Role.SERVICE_DESK: ["ticket.view", "ticket.edit", "party.view", "document.view", "lease.view"],
     Role.PROPERTY_FM: [
         "space.view",
         "space.edit",
@@ -58,11 +58,31 @@ ROLE_MATRIX = {
         "ticket.edit",
         "party.view",
         "lease.view",
+        "lease.edit",
         "document.view",
+        "document.edit",
         "reception.view",
         "reception.search",
     ],
-    Role.SECURITY: ["security.view", "party.view", "residents.export_access"],
+    Role.SECURITY: ["security.view", "party.view", "residents.export_access", "ticket.view"],
+    Role.SALES: [
+        "party.view",
+        "party.edit",
+        "lease.view",
+        "lease.edit",
+        "document.view",
+        "approval.view",
+        "space.view",
+    ],
+    Role.ACCOUNTANT: [
+        "party.view",
+        "lease.view",
+        "document.view",
+        "report.view",
+        "approval.view",
+    ],
+    # Soft catalog for portal; enforcement still via ResidentPortalMixin + object_scope.
+    Role.RESIDENT_USER: ["ticket.view", "document.view", "party.view"],
     # Management does not get announcement.publish until explicitly granted (A.8 Admin-first).
     Role.MANAGEMENT: [p[0] for p in DEFAULT_PERMISSIONS if p[0] != "announcement.publish"],
     Role.ADMIN: [p[0] for p in DEFAULT_PERMISSIONS],
@@ -92,7 +112,14 @@ def seed_rbac_catalog() -> int:
 def user_has_permission(user, code: str) -> bool:
     if not user or not user.is_authenticated:
         return False
-    if user.role in (Role.ADMIN, Role.MANAGEMENT):
+    if user.role == Role.ADMIN:
+        return True
+    # A.8: Management bypasses most codes, but announcement.publish is grant-only.
+    if user.role == Role.MANAGEMENT:
+        if code == "announcement.publish":
+            return RolePermission.objects.filter(
+                role=user.role, permission__code=code
+            ).exists()
         return True
     if RolePermission.objects.filter(role=user.role, permission__code=code).exists():
         return True

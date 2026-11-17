@@ -11,7 +11,7 @@ Prioritized for Phase 1–2 impact.
 | TD-05 | AxTrax poller manual; stops silently | Stale access/security data | 1 |
 | TD-06 | `SEED_DEMO` default `1` in `bin/dev/entrypoint.py` | Demo passwords in careless prod clones | 1 |
 | TD-07 | Console email default | Invites/resets invisible in prod | 1 |
-| TD-08 | NotificationDispatch unused for delivery | No reliable ticket/email alerts | 2 / 6 |
+| TD-08 | NotificationDispatch unused for delivery | **M6:** `flush_email_outbox` / `poll_email_outbox` for `ticket.*`; enable `TICKET_EMAIL_OUTBOX_POLL_ON_START=1` | 2 / 6 |
 | TD-09 | RBAC tables not wired to most views | Role CharField only | 2 |
 | TD-10 | Card request lacks status workflow for resident | Opaque “submitted” experience | 5 |
 | TD-11 | Public API incomplete / mock website | Commercial intake weak | 4 |

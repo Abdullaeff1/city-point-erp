@@ -2,6 +2,10 @@
 
 Security/TLS/NetAdmin **out of scope** for this pass. Mark each row Pass / Fail / Blocked.
 
+**CRM production gate:** §A bütün sətirlər Pass + yazılı qəbul olmadan CRM dəyişiklikləri production-a çıxarılmır və “hazır” hesab edilmir (cari branch daxil).
+
+**Mərhələ meyarları + sübut:** [phase-acceptance-criteria.md](phase-acceptance-criteria.md) (A–E).
+
 ## A. CRM → Lease
 
 - [ ] Lead create → Opportunity → Offer version

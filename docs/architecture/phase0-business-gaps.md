@@ -7,7 +7,7 @@
 | **FLOW 1 New resident** Website→CRM→Lease→Portal→Access→Billing | CRM sales MVP + LeaseApplication→draft; activate cascade; billing charges | Public website API; accountant CoA/VAT UAT; Party cutover |
 | **FLOW 2 Employee access** Employee→Credential→AxTrax→Event | Employee + card + read events; card order portal | Credential entity; AxTrax **write** (vendor) |
 | **FLOW 3 Visitor** Portal→Reception→Access | Pre-reg + reception real | Temp AxTrax access mock |
-| **FLOW 4 Technical ticket** Ticket→WO→Warehouse | Ticket+routing real; WO thin | Warehouse material consumption end-to-end |
+| **FLOW 4 Technical ticket** Ticket→WO→Warehouse | Ticket+routing+WO create real (M6/C4); email outbox drained | Warehouse material consumption end-to-end → Phase 7–8 |
 | **FLOW 5 Commercial request** Ticket→CRM→Offer→Lease | CRM UI full path | Ticket→CRM handoff polish |
 | **FLOW 6 Procurement** Low stock→PR→PO→WH→Invoice | Scaffold lists | RFQ comparison, GRN, 3-way match |
 | **FLOW 7 Lease billing** Lease→Charge→Invoice→Payment→GL | Finance portal + charge engine + journals | Real CoA, reverse/period close UAT with accountant |
@@ -23,7 +23,9 @@
 
 ## Pilot-ready today (functional)
 
-Login, tickets, reception visitors, employee IN/OUT (if AxTrax poller up), card request, announcements, spaces, CRM sales path, lease lifecycle (when poller/`--once` enabled), finance draft→confirm→payment (placeholder CoA).
+Login, tickets, reception visitors, employee IN/OUT (if AxTrax poller up), card request, announcements, spaces, lease lifecycle (when poller/`--once` enabled), finance draft→confirm→payment (placeholder CoA).
+
+**CRM/Satış:** cari branch dəyişiklikləri **qəbul olunana qədər pilot/production-hazır deyil** (`phase0-module-status.md` production gate; UAT §A).
 
 ## Acceptance notes
 

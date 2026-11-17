@@ -299,7 +299,10 @@ def _normalize_person_name(name: str) -> str:
 
 
 def _find_unlinked_employee_by_name(company: ResidentCompany, full_name: str):
-    """Portal-created employees have no AxTrax ExternalIdentity yet — match by name."""
+    """Portal-created employees have no AxTrax ExternalIdentity yet — match by name.
+
+    Ambiguous multi-match → None (manual link / dedupe required).
+    """
     ct = ContentType.objects.get_for_model(ResidentEmployee)
     linked_ids = ExternalIdentity.objects.filter(
         system=AXTRAX_SYSTEM,
@@ -310,20 +313,31 @@ def _find_unlinked_employee_by_name(company: ResidentCompany, full_name: str):
     target = _normalize_person_name(full_name)
     if not target:
         return None
-    for emp in ResidentEmployee.objects.filter(company=company).exclude(pk__in=linked_ids):
-        if _normalize_person_name(emp.full_name) == target:
-            return emp
+    matches = [
+        emp
+        for emp in ResidentEmployee.objects.filter(company=company).exclude(pk__in=linked_ids)
+        if _normalize_person_name(emp.full_name) == target
+    ]
+    if len(matches) == 1:
+        return matches[0]
     return None
 
 
 def _find_employee_by_name_in_company(company: ResidentCompany, full_name: str):
-    """Any same-name row in the company (used when AxTrax reassigned emp ids)."""
+    """Any same-name row in the company (used when AxTrax reassigned emp ids).
+
+    Ambiguous multi-match → None.
+    """
     target = _normalize_person_name(full_name)
     if not target:
         return None
-    for emp in ResidentEmployee.objects.filter(company=company).order_by("-is_active", "pk"):
-        if _normalize_person_name(emp.full_name) == target:
-            return emp
+    matches = [
+        emp
+        for emp in ResidentEmployee.objects.filter(company=company).order_by("-is_active", "pk")
+        if _normalize_person_name(emp.full_name) == target
+    ]
+    if len(matches) == 1:
+        return matches[0]
     return None
 
 

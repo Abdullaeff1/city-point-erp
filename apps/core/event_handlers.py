@@ -77,6 +77,7 @@ def register_default_handlers() -> None:
         bus.VISITOR_CHECKED_OUT,
         bus.LEASE_ACTIVATED,
         bus.LEASE_TERMINATED,
+        bus.LEASE_EXPIRING,
         bus.APPROVAL_REQUESTED,
         bus.APPROVAL_DECIDED,
     ):

@@ -118,3 +118,25 @@ def create_employee_card_order(
     )
     TicketAttachment.objects.create(ticket=ticket, file=ContentFile(content, name=raw_name))
     return employee, ticket
+
+
+@transaction.atomic
+def deactivate_resident_employee(employee: ResidentEmployee, *, actor=None, clear_card: bool = True) -> ResidentEmployee:
+    """Soft-deactivate employee (ERP manual) — AxTrax write is out of scope."""
+    from apps.audit.services import log_action
+
+    if not employee.is_active and not employee.card_number:
+        return employee
+    employee.mark_inactive()
+    if clear_card and employee.card_number:
+        employee.card_number = ""
+        employee.save(update_fields=["card_number"])
+    PartyService.upsert_person_from_employee(employee, audit=False)
+    log_action(
+        action="resident_employee.deactivated",
+        actor=actor,
+        entity=employee,
+        new_values={"company_id": employee.company_id, "clear_card": clear_card},
+        source="erp",
+    )
+    return employee

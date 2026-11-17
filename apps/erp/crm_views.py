@@ -93,6 +93,7 @@ class CrmLeadListView(CrmAccessMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        pending = self.request.session.pop("crm_pending_lead", None) or {}
         ctx.update(_pipeline_ctx("leads"))
         ctx.update(
             {
@@ -103,6 +104,8 @@ class CrmLeadListView(CrmAccessMixin, ListView):
                 "record_statuses": RecordStatus.choices,
                 "outcomes": Outcome.choices,
                 "filters": self.request.GET,
+                "pending_lead": pending,
+                "pending_lead_open": bool(pending),
             }
         )
         return ctx

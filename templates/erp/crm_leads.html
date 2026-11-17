@@ -6,7 +6,7 @@
 {% include "partials/crm_pipeline_strip.html" %}
 {% if can_mutate %}
 <section class="crm-lead-create cp-card p-card mb-4">
-  <details class="crm-lead-create-fold">
+  <details class="crm-lead-create-fold"{% if pending_lead_open %} open{% endif %}>
     <summary class="crm-lead-create-summary">
       <div class="crm-lead-create-summary-text">
         <h3 class="cp-section">{% translate "Yeni lid" %}</h3>
@@ -27,19 +27,19 @@
         <div class="grid-2 crm-lead-create-grid">
           <label>
             <span class="cp-meta">{% translate "Şirkət" %}</span>
-            <input class="cp-input mt-1 w-full" name="company_name" autocomplete="organization" placeholder="{% translate 'Şirkət adı' %}">
+            <input class="cp-input mt-1 w-full" name="company_name" autocomplete="organization" placeholder="{% translate 'Şirkət adı' %}" value="{{ pending_lead.company_name|default:'' }}">
           </label>
           <label>
             <span class="cp-meta">{% translate "Əlaqəli şəxs" %}</span>
-            <input class="cp-input mt-1 w-full" name="full_name" autocomplete="name" placeholder="{% translate 'Ad Soyad' %}">
+            <input class="cp-input mt-1 w-full" name="full_name" autocomplete="name" placeholder="{% translate 'Ad Soyad' %}" value="{{ pending_lead.full_name|default:'' }}">
           </label>
           <label>
             <span class="cp-meta">{% translate "Telefon" %}</span>
-            <input class="cp-input mt-1 w-full" name="phone" type="tel" autocomplete="tel" placeholder="+994…">
+            <input class="cp-input mt-1 w-full" name="phone" type="tel" autocomplete="tel" placeholder="+994…" value="{{ pending_lead.phone|default:'' }}">
           </label>
           <label>
             <span class="cp-meta">{% translate "E-poçt" %}</span>
-            <input class="cp-input mt-1 w-full" name="email" type="email" autocomplete="email" placeholder="name@company.az">
+            <input class="cp-input mt-1 w-full" name="email" type="email" autocomplete="email" placeholder="name@company.az" value="{{ pending_lead.email|default:'' }}">
           </label>
         </div>
       </div>
@@ -50,21 +50,21 @@
           <label>
             <span class="cp-meta">{% translate "Mənbə" %}</span>
             <select class="cp-input mt-1 w-full" name="source">
-              {% for v,l in sources %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+              {% for v,l in sources %}<option value="{{ v }}" {% if pending_lead.source == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
             </select>
           </label>
           <label>
             <span class="cp-meta">{% translate "Müraciət tarixi" %}</span>
-            <input class="cp-input mt-1 w-full" name="inquired_at" type="date">
+            <input class="cp-input mt-1 w-full" name="inquired_at" type="date" value="{{ pending_lead.inquired_at|default:'' }}">
           </label>
           <div class="crm-lead-create-area">
             <label>
               <span class="cp-meta">{% translate "Min m²" %}</span>
-              <input class="cp-input mt-1 w-full" name="min_area_m2" inputmode="decimal" placeholder="0">
+              <input class="cp-input mt-1 w-full" name="min_area_m2" inputmode="decimal" placeholder="0" value="{{ pending_lead.min_area_m2|default:'' }}">
             </label>
             <label>
               <span class="cp-meta">{% translate "Max m²" %}</span>
-              <input class="cp-input mt-1 w-full" name="max_area_m2" inputmode="decimal" placeholder="0">
+              <input class="cp-input mt-1 w-full" name="max_area_m2" inputmode="decimal" placeholder="0" value="{{ pending_lead.max_area_m2|default:'' }}">
             </label>
           </div>
         </div>
@@ -73,19 +73,19 @@
       <div class="crm-lead-create-section">
         <label class="w-full">
           <span class="cp-meta">{% translate "Qeyd" %}</span>
-          <textarea class="cp-input mt-1 w-full" name="message" rows="3" placeholder="{% translate 'Qısa qeyd…' %}"></textarea>
+          <textarea class="cp-input mt-1 w-full" name="message" rows="3" placeholder="{% translate 'Qısa qeyd…' %}">{{ pending_lead.message|default:'' }}</textarea>
         </label>
       </div>
 
-      <details class="crm-lead-create-advanced">
+      <details class="crm-lead-create-advanced"{% if pending_lead_open %} open{% endif %}>
         <summary class="cp-meta">{% translate "Əlavə seçimlər" %}</summary>
         <div class="crm-lead-create-advanced-body">
           <label class="w-full">
             <span class="cp-meta">{% translate "Əlaqə yoxdursa səbəb" %}</span>
-            <input class="cp-input mt-1 w-full" name="contact_missing_reason" placeholder="{% translate 'Niyə əlaqə məlumatı yoxdur?' %}">
+            <input class="cp-input mt-1 w-full" name="contact_missing_reason" placeholder="{% translate 'Niyə əlaqə məlumatı yoxdur?' %}" value="{{ pending_lead.contact_missing_reason|default:'' }}">
           </label>
           <label class="crm-lead-create-check">
-            <input type="checkbox" name="force_create" value="1">
+            <input type="checkbox" name="force_create" value="1"{% if pending_lead_open %} checked{% endif %}>
             <span>{% translate "Təkrar yarat (duplicate xəbərdarlığını keç)" %}</span>
           </label>
         </div>

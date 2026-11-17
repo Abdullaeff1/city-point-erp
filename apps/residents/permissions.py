@@ -36,7 +36,7 @@ def user_is_reception_limited(user) -> bool:
 
 
 def user_can_access_portal_document(user, document) -> bool:
-    """Portal: visible_to_resident + company in session scope."""
+    """Portal: visible_to_resident; company checked via ``*_in_scope``."""
     if not user or not getattr(user, "is_authenticated", False):
         return False
     if not getattr(document, "visible_to_resident", False):
@@ -44,20 +44,24 @@ def user_can_access_portal_document(user, document) -> bool:
     if not document.company_id:
         return False
     if user.role != Role.RESIDENT_USER:
-        # Staff may browse portal docs only for scoped companies if any
         return user_can_view_resident_legal_docs(user)
-    # Prefer request-bound scope when available via thread-local callers;
-    # callers should pass company_ids when known.
     return True
 
 
 def user_can_access_portal_document_in_scope(user, document, company_ids) -> bool:
     if not user_can_access_portal_document(user, document):
         return False
+    from apps.accounts.object_scope import company_accessible
+
+    ids = list(company_ids or [])
     if user.role != Role.RESIDENT_USER:
-        return user_can_view_resident_legal_docs(user)
-    ids = set(company_ids or [])
-    return document.company_id in ids
+        if not user_can_view_resident_legal_docs(user):
+            return False
+        # Staff browsing portal: when scope ids present, require company ∈ scope
+        if ids:
+            return int(document.company_id) in {int(i) for i in ids}
+        return True
+    return company_accessible(user, document.company_id, company_ids=ids or None)
 
 
 def portal_document_qs_for_request(request):

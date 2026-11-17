@@ -92,7 +92,7 @@ def role_context(request):
         "nav_internal_access": is_adminish,
         # İcarələr sidebar gizlədilir — məlumat Rezident kartında (Sənədlər) saxlanır
         "nav_leases": False,
-        # CRM: sales mutate; management/admin/accountant RO (+ accountant applications)
+        # CRM: sales mutate; management/accountant RO (Admin out — A.10)
         "nav_crm": bool(
             user
             and user.is_authenticated

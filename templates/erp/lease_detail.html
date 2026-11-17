@@ -55,6 +55,38 @@
     </div>
   </section>
 
+  {% if lease_lines %}
+  <section class="mb-4">
+    <h3 class="cp-section mb-3">{% translate "Sahələr" %}</h3>
+    <div class="cp-card p-card overflow-x-auto">
+      <table class="cp-table w-full text-sm">
+        <thead>
+          <tr>
+            <th>{% translate "Kod" %}</th>
+            <th>{% translate "Mərtəbə" %}</th>
+            <th>{% translate "m²" %}</th>
+            <th>{% translate "Pay" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in lease_lines %}
+          <tr>
+            <td>
+              {% if line.space_id %}
+              <a href="{% url 'erp:space_detail' line.space.code %}">{{ line.space.code }}</a>
+              {% else %}—{% endif %}
+            </td>
+            <td>{% if line.space and line.space.floor %}{{ line.space.floor.name|default:line.space.floor.code }}{% else %}—{% endif %}</td>
+            <td>{{ line.area_m2|default:"—" }}</td>
+            <td>{{ line.rent_share|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
   <div class="lease-detail-grid">
     <section class="cp-card p-card lease-detail-panel">
       <h3 class="cp-section">{% translate "Əlavə məlumat" %}</h3>
@@ -119,6 +151,7 @@
           </span>
         </li>
       </ul>
+      {% if can_edit_lease %}
       <form method="post" class="lease-detail-actions mt-4">
         {% csrf_token %}
         {% if lease.status != "active" and lease.status != "terminated" %}
@@ -128,6 +161,7 @@
         <button class="cp-btn-ghost w-full" name="action" value="terminate" type="submit">{% translate "Dayandır" %}</button>
         {% endif %}
       </form>
+      {% endif %}
     </aside>
   </div>
 </div>

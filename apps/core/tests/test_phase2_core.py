@@ -25,6 +25,21 @@ class DomainEventTests(TestCase):
         bus.emit(bus.TICKET_CREATED, payload={"ticket_id": None, "entity_model": "ticket", "code": "T-TEST"})
         self.assertTrue(AuditLog.objects.filter(action=bus.TICKET_CREATED).exists())
 
+    def test_emit_event_key_dedupe(self):
+        first = bus.emit(
+            bus.LEASE_EXPIRING,
+            payload={"lease_id": 1},
+            event_key="lease.expiring.1.2099-01-01",
+        )
+        second = bus.emit(
+            bus.LEASE_EXPIRING,
+            payload={"lease_id": 1},
+            event_key="lease.expiring.1.2099-01-01",
+        )
+        self.assertIsNotNone(first)
+        self.assertIsNone(second)
+        self.assertEqual(AuditLog.objects.filter(action=bus.LEASE_EXPIRING).count(), 1)
+
 
 class PartyResolverTests(TestCase):
     def test_party_for_company_ensure(self):

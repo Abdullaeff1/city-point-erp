@@ -109,6 +109,16 @@ def _schedule_notify(fn):
     transaction.on_commit(_safe)
 
 
+def _ticket_email_subject(template_code: str, ticket) -> str:
+    code = getattr(ticket, "code", "") or ""
+    labels = {
+        "ticket.company": f"Ticket {code} — şirkət bildirişi",
+        "ticket.department": f"Ticket {code} — şöbə bildirişi",
+        "ticket.escalation": f"Ticket {code} — eskalasiya",
+    }
+    return labels.get(template_code, f"City Point — {code}")
+
+
 def _enqueue_ticket_email(user, *, message: str, template_code: str, ticket, event_key: str = ""):
     """Outbox email for ticket events (staff + residents with an address)."""
     recipient = (getattr(user, "email", "") or "").strip()
@@ -120,6 +130,7 @@ def _enqueue_ticket_email(user, *, message: str, template_code: str, ticket, eve
         recipient=recipient,
         template_code=template_code,
         payload={
+            "subject": _ticket_email_subject(template_code, ticket),
             "message": message,
             "ticket_code": ticket.code,
             "event_key": event_key,
@@ -129,10 +140,26 @@ def _enqueue_ticket_email(user, *, message: str, template_code: str, ticket, eve
 
 
 def notify_company_users(ticket, message, *, event_key="", email_template="ticket.company"):
-    from apps.accounts.models import User
+    """Notify resident portal users for the ticket company (membership ∪ primary FK)."""
+    from django.db.models import Q
+
+    from apps.accounts.models import Role, User
     from apps.comms.services import notify_in_app
 
-    users = list(User.objects.filter(resident_company=ticket.company, is_active=True))
+    company_id = getattr(ticket, "company_id", None)
+    if not company_id:
+        return
+    users = list(
+        User.objects.filter(is_active=True, role=Role.RESIDENT_USER)
+        .filter(
+            Q(resident_company_id=company_id)
+            | Q(
+                portal_memberships__company_id=company_id,
+                portal_memberships__is_active=True,
+            )
+        )
+        .distinct()
+    )
 
     def _send():
         for u in users:
@@ -494,9 +521,9 @@ def attach_ticket_file(ticket, *, actor, upload):
     return TicketAttachment.objects.create(ticket=ticket, file=upload)
 
 
-def delete_ticket(ticket, *, actor):
+def delete_ticket(ticket, *, actor, company_ids=None):
     """Permanently remove a ticket that has not yet reached İcradadır."""
-    if not can_delete_ticket(actor, ticket):
+    if not can_delete_ticket(actor, ticket, company_ids=company_ids):
         if ticket.status not in DELETABLE_STATUSES:
             raise DomainError(_("İcradadır statusundan sonra ticket silinə bilməz."))
         raise DomainError(_("Ticket silmək icazəsi yoxdur."))

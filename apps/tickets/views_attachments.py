@@ -16,7 +16,12 @@ def ticket_attachment_download(request, pk):
         TicketAttachment.objects.select_related("ticket"),
         pk=pk,
     )
-    if not can_access_ticket_attachment(request.user, attachment.ticket):
+    scope_ids = getattr(request, "portal_company_ids", None)
+    if not can_access_ticket_attachment(
+        request.user,
+        attachment.ticket,
+        company_ids=scope_ids,
+    ):
         raise Http404()
     if not attachment.file:
         raise Http404()

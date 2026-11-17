@@ -135,6 +135,8 @@ class CrmLeadService(Service):
     @transaction.atomic
     def update_lead(cls, lead: Lead, *, actor, data: dict) -> Lead:
         assert_can_mutate_crm(actor)
+        tracked = ("qualification", "pipeline_stage", "record_status", "outcome")
+        before = {field: getattr(lead, field) for field in tracked}
         for field in (
             "full_name",
             "email",
@@ -169,6 +171,18 @@ class CrmLeadService(Service):
                 lead.record_status = RecordStatus.CLOSED
         lead.full_clean()
         lead.save()
+        changes = [
+            f"{field}: {before[field]} → {getattr(lead, field)}"
+            for field in tracked
+            if field in data and before[field] != getattr(lead, field)
+        ]
+        if changes:
+            LeadActivity.objects.create(
+                lead=lead,
+                activity_type=ActivityType.STATUS_CHANGE,
+                body="; ".join(changes),
+                created_by=actor,
+            )
         log_action(actor=actor, action="crm.lead.update", entity=lead, message=str(lead))
         return lead
 
@@ -511,13 +525,26 @@ class CrmOfferService(Service):
 
             recipient = offer.sent_to
             subject = f"City Point təklif #{offer.pk}"
-            body = _("Təklif PDF-i sistemdə hazırdır (v%(v)s).") % {
-                "v": version.version_number
-            }
+            body = _("Təklif PDF əlavə olunub (v%(v)s).") % {"v": version.version_number}
             payload = {
                 "offer_id": offer.pk,
                 "version_number": version.version_number,
             }
+            attachments = []
+            if version.pdf_file:
+                try:
+                    version.pdf_file.open("rb")
+                    pdf_bytes = version.pdf_file.read()
+                    version.pdf_file.close()
+                    attachments.append(
+                        (
+                            f"offer_{offer.pk}_v{version.version_number}.pdf",
+                            pdf_bytes,
+                            "application/pdf",
+                        )
+                    )
+                except Exception:  # noqa: BLE001
+                    attachments = []
 
             def _send():
                 try:
@@ -527,6 +554,7 @@ class CrmOfferService(Service):
                         body=body,
                         template_code="crm.offer.sent",
                         payload=payload,
+                        attachments=attachments or None,
                     )
                 except Exception:  # noqa: BLE001 — dispatch row already marked failed
                     pass
@@ -743,7 +771,7 @@ class LeaseApplicationService(Service):
         assert_can_review_lease_application(actor)
         from apps.leases.lease_ops import refresh_lease_cached_amounts
         from apps.leases.models import Lease, LeaseStatus
-        from apps.leases.services import next_lease_code
+        from apps.leases.services import ensure_primary_lease_line, next_lease_code
 
         if app.lease_id:
             return app
@@ -766,6 +794,21 @@ class LeaseApplicationService(Service):
             end_date=app.lease_end,
             notes=app.extra_notes or app.sales_notes or "",
         )
+        ensure_primary_lease_line(lease)
+        # Bank / tax snapshot from application → lease notes (SoT remains LeaseApplication + Documents)
+        bank_bits = []
+        if app.tax_id:
+            bank_bits.append(f"VÖEN: {app.tax_id}")
+        if app.bank_details:
+            bank_bits.append(f"Bank: {app.bank_details.strip()[:500]}")
+        req = app.bank_requisites if isinstance(app.bank_requisites, dict) else {}
+        for key in ("iban", "swift", "account", "bank_name"):
+            if req.get(key):
+                bank_bits.append(f"{key}: {req[key]}")
+        if bank_bits:
+            bank_note = " | ".join(bank_bits)
+            lease.notes = (f"{lease.notes}\n" if lease.notes else "") + f"[LeaseApplication #{app.pk}] {bank_note}"
+            lease.save(update_fields=["notes", "updated_at"])
         refresh_lease_cached_amounts(lease)
         app.lease = lease
         app.status = LeaseApplicationStatus.LEASE_DRAFT_CREATED
@@ -981,7 +1024,7 @@ def convert_offer_to_lease_draft(offer: Offer):
     """Deprecated path — prefer LeaseApplicationService.create_lease_draft."""
     from apps.leases.lease_ops import refresh_lease_cached_amounts
     from apps.leases.models import Lease, LeaseStatus
-    from apps.leases.services import next_lease_code
+    from apps.leases.services import ensure_primary_lease_line, next_lease_code
 
     if offer.lease_id:
         return offer.lease
@@ -1001,6 +1044,7 @@ def convert_offer_to_lease_draft(offer: Offer):
         parking_included_free=True,
         notes=offer.notes or "",
     )
+    ensure_primary_lease_line(lease)
     refresh_lease_cached_amounts(lease)
     offer.lease = lease
     offer.status = OfferStatus.ACCEPTED

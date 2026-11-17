@@ -119,6 +119,24 @@ def start_lease_lifecycle_poller():
     print(f"Lease lifecycle poller started pid={proc.pid} log={log_path}")
 
 
+def start_ticket_email_outbox_poller():
+    """Drain pending ticket.* NotificationDispatch EMAIL rows (TD-08)."""
+    if os.environ.get("TICKET_EMAIL_OUTBOX_POLL_ON_START", "0") != "1":
+        print("Ticket email outbox poller disabled (TICKET_EMAIL_OUTBOX_POLL_ON_START!=1)")
+        return
+    log_dir = Path("var")
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / "ticket_email_outbox.log"
+    log = open(log_path, "a", encoding="utf-8")
+    proc = subprocess.Popen(
+        [sys.executable, "manage.py", "poll_email_outbox", "--prefix=ticket."],
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    print(f"Ticket email outbox poller started pid={proc.pid} log={log_path}")
+
+
 def start_outlook_announcements_poller():
     """Legacy: Outlook shared mailbox → portal announcements (prefer Zoho)."""
     if os.environ.get("OUTLOOK_POLL_ON_START", "0") != "1":
@@ -166,6 +184,7 @@ def main():
     start_zoho_announcements_poller()
     start_outlook_announcements_poller()
     start_ticket_sla_escalation_poller()
+    start_ticket_email_outbox_poller()
     start_crm_reminder_poller()
     start_lease_lifecycle_poller()
     # OneDrive-mounted trees can crash Django autoreloader with Errno 5 (I/O error).

@@ -29,3 +29,12 @@ Target owners follow Final Master Plan §2.1. Current owner is what code uses to
 1. Do not create parallel “Company” tables in CRM/Lease/Accounting.
 2. Prefer FK to Party once link exists; keep ResidentCompany until cutover validated.
 3. Access write adapters stay in integrations; business eligibility in access/residents services.
+
+## M1 confirmation (2026-11-17)
+
+Confirmed in [m1-party-resident-mapping.md](../architecture/m1-party-resident-mapping.md):
+
+- Commercial SoT: Party (CRM / Lease / Billing).
+- Portal / Tickets / Reception / Documents SoT: ResidentCompany / ResidentEmployee (dual-write to Party/Person).
+- No big-bang cutover in M1; duplicate report only (`report_party_duplicates`).
+- Company→Party write path unified via `PartyService`.

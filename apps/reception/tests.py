@@ -125,7 +125,18 @@ class ReceptionServiceTests(TestCase):
         self.assertEqual(visit.check_in_at, check_in)
         self.assertIsNone(visit.check_out_at)
 
-    def test_walk_in_without_id_ok(self):
+    def test_walk_in_without_id_requires_override(self):
+        with self.assertRaises(DomainError):
+            ReceptionService.register_walk_in(
+                fin_code="7A3B2C1D2K",
+                first_name="Ali",
+                last_name="Veli",
+                company=self.company,
+                host=self.host,
+                visit_type=self.vtype,
+                id_document_held=False,
+                actor=self.user,
+            )
         visit = ReceptionService.register_walk_in(
             fin_code="7A3B2C1D2K",
             first_name="Ali",
@@ -134,12 +145,44 @@ class ReceptionServiceTests(TestCase):
             host=self.host,
             visit_type=self.vtype,
             id_document_held=False,
+            allow_id_override=True,
+            id_override_reason="Vəsiqə yoxdur — rəhbər razılığı",
             actor=self.user,
         )
         self.assertEqual(visit.status, VisitStatus.INSIDE)
         self.assertTrue(visit.check_in_at)
         self.assertFalse(visit.id_document_held)
+        self.assertIn("rəhbər", visit.id_override_reason)
         self.assertFalse(VisitorAccess.objects.filter(visit=visit).exists())
+
+    def test_check_in_requires_serial_when_id_held(self):
+        visit = pre_register_visit(
+            company=self.company,
+            first_name="Pre",
+            last_name="Serial",
+            host=self.host,
+            visit_type=self.vtype,
+        )
+        with self.assertRaises(DomainError) as ctx:
+            ReceptionService.check_in_visit(
+                visit,
+                actor=self.user,
+                id_document_held=True,
+                guest_card_number="GK-NOSERIAL",
+            )
+        self.assertIn("Seriya", str(ctx.exception))
+
+    def test_pre_register_rejects_inactive_host(self):
+        inactive = ResidentEmployee.objects.create(
+            company=self.company, full_name="Inactive Host", is_active=False
+        )
+        with self.assertRaises(DomainError):
+            pre_register_visit(
+                company=self.company,
+                first_name="X",
+                last_name="Y",
+                host=inactive,
+            )
 
     def test_walk_in_with_id_issues_guest_card(self):
         with self.assertRaises(DomainError):
@@ -303,6 +346,13 @@ class ReceptionServiceTests(TestCase):
     def test_kassa_and_document_reasons_are_choices(self):
         from apps.erp.forms import GuestVisitForm
 
+        VisitorType.objects.get_or_create(
+            code="kassa", defaults={"name": "Kassa", "sort_order": 40, "is_active": True}
+        )
+        VisitorType.objects.get_or_create(
+            code="document",
+            defaults={"name": "Sənəd ilə bağlı", "sort_order": 45, "is_active": True},
+        )
         rendered = str(GuestVisitForm()["visit_type"])
         self.assertIn("Kassa", rendered)
         self.assertIn("Sənəd ilə bağlı", rendered)
@@ -474,11 +524,16 @@ class ReceptionServiceTests(TestCase):
     def test_bulk_checkout_only_overdue_inside(self):
         from datetime import timedelta
 
+        courier, _ = VisitorType.objects.get_or_create(
+            code="courier", defaults={"name": "Kuryer", "sort_order": 10}
+        )
         overdue = ReceptionService.register_walk_in(
             fin_code="",
             first_name="Old",
             last_name="Guest",
             company=self.company,
+            visit_type=courier,
+            id_document_held=False,
             actor=self.user,
         )
         overdue.check_in_at = timezone.now() - timedelta(hours=25)
@@ -499,6 +554,8 @@ class ReceptionServiceTests(TestCase):
             first_name="New",
             last_name="Guest",
             company=self.company,
+            visit_type=courier,
+            id_document_held=False,
             actor=self.user,
         )
         client = Client()

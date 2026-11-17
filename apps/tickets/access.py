@@ -67,13 +67,14 @@ def can_mutate_ticket(user, ticket) -> bool:
     return can_view_ticket(user, ticket)
 
 
-def can_access_ticket_attachment(user, ticket) -> bool:
-    """Staff: department view. Resident: own company ticket only."""
+def can_access_ticket_attachment(user, ticket, *, company_ids=None) -> bool:
+    """Staff: department view. Resident: ticket company in membership/session scope."""
     if not user or not getattr(user, "is_authenticated", False) or ticket is None:
         return False
     if getattr(user, "role", None) == Role.RESIDENT_USER:
-        company_id = getattr(user, "resident_company_id", None)
-        return bool(company_id and ticket.company_id == company_id)
+        from apps.accounts.object_scope import company_accessible
+
+        return company_accessible(user, ticket.company_id, company_ids=company_ids)
     return can_view_ticket(user, ticket)
 
 
@@ -82,15 +83,16 @@ def can_handoff_ticket(user, ticket) -> bool:
     return can_mutate_ticket(user, ticket)
 
 
-def can_delete_ticket(user, ticket) -> bool:
-    """Delete only before İcradadır: staff of the ticket dept, or same-company portal user."""
+def can_delete_ticket(user, ticket, *, company_ids=None) -> bool:
+    """Delete only before İcradadır: staff of the ticket dept, or scoped portal user."""
     if not user or not getattr(user, "is_authenticated", False) or ticket is None:
         return False
     if ticket.status not in DELETABLE_STATUSES:
         return False
     if getattr(user, "role", None) == Role.RESIDENT_USER:
-        company_id = getattr(user, "resident_company_id", None)
-        return bool(company_id and ticket.company_id == company_id)
+        from apps.accounts.object_scope import company_accessible
+
+        return company_accessible(user, ticket.company_id, company_ids=company_ids)
     return can_mutate_ticket(user, ticket)
 
 

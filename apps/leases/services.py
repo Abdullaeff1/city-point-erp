@@ -2,9 +2,18 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
-from apps.leases.models import Lease, LeaseStatus
+from apps.leases.models import Lease, LeaseLine, LeaseStatus
+
+# Occupancy / portal still treat these as "open" commercial leases.
+OPEN_LEASE_STATUSES = (
+    LeaseStatus.ACTIVE,
+    LeaseStatus.EXPIRING,
+    LeaseStatus.RENEWED,
+    LeaseStatus.AMENDED,
+)
 
 
 def next_lease_code():
@@ -32,16 +41,59 @@ def next_lease_code():
     return f"LS-{nxt}"
 
 
-def sync_space_from_lease(lease: Lease):
-    """Update Space.commercial_status from lease state (no FK from Space → Lease)."""
-    from apps.property.models import CommercialStatus, Space
+def lease_space_ids(lease: Lease) -> list[int]:
+    """Primary space + LeaseLine spaces (deduped, primary first)."""
+    ids: list[int] = []
+    if lease.space_id:
+        ids.append(int(lease.space_id))
+    line_ids = (
+        LeaseLine.objects.filter(lease_id=lease.pk)
+        .exclude(space_id=None)
+        .values_list("space_id", flat=True)
+    )
+    for sid in line_ids:
+        sid = int(sid)
+        if sid not in ids:
+            ids.append(sid)
+    return ids
 
+
+def ensure_primary_lease_line(lease: Lease) -> LeaseLine | None:
+    """Ensure a LeaseLine exists for ``lease.space`` (area from space when available)."""
     if not lease.space_id:
-        return
+        return None
+    space = lease.space
+    area = None
+    if space is not None:
+        area = space.rentable_area_m2 or space.area_m2
+    line, _created = LeaseLine.objects.get_or_create(
+        lease=lease,
+        space_id=lease.space_id,
+        defaults={"area_m2": area},
+    )
+    return line
 
-    space = Space.objects.filter(pk=lease.space_id).first()
-    if not space:
-        return
+
+def space_held_by_other_open_lease(space_id: int, *, exclude_lease_id: int | None = None) -> bool:
+    """True if another open lease still claims this space (primary or line)."""
+    qs = Lease.objects.filter(status__in=OPEN_LEASE_STATUSES).filter(
+        Q(space_id=space_id) | Q(lines__space_id=space_id)
+    )
+    if exclude_lease_id:
+        qs = qs.exclude(pk=exclude_lease_id)
+    return qs.distinct().exists()
+
+
+def party_has_other_open_leases(party_id: int, *, exclude_lease_id: int | None = None) -> bool:
+    qs = Lease.objects.filter(party_id=party_id, status__in=OPEN_LEASE_STATUSES)
+    if exclude_lease_id:
+        qs = qs.exclude(pk=exclude_lease_id)
+    return qs.exists()
+
+
+def sync_space_from_lease(lease: Lease):
+    """Update commercial_status on primary + all LeaseLine spaces."""
+    from apps.property.models import CommercialStatus, Space
 
     mapping = {
         LeaseStatus.DRAFT: CommercialStatus.VACANT,
@@ -55,16 +107,55 @@ def sync_space_from_lease(lease: Lease):
         LeaseStatus.TERMINATED: CommercialStatus.VACANT,
     }
     new_status = mapping.get(lease.status)
-    if new_status and space.commercial_status != new_status:
-        space.commercial_status = new_status
-        space.save(update_fields=["commercial_status"])
+    if not new_status:
+        return
+    ids = lease_space_ids(lease)
+    if not ids:
+        return
+    for space in Space.objects.filter(pk__in=ids):
+        # Don't force VACANT if another open lease still holds the space.
+        if (
+            new_status == CommercialStatus.VACANT
+            and space_held_by_other_open_lease(space.pk, exclude_lease_id=lease.pk)
+        ):
+            continue
+        if space.commercial_status != new_status:
+            space.commercial_status = new_status
+            space.save(update_fields=["commercial_status"])
+
+
+def apply_space_bridge_from_lease(lease: Lease, *, occupying: bool) -> None:
+    """Set/clear occupancy + Space.resident bridge for all lease spaces."""
+    from apps.property.models import Occupancy, Space
+
+    ids = lease_space_ids(lease)
+    if not ids:
+        return
+    company_id = None
+    if occupying and lease.party_id:
+        company_id = getattr(lease.party, "legacy_resident_company_id", None)
+
+    for space in Space.objects.filter(pk__in=ids):
+        if occupying:
+            space.occupancy = Occupancy.ACTIVE_LEASE
+            if company_id:
+                space.resident_id = company_id
+            space.save(update_fields=["occupancy", "resident"])
+            continue
+        if space_held_by_other_open_lease(space.pk, exclude_lease_id=lease.pk):
+            continue
+        space.occupancy = Occupancy.VACANT
+        space.resident_id = None
+        space.save(update_fields=["occupancy", "resident"])
 
 
 @transaction.atomic
 def activate_lease(lease: Lease, actor=None):
-    """Active lease cascade: space commercial=active, party resident, portal/access/billing flags."""
+    """Active lease cascade: all spaces, party resident, portal/access/billing flags."""
     from apps.parties.models import PartyRole, PartyRoleCode, PartyStatus
-    from apps.property.models import CommercialStatus, Occupancy
+    from apps.property.models import CommercialStatus
+
+    ensure_primary_lease_line(lease)
 
     lease.status = LeaseStatus.ACTIVE
     lease.billing_active = True
@@ -84,15 +175,13 @@ def activate_lease(lease: Lease, actor=None):
         ]
     )
     sync_space_from_lease(lease)
+    apply_space_bridge_from_lease(lease, occupying=True)
+    # Keep commercial ACTIVE on all spaces (sync already did; reinforce after bridge).
+    from apps.property.models import Space
 
-    if lease.space_id:
-        # Reload from DB — avoid overwriting sync_space_from_lease with stale related cache.
-        space = type(lease.space).objects.get(pk=lease.space_id)
-        space.occupancy = Occupancy.ACTIVE_LEASE
-        space.commercial_status = CommercialStatus.ACTIVE
-        if lease.party and lease.party.legacy_resident_company_id:
-            space.resident_id = lease.party.legacy_resident_company_id
-        space.save(update_fields=["occupancy", "resident", "commercial_status"])
+    Space.objects.filter(pk__in=lease_space_ids(lease)).exclude(
+        commercial_status=CommercialStatus.ACTIVE
+    ).update(commercial_status=CommercialStatus.ACTIVE)
 
     party = lease.party
     if party:
@@ -116,14 +205,13 @@ def activate_lease(lease: Lease, actor=None):
         bus.LEASE_ACTIVATED,
         payload={"lease_id": lease.pk, "code": lease.code, "entity_model": "lease"},
         actor=actor,
+        event_key=f"lease.activated.{lease.pk}",
     )
     return lease
 
 
 @transaction.atomic
 def terminate_lease(lease: Lease, actor=None):
-    from apps.property.models import Occupancy
-
     lease.status = LeaseStatus.TERMINATED
     lease.billing_active = False
     lease.portal_eligible = False
@@ -140,16 +228,23 @@ def terminate_lease(lease: Lease, actor=None):
         ]
     )
     sync_space_from_lease(lease)
-    if lease.space_id:
-        space = type(lease.space).objects.get(pk=lease.space_id)
-        space.occupancy = Occupancy.VACANT
-        space.save(update_fields=["occupancy"])
+    apply_space_bridge_from_lease(lease, occupying=False)
+
+    party = lease.party
+    if party and party.legacy_resident_company_id:
+        if not party_has_other_open_leases(party.pk, exclude_lease_id=lease.pk):
+            company = party.legacy_resident_company
+            if company.portal_active:
+                company.portal_active = False
+                company.save(update_fields=["portal_active"])
+
     from apps.core import events as bus
 
     bus.emit(
         bus.LEASE_TERMINATED,
         payload={"lease_id": lease.pk, "code": lease.code, "entity_model": "lease"},
         actor=actor,
+        event_key=f"lease.terminated.{lease.pk}",
     )
     return lease
 
@@ -181,13 +276,6 @@ def mark_lease_expiring(lease: Lease, *, actor=None) -> Lease:
     lease.status = LeaseStatus.EXPIRING
     lease.save(update_fields=["status", "updated_at"])
     sync_space_from_lease(lease)
-    if lease.space_id:
-        from apps.property.models import CommercialStatus
-
-        space = type(lease.space).objects.get(pk=lease.space_id)
-        if space.commercial_status != CommercialStatus.NOTICE:
-            space.commercial_status = CommercialStatus.NOTICE
-            space.save(update_fields=["commercial_status"])
     from apps.core import events as bus
 
     bus.emit(
@@ -200,6 +288,7 @@ def mark_lease_expiring(lease: Lease, *, actor=None) -> Lease:
             "entity_model": "lease",
         },
         actor=actor,
+        event_key=f"lease.expiring.{lease.pk}.{lease.end_date}",
     )
     _notify_lease_expiring(lease)
     return lease

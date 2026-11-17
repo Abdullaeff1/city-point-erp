@@ -54,11 +54,18 @@ class AdminAuditLogTests(TestCase):
             first_name="Service",
             last_name="Desk",
         )
+        from apps.reception.models import VisitorType
+
+        courier, _ = VisitorType.objects.get_or_create(
+            code="courier", defaults={"name": "Kuryer", "sort_order": 10}
+        )
         self.nigar = ReceptionService.register_walk_in(
             fin_code="",
             first_name="Nigar",
             last_name="Əliyeva",
             company=self.company,
+            visit_type=courier,
+            id_document_held=False,
             actor=self.aygun,
         )
         self.tural = ReceptionService.register_walk_in(
@@ -66,6 +73,8 @@ class AdminAuditLogTests(TestCase):
             first_name="Tural",
             last_name="Həsənov",
             company=self.company,
+            visit_type=courier,
+            id_document_held=False,
             actor=self.elcin,
         )
         log_action(action="TicketCreated", actor=self.desk, source="domain_event")
@@ -128,6 +137,7 @@ class AdminAuditLogTests(TestCase):
 
     def test_receptionist_cannot_open_audit(self):
         self.client.force_login(self.aygun)
-        self.assertEqual(self.client.get(self.url).status_code, 403)
+        # handler403 redirects staff home (302) instead of HTML 403
+        self.assertIn(self.client.get(self.url).status_code, (302, 403))
         home = self.client.get(reverse("erp:reception"))
         self.assertNotContains(home, 'href="/erp/audit/"')

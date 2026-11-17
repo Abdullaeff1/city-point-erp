@@ -138,6 +138,8 @@ class LeaseService(Service):
                 rent_rate = Decimal(str(space.base_rent_rate))
             if sc_rate <= 0 and space.service_charge_rate:
                 sc_rate = Decimal(str(space.service_charge_rate))
+        from apps.leases.services import ensure_primary_lease_line
+
         lease = Lease.objects.create(
             code=next_lease_code(),
             party=party,
@@ -155,6 +157,7 @@ class LeaseService(Service):
             parking_notes=parking_notes or "",
             notes=notes or "",
         )
+        ensure_primary_lease_line(lease)
         refresh_lease_cached_amounts(lease)
         return lease
 

@@ -40,8 +40,15 @@
   {% else %}
   <p class="cp-meta">{{ date_from|date:"d.m.Y" }}{% if date_from != date_to %} – {{ date_to|date:"d.m.Y" }}{% endif %}</p>
   {% endif %}
-  <div class="mt-3">
+  <div class="mt-3 flex gap-2" style="flex-wrap:wrap;align-items:center;">
     <a class="cp-btn" href="{% url 'erp:resident_employee_access_export' company.slug employee.pk %}?range={{ preset }}{% if preset == 'today' %}&date={{ date_from|date:'Y-m-d' }}{% elif preset == 'year' %}&year={{ date_from.year }}{% elif preset == 'custom' %}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}{% endif %}">{% translate "Excel yüklə" %}</a>
+    {% if can_deactivate_employee %}
+    <form method="post" onsubmit="return confirm('{% translate "Əməkdaşı deaktiv etmək istəyirsiniz?" %}');">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="deactivate">
+      <button type="submit" class="cp-btn-ghost">{% translate "Deaktiv et" %}</button>
+    </form>
+    {% endif %}
   </div>
   {% if fell_back_to_last_month %}
   <p class="cp-meta mt-3">{% translate "Seçilmiş aralıqda keçid yox idi — keçən ay göstərilir" %} ({{ date_from|date:"d.m.Y" }} – {{ date_to|date:"d.m.Y" }}).</p>

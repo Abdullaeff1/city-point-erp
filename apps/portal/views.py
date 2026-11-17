@@ -480,7 +480,8 @@ class RequestDetailView(ResidentPortalMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         ticket = self.get_ticket()
         ctx["ticket"] = ticket
-        ctx["can_delete"] = can_delete_ticket(self.request.user, ticket)
+        ids = _scope_ids(self.request)
+        ctx["can_delete"] = can_delete_ticket(self.request.user, ticket, company_ids=ids)
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -488,7 +489,8 @@ class RequestDetailView(ResidentPortalMixin, TemplateView):
         action = request.POST.get("action")
         if action == "delete":
             try:
-                code = delete_ticket(ticket, actor=request.user)
+                ids = _scope_ids(request)
+                code = delete_ticket(ticket, actor=request.user, company_ids=ids)
                 messages.success(request, _("%(code)s silindi.") % {"code": code})
                 return redirect("portal:requests_active")
             except DomainError as exc:
