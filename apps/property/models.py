@@ -136,6 +136,25 @@ class Space(models.Model):
     fit_out_status = models.CharField(
         max_length=64, blank=True, verbose_name=_("Təmir / təchizat statusu")
     )
+    renovation_needed = models.BooleanField(
+        default=False, verbose_name=_("Təmirə ehtiyac var")
+    )
+    has_internal_kitchen = models.BooleanField(
+        default=False, verbose_name=_("Daxili mətbəx")
+    )
+    parking_included = models.BooleanField(
+        default=False, verbose_name=_("Parkinq ayrılıb")
+    )
+    parking_slots = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        verbose_name=_("Parkinq yer sayı"),
+    )
+    sales_notes = models.TextField(
+        blank=True,
+        verbose_name=_("Satış qeydləri"),
+        help_text=_("Əlaqə zamanı satış üçün qısa məlumat"),
+    )
     is_public = models.BooleanField(default=False, verbose_name=_("İctimai"))
     public_description = models.TextField(blank=True, verbose_name=_("İctimai təsvir"))
 
@@ -243,6 +262,14 @@ class BuildingAsset(models.Model):
         related_name="building_assets",
     )
     location = models.CharField(max_length=160, blank=True)
+    manufacturer = models.CharField(max_length=160, blank=True)
+    serial_number = models.CharField(max_length=64, blank=True)
+    warranty_until = models.DateField(null=True, blank=True)
+    document = models.FileField(
+        upload_to="building_assets/%Y/%m/",
+        blank=True,
+        help_text="Pasport / zəmanət / quraşdırma sənədi",
+    )
     quantity = models.PositiveIntegerField(default=1)
     notes = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
@@ -265,6 +292,47 @@ class BuildingAsset(models.Model):
         if not self.next_inspection_on:
             return False
         return self.next_inspection_on <= timezone.localdate()
+
+
+class BuildingAssetEventType(models.TextChoices):
+    INSTALL = "install", _("Quraşdırılma")
+    REPAIR = "repair", _("Təmir")
+    INSPECTION = "inspection", _("Baxış")
+    DECOMMISSION = "decommission", _("İstifadədən çıxarılma")
+    NOTE = "note", _("Qeyd")
+
+
+class BuildingAssetEvent(models.Model):
+    """Immutable history for building equipment / inventory."""
+
+    asset = models.ForeignKey(
+        BuildingAsset, on_delete=models.CASCADE, related_name="events"
+    )
+    event_type = models.CharField(max_length=24, choices=BuildingAssetEventType.choices)
+    occurred_at = models.DateTimeField(default=timezone.now)
+    summary = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(blank=True)
+    work_order = models.ForeignKey(
+        "maintenance.WorkOrder",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="building_asset_events",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="building_asset_events",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-occurred_at", "-id"]
+
+    def __str__(self):
+        return f"{self.asset_id}:{self.event_type}"
 
 
 class Contractor(models.Model):
@@ -318,6 +386,15 @@ class ParkingAssignment(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="parking_assignments",
+    )
+    lease = models.ForeignKey(
+        "leases.Lease",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="parking_assignments",
+        verbose_name=_("İcarə"),
+        help_text=_("Parkinq yerinin bağlandığı müqavilə (opsional)"),
     )
     space = models.ForeignKey(
         Space,

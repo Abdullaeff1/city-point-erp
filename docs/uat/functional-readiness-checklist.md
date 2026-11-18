@@ -1,12 +1,23 @@
 # Functional readiness UAT checklist
 
-Security/TLS/NetAdmin **out of scope** for this pass. Mark each row Pass / Fail / Blocked.
+Security/TLS/NetAdmin **out of scope** for developer code Pass; operator §E is tracked with NetAdmin. Mark each row Pass / Fail / Blocked.
 
-**CRM production gate:** §A bütün sətirlər Pass + yazılı qəbul olmadan CRM dəyişiklikləri production-a çıxarılmır və “hazır” hesab edilmir (cari branch daxil).
+**CRM production gate:** §A bütün sətirlər Pass + [crm-written-acceptance.md](crm-written-acceptance.md) imzası olmadan CRM production-a çıxarılmır və “hazır” hesab edilmir.
 
-**Mərhələ meyarları + sübut:** [phase-acceptance-criteria.md](phase-acceptance-criteria.md) (A–E).
+**Mərhələ meyarları + sübut:** [phase-acceptance-criteria.md](phase-acceptance-criteria.md) (A–E).  
+**Boşluqlar / P0–P3:** [../architecture/phase-gaps-and-open-questions.md](../architecture/phase-gaps-and-open-questions.md)
+
+| Bölmə | Kod hazır? | Operator Pass? | Tracker |
+|-------|------------|----------------|---------|
+| §A CRM→Lease | Bəli | **Xeyr** | [crm-written-acceptance.md](crm-written-acceptance.md) |
+| §B Lease lifecycle | Bəli | **Xeyr** | bu fayl |
+| §C Daily ops | Bəli | **Xeyr** | bu fayl + AxTrax RO |
+| §D Billing | Bəli (placeholder CoA) | **Xeyr** | [coa-import-uat.md](coa-import-uat.md) |
+| §E Security/ops | Sənəd | **Xeyr** | [../deployment/netadmin-handoff-checklist.md](../deployment/netadmin-handoff-checklist.md) |
 
 ## A. CRM → Lease
+
+**Yazılı qəbul statusu:** `AWAITING_SIGNATURE` — [crm-written-acceptance.md](crm-written-acceptance.md)
 
 - [ ] Lead create → Opportunity → Offer version
 - [ ] Management approval required before send
@@ -31,12 +42,16 @@ Security/TLS/NetAdmin **out of scope** for this pass. Mark each row Pass / Fail 
 
 ## D. Billing (not full GL)
 
+**CoA UAT:** [coa-import-uat.md](coa-import-uat.md) — `AWAITING_CLIENT_COA`
+
 - [ ] Monthly lease charges generate
 - [ ] Invoice from charges → confirm creates journal (failure must error, not silent success)
 - [ ] Payment records journal; paid status when covered
-- [ ] Accountant: trial balance opens; CoA is placeholder — do not sign as statutory books
+- [ ] Accountant: trial balance opens; CoA is placeholder — do not sign as statutory books until CoA UAT Pass
 
-## E. Deferred (security later)
+## E. Deferred (security / NetAdmin)
+
+**Handoff:** [../deployment/netadmin-handoff-checklist.md](../deployment/netadmin-handoff-checklist.md) (NA1–NA9)
 
 - [ ] TLS / reverse proxy / secure cookies
 - [ ] `private_media` + outbox volumes + backup restore drill

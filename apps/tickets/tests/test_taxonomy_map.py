@@ -52,9 +52,16 @@ class TaxonomyMapTests(TestCase):
             all_active,
         )
 
-    def test_wo_eligible_all_after_seed(self):
+    def test_wo_eligible_only_suitable_after_seed(self):
         self.assertTrue(RoutingRule.objects.exists())
-        self.assertFalse(RoutingRule.objects.filter(wo_eligible=False).exists())
+        tech = RoutingRule.objects.filter(subcategory__category__slug="technical")
+        self.assertTrue(tech.exists())
+        self.assertFalse(tech.filter(wo_eligible=False).exists())
+        billing = RoutingRule.objects.filter(subcategory__category__slug="billing")
+        self.assertTrue(billing.exists())
+        self.assertFalse(billing.filter(wo_eligible=True).exists())
+        fire = RoutingRule.objects.get(subcategory__slug="fire")
+        self.assertTrue(fire.wo_eligible)
 
     def test_incident_rejects_billing_category(self):
         billing = TicketCategory.objects.get(slug="billing")

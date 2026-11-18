@@ -35,4 +35,5 @@ ACL: Sales mutate; Management approve/RO; Accountant LeaseApplication; **Admin C
 | M4-3 | Draft LeaseLine | test |
 | M4-4 | Gate açıq | modul **qismən**; checklist §A unchecked |
 
-**A7 / prod:** yalnız Satış yazılı qəbul + UAT §A bütün sətirlər Pass.
+**A7 / prod:** yalnız Satış yazılı qəbul + UAT §A bütün sətirlər Pass.  
+Forma: [../uat/crm-written-acceptance.md](../uat/crm-written-acceptance.md) (`AWAITING_SIGNATURE`).

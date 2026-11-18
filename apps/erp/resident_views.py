@@ -307,10 +307,14 @@ class ResidentDocumentDeleteView(RoleRequiredMixin, View):
 
 class ResidentDocumentDownloadView(StaffRequiredMixin, View):
     def get(self, request, slug, pk):
+        from apps.documents.access import user_can_download_document
+
         company = _company(slug)
         if user_is_reception_limited(request.user) or not user_can_view_resident_legal_docs(request.user):
             raise PermissionDenied(_("Sənəd endirmə icazəniz yoxdur."))
         document = get_object_or_404(Document, pk=pk, company=company)
+        if not user_can_download_document(request.user, document):
+            raise PermissionDenied(_("Bu sənədin məxfilik səviyyəsinə görə endirmə icazəniz yoxdur."))
         if not document.file:
             raise Http404()
         inline = request.GET.get("inline") == "1"
@@ -318,7 +322,11 @@ class ResidentDocumentDownloadView(StaffRequiredMixin, View):
             f = document.file.open("rb")
         except Exception as exc:
             raise Http404() from exc
-        content_type = mimetypes.guess_type(document.file.name)[0] or "application/octet-stream"
+        content_type = (
+            document.content_type
+            or mimetypes.guess_type(document.file.name)[0]
+            or "application/octet-stream"
+        )
         return FileResponse(
             f,
             as_attachment=not inline,

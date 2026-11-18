@@ -92,7 +92,10 @@ class AnnouncementAttachment(models.Model):
         on_delete=models.CASCADE,
         related_name="attachments",
     )
-    file = models.FileField(upload_to="announcements/%Y/%m/")
+    file = models.FileField(
+        upload_to="announcements/%Y/%m/",
+        storage=private_document_storage,
+    )
     title = models.CharField(max_length=200, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -187,6 +190,8 @@ class NotificationDispatch(models.Model):
         Notification, null=True, blank=True, on_delete=models.SET_NULL, related_name="dispatches"
     )
     error_message = models.TextField(blank=True)
+    attempt_count = models.PositiveIntegerField(default=0)
+    next_retry_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     sent_at = models.DateTimeField(null=True, blank=True)
 

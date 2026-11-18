@@ -34,7 +34,7 @@
         <div class="cp-user-role">{{ user.get_role_display }}</div>
       </div>
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}
-        <button class="cp-btn-ghost" title="{% translate 'Çıxış' %}" style="color:rgba(255,255,255,0.7);"><i data-lucide="log-out" width="16" height="16"></i></button>
+        <button type="submit" class="cp-btn-ghost" title="{% translate 'Çıxış' %}" style="color:rgba(255,255,255,0.7);"><i data-lucide="log-out" width="16" height="16"></i></button>
       </form>
     </div>
   </aside>

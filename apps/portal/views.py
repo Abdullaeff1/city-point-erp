@@ -714,14 +714,35 @@ class GuestsView(ResidentPortalMixin, FormView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ids = _scope_ids(self.request)
-        days = int(self.request.GET.get("days") or 30)
-        days = max(1, min(days, 365))
-        since = timezone.localdate() - timedelta(days=days)
+        today = timezone.localdate()
+        raw_from = (self.request.GET.get("from") or "").strip()
+        raw_to = (self.request.GET.get("to") or "").strip()
+        if raw_from or raw_to:
+            date_from = parse_date(raw_from, today - timedelta(days=29))
+            date_to = parse_date(raw_to, today)
+            if date_from > date_to:
+                date_from, date_to = date_to, date_from
+            span = (date_to - date_from).days + 1
+            days = max(1, min(span, 365))
+        else:
+            try:
+                days = int(self.request.GET.get("days") or 30)
+            except (TypeError, ValueError):
+                days = 30
+            days = max(1, min(days, 365))
+            date_to = today
+            date_from = today - timedelta(days=days - 1)
         ctx["guest_days"] = days
+        ctx["guest_from"] = date_from
+        ctx["guest_to"] = date_to
         ctx["show_company_column"] = _scope_mode(self.request) == MODE_ALL
         visits = (
             list(
-                GuestVisit.objects.filter(company_id__in=ids, scheduled_for__gte=since)
+                GuestVisit.objects.filter(
+                    company_id__in=ids,
+                    scheduled_for__gte=date_from,
+                    scheduled_for__lte=date_to,
+                )
                 .select_related("guest", "host", "floor", "space", "visit_type", "visitor_access", "company")
                 .order_by("-scheduled_for", "-id")[:100]
             )
@@ -806,22 +827,62 @@ class DocumentsView(ResidentPortalMixin, ListView):
         return portal_document_qs_for_request(self.request)
 
 
+class InvoicesView(ResidentPortalMixin, TemplateView):
+    """Resident AR / debt (issued invoices for scoped companies)."""
+
+    template_name = "portal/invoices.html"
+
+    def get_context_data(self, **kwargs):
+        from decimal import Decimal
+
+        from apps.billing.models import Invoice, InvoiceStatus
+        from apps.billing.services import invoice_balance
+        from apps.parties.models import Party
+
+        ctx = super().get_context_data(**kwargs)
+        ids = _scope_ids(self.request)
+        parties = Party.objects.filter(legacy_resident_company_id__in=ids)
+        mark_statuses = (InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE, InvoiceStatus.PAID)
+        invoices = (
+            Invoice.objects.filter(party__in=parties, status__in=mark_statuses)
+            .select_related("party", "lease")
+            .order_by("-issue_date", "-id")[:100]
+        )
+        rows = []
+        open_total = Decimal("0")
+        for inv in invoices:
+            bal = invoice_balance(inv)
+            rows.append({"invoice": inv, "balance": bal})
+            if inv.status in (InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE) and bal > 0:
+                open_total += bal
+        ctx["invoice_rows"] = rows
+        ctx["open_total"] = open_total
+        return ctx
+
+
 class DocumentDownloadView(ResidentPortalMixin, View):
     def get(self, request, pk):
         import mimetypes
 
         from django.http import FileResponse, Http404
 
+        from apps.documents.models import DocumentSensitivity
         from apps.residents.permissions import user_can_access_portal_document_in_scope
 
         ids = _scope_ids(request)
         document = get_object_or_404(Document, pk=pk)
         if not user_can_access_portal_document_in_scope(request.user, document, ids):
             raise PermissionDenied(_("Bu sənədə giriş icazəniz yoxdur."))
+        # Portal: yalnız portala açıq / görünən sənədlər (məxfi/məhdud yox).
+        sens = document.sensitivity or DocumentSensitivity.CONFIDENTIAL
+        if sens != DocumentSensitivity.PUBLIC_RESIDENT and not document.visible_to_resident:
+            raise PermissionDenied(_("Bu sənədin məxfilik səviyyəsinə görə endirmə icazəniz yoxdur."))
         if not document.file:
             raise Http404()
         filename = document.file.name.rsplit("/", 1)[-1]
-        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        content_type = (
+            getattr(document, "content_type", "") or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        )
         return FileResponse(
             document.file.open("rb"),
             as_attachment=True,

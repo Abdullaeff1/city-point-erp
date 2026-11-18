@@ -1,0 +1,35 @@
+{% extends "portal/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Fakturalar" %}{% endblock %}
+{% block content %}
+<div class="cp-card" style="padding:16px 20px;margin-bottom:16px;">
+  <div class="cp-meta">{% translate "Açıq borc" %}</div>
+  <div style="font-size:1.5rem;font-weight:700;">{{ open_total|floatformat:2 }} AZN</div>
+</div>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table" style="width:100%;">
+    <thead>
+      <tr>
+        <th>{% translate "Kod" %}</th>
+        <th>{% translate "Tarix" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th style="text-align:right;">{% translate "Cəmi" %}</th>
+        <th style="text-align:right;">{% translate "Qalıq" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in invoice_rows %}
+      <tr>
+        <td>{{ row.invoice.code }}</td>
+        <td>{{ row.invoice.issue_date|date:"d.m.Y" }}</td>
+        <td>{{ row.invoice.get_status_display }}</td>
+        <td style="text-align:right;">{{ row.invoice.total|floatformat:2 }}</td>
+        <td style="text-align:right;">{{ row.balance|floatformat:2 }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Faktura yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

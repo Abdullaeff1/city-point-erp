@@ -296,5 +296,22 @@ class Command(BaseCommand):
                 f"created={stats['created']} updated={stats['updated']} skipped={stats['skipped']}"
             )
         )
+        if apply:
+            from apps.audit.services import log_action
+
+            log_action(
+                action="crm.leads.import_xlsx",
+                actor=None,
+                entity=None,
+                new_values={
+                    "file": str(path),
+                    "sheets": stats["sheets"],
+                    "rows": stats["rows"],
+                    "created": stats["created"],
+                    "updated": stats["updated"],
+                    "skipped": stats["skipped"],
+                },
+                source="management_command",
+            )
         if not apply:
             self.stdout.write("Yazmaq üçün --apply əlavə edin.")

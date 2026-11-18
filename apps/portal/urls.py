@@ -42,6 +42,7 @@ urlpatterns = [
     path("announcements/", views.AnnouncementsView.as_view(), name="announcements"),
     path("documents/", views.DocumentsView.as_view(), name="documents"),
     path("documents/<int:pk>/download/", views.DocumentDownloadView.as_view(), name="document_download"),
+    path("invoices/", views.InvoicesView.as_view(), name="invoices"),
     path("procedures/", views.BuildingProceduresView.as_view(), name="building_procedures"),
     path(
         "procedures/<int:pk>/download/",

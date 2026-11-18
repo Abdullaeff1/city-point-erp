@@ -227,6 +227,16 @@ urlpatterns = [
     ),
     path("crm/reports/", crm_views.CrmReportView.as_view(), name="crm_reports"),
     path("crm/reports/export.xlsx", crm_views.CrmReportExportView.as_view(), name="crm_reports_export"),
+    path(
+        "crm/spaces/",
+        crm_views.CrmAvailableSpacesView.as_view(),
+        name="crm_available_spaces",
+    ),
+    path(
+        "crm/spaces/<str:code>/",
+        crm_views.CrmSpaceDetailView.as_view(),
+        name="crm_space_detail",
+    ),
     path("work-orders/", WorkOrderListView.as_view(), name="work_orders"),
     path(
         "work-orders/<str:code>/sheet-template/",
@@ -290,6 +300,7 @@ urlpatterns = [
         name="building_procedure_download",
     ),
     path("reports/", views.ReportsView.as_view(), name="reports"),
+    path("reports/export.xlsx", views.ReportsExportView.as_view(), name="reports_export"),
     path("reports/sla/", views.SlaReportView.as_view(), name="sla_report"),
     path(
         "reports/sla/export.xlsx",

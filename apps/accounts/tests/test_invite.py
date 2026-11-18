@@ -74,3 +74,5 @@ class PortalInviteTests(TestCase):
         row = NotificationDispatch.objects.get(template_code="portal.invite", recipient="mail@asbc.az")
         self.assertEqual(row.status, "sent")
         self.assertIsNotNone(row.sent_at)
+        self.assertGreaterEqual(row.attempt_count, 1)
+        self.assertIn("url", row.payload or {})

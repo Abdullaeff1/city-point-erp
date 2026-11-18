@@ -621,12 +621,14 @@ class GuestVisitForm(forms.Form):
     id_document_held = forms.BooleanField(
         required=False,
         initial=False,
-        label=_("Şəxsiyyət vəsiqəsi saxlanıldı (qonaq kartı verildi)"),
+        label=_("Şəxsiyyət vəsiqəsi saxlanıldı"),
+        help_text=_("Qonaq kartından ayrıdır — vəsiqə saxlanılanda seriya nömrəsi tələb olunur."),
     )
     guest_card_number = forms.CharField(
         required=False,
         label=_("Qonaq kartı №"),
         max_length=64,
+        help_text=_("İstəyə bağlı. Verildikdə nömrə qeyd olunur; çıxış Access hadisəsi ilə bağlana bilər."),
         widget=forms.TextInput(attrs={"placeholder": _("Kart nömrəsi"), "autocomplete": "off"}),
     )
     id_override_reason = forms.CharField(
@@ -667,8 +669,6 @@ class GuestVisitForm(forms.Form):
     def clean(self):
         cleaned = super().clean()
         held = cleaned.get("id_document_held")
-        if held and not (cleaned.get("guest_card_number") or "").strip():
-            self.add_error("guest_card_number", _("Qonaq kartı nömrəsi tələb olunur."))
         if held and not (cleaned.get("fin_code") or "").strip():
             self.add_error("fin_code", _("Vəsiqə saxlanılanda seriya nömrəsi tələb olunur."))
         visit_type = cleaned.get("visit_type")
@@ -744,12 +744,21 @@ class SpaceForm(forms.ModelForm):
             "floor",
             "resident",
             "area_m2",
+            "rentable_area_m2",
             "occupancy",
             "commercial_status",
             "operational_status",
+            "availability_date",
+            "base_rent_rate",
+            "service_charge_rate",
             "access_zone",
             "cost_center",
             "fit_out_status",
+            "renovation_needed",
+            "has_internal_kitchen",
+            "parking_included",
+            "parking_slots",
+            "sales_notes",
         )
         labels = {
             "code": _("Kod"),
@@ -757,12 +766,21 @@ class SpaceForm(forms.ModelForm):
             "floor": _("Mərtəbə"),
             "resident": _("Rezident"),
             "area_m2": _("Sahə (m²)"),
+            "rentable_area_m2": _("İcarəyə verilən sahə (m²)"),
             "occupancy": _("Doluluq"),
             "commercial_status": _("Kommersiya statusu"),
             "operational_status": _("Əməliyyat statusu"),
+            "availability_date": _("Əlçatanlıq tarixi"),
+            "base_rent_rate": _("Baza icarə tarifi (AZN/m²/ay)"),
+            "service_charge_rate": _("Xidmət haqqı tarifi (AZN/m²/ay)"),
             "access_zone": _("Keçid zonası"),
             "cost_center": _("Xərc mərkəzi"),
             "fit_out_status": _("Təmir / təchizat statusu"),
+            "renovation_needed": _("Təmirə ehtiyac var"),
+            "has_internal_kitchen": _("Daxili mətbəx"),
+            "parking_included": _("Parkinq ayrılıb"),
+            "parking_slots": _("Parkinq yer sayı"),
+            "sales_notes": _("Satış qeydləri"),
         }
         widgets = {
             "code": forms.TextInput(attrs={"class": "cp-input"}),
@@ -770,12 +788,27 @@ class SpaceForm(forms.ModelForm):
             "floor": forms.Select(attrs={"class": "cp-input"}),
             "resident": forms.Select(attrs={"class": "cp-input"}),
             "area_m2": forms.NumberInput(attrs={"class": "cp-input", "step": "0.1", "min": "0"}),
+            "rentable_area_m2": forms.NumberInput(
+                attrs={"class": "cp-input", "step": "0.01", "min": "0"}
+            ),
             "occupancy": forms.Select(attrs={"class": "cp-input"}),
             "commercial_status": forms.Select(attrs={"class": "cp-input"}),
             "operational_status": forms.Select(attrs={"class": "cp-input"}),
+            "availability_date": forms.DateInput(attrs={"class": "cp-input", "type": "date"}),
+            "base_rent_rate": forms.NumberInput(
+                attrs={"class": "cp-input", "step": "0.01", "min": "0"}
+            ),
+            "service_charge_rate": forms.NumberInput(
+                attrs={"class": "cp-input", "step": "0.01", "min": "0"}
+            ),
             "access_zone": forms.TextInput(attrs={"class": "cp-input"}),
             "cost_center": forms.TextInput(attrs={"class": "cp-input"}),
             "fit_out_status": forms.TextInput(attrs={"class": "cp-input"}),
+            "renovation_needed": forms.CheckboxInput(),
+            "has_internal_kitchen": forms.CheckboxInput(),
+            "parking_included": forms.CheckboxInput(),
+            "parking_slots": forms.NumberInput(attrs={"class": "cp-input", "min": "0"}),
+            "sales_notes": forms.Textarea(attrs={"class": "cp-input", "rows": 3}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -790,6 +823,16 @@ class SpaceForm(forms.ModelForm):
         self.fields["access_zone"].required = False
         self.fields["cost_center"].required = False
         self.fields["fit_out_status"].required = False
+        for optional in (
+            "rentable_area_m2",
+            "availability_date",
+            "base_rent_rate",
+            "service_charge_rate",
+            "parking_slots",
+            "sales_notes",
+        ):
+            if optional in self.fields:
+                self.fields[optional].required = False
         # Re-bind labels/choices under the active request language.
         for name, label in self.Meta.labels.items():
             if name in self.fields:

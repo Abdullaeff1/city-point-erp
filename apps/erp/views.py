@@ -110,8 +110,17 @@ class DashboardView(StaffRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        today = timezone.localdate()
         role = self.request.user.role
+        if role == Role.SALES:
+            from apps.crm.dashboard import build_sales_dashboard
+
+            sales = build_sales_dashboard(self.request.user, self.request.GET)
+            ctx.update(sales)
+            ctx["is_sales_dashboard"] = True
+            # Ops KPI must not be computed or passed for sales.
+            return ctx
+
+        today = timezone.localdate()
         show_tickets = role != Role.RECEPTION
         show_guests = role != Role.SERVICE_DESK
         open_list = []
@@ -163,6 +172,7 @@ class DashboardView(StaffRequiredMixin, TemplateView):
             pending_total = pending.count()
         ctx.update(
             {
+                "is_sales_dashboard": False,
                 "show_tickets": show_tickets,
                 "show_guests": show_guests,
                 "guest_count": today_visits.count(),
@@ -181,7 +191,11 @@ class DashboardView(StaffRequiredMixin, TemplateView):
                 "recent_open": open_list[:6],
                 "activities": activities[:8],
                 "unassigned": (
-                    visible.filter(status=TicketStatus.SENT, assignee__isnull=True)[:5]
+                    visible.filter(
+                        status=TicketStatus.SENT,
+                        assignee__isnull=True,
+                        assigned_employee__isnull=True,
+                    )[:5]
                     if show_tickets
                     else []
                 ),
@@ -734,9 +748,21 @@ class TicketListView(RoleRequiredMixin, ListView):
             ids = [t.id for t in qs.filter(status__in=OPEN_STATUSES) if t.sla_risk]
             qs = qs.filter(id__in=ids)
         elif tab == "mine":
-            qs = qs.filter(assignee=self.request.user)
+            # User assignee (Security) OR City Point employee matching this user's name (Service Desk).
+            from django.db.models import Q
+
+            name = (self.request.user.get_full_name() or "").strip()
+            mine_q = Q(assignee=self.request.user)
+            if name:
+                mine_q |= Q(assigned_employee__full_name__iexact=name)
+            qs = qs.filter(mine_q).distinct()
         elif tab == "queue":
-            qs = qs.filter(assignee__isnull=True, status__in=OPEN_STATUSES)
+            # Unassigned = neither User assignee nor ResidentEmployee worker.
+            qs = qs.filter(
+                assignee__isnull=True,
+                assigned_employee__isnull=True,
+                status__in=OPEN_STATUSES,
+            )
         elif tab == "card-orders":
             qs = qs.filter(subcategory__slug="card-order")
         return qs
@@ -744,11 +770,17 @@ class TicketListView(RoleRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         from datetime import timedelta
 
+        from django.db.models import Q
+
         ctx = super().get_context_data(**kwargs)
         tab = self.request.GET.get("tab", "all")
         base = tickets_visible_to(self.request.user)
         open_qs = base.filter(status__in=OPEN_STATUSES)
         risk_at = timezone.now() + timedelta(hours=4)
+        name = (self.request.user.get_full_name() or "").strip()
+        mine_q = Q(assignee=self.request.user)
+        if name:
+            mine_q |= Q(assigned_employee__full_name__iexact=name)
         ctx["tab"] = tab
         ctx["ticket_tabs"] = [
             {"key": "all", "label": _("Hamısı"), "count": base.count()},
@@ -756,7 +788,9 @@ class TicketListView(RoleRequiredMixin, ListView):
             {
                 "key": "queue",
                 "label": _("Queue"),
-                "count": open_qs.filter(assignee__isnull=True).count(),
+                "count": open_qs.filter(
+                    assignee__isnull=True, assigned_employee__isnull=True
+                ).count(),
             },
             {
                 "key": "sla",
@@ -770,7 +804,7 @@ class TicketListView(RoleRequiredMixin, ListView):
             {
                 "key": "mine",
                 "label": _("Mənim"),
-                "count": base.filter(assignee=self.request.user).count(),
+                "count": base.filter(mine_q).distinct().count(),
             },
         ]
         return ctx
@@ -879,6 +913,9 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
             can_mutate_ticket(self.request.user, ticket)
             and ticket.crm_eligible
             and not ticket.opportunity_id
+        )
+        ctx["can_create_wo"] = bool(
+            can_mutate_ticket(self.request.user, ticket) and ticket.wo_eligible
         )
         from apps.property.models import Contractor
 
@@ -1179,6 +1216,11 @@ class BuildingAssetListView(LoginRequiredMixin, TemplateView):
                 return redirect(self.list_url_name)
             asset.name = request.POST.get("name").strip()
             asset.location = (request.POST.get("location") or "").strip()
+            asset.manufacturer = (request.POST.get("manufacturer") or "").strip()
+            asset.serial_number = (request.POST.get("serial_number") or "").strip()
+            asset.warranty_until = parse_date(request.POST.get("warranty_until"), None)
+            if request.FILES.get("document"):
+                asset.document = request.FILES["document"]
             asset.last_inspected_on = parse_date(request.POST.get("last_inspected_on"), None)
             posted_next = parse_date(request.POST.get("next_inspection_on"), None)
             if posted_next:
@@ -1200,7 +1242,17 @@ class BuildingAssetListView(LoginRequiredMixin, TemplateView):
             return redirect(self.list_url_name)
         asset = BuildingAsset(name=request.POST.get("name").strip(), kind=self.asset_kind)
         self._apply_new(asset, request.POST)
+        if request.FILES.get("document"):
+            asset.document = request.FILES["document"]
         asset.save()
+        from apps.property.models import BuildingAssetEvent, BuildingAssetEventType
+
+        BuildingAssetEvent.objects.create(
+            asset=asset,
+            event_type=BuildingAssetEventType.INSTALL,
+            summary="Qeydiyyata alındı",
+            actor=request.user,
+        )
         messages.success(
             request,
             "İnventar əlavə olundu."
@@ -1218,6 +1270,9 @@ class BuildingAssetListView(LoginRequiredMixin, TemplateView):
         floor_id = (data.get("floor") or "").strip()
         asset.floor = Floor.objects.filter(pk=floor_id).first() if floor_id else None
         asset.location = (data.get("location") or "").strip()
+        asset.manufacturer = (data.get("manufacturer") or "").strip()
+        asset.serial_number = (data.get("serial_number") or "").strip()
+        asset.warranty_until = parse_date(data.get("warranty_until"), None)
         try:
             asset.quantity = max(1, int(data.get("quantity") or 1))
         except (TypeError, ValueError):
@@ -1763,13 +1818,13 @@ class AuditLogView(StaffRequiredMixin, TemplateView):
         if not request.user.is_authenticated:
             return self.handle_no_permission()
         if not request.user.can_access_erp():
-            raise PermissionDenied("ERP yalnız əməkdaşlar üçündür.")
+            return redirect_home(request.user)
         impersonator = get_impersonator(request)
         allowed = request.user.role == Role.ADMIN or (
             impersonator is not None and can_start_impersonation(impersonator)
         )
         if not allowed:
-            raise PermissionDenied("Bu bölməyə giriş icazəniz yoxdur.")
+            return redirect_home(request.user)
         return super(StaffRequiredMixin, self).dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -1796,52 +1851,82 @@ class DocumentsView(StaffRequiredMixin, ListView):
 
 
 class ReportsView(RoleRequiredMixin, TemplateView):
+    """M11 rəhbərlik hub — domain KPI + tarix/şirkət filter."""
+
     template_name = "erp/reports.html"
     allowed_roles = (Role.MANAGEMENT, Role.ADMIN)
 
     def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        from apps.billing.models import Invoice, InvoiceStatus
-        from apps.crm.models import Lead, LeadStatus
-        from apps.leases.models import Lease, LeaseStatus
-        from apps.property.models import CommercialStatus, Space
-        from apps.warehouse.models import SKU, Stock
+        from apps.core.models import ReportSnapshot
+        from apps.erp.exec_reports import build_exec_bundle, parse_report_params
 
-        open_tickets = list(
-            tickets_visible_to(self.request.user).filter(status__in=OPEN_STATUSES)
-        )
-        spaces = Space.objects.all()
-        vacant_m2 = sum(
-            float(s.rentable_area_m2 or s.area_m2 or 0)
-            for s in spaces.filter(commercial_status=CommercialStatus.VACANT)
-        )
-        total_m2 = sum(float(s.rentable_area_m2 or s.area_m2 or 0) for s in spaces) or 1
-        occupied_m2 = total_m2 - vacant_m2
-        low_stock = [
-            st
-            for st in Stock.objects.select_related("sku")
-            if st.quantity <= (st.sku.reorder_level or 0)
-        ]
+        ctx = super().get_context_data(**kwargs)
+        params = parse_report_params(self.request.GET)
+        tab = (self.request.GET.get("tab") or "overview").strip()
+        allowed = {
+            "overview",
+            "property",
+            "crm",
+            "sales",
+            "service_desk",
+            "fm",
+            "warehouse",
+            "finance",
+            "security",
+            "history",
+        }
+        if tab not in allowed:
+            tab = "overview"
+        bundle = build_exec_bundle(params, user=self.request.user)
         ctx.update(
             {
-                "open_count": len(open_tickets),
-                "sla_risk_count": sum(1 for t in open_tickets if t.sla_risk),
-                "guest_count": GuestVisit.objects.filter(scheduled_for=timezone.localdate()).count(),
-                "companies": ResidentCompany.objects.filter(status="active", is_internal=False),
-                "occupancy_pct": round(100 * occupied_m2 / total_m2, 1),
-                "vacant_m2": round(vacant_m2, 1),
-                "leases_expiring": Lease.objects.filter(
-                    status__in=[LeaseStatus.ACTIVE, LeaseStatus.EXPIRING]
+                "tab": tab,
+                "params": params,
+                "bundle": bundle,
+                "prop": bundle["property"],
+                "crm": bundle["crm"],
+                "sales": bundle["sales"],
+                "service_desk": bundle["service_desk"],
+                "fm": bundle["fm"],
+                "warehouse": bundle["warehouse"],
+                "finance": bundle["finance"],
+                "security": bundle["security"],
+                "companies": ResidentCompany.objects.filter(
+                    status="active", is_internal=False
+                ).order_by("name")[:200],
+                "snapshots": ReportSnapshot.objects.filter(
+                    company_id=params.get("company_id")
+                ).order_by("-snapshot_date")[:30],
+                # legacy KPI aliases for any residual template/tests
+                "occupancy_pct": bundle["property"]["occupancy_pct"],
+                "vacant_m2": bundle["property"]["vacant_m2"],
+                "open_count": bundle["service_desk"].get("open_count", 0),
+                "sla_risk_count": bundle["service_desk"].get("open_risk", 0),
+                "low_stock_count": bundle["warehouse"]["low_stock_count"],
+                "crm_new_leads": bundle["crm"].get("lead_count", 0),
+                "receivable_count": bundle["finance"].get("overdue_count", 0),
+                "guest_count": GuestVisit.objects.filter(
+                    scheduled_for=timezone.localdate()
                 ).count(),
-                "crm_new_leads": Lead.objects.filter(status=LeadStatus.NEW).count(),
-                "low_stock_count": len(low_stock),
-                "receivable_count": Invoice.objects.filter(
-                    status__in=[InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE]
-                ).count(),
-                "sku_count": SKU.objects.count(),
+                "leases_expiring": bundle["property"]["leases_expiring_count"],
             }
         )
         return ctx
+
+
+class ReportsExportView(RoleRequiredMixin, View):
+    allowed_roles = (Role.MANAGEMENT, Role.ADMIN)
+
+    def get(self, request, *args, **kwargs):
+        from apps.erp.exec_reports import (
+            build_exec_bundle,
+            exec_report_xlsx_response,
+            parse_report_params,
+        )
+
+        params = parse_report_params(request.GET)
+        bundle = build_exec_bundle(params, user=request.user)
+        return exec_report_xlsx_response(bundle)
 
 
 class SlaReportView(RoleRequiredMixin, TemplateView):
@@ -1907,20 +1992,41 @@ class LeaseDetailView(StaffRequiredMixin, TemplateView):
 
         ctx = super().get_context_data(**kwargs)
         lease = get_object_or_404(
-            Lease.objects.select_related("party", "space", "space__floor").prefetch_related(
-                "lines__space__floor"
+            Lease.objects.select_related("party", "space", "space__floor", "parent_lease").prefetch_related(
+                "lines__space__floor", "deposit_settlements"
             ),
             code=self.kwargs["code"],
         )
+        from apps.leases.services import lease_space_ids
+        from apps.property.models import ParkingAssignment, UtilityMeter
+
         ctx["lease"] = lease
         ctx["lease_lines"] = list(lease.lines.select_related("space", "space__floor"))
+        ctx["deposit_settlements"] = list(lease.deposit_settlements.all()[:20])
+        ctx["lease_addons"] = list(lease.addons.filter(is_active=True))
+        space_ids = lease_space_ids(lease)
+        parking_qs = ParkingAssignment.objects.filter(lease=lease).select_related(
+            "spot", "spot__zone", "space", "employee"
+        )
+        if not parking_qs.exists() and (lease.party_id or space_ids):
+            parking_qs = ParkingAssignment.objects.filter(
+                Q(party_id=lease.party_id) | Q(space_id__in=space_ids)
+            ).select_related("spot", "spot__zone", "space", "employee")
+        ctx["parking_assignments"] = list(parking_qs[:50])
+        ctx["utility_meters"] = (
+            list(
+                UtilityMeter.objects.filter(space_id__in=space_ids).select_related("space")[:50]
+            )
+            if space_ids
+            else []
+        )
         ctx["can_edit_lease"] = user_has_permission(self.request.user, "lease.edit")
         return ctx
 
     def post(self, request, *args, **kwargs):
-        from apps.leases.models import Lease
+        from apps.leases.lease_ops import LeaseService, generate_monthly_lease_charges
+        from apps.leases.models import DepositSettlement, Lease
         from apps.leases.services import activate_lease, terminate_lease
-        from apps.leases.lease_ops import generate_monthly_lease_charges
 
         if not user_has_permission(request.user, "lease.edit"):
             raise PermissionDenied
@@ -1935,6 +2041,17 @@ class LeaseDetailView(StaffRequiredMixin, TemplateView):
         elif action == "generate_charges":
             stats = generate_monthly_lease_charges()
             messages.success(request, f"Ödənişlər: yaradıldı={stats['created']} keçildi={stats['skipped']}")
+        elif action == "settle_deposit":
+            kind = (request.POST.get("kind") or DepositSettlement.Kind.FULL_RETURN).strip()
+            withhold = request.POST.get("withhold_amount") or 0
+            reason = (request.POST.get("reason") or "").strip()
+            LeaseService.settle_deposit(
+                lease,
+                kind=kind,
+                withhold_amount=withhold,
+                reason=reason,
+            )
+            messages.success(request, "Depozit hesablaşması yazıldı.")
         return redirect("erp:lease_detail", code=lease.code)
 
 

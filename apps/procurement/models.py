@@ -116,10 +116,16 @@ class POLine(models.Model):
         return f"{self.po_id}:{self.description}"
 
 
-# RFQ stub — placeholder model for future RFQ workflow
 class RFQ(models.Model):
     code = models.CharField(max_length=32, unique=True)
     title = models.CharField(max_length=200, blank=True)
+    pr = models.ForeignKey(
+        PurchaseRequest,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="rfqs",
+    )
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 
@@ -129,3 +135,39 @@ class RFQ(models.Model):
 
     def __str__(self):
         return self.code
+
+
+class RFQQuote(models.Model):
+    """Supplier quote against an RFQ — compare before creating PO."""
+
+    rfq = models.ForeignKey(RFQ, on_delete=models.CASCADE, related_name="quotes")
+    supplier_party = models.ForeignKey(
+        "parties.Party",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="rfq_quotes",
+    )
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    currency = models.CharField(max_length=8, default="AZN")
+    lead_time_days = models.PositiveIntegerField(default=0)
+    notes = models.TextField(blank=True)
+    is_selected = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        ordering = ["unit_price", "id"]
+
+    def __str__(self):
+        return f"{self.rfq_id}:{self.unit_price}"
+
+
+class PurchaseApprovalLimit(models.Model):
+    """Max PR total a role may approve without escalation."""
+
+    role = models.CharField(max_length=32, unique=True)
+    max_amount = models.DecimalField(max_digits=14, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"{self.role}:{self.max_amount}"

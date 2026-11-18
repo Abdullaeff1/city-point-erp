@@ -139,10 +139,9 @@ class ReceptionService(Service):
         card = (guest_card_number or "").strip()
         fin = normalize_fin(fin_code)
         reason = (id_override_reason or "").strip()
-        # Seriya/kart when ID held; else override (+ reason) unless courier/list policy
+        # ID held → seriya; qonaq kartı ayrıca (məcburi deyil).
         if held:
             cls.require(bool(fin), "Seriya nömrəsi tələb olunur.")
-            cls.require(bool(card), "Qonaq kartı nömrəsi tələb olunur.")
         elif not id_policy_skips_document(visit_type=visit_type):
             cls.require(
                 allow_id_override,
@@ -182,14 +181,13 @@ class ReceptionService(Service):
             notes=notes or "",
             pre_registered=False,
         )
-        # Guest card only when ID is held at reception (card issued).
-        if visit.id_document_held:
+        if card:
             create_visitor_access(visit, credential=card)
         _audit(
             "visit.check_in",
             actor=actor,
             entity=visit,
-            new={"status": visit.status, "id_held": visit.id_document_held},
+            new={"status": visit.status, "id_held": visit.id_document_held, "card": bool(card)},
         )
         return visit
 
@@ -222,7 +220,6 @@ class ReceptionService(Service):
         cls.require(company is not None, "Şirkət seçilməlidir.")
         if held:
             cls.require(bool(fin), "Seriya nömrəsi tələb olunur.")
-            cls.require(bool(card), "Qonaq kartı nömrəsi tələb olunur.")
         if host is not None:
             cls.require(host.company_id == company.id, "Host seçilmiş şirkətə aid deyil.")
             cls.require(host.is_active, "Host aktiv deyil.")
@@ -255,7 +252,7 @@ class ReceptionService(Service):
                 "updated_at",
             ]
         )
-        if held:
+        if card:
             create_visitor_access(visit, credential=card)
         else:
             access = VisitorAccess.objects.filter(visit=visit).first()
@@ -266,7 +263,7 @@ class ReceptionService(Service):
             "visit.updated",
             actor=actor,
             entity=visit,
-            new={"id_held": visit.id_document_held},
+            new={"id_held": visit.id_document_held, "card": bool(card)},
         )
         return visit
 
@@ -308,7 +305,6 @@ class ReceptionService(Service):
         fin = normalize_fin(guest.fin_code)
         if held:
             cls.require(bool(fin), "Seriya nömrəsi tələb olunur.")
-            cls.require(bool(card), "Qonaq kartı nömrəsi tələb olunur.")
         elif not id_policy_skips_document(
             visit_type=visit.visit_type, list_import_id=visit.list_import_id
         ):
@@ -339,7 +335,7 @@ class ReceptionService(Service):
                 "updated_at",
             ]
         )
-        if visit.id_document_held:
+        if card:
             create_visitor_access(visit, credential=card)
         _audit("visit.check_in", actor=actor, entity=visit)
         from apps.core import events as bus
@@ -545,6 +541,67 @@ def portal_check_out_visit(visit: GuestVisit, *, actor, company) -> GuestVisit:
             _("Bu qonağın çıxışını yalnız reception bağlaya bilər (vəsiqə və ya qonaq kartı).")
         )
     return ReceptionService.check_out_visit(visit, actor=actor, id_returned=True)
+
+
+def active_guest_credential_exists(card: str) -> bool:
+    """True when an INSIDE visit has this guest card still ACTIVE."""
+    code = (card or "").strip()
+    if not code:
+        return False
+    return VisitorAccess.objects.filter(
+        credential=code,
+        status=VisitorAccessStatus.ACTIVE,
+        visit__status=VisitStatus.INSIDE,
+    ).exists()
+
+
+def checkout_guests_from_access_events(events) -> int:
+    """Close INSIDE visits whose active guest card matches an OUT AccessEvent.
+
+    ID-held visits go to RETURN_PENDING (card left / ID still at reception).
+    Reception can still check out manually; this covers turnstile-driven exit.
+    """
+    from apps.residents.models import AccessEventType, AccessResult
+
+    cards: list[str] = []
+    seen: set[str] = set()
+    for event in events or []:
+        if getattr(event, "result", None) != AccessResult.GRANTED:
+            continue
+        if getattr(event, "event_type", None) != AccessEventType.OUT:
+            continue
+        card = (getattr(event, "card_number", None) or "").strip()
+        if not card or card in seen:
+            continue
+        seen.add(card)
+        cards.append(card)
+    if not cards:
+        return 0
+
+    accesses = list(
+        VisitorAccess.objects.select_related("visit")
+        .filter(
+            credential__in=cards,
+            status=VisitorAccessStatus.ACTIVE,
+            visit__status=VisitStatus.INSIDE,
+        )
+        .order_by("visit_id")
+    )
+    count = 0
+    for access in accesses:
+        visit = access.visit
+        try:
+            # Card swipe = guest left; ID return still pending if reception holds ID.
+            ReceptionService.check_out_visit(
+                visit,
+                actor=None,
+                id_returned=not visit.id_document_held,
+                allow_return_pending=True,
+            )
+            count += 1
+        except DomainError:
+            continue
+    return count
 
 
 def create_visitor_access(visit: GuestVisit, *, credential: str = "") -> VisitorAccess:

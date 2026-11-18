@@ -9,14 +9,14 @@
     {% translate "City Point-ə aid cihaz və avadanlıqlar. Son baxış yazılanda növbəti baxış bir ay sonra düşür." %}
     {% endif %}
   </p>
-  <form method="post" class="grid-2 mt-3" style="align-items:end;">
+  <form method="post" enctype="multipart/form-data" class="grid-2 mt-3" style="align-items:end;">
     {% csrf_token %}
     <label>
       <span class="cp-meta">{% translate "Ad" %}</span>
       <input class="cp-input mt-1" name="name" required maxlength="160">
     </label>
     <label>
-      <span class="cp-meta">{% translate "Kod" %}</span>
+      <span class="cp-meta">{% translate "Kod / inventar" %}</span>
       <input class="cp-input mt-1" name="code" maxlength="64">
     </label>
     <label>
@@ -39,6 +39,22 @@
     <label>
       <span class="cp-meta">{% translate "Yer" %}</span>
       <input class="cp-input mt-1" name="location" maxlength="160" placeholder="{% translate 'Texniki otaq' %}">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "İstehsalçı" %}</span>
+      <input class="cp-input mt-1" name="manufacturer" maxlength="160">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Seriya №" %}</span>
+      <input class="cp-input mt-1" name="serial_number" maxlength="64">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Zəmanət bitmə" %}</span>
+      <input class="cp-input mt-1" name="warranty_until" type="date">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Sənəd" %}</span>
+      <input class="cp-input mt-1" type="file" name="document" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
     </label>
     <label>
       <span class="cp-meta">{% translate "Say" %}</span>

@@ -24,6 +24,8 @@ class Command(BaseCommand):
         )
         self.stdout.write(
             self.style.SUCCESS(
-                f"email_outbox attempted={stats['attempted']} sent={stats['sent']} failed={stats['failed']}"
+                "email_outbox "
+                f"attempted={stats['attempted']} sent={stats['sent']} "
+                f"failed={stats['failed']} retried={stats.get('retried', 0)}"
             )
         )

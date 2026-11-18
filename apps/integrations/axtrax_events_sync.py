@@ -220,9 +220,14 @@ def sync_event_rows(
                 .select_related("company")
                 .first()
             )
+        card_preview = _snapshot_card(row, employee)
+        # Unmapped badges: keep when they match an active guest card (reception checkout).
         if result == AccessResult.GRANTED and employee is None:
-            stats["skipped_unmapped"] += 1
-            continue
+            from apps.reception.services import active_guest_credential_exists
+
+            if not active_guest_credential_exists(card_preview):
+                stats["skipped_unmapped"] += 1
+                continue
 
         occurred_at = _parse_occurred_at(row.get("occurred_at"))
         if not occurred_at:
@@ -245,7 +250,7 @@ def sync_event_rows(
                     result=result,
                     occurred_at=occurred_at,
                     employee_name=_snapshot_name(row, employee) or "",
-                    card_number=_snapshot_card(row, employee) or "",
+                    card_number=card_preview or "",
                     company_id=company_id,
                     company_name=company_name or "",
                     axtrax_employee_id=emp_num or None,
@@ -270,6 +275,12 @@ def sync_event_rows(
     if advance_cursor and max_id > live_cursor:
         set_events_cursor(max_id, stats={"created": stats["created"]})
     stats["cursor_after"] = max_id if max_id > live_cursor else live_cursor
+
+    stats["guest_checkouts"] = 0
+    if created_events:
+        from apps.reception.services import checkout_guests_from_access_events
+
+        stats["guest_checkouts"] = checkout_guests_from_access_events(created_events)
 
     if created_events and detect_alerts:
         from apps.residents.rapid_swipe import detect_rapid_swipes_after_sync

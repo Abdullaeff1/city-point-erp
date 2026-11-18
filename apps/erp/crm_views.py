@@ -652,3 +652,45 @@ class CrmReportExportView(CrmAccessMixin, View):
         )
         resp["Content-Disposition"] = f'attachment; filename="crm_{tab}_report.xlsx"'
         return resp
+
+
+class CrmAvailableSpacesView(CrmAccessMixin, TemplateView):
+    """Satış: icarəyə əlçatan sahələr siyahısı."""
+
+    template_name = "erp/crm_available_spaces.html"
+
+    def get_context_data(self, **kwargs):
+        from apps.crm.spaces import available_space_rows
+
+        ctx = super().get_context_data(**kwargs)
+        rows = available_space_rows()
+        ctx.update(
+            {
+                "space_rows": rows,
+                "space_count": len(rows),
+                **_pipeline_ctx("spaces"),
+            }
+        )
+        return ctx
+
+
+class CrmSpaceDetailView(CrmAccessMixin, DetailView):
+    """Satış sahə kartı — təmir, mətbəx, parkinq, əvvəlki icarəçilər."""
+
+    template_name = "erp/crm_space_detail.html"
+    context_object_name = "space"
+    slug_field = "code"
+    slug_url_kwarg = "code"
+
+    def get_queryset(self):
+        from apps.property.models import Space
+
+        return Space.objects.select_related("floor", "floor__building", "resident")
+
+    def get_context_data(self, **kwargs):
+        from apps.crm.spaces import build_crm_space_detail
+
+        ctx = super().get_context_data(**kwargs)
+        ctx.update(build_crm_space_detail(self.object))
+        ctx.update(_pipeline_ctx("spaces"))
+        return ctx

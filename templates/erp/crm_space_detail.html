@@ -1,0 +1,105 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{{ space.area_code }} · {% translate "Sahə" %}{% endblock %}
+{% block heading %}{{ space.area_code }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:crm_available_spaces' %}">{% translate "Əlçatan sahələr" %}</a>
+{% endblock %}
+{% block content %}
+
+{% if not available_now %}
+<div class="cp-card p-card-sm mb-4" style="border-left:3px solid #b42318;">
+  <div class="cp-meta" style="color:#b42318;">{% translate "İndi əlçatan siyahıda deyil" %}</div>
+  <p class="cp-meta mt-1">
+    {% translate "Kommersiya" %}: {{ space.get_commercial_status_display }}
+    · {% translate "Əməliyyat" %}: {{ space.get_operational_status_display }}
+    · {% translate "Doluluq" %}: {{ space.get_occupancy_display }}
+  </p>
+</div>
+{% else %}
+<div class="cp-card p-card-sm mb-4" style="border-left:3px solid #0a7;">
+  <div class="cp-meta" style="color:#0a7;">{% translate "İcarəyə əlçatan" %}</div>
+</div>
+{% endif %}
+
+<div class="grid-dash mb-4" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;">
+  <div class="cp-card p-card">
+    <div class="cp-section">{% translate "Ümumi" %}</div>
+    <dl class="mt-3" style="margin:0;">
+      <div class="mb-2"><dt class="cp-meta">{% translate "Kod" %}</dt><dd>{{ space.code }}</dd></div>
+      <div class="mb-2"><dt class="cp-meta">{% translate "Mərtəbə" %}</dt><dd>{% if space.floor %}{{ space.floor.code }} · {{ space.floor.name }}{% else %}—{% endif %}</dd></div>
+      <div class="mb-2"><dt class="cp-meta">m²</dt><dd>{% if area_m2 %}{{ area_m2 }}{% else %}—{% endif %}</dd></div>
+      <div class="mb-2"><dt class="cp-meta">{% translate "Əlçatanlıq tarixi" %}</dt><dd>{% if space.availability_date %}{{ space.availability_date|date:"d.m.Y" }}{% else %}{% translate "İndi" %}{% endif %}</dd></div>
+      <div class="mb-2"><dt class="cp-meta">{% translate "Kommersiya" %}</dt><dd>{{ space.get_commercial_status_display }}</dd></div>
+      <div class="mb-2"><dt class="cp-meta">{% translate "Əməliyyat" %}</dt><dd>{{ space.get_operational_status_display }}</dd></div>
+    </dl>
+  </div>
+
+  <div class="cp-card p-card">
+    <div class="cp-section">{% translate "Kommersiya" %}</div>
+    <dl class="mt-3" style="margin:0;">
+      <div class="mb-2"><dt class="cp-meta">{% translate "Baza icarə" %}</dt><dd>{% if space.base_rent_rate %}{{ space.base_rent_rate }} AZN/m²/{% translate "ay" %}{% else %}—{% endif %}</dd></div>
+      <div class="mb-2"><dt class="cp-meta">{% translate "Xidmət haqqı" %}</dt><dd>{% if space.service_charge_rate %}{{ space.service_charge_rate }} AZN/m²/{% translate "ay" %}{% else %}—{% endif %}</dd></div>
+      <div class="mb-2"><dt class="cp-meta">{% translate "İcarəyə verilən m²" %}</dt><dd>{% if space.rentable_area_m2 %}{{ space.rentable_area_m2 }}{% else %}—{% endif %}</dd></div>
+    </dl>
+  </div>
+
+  <div class="cp-card p-card">
+    <div class="cp-section">{% translate "Vəziyyət və təchizat" %}</div>
+    <dl class="mt-3" style="margin:0;">
+      <div class="mb-2"><dt class="cp-meta">{% translate "Təmir / təchizat" %}</dt><dd>{% if space.fit_out_status %}{{ space.fit_out_status }}{% else %}—{% endif %}</dd></div>
+      <div class="mb-2"><dt class="cp-meta">{% translate "Təmirə ehtiyac" %}</dt><dd>{% if space.renovation_needed %}{% translate "Bəli" %}{% else %}{% translate "Xeyr" %}{% endif %}</dd></div>
+      <div class="mb-2"><dt class="cp-meta">{% translate "Daxili mətbəx" %}</dt><dd>{% if space.has_internal_kitchen %}{% translate "Var" %}{% else %}{% translate "Yox" %}{% endif %}</dd></div>
+      <div class="mb-2"><dt class="cp-meta">{% translate "Parkinq" %}</dt>
+        <dd>
+          {% if space.parking_included %}
+            {% translate "Ayrılıb" %}{% if space.parking_slots %} · {{ space.parking_slots }} {% translate "yer" %}{% endif %}
+          {% else %}{% translate "Ayrılmayıb" %}{% endif %}
+        </dd>
+      </div>
+      {% if space.sales_notes %}
+      <div class="mb-2"><dt class="cp-meta">{% translate "Satış qeydləri" %}</dt><dd style="white-space:pre-wrap;">{{ space.sales_notes }}</dd></div>
+      {% endif %}
+    </dl>
+  </div>
+</div>
+
+<div class="cp-card mb-4" style="padding:8px 0;">
+  <div class="cp-section section-pad">{% translate "Parkinq qeydləri" %}</div>
+  {% for a in parking_assignments %}
+  <div class="cp-list-row" style="cursor:default;">
+    <span>
+      <strong>{{ a.spot.zone.code }}/{{ a.spot.code }}</strong>
+      <div class="cp-meta">
+        {% if a.vehicle_plate %}{{ a.vehicle_plate }} · {% endif %}
+        {% if a.party %}{{ a.party }} · {% endif %}
+        {{ a.get_assignment_type_display }}
+        {% if a.start_date %} · {{ a.start_date|date:"d.m.Y" }}{% endif %}
+        {% if a.end_date %} – {{ a.end_date|date:"d.m.Y" }}{% endif %}
+      </div>
+    </span>
+  </div>
+  {% empty %}
+  <p class="cp-meta empty-pad">{% translate "Bu sahəyə bağlı parkinq təyinatı yoxdur." %}</p>
+  {% endfor %}
+</div>
+
+<div class="cp-card mb-4" style="padding:8px 0;">
+  <div class="cp-section section-pad">{% translate "Əvvəlki və cari icarələr" %}</div>
+  {% for row in lease_history %}
+  <div class="cp-list-row" style="cursor:default;">
+    <span>
+      <strong>{{ row.party_name }}</strong>
+      <div class="cp-meta">
+        {{ row.code }} · {{ row.status }}
+        {% if row.start_date %} · {{ row.start_date|date:"d.m.Y" }}{% endif %}
+        {% if row.end_date %} – {{ row.end_date|date:"d.m.Y" }}{% endif %}
+        {% if row.is_current %} · {% translate "cari" %}{% endif %}
+      </div>
+    </span>
+  </div>
+  {% empty %}
+  <p class="cp-meta empty-pad">{% translate "Bu sahə üzrə icarə tarixçəsi yoxdur." %}</p>
+  {% endfor %}
+</div>
+{% endblock %}

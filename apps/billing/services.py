@@ -119,12 +119,21 @@ def confirm_invoice(invoice: Invoice, *, actor=None) -> Invoice:
 
 @transaction.atomic
 def record_payment(*, invoice: Invoice, amount, method: str = "bank", reference: str = "") -> Payment:
-    """Apply payment after management approval (caller enforces ACL)."""
+    """Apply payment after management approval (caller enforces ACL). Matched to invoice Party."""
     if invoice.status not in (InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE, InvoiceStatus.PAID):
         raise DomainError("Ödəniş yalnız təsdiqlənmiş faktura üçün.")
+    if invoice.status == InvoiceStatus.VOID:
+        raise DomainError("Ləğv olunmuş fakturaya ödəniş olmaz.")
+    amt = Decimal(str(amount or 0))
+    if amt <= 0:
+        raise DomainError("Ödəniş məbləği müsbət olmalıdır.")
+    bal = invoice_balance(invoice)
+    if amt > bal + Decimal("0.01"):
+        raise DomainError("Ödəniş qalıqdan böyük ola bilməz.")
     payment = Payment.objects.create(
         invoice=invoice,
-        amount=amount,
+        party=invoice.party,
+        amount=amt,
         currency=invoice.currency or "AZN",
         method=method or "bank",
         reference=reference or "",
@@ -135,7 +144,13 @@ def record_payment(*, invoice: Invoice, amount, method: str = "bank", reference:
         invoice.save(update_fields=["status"])
     bus.emit(
         bus.PAYMENT_RECEIVED,
-        payload={"payment_id": payment.pk, "invoice_id": invoice.pk, "amount": str(amount)},
+        payload={
+            "payment_id": payment.pk,
+            "invoice_id": invoice.pk,
+            "party_id": invoice.party_id,
+            "amount": str(amt),
+            "reference": reference or "",
+        },
     )
     from apps.accounting.services import AccountingService
 
@@ -146,6 +161,28 @@ def record_payment(*, invoice: Invoice, amount, method: str = "bank", reference:
     except Exception as exc:  # noqa: BLE001
         raise DomainError(f"Ödəniş jurnalı yaradılmadı: {exc}") from exc
     return payment
+
+
+@transaction.atomic
+def void_invoice(invoice: Invoice, *, actor=None) -> Invoice:
+    """DRAFT/ISSUED → VOID; unlink uninvoiced charges; reverse unposted/posted JE."""
+    if invoice.status == InvoiceStatus.VOID:
+        return invoice
+    if invoice.status == InvoiceStatus.PAID or invoice.payments.exists():
+        raise DomainError("Ödənişi olan faktura ləğv edilə bilməz.")
+    if invoice.status not in (InvoiceStatus.DRAFT, InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE):
+        raise DomainError("Bu statusda ləğv mümkün deyil.")
+    from apps.accounting.models import JournalEntry
+    from apps.accounting.services import AccountingService
+
+    je = JournalEntry.objects.filter(source="billing.invoice", source_ref=f"invoice:{invoice.pk}").first()
+    if je and not je.reversed_entry_id:
+        AccountingService.reverse_journal(je, actor=actor, memo=f"Void {invoice.code}")
+
+    Charge.objects.filter(invoice=invoice).update(invoice=None)
+    invoice.status = InvoiceStatus.VOID
+    invoice.save(update_fields=["status"])
+    return invoice
 
 
 def mark_overdue_invoices(*, as_of=None) -> int:

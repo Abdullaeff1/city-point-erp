@@ -5,6 +5,9 @@ See [../deployment/air-gapped-lan.md](../deployment/air-gapped-lan.md).
 
 Provide these so remaining DoD items can be closed without guessing.
 
+**Cavab formaları (boş = gate açıq):**  
+[../ops/p0-go-live-answers.md](../ops/p0-go-live-answers.md) · [../uat/crm-written-acceptance.md](../uat/crm-written-acceptance.md) · [../uat/coa-import-uat.md](../uat/coa-import-uat.md) · [../deployment/netadmin-handoff-checklist.md](../deployment/netadmin-handoff-checklist.md) · [phase-gaps-and-open-questions.md](phase-gaps-and-open-questions.md)
+
 ## A. Business / process
 
 1. **SLA targets** (response + resolution hours) per Ticket Type / Category / priority + business calendar (work hours, holidays).  

@@ -27,12 +27,39 @@ SEED_DOCUMENT_TYPES = (
     (DOCUMENT_TYPE_OTHER, "Digər"),
 )
 
+# Default retention (days) — hüquqi təsdiq gözlənilən siyasət scaffold.
+DEFAULT_RETENTION_DAYS = {
+    DOCUMENT_TYPE_LEASE_CONTRACT: 3650,  # ~10 il
+    DOCUMENT_TYPE_LEASE_AMENDMENT: 3650,
+    DOCUMENT_TYPE_VOEN: 1825,
+    DOCUMENT_TYPE_CHARTER: 1825,
+    DOCUMENT_TYPE_JUSTICE: 1825,
+    DOCUMENT_TYPE_POWER_OF_ATTORNEY: 1095,
+    DOCUMENT_TYPE_BANK_CERTIFICATE: 365,
+    DOCUMENT_TYPE_COMPANY_EXTRACT: 365,
+    DOCUMENT_TYPE_OTHER: 730,
+}
+
+
+class DocumentSensitivity(models.TextChoices):
+    """Vahid məxfilik: müqavilə / şəxsiyyət / əməliyyat / daxili."""
+
+    PUBLIC_RESIDENT = "public_resident", _("Portala açıq")
+    INTERNAL = "internal", _("Daxili (staff)")
+    CONFIDENTIAL = "confidential", _("Məxfi (hüquqi/maliyyə)")
+    RESTRICTED = "restricted", _("Məhdud (şəxsiyyət)")
+
 
 class DocumentType(models.Model):
     code = models.SlugField(unique=True)
     name = models.CharField(max_length=120)
     retention_days = models.PositiveIntegerField(null=True, blank=True)
     requires_approval = models.BooleanField(default=False)
+    default_sensitivity = models.CharField(
+        max_length=24,
+        choices=DocumentSensitivity.choices,
+        default=DocumentSensitivity.CONFIDENTIAL,
+    )
 
     class Meta:
         ordering = ["name"]
@@ -56,8 +83,16 @@ class Document(models.Model):
         storage=private_document_storage,
     )
     file_type = models.CharField(max_length=16, default="PDF")
+    content_type = models.CharField(max_length=128, blank=True)
+    size_bytes = models.PositiveBigIntegerField(null=True, blank=True)
     version = models.CharField(max_length=32, blank=True)
     size_label = models.CharField(max_length=32, blank=True)
+    sensitivity = models.CharField(
+        max_length=24,
+        choices=DocumentSensitivity.choices,
+        default=DocumentSensitivity.CONFIDENTIAL,
+        db_index=True,
+    )
     company = models.ForeignKey(
         "residents.ResidentCompany",
         null=True,

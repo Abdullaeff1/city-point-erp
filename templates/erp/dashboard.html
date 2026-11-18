@@ -1,7 +1,184 @@
 {% extends "erp/base.html" %}
 {% load i18n cp_ui %}
-{% block heading %}{% translate "İdarə paneli" %}{% endblock %}
+{% block heading %}{% if is_sales_dashboard %}{% translate "Satış paneli" %}{% else %}{% translate "İdarə paneli" %}{% endif %}{% endblock %}
 {% block content %}
+{% if is_sales_dashboard %}
+{# —— Satış paneli —— #}
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;align-items:flex-end;justify-content:space-between;">
+  <p class="cp-meta" style="margin:0;max-width:36rem;">{% translate "Cari vəziyyət dövr süzgəcindən asılı deyil. Dövr yalnız hadisə saylarını dəyişir." %}</p>
+  <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:flex-end;">
+    <label class="cp-meta">
+      {% translate "Dövr" %}
+      <select name="period" onchange="this.form.submit()" style="display:block;margin-top:4px;min-width:10rem;">
+        {% for key, label in period.choices %}
+        <option value="{{ key }}" {% if period.key == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% if period.key == "custom" %}
+    <label class="cp-meta">
+      {% translate "Başlanğıc" %}
+      <input type="date" name="date_from" value="{{ period.date_from|date:'Y-m-d' }}" style="display:block;margin-top:4px;">
+    </label>
+    <label class="cp-meta">
+      {% translate "Son" %}
+      <input type="date" name="date_to" value="{{ period.date_to|date:'Y-m-d' }}" style="display:block;margin-top:4px;">
+    </label>
+    <button type="submit" class="cp-btn-ghost">{% translate "Tətbiq et" %}</button>
+    {% endif %}
+  </form>
+</div>
+
+<div class="grid-kpi mb-5">
+  <a class="cp-card p-card-sm cp-card-link" href="{{ kpi.open_leads.url }}">
+    <div class="cp-meta">{% translate "Açıq lidlər" %}</div>
+    <div class="cp-metric mt-2">{{ kpi.open_leads.count }}</div>
+    <div class="cp-meta mt-2">{% translate "cari vəziyyət" %}</div>
+  </a>
+  <a class="cp-card p-card-sm cp-card-link" href="{{ kpi.open_opportunities.url }}">
+    <div class="cp-meta">{% translate "Aktiv imkanlar" %}</div>
+    <div class="cp-metric mt-2">{{ kpi.open_opportunities.count }}</div>
+    {% if kpi.open_opportunities.expected_area_m2 %}
+    <div class="cp-meta mt-2">{{ kpi.open_opportunities.expected_area_m2 }} m² · {% translate "tələb olunan" %}</div>
+    {% else %}
+    <div class="cp-meta mt-2">{% translate "cari vəziyyət" %}</div>
+    {% endif %}
+  </a>
+  <div class="cp-card p-card-sm">
+    <div class="cp-meta">{% translate "Təkliflər — hərəkət" %}</div>
+    <div class="cp-metric mt-2">{{ kpi.offers_action.pending_approval|add:kpi.offers_action.approved_unsent|add:kpi.offers_action.expiring }}</div>
+    <div class="cp-meta mt-2">
+      <a href="{{ kpi.offers_action.url_pending }}">{% translate "Təsdiq" %}: {{ kpi.offers_action.pending_approval }}</a>
+      · <a href="{{ kpi.offers_action.url_approved }}">{% translate "Göndərilməyib" %}: {{ kpi.offers_action.approved_unsent }}</a>
+      · {% translate "Müddət" %}: {{ kpi.offers_action.expiring }}
+    </div>
+  </div>
+  <a class="cp-card p-card-sm cp-card-link" href="{{ kpi.applications.url }}">
+    <div class="cp-meta">{% translate "Müqavilə müraciətləri" %}</div>
+    <div class="cp-metric mt-2">{{ kpi.applications.sales_work }}</div>
+    <div class="cp-meta mt-2">
+      {% translate "Satış işi" %}: {{ kpi.applications.sales_work }}
+      · {% translate "Mühasibdə" %}: {{ kpi.applications.accountant_queue }}
+    </div>
+  </a>
+  {% if kpi.available_spaces.show %}
+  <a class="cp-card p-card-sm cp-card-link" href="{{ kpi.available_spaces.url }}">
+    <div class="cp-meta">{% translate "İcarəyə əlçatan sahələr" %}</div>
+    <div class="cp-metric mt-2">{{ kpi.available_spaces.count }}</div>
+    <div class="cp-meta mt-2">{{ kpi.available_spaces.total_m2 }} m²
+      {% if kpi.available_spaces.conflict_count %} · {% translate "uyğunsuzluq" %}: {{ kpi.available_spaces.conflict_count }}{% endif %}
+    </div>
+  </a>
+  {% else %}
+  <div class="cp-card p-card-sm">
+    <div class="cp-meta">{% translate "İcarəyə əlçatan sahələr" %}</div>
+    <p class="cp-meta mt-2">{% translate "Sahə məlumatı natamam — göstərici gizlədilib." %}</p>
+  </div>
+  {% endif %}
+</div>
+
+<div class="cp-card p-card-sm mb-4">
+  <div class="cp-meta mb-2">{% translate "Satış axını" %}</div>
+  <nav class="crm-pipeline-strip" aria-label="{% translate 'Satış hunisi' %}">
+    {% for step in pipeline_steps %}
+    <a class="crm-pipeline-step" href="{{ step.url }}">
+      <span class="crm-pipeline-step-label">{{ step.label }}</span>
+      <span class="crm-pipeline-step-count">{{ step.count }}</span>
+    </a>
+    {% if not forloop.last %}<span class="crm-pipeline-arrow" aria-hidden="true">→</span>{% endif %}
+    {% endfor %}
+  </nav>
+  <p class="cp-meta mt-2">{% translate "Hər mərhələ öz aktiv qeydlərinin sayıdır; eyni müştəri bir neçə mərhələdə görünə bilər." %}</p>
+</div>
+
+<div class="cp-card p-card-sm mb-4">
+  <div class="cp-meta">{% translate "Dövr ərzində" %}
+    ({{ period.date_from|date:"d.m.Y" }} – {{ period.date_to|date:"d.m.Y" }})
+  </div>
+  <div class="flex gap-3 mt-2" style="flex-wrap:wrap;">
+    <div>
+      <div class="cp-metric">{{ period_events.leads_created }}</div>
+      <div class="cp-meta">{% translate "Yaradılmış lidlər" %}</div>
+    </div>
+    <div>
+      <div class="cp-metric">{{ period_events.viewings }}</div>
+      <div class="cp-meta">{% translate "Sahəyə baxışlar" %}</div>
+    </div>
+    <div>
+      <div class="cp-metric">{{ period_events.offers_sent }}</div>
+      <div class="cp-meta">{% translate "Göndərilmiş təkliflər" %}</div>
+    </div>
+  </div>
+  <p class="cp-meta mt-2">
+    {% translate "Qazanma / itirmə və dönüşüm faizləri mərhələ tarixçəsi olmadan göstərilmir." %}
+    <a href="{{ reports_url }}">{% translate "CRM hesabatı" %} →</a>
+  </p>
+</div>
+
+<div class="grid-dash mb-4 grid-dash--triple" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;">
+  <div class="cp-card" style="padding:8px 0;">
+    <div class="cp-section section-pad">{% translate "Əlaqə tələb edir" %}</div>
+    {% for row in attention_contact %}
+    <a href="{{ row.url }}" class="cp-list-row">
+      <span>
+        <strong>{{ row.title }}</strong>
+        <div class="cp-meta">
+          {{ row.stage }}
+          {% if row.area_m2 %} · {{ row.area_m2 }} m²{% endif %}
+          · {% if row.last_activity_at %}{{ row.last_activity_at|timesince }} {% translate "əvvəl" %}{% else %}{% translate "fəaliyyət yoxdur" %}{% endif %}
+        </div>
+      </span>
+    </a>
+    {% empty %}
+    <p class="cp-meta empty-pad">{% translate "Əlaqə tələb edən lid/imkan yoxdur." %}</p>
+    <p class="empty-pad"><a href="{% url 'erp:crm_leads' %}">{% translate "Lidlərə bax" %} →</a></p>
+    {% endfor %}
+  </div>
+  <div class="cp-card" style="padding:8px 0;">
+    <div class="cp-section section-pad">{% translate "Təkliflərdə gözləyən addımlar" %}</div>
+    {% for row in attention_offers %}
+    <a href="{{ row.url }}" class="cp-list-row">
+      <span>
+        <strong>{{ row.title }}</strong>
+        <div class="cp-meta">
+          {{ row.status }}
+          {% if row.reason == "pending_approval" %} · {% translate "təsdiq gözləyir" %}{% endif %}
+          {% if row.reason == "approved_unsent" %} · {% translate "göndərilməyib" %}{% endif %}
+          {% if row.reason == "expiring" %} · {% translate "müddət bitir" %}{% endif %}
+          {% if row.reason == "expired" %} · {% translate "müddət bitib" %}{% endif %}
+          {% if row.monthly_rent_net != None %} · {% translate "aylıq net" %} {{ row.monthly_rent_net }} AZN{% endif %}
+          {% if row.area_m2 %} · {{ row.area_m2 }} m²{% endif %}
+          {% if row.valid_until %} · {{ row.valid_until|date:"d.m.Y" }}{% endif %}
+        </div>
+      </span>
+    </a>
+    {% empty %}
+    <p class="cp-meta empty-pad">{% translate "Gözləyən təklif addımı yoxdur." %}</p>
+    <p class="empty-pad"><a href="{% url 'erp:crm_offers' %}">{% translate "Təkliflərə bax" %} →</a></p>
+    {% endfor %}
+  </div>
+  <div class="cp-card" style="padding:8px 0;">
+    <div class="cp-section section-pad">{% translate "Müraciətlərdə gözləyən addımlar" %}</div>
+    {% for row in attention_applications %}
+    <a href="{{ row.url }}" class="cp-list-row">
+      <span>
+        <strong>{{ row.title }}</strong>
+        <div class="cp-meta">
+          {{ row.status }}
+          {% if row.space_label %} · {{ row.space_label }}{% endif %}
+          · {% translate "məsul" %}: {% translate "Satış" %}
+        </div>
+      </span>
+    </a>
+    {% empty %}
+    <p class="cp-meta empty-pad">{% translate "Satışın tamamlamalı olduğu müraciət yoxdur." %}</p>
+    <p class="empty-pad"><a href="{% url 'erp:crm_lease_applications' %}">{% translate "Müraciətlərə bax" %} →</a></p>
+    {% endfor %}
+  </div>
+</div>
+
+{% else %}
+{# —— Ops İdarə paneli —— #}
 {% if show_approvals and pending_total %}
 <div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
   <a class="cp-card p-card-sm cp-card-link" href="{% url 'erp:approvals' %}" style="min-width:140px;flex:1;">
@@ -108,4 +285,5 @@
   </div>
   {% endif %}
 </div>
+{% endif %}
 {% endblock %}

@@ -87,6 +87,151 @@
   </section>
   {% endif %}
 
+  {% if lease_addons %}
+  <section class="mb-4">
+    <h3 class="cp-section mb-3">{% translate "Əlavə tariflər (m²)" %}</h3>
+    <div class="cp-card p-card overflow-x-auto">
+      <table class="cp-table w-full text-sm">
+        <thead>
+          <tr>
+            <th>{% translate "Ad" %}</th>
+            <th>{% translate "Kod" %}</th>
+            <th>{% translate "Tarif" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for addon in lease_addons %}
+          <tr>
+            <td>{{ addon.label }}</td>
+            <td>{{ addon.code|default:"—" }}</td>
+            <td>{{ addon.rate_per_m2 }} {{ lease.currency }}/m²</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="cp-meta mt-2">{% translate "Kirayə/xidmət tarifləri Lease sahələrində; əlavələr LeaseAddon ilə dəyişən qaydadır." %}</p>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if parking_assignments or utility_meters %}
+  <section class="mb-4">
+    <h3 class="cp-section mb-3">{% translate "Parkinq və sayğaclar" %}</h3>
+    <div class="lease-detail-grid">
+      <div class="cp-card p-card overflow-x-auto">
+        <h4 class="cp-meta mb-2">{% translate "Parkinq" %}</h4>
+        {% if parking_assignments %}
+        <table class="cp-table w-full text-sm">
+          <thead>
+            <tr>
+              <th>{% translate "Yer" %}</th>
+              <th>{% translate "Nömrə" %}</th>
+              <th>{% translate "Sahə" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in parking_assignments %}
+            <tr>
+              <td>{{ a.spot }}</td>
+              <td>{{ a.vehicle_plate|default:"—" }}</td>
+              <td>{% if a.space %}{{ a.space.code }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="cp-meta">{% translate "Bağlı parkinq yoxdur." %}</p>
+        {% endif %}
+        {% if lease.parking_included_free %}
+        <p class="cp-meta mt-2">{% translate "Parkinq müqaviləyə görə ödənişsizdir." %}</p>
+        {% endif %}
+      </div>
+      <div class="cp-card p-card overflow-x-auto">
+        <h4 class="cp-meta mb-2">{% translate "Sayğaclar" %}</h4>
+        {% if utility_meters %}
+        <table class="cp-table w-full text-sm">
+          <thead>
+            <tr>
+              <th>{% translate "Kod" %}</th>
+              <th>{% translate "Növ" %}</th>
+              <th>{% translate "Sahə" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for m in utility_meters %}
+            <tr>
+              <td>{{ m.meter_code }}</td>
+              <td>{{ m.get_utility_type_display }}</td>
+              <td>{{ m.space.code }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="cp-meta">{% translate "Sahə sayğacı yoxdur." %}</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="mb-4">
+    <h3 class="cp-section mb-3">{% translate "Depozit hesablaşması" %}</h3>
+    <div class="cp-card p-card overflow-x-auto">
+      {% if deposit_settlements %}
+      <table class="cp-table w-full text-sm">
+        <thead>
+          <tr>
+            <th>{% translate "Növ" %}</th>
+            <th>{% translate "Məbləğ" %}</th>
+            <th>{% translate "Tutma" %}</th>
+            <th>{% translate "Tarix" %}</th>
+            <th>{% translate "Səbəb" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in deposit_settlements %}
+          <tr>
+            <td>{{ row.get_kind_display }}</td>
+            <td>{{ row.amount }} {{ lease.currency }}</td>
+            <td>{{ row.withhold_amount }}</td>
+            <td>{{ row.settled_at|date:"d.m.Y"|default:row.created_at|date:"d.m.Y" }}</td>
+            <td>{{ row.reason|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="cp-meta">{% translate "Hələ hesablaşma yoxdur." %}</p>
+      {% endif %}
+      {% if can_edit_lease %}
+        {% if lease.status == "active" or lease.status == "expiring" or lease.status == "terminated" %}
+      <form method="post" class="mt-3 flex-col gap-2" style="max-width:420px;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="settle_deposit">
+        <label>
+          <span class="cp-meta">{% translate "Növ" %}</span>
+          <select class="cp-input mt-1" name="kind">
+            <option value="full_return">{% translate "Tam qaytarma" %}</option>
+            <option value="partial_return">{% translate "Qismən qaytarma" %}</option>
+            <option value="withhold">{% translate "Tutma" %}</option>
+          </select>
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Tutma məbləği" %}</span>
+          <input class="cp-input mt-1" name="withhold_amount" value="0">
+        </label>
+        <label>
+          <span class="cp-meta">{% translate "Səbəb" %}</span>
+          <input class="cp-input mt-1" name="reason" maxlength="255">
+        </label>
+        <button class="cp-btn" type="submit">{% translate "Hesablaşma yaz" %}</button>
+      </form>
+        {% endif %}
+      {% endif %}
+    </div>
+  </section>
+
   <div class="lease-detail-grid">
     <section class="cp-card p-card lease-detail-panel">
       <h3 class="cp-section">{% translate "Əlavə məlumat" %}</h3>

@@ -1,22 +1,138 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
-{% block heading %}{% translate "Hesabatlar" %}{% endblock %}
+{% block heading %}{% translate "Rəhbərlik hesabatları" %}{% endblock %}
 {% block content %}
+<form method="get" class="cp-card p-card mb-4" style="display:flex;flex-wrap:wrap;gap:12px;align-items:end;">
+  <input type="hidden" name="tab" value="{{ tab }}">
+  <div>
+    <label class="cp-meta">{% translate "Başlanğıc" %}</label>
+    <input class="cp-input" type="date" name="date_from" value="{{ params.date_from|date:'Y-m-d' }}">
+  </div>
+  <div>
+    <label class="cp-meta">{% translate "Son" %}</label>
+    <input class="cp-input" type="date" name="date_to" value="{{ params.date_to|date:'Y-m-d' }}">
+  </div>
+  <div>
+    <label class="cp-meta">{% translate "Şirkət" %}</label>
+    <select class="cp-input" name="company_id">
+      <option value="">{% translate "Hamısı" %}</option>
+      {% for c in companies %}
+      <option value="{{ c.pk }}" {% if params.company_id == c.pk %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="cp-btn" type="submit">{% translate "Tətbiq et" %}</button>
+  <a class="cp-btn-ghost" href="{% url 'erp:reports_export' %}?date_from={{ params.date_from|date:'Y-m-d' }}&date_to={{ params.date_to|date:'Y-m-d' }}{% if params.company_id %}&company_id={{ params.company_id }}{% endif %}">{% translate "Excel" %}</a>
+  <a class="cp-btn-ghost" href="{% url 'erp:sla_report' %}">{% translate "SLA ətraflı" %}</a>
+  <a class="cp-btn-ghost" href="{% url 'erp:crm_reports' %}">{% translate "CRM ətraflı" %}</a>
+  <a class="cp-btn-ghost" href="{% url 'erp:ar_aging' %}">{% translate "AR aging" %}</a>
+</form>
+
+<div class="mb-4" style="display:flex;flex-wrap:wrap;gap:8px;">
+  <a class="cp-btn-ghost" href="?tab=overview&date_from={{ params.date_from|date:'Y-m-d' }}&date_to={{ params.date_to|date:'Y-m-d' }}{% if params.company_id %}&company_id={{ params.company_id }}{% endif %}">{% translate "Ümumi" %}</a>
+  <a class="cp-btn-ghost" href="?tab=property&date_from={{ params.date_from|date:'Y-m-d' }}&date_to={{ params.date_to|date:'Y-m-d' }}{% if params.company_id %}&company_id={{ params.company_id }}{% endif %}">{% translate "Əmlak" %}</a>
+  <a class="cp-btn-ghost" href="?tab=crm&date_from={{ params.date_from|date:'Y-m-d' }}&date_to={{ params.date_to|date:'Y-m-d' }}{% if params.company_id %}&company_id={{ params.company_id }}{% endif %}">CRM</a>
+  <a class="cp-btn-ghost" href="?tab=sales&date_from={{ params.date_from|date:'Y-m-d' }}&date_to={{ params.date_to|date:'Y-m-d' }}{% if params.company_id %}&company_id={{ params.company_id }}{% endif %}">{% translate "Satış" %}</a>
+  <a class="cp-btn-ghost" href="?tab=service_desk&date_from={{ params.date_from|date:'Y-m-d' }}&date_to={{ params.date_to|date:'Y-m-d' }}{% if params.company_id %}&company_id={{ params.company_id }}{% endif %}">Service Desk</a>
+  <a class="cp-btn-ghost" href="?tab=fm&date_from={{ params.date_from|date:'Y-m-d' }}&date_to={{ params.date_to|date:'Y-m-d' }}{% if params.company_id %}&company_id={{ params.company_id }}{% endif %}">FM</a>
+  <a class="cp-btn-ghost" href="?tab=warehouse&date_from={{ params.date_from|date:'Y-m-d' }}&date_to={{ params.date_to|date:'Y-m-d' }}{% if params.company_id %}&company_id={{ params.company_id }}{% endif %}">{% translate "Anbar" %}</a>
+  <a class="cp-btn-ghost" href="?tab=finance&date_from={{ params.date_from|date:'Y-m-d' }}&date_to={{ params.date_to|date:'Y-m-d' }}{% if params.company_id %}&company_id={{ params.company_id }}{% endif %}">{% translate "Maliyyə" %}</a>
+  <a class="cp-btn-ghost" href="?tab=security&date_from={{ params.date_from|date:'Y-m-d' }}&date_to={{ params.date_to|date:'Y-m-d' }}{% if params.company_id %}&company_id={{ params.company_id }}{% endif %}">Security</a>
+  <a class="cp-btn-ghost" href="?tab=history&date_from={{ params.date_from|date:'Y-m-d' }}&date_to={{ params.date_to|date:'Y-m-d' }}{% if params.company_id %}&company_id={{ params.company_id }}{% endif %}">{% translate "Snapshot" %}</a>
+</div>
+
+{% if tab == "overview" or tab == "property" %}
 <div class="grid-3 mb-4">
-  <div class="cp-card p-card"><div class="cp-meta">{% translate "Occupancy %" %}</div><div class="cp-metric">{{ occupancy_pct }}%</div></div>
-  <div class="cp-card p-card"><div class="cp-meta">{% translate "Vacant m²" %}</div><div class="cp-metric">{{ vacant_m2 }}</div></div>
-  <div class="cp-card p-card"><div class="cp-meta">{% translate "CRM new leads" %}</div><div class="cp-metric">{{ crm_new_leads }}</div></div>
-  <div class="cp-card p-card"><div class="cp-meta">{% translate "Açıq ticket" %}</div><div class="cp-metric">{{ open_count }}</div></div>
-  <div class="cp-card p-card"><div class="cp-meta">{% translate "SLA risk" %}</div><div class="cp-metric">{{ sla_risk_count }}</div></div>
-  <div class="cp-card p-card"><div class="cp-meta">{% translate "Qonaqlar" %}</div><div class="cp-metric">{{ guest_count }}</div></div>
-  <div class="cp-card p-card"><div class="cp-meta">{% translate "Low stock" %}</div><div class="cp-metric">{{ low_stock_count }}</div></div>
-  <div class="cp-card p-card"><div class="cp-meta">{% translate "Receivables" %}</div><div class="cp-metric">{{ receivable_count }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Doluluq" %}</div><div class="cp-metric">{{ prop.occupancy_pct }}%</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Boş m²" %}</div><div class="cp-metric">{{ prop.vacant_m2 }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Bitən müqavilələr (90g)" %}</div><div class="cp-metric">{{ prop.leases_expiring_count }}</div></div>
 </div>
-<div class="mb-4">
-  <a class="cp-btn" href="{% url 'erp:sla_report' %}">{% translate "SLA hesabatı" %}</a>
+{% endif %}
+
+{% if tab == "overview" or tab == "crm" or tab == "sales" %}
+<div class="grid-3 mb-4">
+  <div class="cp-card p-card"><div class="cp-meta">CRM lid</div><div class="cp-metric">{{ crm.lead_count }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "İmkan" %}</div><div class="cp-metric">{{ sales.opportunity_count }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Təklif / imza" %}</div><div class="cp-metric">{{ sales.offer_sent }} / {{ sales.signed_leases }}</div></div>
 </div>
+{% endif %}
+
+{% if tab == "overview" or tab == "service_desk" %}
+<div class="grid-3 mb-4">
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Ticket (dövr)" %}</div><div class="cp-metric">{{ service_desk.total }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">SLA risk</div><div class="cp-metric">{{ service_desk.open_risk }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">MTTR (saat)</div><div class="cp-metric">{{ service_desk.mttr_avg_hours|default:"—" }}</div></div>
+</div>
+{% endif %}
+
+{% if tab == "overview" or tab == "fm" %}
+<div class="grid-3 mb-4">
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Açıq WO" %}</div><div class="cp-metric">{{ fm.open_wo }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Gecikmiş PM" %}</div><div class="cp-metric">{{ fm.overdue_pm }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Təkrar təmir aktiv" %}</div><div class="cp-metric">{{ fm.repeat_repair_assets }}</div></div>
+</div>
+{% endif %}
+
+{% if tab == "overview" or tab == "warehouse" %}
+<div class="grid-3 mb-4">
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Aşağı stok" %}</div><div class="cp-metric">{{ warehouse.low_stock_count }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Sərf (issue)" %}</div><div class="cp-metric">{{ warehouse.issued_qty }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">PR / PO status</div><div class="cp-meta mt-2">{% for r in warehouse.pr_by_status %}PR {{ r.status }}: {{ r.c }}<br>{% endfor %}{% for r in warehouse.po_by_status %}PO {{ r.status }}: {{ r.c }}<br>{% endfor %}</div></div>
+</div>
+{% endif %}
+
+{% if tab == "overview" or tab == "finance" %}
+<div class="grid-3 mb-4">
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Fakturalanmış" %}</div><div class="cp-metric">{{ finance.invoiced }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Ödənmiş" %}</div><div class="cp-metric">{{ finance.paid }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "AR / gecikmiş" %}</div><div class="cp-metric">{{ finance.ar_open }} / {{ finance.overdue_amount }}</div></div>
+</div>
+{% endif %}
+
+{% if tab == "overview" or tab == "security" %}
+<div class="grid-3 mb-4">
+  <div class="cp-card p-card"><div class="cp-meta">AxTrax sync</div><div class="cp-metric">{% if security.health.events_ok %}OK{% else %}STALE{% endif %}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Access event" %}</div><div class="cp-metric">{{ security.access_events }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Bildiriş" %}</div><div class="cp-metric">{{ security.notifications }}</div></div>
+</div>
+{% endif %}
+
+{% if tab == "property" and prop.leases_expiring %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="font-size:16px;">{% translate "Bitən müqavilələr" %}</div>
+  <ul class="mt-3" style="list-style:none;padding:0;">
+    {% for l in prop.leases_expiring %}
+    <li class="mb-2">{{ l.code }} — {{ l.party.legal_name }} — {{ l.end_date|date:"d.m.Y" }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if tab == "fm" and fm.asset_events %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="font-size:16px;">{% translate "Aktiv tarixçəsi" %}</div>
+  <ul class="mt-3" style="list-style:none;padding:0;">
+    {% for e in fm.asset_events %}
+    <li class="mb-2">{{ e.occurred_at|date:"d.m.Y H:i" }} — {{ e.asset }} — {{ e.get_event_type_display }} {{ e.summary }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if tab == "history" %}
 <div class="cp-card p-card">
-  <div class="cp-section" style="font-size:16px;">{% translate "Rezidentlər" %}</div>
-  <ul class="mt-3" style="list-style:none;padding:0;">{% for c in companies %}<li class="mb-2"><a href="{% url 'erp:resident_detail' c.slug %}">{{ c.name }}</a></li>{% endfor %}</ul>
+  <div class="cp-section" style="font-size:16px;">{% translate "KPI snapshot (backup deyil)" %}</div>
+  <p class="cp-meta mt-2">{% translate "Keçmiş günlər üçün capture_exec_snapshots əmri ilə saxlanır." %}</p>
+  <ul class="mt-3" style="list-style:none;padding:0;">
+    {% for s in snapshots %}
+    <li class="mb-3" style="border-bottom:1px solid var(--cp-border);padding-bottom:8px;">
+      <strong>{{ s.snapshot_date|date:"d.m.Y" }}</strong>
+      <div class="cp-meta">occupancy {{ s.payload.property.occupancy_pct }}% · AR {{ s.payload.finance.ar_open }} · WO {{ s.payload.fm.open_wo }}</div>
+    </li>
+    {% empty %}
+    <li class="cp-meta">{% translate "Snapshot yoxdur." %}</li>
+    {% endfor %}
+  </ul>
 </div>
+{% endif %}
 {% endblock %}

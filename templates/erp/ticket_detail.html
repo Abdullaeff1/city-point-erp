@@ -206,6 +206,7 @@
       {% for wo in work_orders %}
       <div class="mt-1"><a href="{% url 'erp:work_order_detail' wo.code %}">{{ wo.code }}</a> · {{ wo.get_status_display }}{% if wo.contractor %} · {{ wo.contractor.name }}{% endif %}</div>
       {% empty %}<div class="cp-meta mt-1">{% translate "Hələ yoxdur." %}</div>{% endfor %}
+      {% if can_create_wo %}
       <form method="post" class="flex-col gap-2 mt-2">
         {% csrf_token %}
         <input type="hidden" name="action" value="create_wo">
@@ -217,6 +218,9 @@
         </select>
         <button class="cp-btn w-full">{% translate "İş sifarişi yarat" %}</button>
       </form>
+      {% elif not work_orders %}
+      <div class="cp-meta mt-1">{% translate "Bu kateqoriya üçün iş sifarişi uyğun deyil." %}</div>
+      {% endif %}
     </div>
     {% endif %}
     {% if can_handoff %}

@@ -11,6 +11,7 @@ from django.utils.translation import gettext as _
 
 from apps.audit.services import log_action
 from apps.core.services import Service
+from apps.documents.access import sensitivity_for_new_document
 from apps.documents.models import Document, DocumentVersion
 from apps.documents.validation import validate_document_file
 
@@ -57,6 +58,7 @@ class DocumentService(Service):
         validate_document_file(uploaded_file)
         size = getattr(uploaded_file, "size", 0) or 0
         today = timezone.localdate()
+        content_type = getattr(uploaded_file, "content_type", "") or ""
         doc = Document(
             title=title.strip()[:200],
             document_type=document_type,
@@ -67,8 +69,13 @@ class DocumentService(Service):
             published_at=document_date or today,
             document_date=document_date or today,
             visible_to_resident=visible_to_resident,
+            sensitivity=sensitivity_for_new_document(
+                document_type=document_type, visible_to_resident=visible_to_resident
+            ),
             version="1",
+            size_bytes=size or None,
             size_label=f"{size // 1024} KB" if size else "",
+            content_type=content_type[:128],
             file_type=(getattr(uploaded_file, "name", "") or "").split(".")[-1].upper()[:16] or "FILE",
             created_by=created_by,
             updated_by=created_by,

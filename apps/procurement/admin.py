@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from apps.procurement.models import POLine, PRLine, PurchaseOrder, PurchaseRequest, RFQ
+from apps.procurement.models import (
+    POLine,
+    PRLine,
+    PurchaseApprovalLimit,
+    PurchaseOrder,
+    PurchaseRequest,
+    RFQ,
+    RFQQuote,
+)
 
 
 class PRLineInline(admin.TabularInline):
@@ -10,6 +18,11 @@ class PRLineInline(admin.TabularInline):
 
 class POLineInline(admin.TabularInline):
     model = POLine
+    extra = 0
+
+
+class RFQQuoteInline(admin.TabularInline):
+    model = RFQQuote
     extra = 0
 
 
@@ -41,5 +54,18 @@ class POLineAdmin(admin.ModelAdmin):
 
 @admin.register(RFQ)
 class RFQAdmin(admin.ModelAdmin):
-    list_display = ("code", "title", "created_at")
+    list_display = ("code", "title", "pr", "created_at")
     search_fields = ("code", "title")
+    inlines = [RFQQuoteInline]
+
+
+@admin.register(RFQQuote)
+class RFQQuoteAdmin(admin.ModelAdmin):
+    list_display = ("rfq", "supplier_party", "unit_price", "lead_time_days", "is_selected")
+    list_filter = ("is_selected",)
+
+
+@admin.register(PurchaseApprovalLimit)
+class PurchaseApprovalLimitAdmin(admin.ModelAdmin):
+    list_display = ("role", "max_amount", "is_active")
+    list_filter = ("is_active",)

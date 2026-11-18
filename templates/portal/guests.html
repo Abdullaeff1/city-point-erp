@@ -26,6 +26,27 @@
     </div>
   </form>
 </div>
+
+<div class="cp-card mb-3" style="padding:12px 16px;">
+  <div class="flex gap-2" style="flex-wrap:wrap;align-items:center;">
+    <a class="cp-tab {% if guest_days == 7 %}is-active{% endif %}" href="?days=7">{% translate "7 gün" %}</a>
+    <a class="cp-tab {% if guest_days == 30 %}is-active{% endif %}" href="?days=30">{% translate "30 gün" %}</a>
+    <a class="cp-tab {% if guest_days == 90 %}is-active{% endif %}" href="?days=90">{% translate "90 gün" %}</a>
+    <form method="get" class="flex gap-2" style="align-items:end;margin-left:auto;">
+      <label>
+        <span class="cp-meta">{% translate "Başlanğıc tarixi" %}</span>
+        <input class="cp-input mt-1" type="date" name="from" value="{{ guest_from|date:'Y-m-d' }}">
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Son tarix" %}</span>
+        <input class="cp-input mt-1" type="date" name="to" value="{{ guest_to|date:'Y-m-d' }}">
+      </label>
+      <button class="cp-btn" type="submit">{% translate "Göstər" %}</button>
+    </form>
+  </div>
+  <p class="cp-meta mt-2">{{ guest_from|date:"d.m.Y" }} – {{ guest_to|date:"d.m.Y" }}</p>
+</div>
+
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
     <thead><tr><th>{% translate "Qonaq" %}</th>{% if show_company_column %}<th>{% translate "Şirkət" %}</th>{% endif %}<th>{% translate "Host" %}</th><th>{% translate "Tip" %}</th><th>{% translate "Mərtəbə" %}</th><th>{% translate "Status" %}</th><th></th></tr></thead>
@@ -48,7 +69,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="{% if show_company_column %}7{% else %}6{% endif %}" class="cp-meta empty-pad">{% blocktranslate with days=guest_days|default:30 %}Son {{ days }} gündə qonaq yoxdur.{% endblocktranslate %}</td></tr>
+      <tr><td colspan="{% if show_company_column %}7{% else %}6{% endif %}" class="cp-meta empty-pad">{% translate "Seçilmiş tarix aralığında qonaq yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

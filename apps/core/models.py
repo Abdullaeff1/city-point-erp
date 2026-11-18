@@ -36,3 +36,37 @@ class ActorMixin(models.Model):
 
     class Meta:
         abstract = True
+
+
+class ReportSnapshot(models.Model):
+    """Daily executive KPI snapshot (M11) — not a DB backup substitute."""
+
+    snapshot_date = models.DateField(db_index=True)
+    company = models.ForeignKey(
+        "residents.ResidentCompany",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="report_snapshots",
+    )
+    payload = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        ordering = ["-snapshot_date", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["snapshot_date"],
+                condition=models.Q(company__isnull=True),
+                name="uniq_report_snapshot_date_all",
+            ),
+            models.UniqueConstraint(
+                fields=["snapshot_date", "company"],
+                condition=models.Q(company__isnull=False),
+                name="uniq_report_snapshot_date_company",
+            ),
+        ]
+
+    def __str__(self):
+        co = self.company_id or "all"
+        return f"snapshot:{self.snapshot_date}:{co}"

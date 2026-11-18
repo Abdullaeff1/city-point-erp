@@ -17,7 +17,7 @@
   <form method="post" class="grid-2" style="align-items:end;">
     {% csrf_token %}
     {% for field in form %}
-    <label {% if field.name == 'name' or field.name == 'fit_out_status' %}style="grid-column:1 / -1;"{% endif %}>
+    <label {% if field.name == 'name' or field.name == 'fit_out_status' or field.name == 'sales_notes' %}style="grid-column:1 / -1;"{% endif %}>
       <span class="cp-meta">{{ field.label }}{% if field.field.required %} *{% endif %}</span>
       {{ field }}
       {% if field.errors %}<div class="cp-meta" style="color:#b42318;">{{ field.errors|striptags }}</div>{% endif %}

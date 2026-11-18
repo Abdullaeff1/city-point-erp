@@ -55,6 +55,13 @@ class WorkOrder(models.Model):
         on_delete=models.SET_NULL,
         related_name="work_orders",
     )
+    building_asset = models.ForeignKey(
+        "property.BuildingAsset",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="work_orders",
+    )
     ticket = models.ForeignKey(
         "tickets.Ticket",
         null=True,
@@ -151,6 +158,13 @@ class MaintenancePlan(models.Model):
         on_delete=models.SET_NULL,
         related_name="maintenance_plans",
     )
+    building_asset = models.ForeignKey(
+        "property.BuildingAsset",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="maintenance_plans",
+    )
     space = models.ForeignKey(
         "property.Space",
         null=True,
@@ -180,9 +194,31 @@ class Inspection(models.Model):
         on_delete=models.SET_NULL,
         related_name="inspections",
     )
+    building_asset = models.ForeignKey(
+        "property.BuildingAsset",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="inspections",
+    )
+    work_order = models.ForeignKey(
+        WorkOrder,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="inspections",
+    )
     inspected_at = models.DateTimeField(default=timezone.now)
     result = models.CharField(max_length=64, blank=True)
     notes = models.TextField(blank=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="confirmed_inspections",
+    )
 
     class Meta:
         ordering = ["-inspected_at"]

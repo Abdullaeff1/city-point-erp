@@ -14,6 +14,7 @@ from apps.tickets.models import (
     TicketCategory,
     TicketPriority,
     TicketStatus,
+    TicketSubcategory,
     TicketType,
 )
 from apps.tickets.reporting import build_sla_report
@@ -131,6 +132,24 @@ class EscalationAndCrmTests(TestCase):
         WorkOrderService.set_status(wo, WorkOrderStatus.COMPLETED, actor=self.admin)
         ticket.refresh_from_db()
         self.assertEqual(ticket.status, TicketStatus.RESOLVED)
+
+    def test_create_work_order_requires_wo_eligible(self):
+        from apps.core.services import DomainError
+        from apps.tickets.services import create_work_order_from_ticket
+
+        seed_ticket_taxonomy()
+        billing_sub = TicketSubcategory.objects.filter(category__slug="billing").first()
+        self.assertIsNotNone(billing_sub)
+        ticket = self._ticket(
+            code="TK-WO-BLOCK",
+            status=TicketStatus.IN_PROGRESS,
+            sla_due_at=timezone.now() + timedelta(hours=8),
+        )
+        ticket.subcategory = billing_sub
+        ticket.category = billing_sub.category
+        ticket.save(update_fields=["subcategory", "category", "updated_at"])
+        with self.assertRaises(DomainError):
+            create_work_order_from_ticket(ticket, actor=self.admin)
 
     def test_sla_report_builds(self):
         self._ticket(code="TK-REP-1", sla_due_at=timezone.now() + timedelta(hours=1))

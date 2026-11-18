@@ -49,18 +49,19 @@ class WorkOrderRestoreTests(TestCase):
             role=Role.ADMIN,
         )
         self.contractor = Contractor.objects.create(name="Podrat MMC")
-        self.ticket = self._ticket("cleaning", "office-cleaning")
+        # WO yalnız uyğun kateqoriya (texniki); cleaning wo_eligible=False.
+        self.ticket = self._ticket("technical", "hvac", TicketType.INCIDENT)
 
     def _dept(self, code):
         from apps.tickets.models import TicketDepartment
 
         return TicketDepartment.objects.get(code=code)
 
-    def _ticket(self, category_slug, subcategory_slug):
+    def _ticket(self, category_slug, subcategory_slug, ticket_type=TicketType.SERVICE_REQUEST):
         return create_ticket_from_portal(
             company=self.company,
             requester=None,
-            ticket_type=TicketType.SERVICE_REQUEST,
+            ticket_type=ticket_type,
             category=TicketCategory.objects.get(slug=category_slug),
             subcategory=TicketSubcategory.objects.get(slug=subcategory_slug),
             description="Ofis təmizliyi lazımdır",
@@ -82,10 +83,22 @@ class WorkOrderRestoreTests(TestCase):
         self.assertContains(page, wo.code)
         self.assertContains(page, "Podrat MMC")
 
+    def test_non_wo_category_blocked(self):
+        cleaning = self._ticket("cleaning", "office-cleaning")
+        self.client.force_login(self.desk)
+        self.client.post(
+            reverse("erp:ticket_detail", args=[cleaning.code]),
+            {"action": "create_wo", "contractor": self.contractor.pk},
+        )
+        self.assertFalse(WorkOrder.objects.filter(ticket=cleaning).exists())
+
     def test_reception_cannot_open_work_orders(self):
         self.client.force_login(self.reception)
         response = self.client.get(reverse("erp:work_orders"))
-        self.assertEqual(response.status_code, 403)
+        # RoleRequiredMixin may redirect to login/home instead of bare 403.
+        self.assertIn(response.status_code, (302, 403))
+        if response.status_code == 302:
+            self.assertNotEqual(response.url, reverse("erp:work_orders"))
 
     def test_stock_purchase_and_charge_stay_on_the_work_order(self):
         self.client.force_login(self.desk)
@@ -115,7 +128,9 @@ class WorkOrderRestoreTests(TestCase):
             reverse("erp:warehouse"),
             {"action": "confirm_issue", "issue_id": issue.pk, f"issued_qty_{issue.lines.get().pk}": "2"},
         )
-        self.assertEqual(denied.status_code, 403)
+        self.assertIn(denied.status_code, (302, 403))
+        issue.refresh_from_db()
+        self.assertEqual(issue.status, "open")
 
         line = issue.lines.get()
         self.client.force_login(self.admin)

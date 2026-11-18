@@ -3,13 +3,16 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import PasswordResetConfirmView, PasswordResetView
 from django.core.exceptions import PermissionDenied
+from django.http import HttpResponseRedirect
 from django.shortcuts import redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils.translation import gettext as _
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST
 
 from apps.accounts.forms import ForcedSetPasswordForm, InviteSetPasswordForm, PortalPasswordResetForm
 from apps.accounts.impersonation import (
+    SESSION_IMPERSONATOR_ID,
     actor_can_switch_roles,
     get_impersonator,
     resolve_role_user,
@@ -27,8 +30,18 @@ from apps.accounts.portal_scope import (
 from apps.accounts.routing import home_url_name_for, redirect_home
 
 
+def _login_redirect_response() -> HttpResponseRedirect:
+    """Always the public login page — never a role portal."""
+    response = redirect("login")
+    response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response["Pragma"] = "no-cache"
+    return response
+
+
+@never_cache
 @require_http_methods(["GET", "POST"])
 def login_view(request):
+    """Public login. Success → role home via post_login (ignore ?next=)."""
     if request.user.is_authenticated:
         if request.user.must_set_password:
             return redirect("accounts:force_set_password")
@@ -41,17 +54,25 @@ def login_view(request):
         if user is None:
             error = _("E-poçt və ya şifrə yanlışdır.")
         else:
+            # Drop any leftover guest/impersonation session before binding the new user.
+            request.session.pop(SESSION_IMPERSONATOR_ID, None)
+            clear_portal_scope(request)
             login(request, user)
             if user.must_set_password:
                 return redirect("accounts:force_set_password")
+            # Never follow ?next= into another role's portal (403 / wrong shell).
             return redirect("post_login")
     return render(request, "accounts/login.html", {"error": error})
 
 
+@never_cache
+@require_http_methods(["GET", "POST"])
 def logout_view(request):
+    """End session on every portal; land on the shared login screen only."""
     clear_portal_scope(request)
+    request.session.pop(SESSION_IMPERSONATOR_ID, None)
     logout(request)
-    return redirect("login")
+    return _login_redirect_response()
 
 
 @login_required
@@ -124,19 +145,19 @@ def post_login(request):
 
 
 def permission_denied_view(request, exception=None):
-    """Wrong portal / role → send user to their home (or login). No dead 403 card."""
-    from django.urls import reverse
-
+    """Wrong portal / role → role home (or login). Never leave a dead 403 page."""
     if getattr(request, "user", None) is not None and request.user.is_authenticated:
         if request.user.must_set_password:
             return redirect("accounts:force_set_password")
         home = reverse(home_url_name_for(request.user))
         # Avoid redirect loop if the home URL itself raised 403
         if request.path.rstrip("/") == home.rstrip("/"):
+            clear_portal_scope(request)
+            request.session.pop(SESSION_IMPERSONATOR_ID, None)
             logout(request)
-            return redirect("login")
+            return _login_redirect_response()
         return redirect(home)
-    return redirect("login")
+    return _login_redirect_response()
 
 
 @require_http_methods(["GET", "POST"])

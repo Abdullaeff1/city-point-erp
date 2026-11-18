@@ -179,3 +179,24 @@ class PortalGuestCheckoutTests(TestCase):
         self.assertIn("Çıxış ver", body)
         self.assertIn(f"/portal/guests/{visit.pk}/checkout/", body)
         self.assertNotIn(f"/portal/guests/{held.pk}/checkout/", body)
+
+    def test_guests_page_date_filter(self):
+        visit = self._inside_visit(company=self.company)
+        visit.scheduled_for = timezone.localdate() - timedelta(days=40)
+        visit.save(update_fields=["scheduled_for"])
+        self.client.force_login(self.user)
+        r7 = self.client.get(reverse("portal:guests"), {"days": "7"})
+        self.assertEqual(r7.status_code, 200)
+        self.assertNotContains(r7, visit.guest.display_name)
+        self.assertContains(r7, "7 gün")
+        r90 = self.client.get(reverse("portal:guests"), {"days": "90"})
+        self.assertContains(r90, visit.guest.display_name)
+        custom = self.client.get(
+            reverse("portal:guests"),
+            {
+                "from": (timezone.localdate() - timedelta(days=45)).isoformat(),
+                "to": timezone.localdate().isoformat(),
+            },
+        )
+        self.assertEqual(custom.status_code, 200)
+        self.assertContains(custom, visit.guest.display_name)

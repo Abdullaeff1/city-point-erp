@@ -220,6 +220,28 @@ class FinanceArGlTests(TestCase):
                 memo="blocked",
             )
 
+    def test_confirm_invoice_rolls_back_when_journal_fails(self):
+        """Journal failure must not leave invoice ISSUED without JE (no silent swallow)."""
+        from unittest.mock import patch
+
+        charge = Charge.objects.create(
+            party=self.party,
+            source=ChargeSource.RENT,
+            description="Rent fail JE",
+            amount=Decimal("40.00"),
+            currency="AZN",
+        )
+        inv = generate_invoice_from_charges(self.party, [charge.pk])
+        with patch(
+            "apps.accounting.services.AccountingService.journal_from_invoice",
+            side_effect=RuntimeError("JE boom"),
+        ):
+            with self.assertRaises(DomainError):
+                confirm_invoice(inv)
+        inv.refresh_from_db()
+        self.assertEqual(inv.status, InvoiceStatus.DRAFT)
+        self.assertFalse(JournalEntry.objects.filter(source="billing.invoice", memo__contains=inv.code).exists())
+
     def test_pages_and_exports(self):
         for name in (
             "finance:home",

@@ -36,12 +36,28 @@ class JournalEntry(models.Model):
     entry_date = models.DateField(default=timezone.localdate)
     memo = models.CharField(max_length=255, blank=True)
     source = models.CharField(max_length=32, blank=True)
+    # Idempotency key: e.g. invoice:12 / payment:34 / reverse:JE-1001
+    source_ref = models.CharField(max_length=64, blank=True, db_index=True)
     posted = models.BooleanField(default=False)
+    reversed_entry = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reversals",
+    )
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 
     class Meta:
         ordering = ["-entry_date", "-id"]
         verbose_name_plural = "journal entries"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source", "source_ref"],
+                condition=~models.Q(source_ref=""),
+                name="uniq_journal_source_ref",
+            )
+        ]
 
     def __str__(self):
         return self.code

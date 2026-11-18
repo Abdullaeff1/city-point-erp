@@ -464,7 +464,12 @@ def assign_ticket_employee(ticket, *, actor, employee_id=None):
         if employee is None:
             raise DomainError(_("Cavabdeh yalnız City Point əməkdaşı ola bilər."))
     ticket.assigned_employee = employee
-    ticket.save(update_fields=["assigned_employee", "updated_at"])
+    # Dual-model: worker assignment clears User assignee so Queue/Mine stay consistent.
+    if employee is not None:
+        ticket.assignee = None
+        ticket.save(update_fields=["assigned_employee", "assignee", "updated_at"])
+    else:
+        ticket.save(update_fields=["assigned_employee", "updated_at"])
     if employee and ticket.status == TicketStatus.SENT:
         set_ticket_status(ticket, TicketStatus.ASSIGNED, actor=actor, note="assigned")
     return ticket
@@ -480,7 +485,11 @@ def assign_ticket(ticket, *, actor, assignee_id=None):
             raise DomainError(_("Assignee yalnız ticket şöbəsinin əməkdaşı ola bilər."))
         assignee = allowed
     ticket.assignee = assignee
-    ticket.save(update_fields=["assignee", "updated_at"])
+    if assignee is not None:
+        ticket.assigned_employee = None
+        ticket.save(update_fields=["assignee", "assigned_employee", "updated_at"])
+    else:
+        ticket.save(update_fields=["assignee", "updated_at"])
     if assignee and ticket.status == TicketStatus.SENT:
         set_ticket_status(ticket, TicketStatus.ASSIGNED, actor=actor, note="assigned")
     elif assignee:
@@ -649,6 +658,8 @@ def create_work_order_from_ticket(ticket, *, actor, contractor_id=None):
     """Open a job for a contractor without moving the ticket to another department."""
     if not can_mutate_ticket(actor, ticket):
         raise DomainError(_("İş sifarişi yaratmaq icazəsi yoxdur."))
+    if not ticket.wo_eligible:
+        raise DomainError(_("Bu müraciət kateqoriyası üçün iş sifarişi yaradıla bilməz."))
     from apps.maintenance.services import create_wo_from_ticket
     from apps.property.models import Contractor
 

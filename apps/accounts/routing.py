@@ -24,7 +24,7 @@ def home_url_name_for(user) -> str:
     if role == Role.SERVICE_DESK:
         return "erp:tickets"
     if role == Role.SALES:
-        return "erp:crm_leads"
+        return "erp:dashboard"
     if role == Role.PROPERTY_FM:
         return "erp:dashboard"
     return "erp:dashboard"

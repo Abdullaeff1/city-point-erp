@@ -4,6 +4,7 @@ from apps.property.models import (
     Asset,
     Building,
     BuildingAsset,
+    BuildingAssetEvent,
     Contractor,
     Floor,
     MeterReading,
@@ -55,14 +56,26 @@ class BuildingAssetAdmin(admin.ModelAdmin):
         "name",
         "kind",
         "category",
+        "code",
         "floor",
         "location",
+        "manufacturer",
+        "serial_number",
+        "warranty_until",
         "last_inspected_on",
         "next_inspection_on",
         "is_active",
     )
     list_filter = ("kind", "category", "is_active")
-    search_fields = ("name", "code", "location")
+    search_fields = ("name", "code", "location", "manufacturer", "serial_number")
+
+
+@admin.register(BuildingAssetEvent)
+class BuildingAssetEventAdmin(admin.ModelAdmin):
+    list_display = ("asset", "event_type", "occurred_at", "summary", "work_order")
+    list_filter = ("event_type",)
+    search_fields = ("asset__name", "summary", "notes")
+    readonly_fields = ("created_at",)
 
 
 @admin.register(Contractor)

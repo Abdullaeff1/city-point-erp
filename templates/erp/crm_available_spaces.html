@@ -1,0 +1,66 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{% translate "Əlçatan sahələr" %}{% endblock %}
+{% block heading %}{% translate "Əlçatan sahələr" %}{% endblock %}
+{% block content %}
+{% include "partials/crm_pipeline_strip.html" %}
+
+<p class="cp-meta mb-4">
+  {% translate "İcarəyə hazır kommersiya sahələri. Əlaqə zamanı ətraflı məlumat üçün sahə kartını açın." %}
+  · {{ space_count }} {% translate "sahə" %}
+</p>
+
+{% if space_rows %}
+<div class="cp-card" style="padding:0;overflow:auto;">
+  <table class="cp-table" style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr class="cp-meta" style="text-align:left;">
+        <th class="empty-pad" style="padding:12px 16px;">{% translate "Kod" %}</th>
+        <th class="empty-pad" style="padding:12px 16px;">{% translate "Mərtəbə" %}</th>
+        <th class="empty-pad" style="padding:12px 16px;">m²</th>
+        <th class="empty-pad" style="padding:12px 16px;">{% translate "Tarif" %}</th>
+        <th class="empty-pad" style="padding:12px 16px;">{% translate "Təmir" %}</th>
+        <th class="empty-pad" style="padding:12px 16px;">{% translate "Mətbəx" %}</th>
+        <th class="empty-pad" style="padding:12px 16px;">{% translate "Parkinq" %}</th>
+        <th class="empty-pad" style="padding:12px 16px;">{% translate "Əlçatan" %}</th>
+        <th class="empty-pad" style="padding:12px 16px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in space_rows %}
+      <tr>
+        <td class="empty-pad" style="padding:12px 16px;"><strong>{{ row.label }}</strong><div class="cp-meta">{{ row.code }}</div></td>
+        <td class="empty-pad" style="padding:12px 16px;">{{ row.floor|default:"—" }}</td>
+        <td class="empty-pad" style="padding:12px 16px;">{% if row.area_m2 %}{{ row.area_m2 }}{% else %}—{% endif %}</td>
+        <td class="empty-pad" style="padding:12px 16px;">
+          {% if row.base_rent_rate %}{{ row.base_rent_rate }} AZN/m²/{% translate "ay" %}{% else %}—{% endif %}
+        </td>
+        <td class="empty-pad" style="padding:12px 16px;">
+          {% if row.renovation_needed %}<span class="cp-meta" style="color:#b42318;">{% translate "Ehtiyac var" %}</span>
+          {% elif row.fit_out_status %}{{ row.fit_out_status }}
+          {% else %}—{% endif %}
+        </td>
+        <td class="empty-pad" style="padding:12px 16px;">{% if row.has_internal_kitchen %}{% translate "Var" %}{% else %}{% translate "Yox" %}{% endif %}</td>
+        <td class="empty-pad" style="padding:12px 16px;">
+          {% if row.parking_included %}
+            {% translate "Var" %}{% if row.parking_slots %} · {{ row.parking_slots }}{% endif %}
+          {% else %}{% translate "Yox" %}{% endif %}
+        </td>
+        <td class="empty-pad" style="padding:12px 16px;">
+          {% if row.availability_date %}{{ row.availability_date|date:"d.m.Y" }}{% else %}{% translate "İndi" %}{% endif %}
+        </td>
+        <td class="empty-pad" style="padding:12px 16px;">
+          <a href="{{ row.url }}">{% translate "Kart" %} →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="cp-card p-card">
+  <p class="cp-meta">{% translate "Hal-hazırda siyahıda əlçatan sahə yoxdur." %}</p>
+  <p class="mt-3"><a href="{% url 'erp:dashboard' %}">{% translate "Satış paneli" %} →</a></p>
+</div>
+{% endif %}
+{% endblock %}

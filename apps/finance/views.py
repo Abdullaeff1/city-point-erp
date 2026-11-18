@@ -31,6 +31,7 @@ from apps.billing.services import (
     invoice_vat_summary,
     mark_overdue_invoices,
     record_payment,
+    void_invoice,
 )
 from apps.core.services import DomainError
 from apps.erp.views import (
@@ -274,10 +275,7 @@ class InvoiceDetailView(FinancePortalMixin, TemplateView):
             elif action == "void":
                 if not can_mutate_finance(request.user):
                     raise DomainError(_("İcazə yoxdur."))
-                if inv.payments.exists():
-                    raise DomainError(_("Ödənişi olan faktura ləğv edilə bilməz."))
-                inv.status = InvoiceStatus.VOID
-                inv.save(update_fields=["status"])
+                void_invoice(inv, actor=request.user)
                 messages.success(request, _("Faktura ləğv edildi."))
             elif action == "penalty":
                 if not can_mutate_finance(request.user):
@@ -516,7 +514,7 @@ class PeriodsView(FinancePortalMixin, TemplateView):
             elif action == "reopen":
                 if request.user.role != Role.MANAGEMENT:
                     raise DomainError(_("Yalnız rəhbərlik aça bilər."))
-                AccountingService.reopen_period(year=year, month=month)
+                AccountingService.reopen_period(year=year, month=month, actor=request.user)
                 messages.success(request, _("Dövr yenidən açıldı."))
         except DomainError as exc:
             messages.error(request, str(exc))

@@ -24,10 +24,11 @@ class ResidentCompanyAdmin(admin.ModelAdmin):
 
 @admin.register(ResidentEmployee)
 class ResidentEmployeeAdmin(admin.ModelAdmin):
-    list_display = ("full_name", "company", "card_number", "is_active", "deactivated_at")
-    list_filter = ("is_active", "company")
+    list_display = ("full_name", "company", "card_number", "access_level", "is_active", "deactivated_at")
+    list_filter = ("is_active", "company", "access_level")
     search_fields = ("full_name", "card_number")
-    readonly_fields = ("deactivated_at",)
+    # access_level / card_number: AxTraxNG read-only mirror — əl ilə dəyişməyin.
+    readonly_fields = ("deactivated_at", "access_level", "card_number", "card_order_status")
 
     def delete_model(self, request, obj):
         try:

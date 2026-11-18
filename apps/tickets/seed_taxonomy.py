@@ -207,8 +207,8 @@ def seed_ticket_taxonomy():
                     "queue": queues[qcode],
                     "default_priority": prio,
                     "sla_policy": sla.get(prio),
-                    # A.2: all tickets may create a work order (manual; not auto-spawn)
-                    "wo_eligible": True,
+                    # WO yalnız texniki/uyğun alt kateqoriyalar (taxonomy wo bayrağı).
+                    "wo_eligible": bool(_wo),
                     "crm_eligible": crm,
                     "is_active": True,
                 },

@@ -17,9 +17,7 @@ from apps.warehouse.models import (
 SIGNED_DELTAS = {
     StockMovementType.RECEIPT: Decimal("1"),
     StockMovementType.RETURN: Decimal("1"),
-    StockMovementType.RELEASE: Decimal("1"),
     StockMovementType.ISSUE: Decimal("-1"),
-    StockMovementType.RESERVATION: Decimal("-1"),
     StockMovementType.TRANSFER: Decimal("-1"),
     StockMovementType.ADJUSTMENT: Decimal("1"),
 }
@@ -55,17 +53,37 @@ def apply_movement(
         sku=sku,
         warehouse=warehouse,
         bin=bin,
-        defaults={"quantity": Decimal("0")},
+        defaults={"quantity": Decimal("0"), "reserved_quantity": Decimal("0")},
     )
+    if movement_type == StockMovementType.RESERVATION:
+        available = (stock.quantity or Decimal("0")) - (stock.reserved_quantity or Decimal("0"))
+        if qty > available:
+            raise ValueError("Insufficient available stock")
+        stock.reserved_quantity = (stock.reserved_quantity or Decimal("0")) + qty
+        stock.save(update_fields=["reserved_quantity"])
+        return movement
+    if movement_type == StockMovementType.RELEASE:
+        reserved = stock.reserved_quantity or Decimal("0")
+        stock.reserved_quantity = reserved - qty if reserved >= qty else Decimal("0")
+        stock.save(update_fields=["reserved_quantity"])
+        return movement
+
     sign = SIGNED_DELTAS.get(movement_type, Decimal("1"))
     if movement_type == StockMovementType.ADJUSTMENT:
         stock.quantity = qty
+        stock.save(update_fields=["quantity"])
+        return movement
+    new_qty = (stock.quantity or Decimal("0")) + (sign * qty)
+    if new_qty < 0:
+        raise ValueError("Insufficient stock")
+    stock.quantity = new_qty
+    # Physical issue also frees matching reservation.
+    if movement_type == StockMovementType.ISSUE and (stock.reserved_quantity or 0) > 0:
+        reserved = stock.reserved_quantity or Decimal("0")
+        stock.reserved_quantity = reserved - qty if reserved >= qty else Decimal("0")
+        stock.save(update_fields=["quantity", "reserved_quantity"])
     else:
-        new_qty = (stock.quantity or Decimal("0")) + (sign * qty)
-        if new_qty < 0:
-            raise ValueError("Insufficient stock")
-        stock.quantity = new_qty
-    stock.save(update_fields=["quantity"])
+        stock.save(update_fields=["quantity"])
     return movement
 
 
@@ -111,6 +129,15 @@ def request_issue_line(*, work_order, warehouse, sku, quantity, actor) -> Wareho
     else:
         line.requested_qty = (line.requested_qty or Decimal("0")) + qty
         line.save(update_fields=["requested_qty"])
+    apply_movement(
+        sku=sku,
+        warehouse=warehouse,
+        movement_type=StockMovementType.RESERVATION,
+        quantity=qty,
+        reference=issue.code,
+        work_order=work_order,
+        notes="WO material reserve",
+    )
     return issue
 
 
@@ -136,6 +163,17 @@ def confirm_issue(issue, *, actor, lines) -> WarehouseIssue:
         line.issued_qty = issued
         line.unit_cost = unit_cost
         line.save(update_fields=["issued_qty", "unit_cost"])
+        unused_reserve = (line.requested_qty or Decimal("0")) - issued
+        if unused_reserve > 0:
+            apply_movement(
+                sku=line.sku,
+                warehouse=locked.warehouse,
+                movement_type=StockMovementType.RELEASE,
+                quantity=unused_reserve,
+                reference=locked.code,
+                work_order=locked.work_order,
+                notes="unused reservation release",
+            )
         if issued <= 0:
             continue
         apply_movement(

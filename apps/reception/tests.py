@@ -184,18 +184,23 @@ class ReceptionServiceTests(TestCase):
                 host=inactive,
             )
 
+    def test_walk_in_id_held_without_card_ok(self):
+        """Vəsiqə saxlanıla bilər; qonaq kartı məcburi deyil."""
+        visit = ReceptionService.register_walk_in(
+            fin_code="7A3B2C1D2K",
+            first_name="Ali",
+            last_name="Veli",
+            company=self.company,
+            host=self.host,
+            visit_type=self.vtype,
+            id_document_held=True,
+            actor=self.user,
+        )
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
+        self.assertTrue(visit.id_document_held)
+        self.assertFalse(VisitorAccess.objects.filter(visit=visit).exists())
+
     def test_walk_in_with_id_issues_guest_card(self):
-        with self.assertRaises(DomainError):
-            ReceptionService.register_walk_in(
-                fin_code="7A3B2C1D2K",
-                first_name="Ali",
-                last_name="Veli",
-                company=self.company,
-                host=self.host,
-                visit_type=self.vtype,
-                id_document_held=True,
-                actor=self.user,
-            )
         visit = ReceptionService.register_walk_in(
             fin_code="7A3B2C1D2K",
             first_name="Ali",
@@ -212,6 +217,24 @@ class ReceptionServiceTests(TestCase):
         self.assertTrue(hasattr(visit, "visitor_access"))
         self.assertEqual(visit.visitor_access.status, VisitorAccessStatus.ACTIVE)
         self.assertEqual(visit.visitor_access.credential, "GK-1001")
+
+    def test_walk_in_card_without_id_with_override(self):
+        visit = ReceptionService.register_walk_in(
+            fin_code="",
+            first_name="Kart",
+            last_name="Only",
+            company=self.company,
+            host=self.host,
+            visit_type=self.vtype,
+            id_document_held=False,
+            allow_id_override=True,
+            id_override_reason="Kart verildi, vəsiqə yox",
+            guest_card_number="GK-ONLY-1",
+            actor=self.user,
+        )
+        self.assertFalse(visit.id_document_held)
+        self.assertEqual(visit.visitor_access.credential, "GK-ONLY-1")
+        self.assertEqual(visit.visitor_access.status, VisitorAccessStatus.ACTIVE)
 
     def test_fin_reuses_guest(self):
         g1 = ReceptionService.find_or_create_guest(
@@ -928,3 +951,110 @@ class GuestListImportTests(TestCase):
         visit = GuestVisit.objects.get()
         self.assertEqual(visit.company_id, self.company.pk)
         self.assertEqual(visit.notes, "Xalq Kapital QSC")
+
+
+class GuestAccessEventCheckoutTests(TestCase):
+    def setUp(self):
+        self.company = ResidentCompany.objects.create(name="Co AE", slug="co-ae")
+        self.host = ResidentEmployee.objects.create(
+            company=self.company, full_name="Host AE", is_active=True
+        )
+        self.vtype, _ = VisitorType.objects.get_or_create(
+            code="meeting", defaults={"name": "Görüş", "sort_order": 1}
+        )
+        self.user = User.objects.create_user(
+            username="ae_test", email="ae@test.az", password="x", role=Role.RECEPTION
+        )
+
+    def test_checkout_from_out_event_without_id(self):
+        from apps.reception.services import checkout_guests_from_access_events
+        from apps.residents.models import AccessEvent, AccessEventType, AccessResult
+
+        visit = ReceptionService.register_walk_in(
+            fin_code="",
+            first_name="Out",
+            last_name="Guest",
+            company=self.company,
+            host=self.host,
+            visit_type=self.vtype,
+            id_document_held=False,
+            allow_id_override=True,
+            id_override_reason="test",
+            guest_card_number="GK-OUT-9",
+            actor=self.user,
+        )
+        event = AccessEvent(
+            event_type=AccessEventType.OUT,
+            result=AccessResult.GRANTED,
+            occurred_at=timezone.now(),
+            card_number="GK-OUT-9",
+        )
+        n = checkout_guests_from_access_events([event])
+        self.assertEqual(n, 1)
+        visit.refresh_from_db()
+        self.assertEqual(visit.status, VisitStatus.LEFT)
+        self.assertTrue(visit.check_out_at)
+
+    def test_checkout_id_held_goes_return_pending(self):
+        from apps.reception.services import checkout_guests_from_access_events
+        from apps.residents.models import AccessEvent, AccessEventType, AccessResult
+
+        visit = ReceptionService.register_walk_in(
+            fin_code="AE99887766",
+            first_name="Held",
+            last_name="Id",
+            company=self.company,
+            host=self.host,
+            visit_type=self.vtype,
+            id_document_held=True,
+            guest_card_number="GK-HELD-1",
+            actor=self.user,
+        )
+        event = AccessEvent(
+            event_type=AccessEventType.OUT,
+            result=AccessResult.GRANTED,
+            occurred_at=timezone.now(),
+            card_number="GK-HELD-1",
+        )
+        n = checkout_guests_from_access_events([event])
+        self.assertEqual(n, 1)
+        visit.refresh_from_db()
+        self.assertEqual(visit.status, VisitStatus.RETURN_PENDING)
+
+    def test_sync_event_rows_checks_out_guest_card(self):
+        from apps.integrations.axtrax_events_sync import sync_event_rows
+
+        visit = ReceptionService.register_walk_in(
+            fin_code="",
+            first_name="Sync",
+            last_name="Guest",
+            company=self.company,
+            host=self.host,
+            visit_type=self.vtype,
+            id_document_held=False,
+            allow_id_override=True,
+            id_override_reason="sync",
+            guest_card_number="999001",
+            actor=self.user,
+        )
+        stats = sync_event_rows(
+            [
+                {
+                    "event_id": 900001,
+                    "employee_id": 0,
+                    "event_type": 17,
+                    "reader_out": 1,
+                    "occurred_at": timezone.now().isoformat(),
+                    "badge_number": "999001",
+                    "full_name": "Card 999001",
+                    "reader_name": "Main OUT",
+                }
+            ],
+            since_id=0,
+            detect_alerts=False,
+            advance_cursor=False,
+        )
+        self.assertEqual(stats["created"], 1)
+        self.assertEqual(stats["guest_checkouts"], 1)
+        visit.refresh_from_db()
+        self.assertEqual(visit.status, VisitStatus.LEFT)

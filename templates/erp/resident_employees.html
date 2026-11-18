@@ -95,9 +95,10 @@
           {% if not row.employee.is_active %}<span class="cp-meta"> · {% translate "keçmiş" %}</span>{% endif %}
         </td>
         <td>{{ row.employee.card_number|default:"—" }}</td>
-        <td>
+        <td title="{% translate 'AxTraxNG-dən oxunur — ERP-də əl ilə dəyişilmir' %}">
           <strong>{{ row.employee.access_level }}</strong>
           <span class="cp-meta">{{ row.employee.get_access_level_display }}</span>
+          <span class="cp-meta" style="display:block;font-size:11px;">{% translate "AxTrax" %}</span>
         </td>
         <td>{% if row.in_at %}{{ row.in_at|time:"H:i" }}{% else %}—{% endif %}</td>
         <td>{% if row.out_at %}{{ row.out_at|time:"H:i" }}{% else %}—{% endif %}</td>

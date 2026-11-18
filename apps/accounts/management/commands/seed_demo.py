@@ -24,13 +24,23 @@ from apps.tickets.services import route_ticket
 
 
 class Command(BaseCommand):
-    help = "PPTX nümunə məlumatlarını yükləyir (təkrar işlətmək təhlükəsizdir)."
+    help = "PPTX nümunə məlumatlarını yükləyir (təkrar işlətmək təhlükəsizdir). Prod-da qadağandır."
 
     def handle(self, *args, **options):
         from pathlib import Path
 
         from django.conf import settings
         from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        # M12: demo fixture production-da heç vaxt; staging yalnız açıq SEED_DEMO=1
+        import os
+
+        cp_env = getattr(settings, "CP_ENV", "development")
+        if cp_env == "production":
+            raise CommandError("seed_demo CP_ENV=production mühitində qadağandır (SEED_DEMO=0).")
+        if cp_env != "development" and os.environ.get("SEED_DEMO", "0") != "1":
+            raise CommandError(f"CP_ENV={cp_env}: seed_demo yalnız SEED_DEMO=1 ilə (tövsiyə olunmur).")
 
         # Gitdəki tam bina icmalı (15 mərtəbə / 67 sahə) — boş və ya kiçik DB-də yüklə
         fixture = Path(settings.BASE_DIR) / "docs" / "data" / "property_spaces.json"

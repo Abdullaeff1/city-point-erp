@@ -55,12 +55,22 @@ class Stock(models.Model):
         related_name="stocks",
     )
     quantity = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    reserved_quantity = models.DecimalField(max_digits=14, decimal_places=3, default=0)
 
     class Meta:
         unique_together = ("sku", "warehouse", "bin")
 
     def __str__(self):
         return f"{self.sku.code} @ {self.warehouse.code}"
+
+    @property
+    def available_quantity(self):
+        from decimal import Decimal
+
+        on_hand = self.quantity or Decimal("0")
+        reserved = self.reserved_quantity or Decimal("0")
+        avail = on_hand - reserved
+        return avail if avail > 0 else Decimal("0")
 
 
 class StockMovement(models.Model):

@@ -1,6 +1,6 @@
 # Modul statusu — cari vəziyyət
 
-**Yenilənib:** 2026-11-17  
+**Yenilənib:** 2026-11-18  
 **Qayda:** Bu sənəd yalnız status qeydidir. Mövcud funksiyalar silinmir və “tam məhsul” kimi marketinq olunmur.
 
 ## Production qəbul qapısı (CRM)
@@ -12,8 +12,10 @@ Cari branch-dəki CRM/Satış dəyişiklikləri (**migration `0004`/`0005`**, PD
 | Kod `main` / branch-də mövcud | Bəli (lokal commit ola bilər) |
 | `origin` / production deploy | Yalnız **yazılı qəbul** + UAT (A bölməsi) Pass-dan sonra |
 | Marketinq / istifadəçi təlimatı “CRM hazırdır” | **Xeyr** — qəbuldan əvvəl |
+| Yazılı qəbul formu | [../uat/crm-written-acceptance.md](../uat/crm-written-acceptance.md) — `AWAITING_SIGNATURE` |
 
 Qəbul checklist: [../uat/functional-readiness-checklist.md](../uat/functional-readiness-checklist.md) §A.  
+Boşluqlar: [phase-gaps-and-open-questions.md](phase-gaps-and-open-questions.md).  
 Qərar: [BUSINESS_DECISIONS.md](BUSINESS_DECISIONS.md) §A.10.
 
 ## Təsnifat
@@ -63,7 +65,12 @@ Qərar: [BUSINESS_DECISIONS.md](BUSINESS_DECISIONS.md) §A.10.
 
 ## Əlaqəli sənədlər
 
-- Boşluqlar: [phase0-business-gaps.md](phase0-business-gaps.md)
+- Boşluqlar (cari): [phase-gaps-and-open-questions.md](phase-gaps-and-open-questions.md)
+- Boşluqlar (phase0): [phase0-business-gaps.md](phase0-business-gaps.md)
 - UAT checklist: [../uat/functional-readiness-checklist.md](../uat/functional-readiness-checklist.md)
+- CRM yazılı qəbul: [../uat/crm-written-acceptance.md](../uat/crm-written-acceptance.md)
+- CoA UAT: [../uat/coa-import-uat.md](../uat/coa-import-uat.md)
+- P0 ops cavabları: [../ops/p0-go-live-answers.md](../ops/p0-go-live-answers.md)
+- NetAdmin 9: [../deployment/netadmin-handoff-checklist.md](../deployment/netadmin-handoff-checklist.md)
 - Mərhələ qəbul meyarları + sübut: [../uat/phase-acceptance-criteria.md](../uat/phase-acceptance-criteria.md)
 - Occupancy SoT: [party-space-lease-model.md](party-space-lease-model.md)

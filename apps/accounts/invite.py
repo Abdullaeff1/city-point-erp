@@ -95,7 +95,7 @@ def send_invite_email(*, user: User, absolute_url: str) -> NotificationDispatch:
         f"{absolute_url}\n\n"
         f"Əgər bu dəvəti gözləmirdinizsə, bu məktubu nəzərə almayın.\n"
     )
-    payload = {"subject": subject, "url": absolute_url, "user_id": user.pk}
+    payload = {"subject": subject, "url": absolute_url, "user_id": user.pk, "body": body}
     dispatch = NotificationDispatch.objects.create(
         channel=NotificationChannel.EMAIL,
         status="pending",
@@ -103,6 +103,8 @@ def send_invite_email(*, user: User, absolute_url: str) -> NotificationDispatch:
         template_code="portal.invite",
         payload=payload,
     )
+    # Offline / air-gap: keep invite URL in outbox; do not fail the invite workflow.
+    offline = bool(getattr(settings, "CP_OFFLINE", False))
     try:
         send_mail(
             subject,
@@ -111,14 +113,18 @@ def send_invite_email(*, user: User, absolute_url: str) -> NotificationDispatch:
             [user.email],
             fail_silently=False,
         )
-    except Exception as exc:  # noqa: BLE001 — log delivery failure, re-raise for caller
+    except Exception as exc:  # noqa: BLE001
         dispatch.status = "failed"
         dispatch.error_message = str(exc)[:2000]
-        dispatch.save(update_fields=["status", "error_message"])
+        dispatch.attempt_count = 1
+        dispatch.save(update_fields=["status", "error_message", "attempt_count"])
+        if offline:
+            return dispatch
         raise
     dispatch.status = "sent"
     dispatch.sent_at = timezone.now()
-    dispatch.save(update_fields=["status", "sent_at"])
+    dispatch.attempt_count = 1
+    dispatch.save(update_fields=["status", "sent_at", "attempt_count"])
     return dispatch
 
 

@@ -11,6 +11,7 @@ class ChargeSource(models.TextChoices):
     WORK_ORDER = "work_order", _("Work order")
     ADDITIONAL = "additional", _("Additional")
     PENALTY = "penalty", _("Penalty")
+    DEPOSIT = "deposit", _("Deposit")
 
 
 class InvoiceStatus(models.TextChoices):
@@ -119,9 +120,16 @@ class InvoiceLine(models.Model):
 
 
 class Payment(models.Model):
-    """Phase 11 payment stub — official cash application before full Accounting."""
+    """Cash application — matched to invoice + Party (bank reconciliation)."""
 
     invoice = models.ForeignKey(Invoice, on_delete=models.PROTECT, related_name="payments")
+    party = models.ForeignKey(
+        "parties.Party",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="payments",
+    )
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     currency = models.CharField(max_length=8, default="AZN")
     paid_at = models.DateField(default=timezone.localdate)
