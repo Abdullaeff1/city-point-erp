@@ -2,68 +2,62 @@
 {% load i18n %}
 {% block page_title %}{% translate "Müraciətlər" %}{% endblock %}
 {% block heading %}{% translate "Müqavilə müraciətləri" %}{% endblock %}
+{% block heading_count %}{% if list_total != None %}<span class="crm-page-count">{{ list_total }}</span>{% endif %}{% endblock %}
 {% block content %}
-{% include "partials/crm_pipeline_strip.html" %}
+{% include "partials/crm_kpi_strip.html" %}
+{% include "partials/crm_filter_tabs.html" %}
 
-<section class="crm-list-hero mb-4">
-  <div>
-    <h2 class="cp-section">{% translate "İcarə müraciətləri" %}</h2>
-    <p class="cp-meta mt-1">{% translate "Satış təqdim edir, mühasib icarəni bağlayır." %}</p>
-  </div>
-  <div class="crm-list-hero-actions">
-    <a class="cp-btn{% if filters.queue == '1' %} {% else %} soft{% endif %}" href="?queue=1">{% translate "Mühasib növbəsi" %}</a>
-    <a class="cp-btn soft" href="?">{% translate "Hamısı" %}</a>
-  </div>
-</section>
-
-<form method="get" class="crm-list-filters cp-card p-card-sm mb-4">
-  {% if filters.queue %}<input type="hidden" name="queue" value="{{ filters.queue }}">{% endif %}
-  <label>
-    <span class="cp-meta">{% translate "Status" %}</span>
-    <select class="cp-input mt-1" name="status">
-      <option value="">—</option>
-      {% for v,l in statuses %}<option value="{{ v }}" {% if filters.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
-    </select>
-  </label>
-  <div class="crm-list-filters-actions">
-    <button type="submit" class="cp-btn">{% translate "Filtrlə" %}</button>
-    <a class="cp-btn soft" href="{% url 'erp:crm_lease_applications' %}">{% translate "Sıfırla" %}</a>
+<form method="get" class="mb-4">
+  <div class="crm-table-toolbar">
+    <div class="crm-table-toolbar__search"></div>
+    <div class="crm-table-toolbar__actions">
+      {% if filters.queue %}<input type="hidden" name="queue" value="{{ filters.queue }}">{% endif %}
+      <select class="cp-input" name="status" style="min-width:10rem;">
+        <option value="">{% translate "Status" %}</option>
+        {% for v,l in statuses %}<option value="{{ v }}" {% if filters.status == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="cp-btn soft">{% translate "Filtrlə" %}</button>
+      <a class="cp-btn soft" href="{% url 'erp:crm_lease_applications' %}">{% translate "Sıfırla" %}</a>
+    </div>
   </div>
 </form>
 
-<section class="cp-card p-card">
-  <div class="crm-list-panel-head mb-3">
-    <h3 class="cp-section">{% translate "Müraciət siyahısı" %}</h3>
-  </div>
+<div class="crm-table-panel">
   {% if applications %}
-  <div class="table-wrap">
-    <table class="cp-table">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>{% translate "Şəxs/Şirkət" %}</th>
-          <th>{% translate "Sahə" %}</th>
-          <th>{% translate "Status" %}</th>
-          <th>{% translate "Təklif" %}</th>
-          <th>{% translate "İcarə" %}</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for a in applications %}
-        <tr class="crm-list-row" onclick="location.href='{% url 'erp:crm_lease_application_detail' a.pk %}'">
-          <td>{{ a.pk }}</td>
-          <td>{{ a.person_name|default:"—" }}</td>
-          <td>{{ a.space_label|default:a.space|default:"—" }}</td>
-          <td><span class="crm-status-chip">{{ a.get_status_display }}</span></td>
-          <td>{% if a.offer_id %}#{{ a.offer_id }}{% else %}—{% endif %}</td>
-          <td>{% if a.lease %}{{ a.lease.code }}{% else %}—{% endif %}</td>
-          <td><a class="cp-btn soft" href="{% url 'erp:crm_lease_application_detail' a.pk %}" onclick="event.stopPropagation()">{% translate "Aç" %}</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Şəxs/Şirkət" %}</th>
+        <th>{% translate "Sahə" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th>{% translate "Təklif" %}</th>
+        <th>{% translate "İcarə" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in applications %}
+      <tr class="crm-list-row" onclick="location.href='{% url 'erp:crm_lease_application_detail' a.pk %}'">
+        <td><strong>{{ a.person_name|default:"—" }}</strong><div class="cp-meta">#{{ a.pk }}</div></td>
+        <td>{{ a.space_label|default:a.space|default:"—" }}</td>
+        <td>
+          {% if a.status == "returned_for_correction" %}
+            {% include "partials/crm_status_pill.html" with pill_label=a.get_status_display pill_kind="returned" %}
+          {% elif a.status == "completed" %}
+            {% include "partials/crm_status_pill.html" with pill_label=a.get_status_display pill_kind="success" %}
+          {% elif a.status == "draft" %}
+            {% include "partials/crm_status_pill.html" with pill_label=a.get_status_display pill_kind="draft" %}
+          {% else %}
+            {% include "partials/crm_status_pill.html" with pill_label=a.get_status_display pill_kind="pending" %}
+          {% endif %}
+        </td>
+        <td>{% if a.offer_id %}#{{ a.offer_id }}{% else %}—{% endif %}</td>
+        <td>{% if a.lease %}{{ a.lease.code }}{% else %}—{% endif %}</td>
+        <td><a class="cp-btn soft" href="{% url 'erp:crm_lease_application_detail' a.pk %}" onclick="event.stopPropagation()">{% translate "Aç" %}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
   {% else %}
   <div class="crm-empty-state">
     <p class="cp-section">{% translate "Müraciət yoxdur" %}</p>
@@ -71,5 +65,5 @@
     <a class="cp-btn mt-3" href="{% url 'erp:crm_offers' %}">{% translate "Təkliflərə keç" %}</a>
   </div>
   {% endif %}
-</section>
+</div>
 {% endblock %}

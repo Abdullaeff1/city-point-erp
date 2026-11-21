@@ -116,6 +116,26 @@ class SpaceCrudTests(TestCase):
         self.assertFalse(Space.objects.filter(code="CP-L901").exists())
 
     def test_reception_denied(self):
+        from apps.accounts.routing import home_url_for
+        from apps.accounts.test_utils import assert_soft_denied
+
         self.client.force_login(self.reception)
-        self.assertEqual(self.client.get(reverse("erp:spaces")).status_code, 403)
-        self.assertEqual(self.client.get(reverse("erp:space_create")).status_code, 403)
+        # SoftPermissionDeniedMiddleware → role home; spaces UI absent.
+        dest = home_url_for(self.reception)
+        list_resp = self.client.get(reverse("erp:spaces"))
+        assert_soft_denied(
+            self,
+            self.client,
+            list_resp,
+            self.reception,
+            expected_url=dest,
+            protected_markers=("/erp/spaces/new/",),
+        )
+        create_resp = self.client.get(reverse("erp:space_create"))
+        assert_soft_denied(
+            self,
+            self.client,
+            create_resp,
+            self.reception,
+            expected_url=dest,
+        )

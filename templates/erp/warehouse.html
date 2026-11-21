@@ -1,23 +1,82 @@
 {% extends "erp/base.html" %}
 {% load i18n l10n %}
-{% block page_title %}{% translate "Warehouse" %}{% endblock %}
-{% block heading %}{% translate "Warehouse" %}{% endblock %}
+{% block page_title %}{% translate "Anbar" %}{% endblock %}
+{% block heading %}{% translate "Anbar" %}{% endblock %}
 {% block content %}
-{% if low_stock %}
-<div class="badge badge-urgent mb-4" style="display:block;padding:10px 12px;border-radius:10px;">{% translate "Low stock:" %} {{ low_stock|length }}</div>
+<div class="cp-card p-card mb-4">
+  <form method="get" class="flex-wrap gap-2" style="display:flex;align-items:end;gap:12px;flex-wrap:wrap;">
+    <label>
+      <span class="cp-meta">{% translate "Axtarış" %}</span>
+      <input class="cp-input" type="search" name="q" value="{{ q }}" placeholder="{% translate 'SKU / ad / anbar…' %}">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Anbar" %}</span>
+      <select class="cp-input" name="warehouse">
+        <option value="">{% translate "Hamısı" %}</option>
+        {% for wh in warehouses %}
+        <option value="{{ wh.id }}" {% if warehouse_id == wh.id|stringformat:'s' %}selected{% endif %}>{{ wh.code }} — {{ wh.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="cp-meta" style="display:flex;align-items:center;gap:6px;">
+      <input type="checkbox" name="low" value="1" {% if low_only %}checked{% endif %}>
+      {% translate "Yalnız aşağı stok" %}
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Filter" %}</button>
+    <a class="cp-btn-ghost" href="{% url 'erp:stocktake_list' %}">{% translate "İnventar sayımı" %}</a>
+    {% if can_edit_warehouse %}
+    <a class="cp-btn" href="{% url 'erp:warehouse_sku_create' %}">{% translate "Yeni SKU" %}</a>
+    {% endif %}
+  </form>
+  <p class="cp-meta mt-2">{% translate "Anbarlar:" %} {% for wh in warehouses %}{{ wh.code }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</p>
+</div>
+
+{% if low_stock_count %}
+<div class="cp-card p-card mb-4">
+  <div class="badge badge-urgent" style="display:block;padding:10px 12px;border-radius:10px;">{% translate "Aşağı stok:" %} {{ low_stock_count }}</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>SKU</th><th>{% translate "Ad" %}</th><th>{% translate "Anbar" %}</th><th>{% translate "Miqdar" %}</th><th>{% translate "Min" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for s in low_stock %}
+      <tr>
+        <td><a href="{% url 'erp:warehouse_sku_detail' s.sku.code %}">{{ s.sku.code }}</a></td>
+        <td>{{ s.sku.name }}</td>
+        <td>{{ s.warehouse.code }}</td>
+        <td>{{ s.quantity }}</td>
+        <td>{{ s.sku.reorder_level }}</td>
+        <td>
+          {% if can_create_pr %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_pr">
+            <input type="hidden" name="stock_id" value="{{ s.id }}">
+            <input type="hidden" name="submit_token" value="{{ submit_token }}-pr-{{ s.id }}">
+            <button class="cp-btn-ghost" style="font-size:12px;">{% translate "PR yarat" %}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="cp-meta">{% translate "Aşağı stok yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endif %}
+
 {% if open_issues %}
 <div class="cp-card p-card mb-4">
-  <h3 class="cp-section">Açıq çıxış sənədləri</h3>
-  <p class="cp-meta">Faktiki miqdarı yazın. Tələbdən az ola bilər. Təsdiqdən sonra anbar azalır.</p>
+  <h3 class="cp-section">{% translate "Açıq çıxış sənədləri" %}</h3>
+  <p class="cp-meta">{% translate "Faktiki miqdarı yazın. Tələbdən az ola bilər. Təsdiqdən sonra anbar azalır." %}</p>
   {% for issue in open_issues %}
-  <form method="post" class="wo-issue">
+  <form method="post" class="wo-issue mb-3">
     {% csrf_token %}
     <input type="hidden" name="action" value="confirm_issue">
     <input type="hidden" name="issue_id" value="{{ issue.id }}">
-    <div><strong>{{ issue.code }}</strong> · {{ issue.work_order.code }} · {{ issue.warehouse.code }}</div>
+    <input type="hidden" name="submit_token" value="{{ submit_token }}-iss-{{ issue.id }}">
+    <div><strong>{{ issue.code }}</strong> · <a href="{% url 'erp:work_order_detail' issue.work_order.code %}">{{ issue.work_order.code }}</a> · {{ issue.warehouse.code }}</div>
     <table class="cp-table">
-      <thead><tr><th>Məhsul</th><th>Tələb</th><th>Faktiki</th><th>Vahid qiymət</th></tr></thead>
+      <thead><tr><th>{% translate "Məhsul" %}</th><th>{% translate "Tələb" %}</th><th>{% translate "Faktiki" %}</th><th>{% translate "Vahid qiymət" %}</th></tr></thead>
       <tbody>
         {% for line in issue.lines.all %}
         <tr>
@@ -29,33 +88,123 @@
         {% endfor %}
       </tbody>
     </table>
-    {% if can_confirm_issue %}<button class="cp-btn mt-2">Çıxışı təsdiqlə</button>{% else %}<p class="cp-meta">Təsdiq anbar üçündür.</p>{% endif %}
+    {% if can_confirm_issue %}<button class="cp-btn mt-2">{% translate "Çıxışı təsdiqlə" %}</button>{% else %}<p class="cp-meta">{% translate "Təsdiq anbar üçündür." %}</p>{% endif %}
   </form>
   {% endfor %}
 </div>
 {% endif %}
+
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "SKU siyahısı" %}</h3>
+  <table class="cp-table">
+    <thead><tr><th>SKU</th><th>{% translate "Ad" %}</th><th>{% translate "Vahid" %}</th><th>{% translate "Min stok" %}</th></tr></thead>
+    <tbody>
+      {% for sku in skus_page %}
+      <tr>
+        <td><a href="{% url 'erp:warehouse_sku_detail' sku.code %}">{{ sku.code }}</a></td>
+        <td>{{ sku.name }}</td>
+        <td>{{ sku.unit }}</td>
+        <td>{{ sku.reorder_level }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="cp-meta">{% translate "SKU yoxdur." %}{% if can_edit_warehouse %} <a href="{% url 'erp:warehouse_sku_create' %}">{% translate "Yarat" %}</a>{% endif %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if skus_page.has_other_pages %}
+  <p class="cp-meta mt-2">
+    {% if skus_page.has_previous %}<a href="?q={{ q }}&warehouse={{ warehouse_id }}{% if low_only %}&low=1{% endif %}&sku_page={{ skus_page.previous_page_number }}">{% translate "Əvvəl" %}</a>{% endif %}
+    {{ skus_page.number }}/{{ skus_page.paginator.num_pages }}
+    {% if skus_page.has_next %}<a href="?q={{ q }}&warehouse={{ warehouse_id }}{% if low_only %}&low=1{% endif %}&sku_page={{ skus_page.next_page_number }}">{% translate "Sonra" %}</a>{% endif %}
+  </p>
+  {% endif %}
+</div>
+
 <div class="grid gap-4" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
   <div class="cp-card p-card">
-    <h3 class="cp-section">{% translate "Stock" %}</h3>
+    <h3 class="cp-section">{% translate "Stok" %}</h3>
     <table class="cp-table">
-      <thead><tr><th>SKU</th><th>Anbar</th><th>Miqdar</th></tr></thead>
+      <thead><tr><th>SKU</th><th>{% translate "Anbar" %}</th><th>{% translate "Miqdar" %}</th><th>{% translate "Rezerv" %}</th><th>{% translate "Mövcud" %}</th></tr></thead>
       <tbody>
-        {% for s in stocks %}
-        <tr><td>{{ s.sku.code }}</td><td>{{ s.warehouse.code }}</td><td>{{ s.quantity }}</td></tr>
-        {% empty %}<tr><td colspan="3">Boş</td></tr>{% endfor %}
+        {% for s in stocks_page %}
+        <tr>
+          <td><a href="{% url 'erp:warehouse_sku_detail' s.sku.code %}">{{ s.sku.code }}</a></td>
+          <td>{{ s.warehouse.code }}</td>
+          <td>{{ s.quantity }}</td>
+          <td>{{ s.reserved_quantity }}</td>
+          <td>{{ s.available_quantity }}</td>
+        </tr>
+        {% empty %}<tr><td colspan="5" class="cp-meta">{% translate "Boş" %}</td></tr>{% endfor %}
       </tbody>
     </table>
+    {% if stocks_page.has_other_pages %}
+    <p class="cp-meta mt-2">
+      {% if stocks_page.has_previous %}<a href="?q={{ q }}&warehouse={{ warehouse_id }}{% if low_only %}&low=1{% endif %}&stock_page={{ stocks_page.previous_page_number }}">{% translate "Əvvəl" %}</a>{% endif %}
+      {{ stocks_page.number }}/{{ stocks_page.paginator.num_pages }}
+      {% if stocks_page.has_next %}<a href="?q={{ q }}&warehouse={{ warehouse_id }}{% if low_only %}&low=1{% endif %}&stock_page={{ stocks_page.next_page_number }}">{% translate "Sonra" %}</a>{% endif %}
+    </p>
+    {% endif %}
   </div>
   <div class="cp-card p-card">
-    <h3 class="cp-section">Son hərəkətlər</h3>
+    <h3 class="cp-section">{% translate "Son hərəkətlər" %}</h3>
     <table class="cp-table">
-      <thead><tr><th>SKU</th><th>Tip</th><th>Miqdar</th></tr></thead>
+      <thead><tr><th>SKU</th><th>{% translate "Tip" %}</th><th>{% translate "Miqdar" %}</th><th>{% translate "Ref" %}</th></tr></thead>
       <tbody>
-        {% for m in movements %}
-        <tr><td>{{ m.sku.code }}</td><td>{{ m.get_movement_type_display }}</td><td>{{ m.quantity }}</td></tr>
-        {% empty %}<tr><td colspan="3">Boş</td></tr>{% endfor %}
+        {% for m in movements_page %}
+        <tr>
+          <td><a href="{% url 'erp:warehouse_sku_detail' m.sku.code %}">{{ m.sku.code }}</a></td>
+          <td>{{ m.get_movement_type_display }}</td>
+          <td>{{ m.quantity }}</td>
+          <td>{{ m.reference|default:"—" }}</td>
+        </tr>
+        {% empty %}<tr><td colspan="4" class="cp-meta">{% translate "Boş" %}</td></tr>{% endfor %}
       </tbody>
     </table>
+    {% if movements_page.has_other_pages %}
+    <p class="cp-meta mt-2">
+      {% if movements_page.has_previous %}<a href="?q={{ q }}&warehouse={{ warehouse_id }}{% if low_only %}&low=1{% endif %}&mov_page={{ movements_page.previous_page_number }}">{% translate "Əvvəl" %}</a>{% endif %}
+      {{ movements_page.number }}/{{ movements_page.paginator.num_pages }}
+      {% if movements_page.has_next %}<a href="?q={{ q }}&warehouse={{ warehouse_id }}{% if low_only %}&low=1{% endif %}&mov_page={{ movements_page.next_page_number }}">{% translate "Sonra" %}</a>{% endif %}
+    </p>
+    {% endif %}
   </div>
 </div>
+
+{% if can_edit_warehouse and warehouses %}
+<div class="cp-card p-card mt-4">
+  <h3 class="cp-section">{% translate "Stok düzəlişi" %}</h3>
+  <p class="cp-meta mb-2">{% translate "Yeni miqdar mütləq qiymətdir (delta deyil). Səbəb məcburidir. SKU redaktəsi stok dəyişmir." %}</p>
+  <form method="post" class="grid-2 gap-2">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="adjust_stock">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}-adj">
+    <label>
+      <span class="cp-meta">SKU</span>
+      <select class="cp-input" name="sku_id" required>
+        <option value="">—</option>
+        {% for sku in skus_page %}
+        <option value="{{ sku.id }}">{{ sku.code }} — {{ sku.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Anbar" %}</span>
+      <select class="cp-input" name="warehouse_id" required>
+        {% for wh in warehouses %}
+        <option value="{{ wh.id }}">{{ wh.code }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Yeni miqdar" %}</span>
+      <input class="cp-input" name="quantity" required inputmode="decimal">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Səbəb" %}</span>
+      <input class="cp-input" name="reason" required maxlength="255">
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Düzəlt" %}</button>
+  </form>
+</div>
+{% endif %}
 {% endblock %}

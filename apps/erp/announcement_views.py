@@ -1,4 +1,4 @@
-"""ERP CRUD for portal announcements (A.8 Admin-first publish)."""
+"""ERP CRUD for portal announcements (Admin + Rəhbərlik publish)."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ class AnnouncementPublishRequiredMixin(StaffRequiredMixin):
             return self.handle_no_permission()
         if not can_publish_announcement(request.user):
             raise PermissionDenied(
-                _("Elan idarəetməsi yalnız Admin (və ya təyin olunmuş staff) üçündür.")
+                _("Elan idarəetməsi yalnız Admin / Rəhbərlik (və ya təyin olunmuş staff) üçündür.")
             )
         return super().dispatch(request, *args, **kwargs)
 
@@ -32,6 +32,11 @@ class AnnouncementListView(AnnouncementPublishRequiredMixin, ListView):
     template_name = "erp/announcements.html"
     context_object_name = "announcements"
     queryset = Announcement.objects.prefetch_related("companies").select_related("company")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["can_publish_announcement"] = can_publish_announcement(self.request.user)
+        return ctx
 
 
 class AnnouncementCreateView(AnnouncementPublishRequiredMixin, CreateView):

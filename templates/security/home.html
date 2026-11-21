@@ -47,6 +47,17 @@
   </a>
 </div>
 
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Tez keçidlər" %}</div>
+  <div class="flex gap-2" style="flex-wrap:wrap;margin-top:12px;">
+    <a class="cp-btn" href="{% url 'security:people_inside' %}">{% translate "İçəridə" %}</a>
+    <a class="cp-btn" href="{% url 'security:alerts_rapid' %}">{% translate "Kart çoxvurma" %}</a>
+    <a class="cp-btn" href="{% url 'security:tickets' %}">{% translate "Ticketlər" %}</a>
+    <a class="cp-btn" href="{% url 'security:events' %}">{% translate "Events" %}</a>
+    <a class="cp-btn" href="{% url 'security:guests' %}">{% translate "Qonaqlar" %}</a>
+  </div>
+</div>
+
 <div class="cp-card axtrax-events" id="axtrax-events-panel">
   <div class="axtrax-events-head section-pad">
     <div>

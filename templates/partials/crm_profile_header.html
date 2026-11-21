@@ -1,0 +1,36 @@
+{% load i18n %}
+{% comment %}
+Expects:
+  profile_title, profile_sub (optional), profile_initials (optional)
+  profile_chips — list of {label, kind}
+  profile_tabs — list of {label, url/href or anchor id, active}
+  Optional slot: caller can put actions after include, or pass profile_primary_label + form elsewhere.
+{% endcomment %}
+<section class="crm-profile-header">
+  <div class="crm-profile-header__top">
+    <div class="crm-profile-header__identity">
+      <div class="crm-profile-avatar" aria-hidden="true">{{ profile_initials|default:"CP" }}</div>
+      <div class="min-0">
+        <h2 class="crm-profile-header__title">{{ profile_title }}</h2>
+        {% if profile_sub %}<p class="crm-profile-header__sub">{{ profile_sub }}</p>{% endif %}
+        {% if profile_chips %}
+        <div class="flex gap-2 mt-2" style="flex-wrap:wrap;">
+          {% for chip in profile_chips %}
+          {% include "partials/crm_status_pill.html" with pill_label=chip.label pill_kind=chip.kind %}
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="crm-profile-header__actions">
+      {% if profile_primary_html %}{{ profile_primary_html }}{% endif %}
+    </div>
+  </div>
+  {% if profile_tabs %}
+  <nav class="crm-profile-tabs" aria-label="{% translate 'Bölmələr' %}">
+    {% for tab in profile_tabs %}
+    <a href="{{ tab.href }}" class="{% if tab.active %}is-active{% endif %}">{{ tab.label }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+</section>

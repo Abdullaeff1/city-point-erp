@@ -6,39 +6,67 @@
  · <a href="{% url 'erp:crm_leads' %}">{% translate "Lidlər" %}</a>
 {% endblock %}
 {% block content %}
-<div class="crm-lead-detail">
-  {% if duplicates %}
-  <div class="crm-lead-dupes cp-card p-card-sm mb-4">
-    <p class="crm-lead-create-label">{% translate "Oxşar lidlər" %}</p>
-    <div class="crm-lead-dupe-links mt-2">
-      {% for d in duplicates %}
-      <a class="crm-opp-chip" href="{% url 'erp:crm_lead_detail' d.pk %}">#{{ d.pk }} {{ d }}</a>
-      {% endfor %}
+{% if duplicates %}
+<div class="crm-lead-dupes cp-card p-card-sm mb-4">
+  <p class="crm-lead-create-label">{% translate "Oxşar lidlər" %}</p>
+  <div class="crm-lead-dupe-links mt-2">
+    {% for d in duplicates %}
+    <a class="crm-opp-chip" href="{% url 'erp:crm_lead_detail' d.pk %}">#{{ d.pk }} {{ d }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<section class="crm-profile-header">
+  <div class="crm-profile-header__top">
+    <div class="crm-profile-header__identity">
+      <div class="crm-profile-avatar" aria-hidden="true">
+        {% if lead.full_name %}{{ lead.full_name|make_list|first }}{% elif lead.company_name %}{{ lead.company_name|make_list|first }}{% else %}L{% endif %}
+      </div>
+      <div class="min-0">
+        <h2 class="crm-profile-header__title">
+          {% if lead.full_name %}{{ lead.full_name }}{% elif lead.company_name %}{{ lead.company_name }}{% else %}Lid #{{ lead.pk }}{% endif %}
+        </h2>
+        <p class="crm-profile-header__sub">
+          {% if lead.company_name and lead.full_name %}{{ lead.company_name }} · {% endif %}
+          {% translate "Lid" %} #{{ lead.pk }}
+          {% if lead.email %} · {{ lead.email }}{% endif %}
+          {% if lead.phone %} · {{ lead.phone }}{% endif %}
+        </p>
+        <div class="flex gap-2 mt-2" style="flex-wrap:wrap;">
+          {% if lead.qualification == "potential" %}
+            {% include "partials/crm_status_pill.html" with pill_label=lead.get_qualification_display pill_kind="potential" %}
+          {% elif lead.qualification == "non_potential" %}
+            {% include "partials/crm_status_pill.html" with pill_label=lead.get_qualification_display pill_kind="non_potential" %}
+          {% else %}
+            {% include "partials/crm_status_pill.html" with pill_label=lead.get_qualification_display pill_kind="new" %}
+          {% endif %}
+          {% include "partials/crm_status_pill.html" with pill_label=lead.get_pipeline_stage_display pill_kind="info" %}
+          {% include "partials/crm_status_pill.html" with pill_label=lead.get_record_status_display pill_kind="open" %}
+        </div>
+      </div>
+    </div>
+    <div class="crm-profile-header__actions">
+      {% if can_mutate %}
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="opportunity">
+        <button type="submit" class="cp-btn">{% translate "İmkan yarat" %}</button>
+      </form>
+      {% endif %}
+      {% if lead.email %}
+      <a class="cp-btn soft" href="mailto:{{ lead.email }}"><i data-lucide="mail" width="16" height="16"></i> {% translate "E-poçt" %}</a>
+      {% endif %}
     </div>
   </div>
-  {% endif %}
+  <nav class="crm-profile-tabs" aria-label="{% translate 'Bölmələr' %}">
+    <a href="#info" class="is-active">{% translate "Info" %}</a>
+    <a href="#notes">{% translate "Aktivliklər" %}</a>
+    <a href="#opps">{% translate "İmkanlar" %}</a>
+  </nav>
+</section>
 
-  <section class="crm-opp-detail-hero cp-card p-card mb-4">
-    <div class="crm-opp-detail-hero-top">
-      <div class="min-0">
-        <p class="crm-lead-create-label">{% translate "Lid" %} #{{ lead.pk }}</p>
-        <h2 class="cp-section mt-1">
-          {% if lead.company_name %}{{ lead.company_name }}{% elif lead.full_name %}{{ lead.full_name }}{% else %}—{% endif %}
-        </h2>
-        <p class="cp-meta mt-2">
-          {% if lead.full_name and lead.company_name %}<strong>{{ lead.full_name }}</strong>{% endif %}
-          {% if lead.phone %} · {{ lead.phone }}{% endif %}
-          {% if lead.email %} · {{ lead.email }}{% endif %}
-        </p>
-      </div>
-      <div class="crm-opp-detail-chips">
-        <span class="crm-opp-chip">{{ lead.get_qualification_display }}</span>
-        <span class="crm-opp-chip crm-opp-chip--accent">{{ lead.get_pipeline_stage_display }}</span>
-        <span class="crm-opp-chip">{{ lead.get_record_status_display }}</span>
-      </div>
-    </div>
-  </section>
-
+<div id="info">
   {% if can_mutate %}
   <section class="crm-opp-panel cp-card p-card mb-4">
     <div class="crm-opp-panel-head">
@@ -46,11 +74,6 @@
         <h3 class="cp-section">{% translate "Lid məlumatı" %}</h3>
         <p class="cp-meta mt-1">{% translate "Əlaqə, mənbə, kvalifikasiya və tələb sahələri." %}</p>
       </div>
-      <form method="post">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="opportunity">
-        <button type="submit" class="cp-btn">{% translate "İmkan yarat" %}</button>
-      </form>
     </div>
     <form method="post" class="crm-opp-form">
       {% csrf_token %}
@@ -140,6 +163,20 @@
             <span class="cp-meta">{% translate "Qeyd" %}</span>
             <textarea class="cp-input mt-1 w-full" name="message" rows="3">{{ lead.message }}</textarea>
           </label>
+          <label class="crm-opp-span-2">
+            <span class="cp-meta">{% translate "Təklif / seçilmiş sahə və qiymət (qeyd)" %}</span>
+            <textarea class="cp-input mt-1 w-full" name="initial_note" rows="2" placeholder="{% translate 'Məs. Təklif/seçim: 175 kv 7-ci m; Qiymət: 33 AZN+ƏDV — rəsmi qiymət Offer-dədir' %}">{{ lead.initial_note }}</textarea>
+          </label>
+          <label class="crm-opp-span-2">
+            <span class="cp-meta">{% translate "Bağlı sahə (əmlak kodu)" %}</span>
+            <select class="cp-input mt-1 w-full" name="interested_space">
+              <option value="">—</option>
+              {% for pk, code in space_choices %}
+              <option value="{{ pk }}" {% if lead.interested_space_id == pk %}selected{% endif %}>{{ code }}</option>
+              {% endfor %}
+            </select>
+            <span class="cp-meta mt-1">{% translate "Yalnız unikal Space kodu uyğun gəldikdə avtomatik bağlanır; rəsmi kommersiya təklifi Offer-dədir." %}</span>
+          </label>
         </div>
       </div>
 
@@ -149,85 +186,112 @@
     </form>
   </section>
   {% else %}
-  <section class="crm-opp-panel cp-card p-card mb-4">
-    <div class="crm-opp-panel-head">
-      <div>
-        <h3 class="cp-section">{% translate "Lid məlumatı" %}</h3>
-        <p class="cp-meta mt-1">{% translate "Yalnız oxuma." %}</p>
+  <section class="cp-card p-card mb-4">
+    <div class="crm-kv-list">
+      <div class="crm-kv-row">
+        <div class="crm-kv-label"><i data-lucide="building"></i> {% translate "Şirkət" %}</div>
+        <div class="crm-kv-value">{{ lead.company_name|default:"—" }}</div>
       </div>
+      <div class="crm-kv-row">
+        <div class="crm-kv-label"><i data-lucide="user"></i> {% translate "Əlaqə" %}</div>
+        <div class="crm-kv-value">{{ lead.full_name|default:"—" }}</div>
+      </div>
+      <div class="crm-kv-row">
+        <div class="crm-kv-label"><i data-lucide="phone"></i> {% translate "Telefon" %}</div>
+        <div class="crm-kv-value">{{ lead.phone|default:"—" }}</div>
+      </div>
+      <div class="crm-kv-row">
+        <div class="crm-kv-label"><i data-lucide="mail"></i> {% translate "E-poçt" %}</div>
+        <div class="crm-kv-value">{{ lead.email|default:"—" }}</div>
+      </div>
+      <div class="crm-kv-row">
+        <div class="crm-kv-label"><i data-lucide="globe"></i> {% translate "Mənbə" %}</div>
+        <div class="crm-kv-value">{{ lead.get_source_display }}</div>
+      </div>
+      <div class="crm-kv-row">
+        <div class="crm-kv-label"><i data-lucide="ruler"></i> {% translate "Sahə tələbi" %}</div>
+        <div class="crm-kv-value">{{ lead.min_area_m2|default:"—" }} – {{ lead.max_area_m2|default:"—" }} m²</div>
+      </div>
+      <div class="crm-kv-row">
+        <div class="crm-kv-label"><i data-lucide="map-pin"></i> {% translate "Bağlı sahə" %}</div>
+        <div class="crm-kv-value">{% if lead.interested_space %}<a href="{% url 'erp:crm_space_detail' lead.interested_space.code %}">{{ lead.interested_space.code }}</a>{% else %}—{% endif %}</div>
+      </div>
+      {% if lead.initial_note %}
+      <div class="crm-kv-row">
+        <div class="crm-kv-label"><i data-lucide="tag"></i> {% translate "Təklif / qiymət qeydi" %}</div>
+        <div class="crm-kv-value">{{ lead.initial_note }}</div>
+      </div>
+      {% endif %}
+      {% if lead.message %}
+      <div class="crm-kv-row">
+        <div class="crm-kv-label"><i data-lucide="sticky-note"></i> {% translate "Qeyd" %}</div>
+        <div class="crm-kv-value">{{ lead.message }}</div>
+      </div>
+      {% endif %}
     </div>
-    <dl class="lease-detail-facts">
-      <div><dt class="cp-meta">{% translate "Şirkət" %}</dt><dd>{{ lead.company_name|default:"—" }}</dd></div>
-      <div><dt class="cp-meta">{% translate "Əlaqə" %}</dt><dd>{{ lead.full_name|default:"—" }}</dd></div>
-      <div><dt class="cp-meta">{% translate "Telefon" %}</dt><dd>{{ lead.phone|default:"—" }}</dd></div>
-      <div><dt class="cp-meta">{% translate "E-poçt" %}</dt><dd>{{ lead.email|default:"—" }}</dd></div>
-      <div><dt class="cp-meta">{% translate "Mənbə" %}</dt><dd>{{ lead.get_source_display }}</dd></div>
-      <div><dt class="cp-meta">{% translate "Sahə tələbi" %}</dt><dd>{{ lead.min_area_m2|default:"—" }} – {{ lead.max_area_m2|default:"—" }} m²</dd></div>
-      {% if lead.message %}<div class="lease-detail-notes"><dt class="cp-meta">{% translate "Qeyd" %}</dt><dd>{{ lead.message }}</dd></div>{% endif %}
-    </dl>
   </section>
   {% endif %}
+</div>
 
-  <div class="crm-lead-detail-grid">
-    <section class="crm-opp-panel cp-card p-card">
-      <div class="crm-opp-panel-head">
-        <div>
-          <h3 class="cp-section">{% translate "Aktivliklər" %}</h3>
-          <p class="cp-meta mt-1">{% translate "Zəng, görüş, qeyd və digər əlaqələr." %}</p>
-        </div>
+<div class="crm-lead-detail-grid">
+  <section id="notes" class="crm-opp-panel cp-card p-card">
+    <div class="crm-opp-panel-head">
+      <div>
+        <h3 class="cp-section">{% translate "Aktivliklər" %}</h3>
+        <p class="cp-meta mt-1">{% translate "Zəng, görüş, qeyd və digər əlaqələr." %}</p>
       </div>
-      {% if can_mutate %}
-      <form method="post" class="crm-lead-activity-form mb-4">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="activity">
-        <label>
-          <span class="cp-meta">{% translate "Növ" %}</span>
-          <select class="cp-input mt-1" name="activity_type">
-            {% for v,l in activity_types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
-          </select>
-        </label>
-        <label class="crm-lead-activity-body">
-          <span class="cp-meta">{% translate "Qeyd" %}</span>
-          <input class="cp-input mt-1 w-full" name="body" placeholder="{% translate 'Qısa qeyd…' %}">
-        </label>
-        <div class="crm-lead-activity-submit">
-          <button type="submit" class="cp-btn">{% translate "Əlavə et" %}</button>
+    </div>
+    {% if can_mutate %}
+    <form method="post" class="crm-lead-activity-form mb-4">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="activity">
+      <label>
+        <span class="cp-meta">{% translate "Növ" %}</span>
+        <select class="cp-input mt-1" name="activity_type">
+          {% for v,l in activity_types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="crm-lead-activity-body">
+        <span class="cp-meta">{% translate "Qeyd" %}</span>
+        <input class="cp-input mt-1 w-full" name="body" placeholder="{% translate 'Qısa qeyd…' %}">
+      </label>
+      <div class="crm-lead-activity-submit">
+        <button type="submit" class="cp-btn">{% translate "Əlavə et" %}</button>
+      </div>
+    </form>
+    {% endif %}
+    <ul class="crm-lead-activity-list">
+      {% for a in lead.activities.all %}
+      <li>
+        <div class="crm-lead-activity-main">
+          <strong>{{ a.get_activity_type_display }}</strong>
+          <span>{{ a.body|default:"—" }}</span>
         </div>
-      </form>
-      {% endif %}
-      <ul class="crm-lead-activity-list">
-        {% for a in lead.activities.all %}
-        <li>
-          <div class="crm-lead-activity-main">
-            <strong>{{ a.get_activity_type_display }}</strong>
-            <span>{{ a.body|default:"—" }}</span>
-          </div>
-          <time class="cp-meta">{{ a.occurred_at|date:"d.m.Y H:i" }}</time>
-        </li>
-        {% empty %}
-        <li class="cp-meta">{% translate "Aktivlik yoxdur." %}</li>
-        {% endfor %}
-      </ul>
-    </section>
+        <time class="cp-meta">{{ a.occurred_at|date:"d.m.Y H:i" }}</time>
+      </li>
+      {% empty %}
+      <li class="cp-meta">{% translate "Aktivlik yoxdur." %}</li>
+      {% endfor %}
+    </ul>
+  </section>
 
-    <section class="crm-opp-panel cp-card p-card">
-      <div class="crm-opp-panel-head">
-        <div>
-          <h3 class="cp-section">{% translate "İmkanlar" %}</h3>
-          <p class="cp-meta mt-1">{% translate "Bu liddən yaradılan imkanlar." %}</p>
-        </div>
+  <section id="opps" class="crm-opp-panel cp-card p-card">
+    <div class="crm-opp-panel-head">
+      <div>
+        <h3 class="cp-section">{% translate "İmkanlar" %}</h3>
+        <p class="cp-meta mt-1">{% translate "Bu liddən yaradılan imkanlar." %}</p>
       </div>
-      <ul class="crm-lead-opp-list">
-        {% for o in lead.opportunities.all %}
-        <li>
-          <a href="{% url 'erp:crm_opportunity_detail' o.pk %}">#{{ o.pk }} {{ o.title }}</a>
-          <span class="crm-opp-chip">{{ o.get_pipeline_stage_display }}</span>
-        </li>
-        {% empty %}
-        <li class="cp-meta">—</li>
-        {% endfor %}
-      </ul>
-    </section>
-  </div>
+    </div>
+    <ul class="crm-lead-opp-list">
+      {% for o in lead.opportunities.all %}
+      <li>
+        <a href="{% url 'erp:crm_opportunity_detail' o.pk %}">#{{ o.pk }} {{ o.title }}</a>
+        {% include "partials/crm_status_pill.html" with pill_label=o.get_pipeline_stage_display pill_kind="info" %}
+      </li>
+      {% empty %}
+      <li class="cp-meta">—</li>
+      {% endfor %}
+    </ul>
+  </section>
 </div>
 {% endblock %}

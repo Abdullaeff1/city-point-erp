@@ -37,6 +37,7 @@ class ApprovalService(Service):
                 "entity_model": "approval",
             },
             actor=requested_by,
+            event_key=f"approval.requested.{req.pk}",
         )
         return req
 
@@ -50,32 +51,52 @@ class ApprovalService(Service):
         decided_by=None,
         comment: str = "",
     ) -> ApprovalRequest:
-        cls.require(request.status == ApprovalStatus.PENDING, "Yalnız gözləyən sorğu qərar verilə bilər.")
-        request.status = ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED
-        request.decided_by = decided_by
-        request.decided_at = timezone.now()
-        request.comment = (comment or "")[:2000]
-        request.save(update_fields=["status", "decided_by", "decided_at", "comment", "updated_at"])
+        locked = ApprovalRequest.objects.select_for_update().get(pk=request.pk)
+        cls.require(
+            locked.status == ApprovalStatus.PENDING,
+            "Yalnız gözləyən sorğu qərar verilə bilər.",
+        )
+        locked.status = ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED
+        locked.decided_by = decided_by
+        locked.decided_at = timezone.now()
+        locked.comment = (comment or "")[:2000]
+        locked.save(update_fields=["status", "decided_by", "decided_at", "comment", "updated_at"])
+        # Decision-unique key so a later reopen/reconsider can notify again.
+        stamp = locked.decided_at.isoformat() if locked.decided_at else str(locked.pk)
         bus.emit(
             bus.APPROVAL_DECIDED,
             payload={
-                "approval_id": request.pk,
-                "workflow_code": request.workflow_code,
-                "status": request.status,
+                "approval_id": locked.pk,
+                "workflow_code": locked.workflow_code,
+                "status": locked.status,
                 "entity_model": "approval",
+                "requested_by_id": locked.requested_by_id,
             },
             actor=decided_by,
+            event_key=f"approval.decided.{locked.pk}.{locked.status}.{stamp}",
         )
-        return request
+        request.status = locked.status
+        request.decided_by = locked.decided_by
+        request.decided_at = locked.decided_at
+        request.comment = locked.comment
+        return locked
 
     @classmethod
     @transaction.atomic
     def cancel(cls, request: ApprovalRequest, *, actor=None, comment: str = "") -> ApprovalRequest:
-        cls.require(request.status == ApprovalStatus.PENDING, "Yalnız gözləyən sorğu ləğv edilə bilər.")
-        request.status = ApprovalStatus.CANCELLED
-        request.decided_by = actor
-        request.decided_at = timezone.now()
+        locked = ApprovalRequest.objects.select_for_update().get(pk=request.pk)
+        cls.require(
+            locked.status == ApprovalStatus.PENDING,
+            "Yalnız gözləyən sorğu ləğv edilə bilər.",
+        )
+        locked.status = ApprovalStatus.CANCELLED
+        locked.decided_by = actor
+        locked.decided_at = timezone.now()
         if comment:
-            request.comment = comment[:2000]
-        request.save(update_fields=["status", "decided_by", "decided_at", "comment", "updated_at"])
-        return request
+            locked.comment = comment[:2000]
+        locked.save(update_fields=["status", "decided_by", "decided_at", "comment", "updated_at"])
+        request.status = locked.status
+        request.decided_by = locked.decided_by
+        request.decided_at = locked.decided_at
+        request.comment = locked.comment
+        return locked

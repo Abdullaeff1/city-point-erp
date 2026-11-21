@@ -553,15 +553,15 @@ Tam siyahı: [`MVP_YUKLENMELI_SENEDLER.md`](docs/deployment/MVP_YUKLENMELI_SENED
 **Əlaqə:** maintenance → tickets, warehouse, billing, property.Asset.
 
 **Qurulacaq**
-- WO create-from-ticket UX; status maşını; cost lines  
-- MaintenancePlan / Inspection productization  
-- Billable WO → Charge  
+- WO create-from-ticket UX; status maşını; cost lines — **Dev-verified** (Workflow B/D)  
+- MaintenancePlan / Inspection productization — **ERP UI landed** (`erp:maintenance_plans`, generate due WOs, WO detail confirm); poller `poll_maintenance_plans` remains for schedule  
+- Billable WO → Charge — **Dev-verified**  
 
 **Yüklə:** aktiv/contractor siyahıları  
 
-**Sual:** A.2 (WO-eligible)  
+**Sual:** A.2 (WO-eligible) — cavablandı  
 
-**DoD:** Texniki ticket bağlanır; WO tarixçə; material sətiri anbara bağlı.
+**DoD:** Texniki ticket bağlanır; WO tarixçə; material sətiri anbara bağlı; FM ERP-də PM plan yaradır və vaxtı çatmış WO/baxış təsdiqləyir.
 
 ---
 
@@ -579,6 +579,8 @@ Tam siyahı: [`MVP_YUKLENMELI_SENEDLER.md`](docs/deployment/MVP_YUKLENMELI_SENED
 
 **DoD:** Issue against WO; low-stock alert; inventar sayımı hesabatı.
 
+**Status (2026-11-20):** Tamamlandı (dev). Operator sayımı `/erp/warehouse/stocktakes/` — start/save/resume/complete/post + tarixi variance hesabatı. Gözlənilən = saxlama anındakı on-hand; post = delta (`current + variance`); anbar dondurulmur. Migration `warehouse.0005_stocktake`. Live inventar düzəlişi bu run-dan kənar.
+
 ---
 
 ## Phase 9 — Procurement
@@ -595,6 +597,8 @@ Tam siyahı: [`MVP_YUKLENMELI_SENEDLER.md`](docs/deployment/MVP_YUKLENMELI_SENED
 **Sual:** A.7  
 
 **DoD:** Low-stock-dan stok artırana qədər e2e; audit event-lər.
+
+**Status (2026-11-20):** Tamamlandı (dev). PR qalan miqdar qapısı; RFQ müqayisə cəmi (vahid qiymət × qalan qty); boş qiymət ≠ 0; PR sətir progress UI. Phase 8 stale-save recount bound. Live purchasing / deploy bu run-dan kənar.
 
 ---
 

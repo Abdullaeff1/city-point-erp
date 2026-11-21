@@ -5,29 +5,15 @@ from __future__ import annotations
 from django.shortcuts import redirect
 from django.urls import reverse
 
-from apps.accounts.models import Role
-
 
 def home_url_name_for(user) -> str:
-    """Named URL for the user's primary landing page after login / wrong-portal."""
-    role = getattr(user, "role", None)
-    if role == Role.RESIDENT_USER:
-        return "portal:home"
-    if role == Role.SECURITY:
-        return "security:home"
-    if role == Role.ACCOUNTANT:
-        return "finance:home"
-    if role == Role.MANAGEMENT:
-        return "erp:dashboard"
-    if role == Role.RECEPTION:
-        return "erp:reception"
-    if role == Role.SERVICE_DESK:
-        return "erp:tickets"
-    if role == Role.SALES:
-        return "erp:dashboard"
-    if role == Role.PROPERTY_FM:
-        return "erp:dashboard"
-    return "erp:dashboard"
+    """Named URL for the user's primary landing page after login / wrong-portal.
+
+    Delegates to permission-validated workspace resolution (Phase 3).
+    """
+    from apps.accounts.nav import resolve_landing_url_name
+
+    return resolve_landing_url_name(user)
 
 
 def home_url_for(user) -> str:

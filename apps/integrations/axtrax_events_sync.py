@@ -277,10 +277,21 @@ def sync_event_rows(
     stats["cursor_after"] = max_id if max_id > live_cursor else live_cursor
 
     stats["guest_checkouts"] = 0
+    stats["guest_checkout_ambiguous"] = 0
     if created_events:
-        from apps.reception.services import checkout_guests_from_access_events
+        from apps.reception.services import (
+            GUEST_CHECKOUT_AMBIGUOUS_OP,
+            checkout_guests_from_access_events,
+        )
 
+        before_ambiguous = SyncLog.objects.filter(
+            system=AXTRAX_SYSTEM, operation=GUEST_CHECKOUT_AMBIGUOUS_OP
+        ).count()
         stats["guest_checkouts"] = checkout_guests_from_access_events(created_events)
+        stats["guest_checkout_ambiguous"] = (
+            SyncLog.objects.filter(system=AXTRAX_SYSTEM, operation=GUEST_CHECKOUT_AMBIGUOUS_OP).count()
+            - before_ambiguous
+        )
 
     if created_events and detect_alerts:
         from apps.residents.rapid_swipe import detect_rapid_swipes_after_sync

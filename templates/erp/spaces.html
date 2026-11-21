@@ -40,7 +40,17 @@
   </form>
 </div>
 
-<div class="cp-section mb-3">{% translate "Mərtəbələr" %}</div>
+<div class="flex gap-3 mb-3" style="flex-wrap:wrap;align-items:center;justify-content:space-between;">
+  <div class="cp-section" style="margin:0;">{% translate "Mərtəbələr" %}</div>
+  <div class="flex gap-3" style="align-items:center;">
+    <span class="cp-meta" style="display:inline-flex;align-items:center;gap:6px;">
+      <span class="space-legend-swatch space-legend-swatch--vacant" aria-hidden="true"></span>{% translate "Boş" %}
+    </span>
+    <span class="cp-meta" style="display:inline-flex;align-items:center;gap:6px;">
+      <span class="space-legend-swatch space-legend-swatch--occupied" aria-hidden="true"></span>{% translate "Dolu" %}
+    </span>
+  </div>
+</div>
 {% for row in floor_rows %}
   <div class="cp-card p-card-sm mb-3">
     <div class="flex justify-between items-center">
@@ -50,10 +60,17 @@
     <div class="cp-progress mt-2"><span style="width:{{ row.pct }}%;"></span></div>
     <div class="space-chips">
       {% for s in row.spaces %}
-        <a href="{% url 'erp:space_detail' s.code %}" class="cp-soft-tile">
+        {% if s.occupancy == "active_lease" or s.commercial_status == "active" or s.commercial_status == "notice" %}
+        <a href="{% url 'erp:space_detail' s.code %}" class="cp-soft-tile cp-soft-tile--occupied" title="{% translate 'Dolu' %}">
           <strong>{{ s.short_label }}</strong>
-          <span class="cp-meta">{% if s.resident %}{{ s.resident.name }}{% else %}{% translate "Boş" %}{% endif %}</span>
+          <span class="cp-meta">{% if s.resident %}{{ s.resident.name }}{% else %}{% translate "Dolu" %}{% endif %}</span>
         </a>
+        {% else %}
+        <a href="{% url 'erp:space_detail' s.code %}" class="cp-soft-tile cp-soft-tile--vacant" title="{% translate 'Boş' %}">
+          <strong>{{ s.short_label }}</strong>
+          <span class="cp-meta">{% translate "Boş" %}</span>
+        </a>
+        {% endif %}
       {% empty %}
       <span class="cp-meta">{% translate "Bu mərtəbədə sahə yoxdur." %}</span>
       {% endfor %}

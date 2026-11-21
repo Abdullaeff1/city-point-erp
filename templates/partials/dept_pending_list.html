@@ -1,0 +1,17 @@
+{% load i18n %}
+{% comment %}Expects: pending — list of {title, meta?, url?}{% endcomment %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Gözləyənlər" %}</div>
+  {% if pending %}
+  <ul class="mt-3" style="list-style:none;padding:0;margin:0;">
+    {% for item in pending %}
+    <li style="padding:8px 0;border-bottom:1px solid var(--cp-border, #e5e7eb);">
+      {% if item.url %}<a href="{{ item.url }}">{{ item.title }}</a>{% else %}{{ item.title }}{% endif %}
+      {% if item.meta %}<span class="cp-meta" style="margin-left:8px;">{{ item.meta }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="cp-meta mt-3">{% translate "Gözləyən tapşırıq yoxdur." %}</p>
+  {% endif %}
+</div>

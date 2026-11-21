@@ -1,0 +1,68 @@
+{% extends "erp/base.html" %}
+{% load i18n l10n %}
+{% block page_title %}{{ po.code }}{% endblock %}
+{% block heading %}{{ po.code }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:procurement' %}">{% translate "Satınalma" %}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card mb-4">
+  <p class="cp-meta">
+    {{ po.get_status_display }}
+    · {% translate "Təchizatçı" %}:
+    {% if po.supplier_party_id %}<a href="{% url 'erp:procurement_supplier_detail' po.supplier_party_id %}">{{ po.supplier_party.display_name }}</a>{% else %}—{% endif %}
+    {% if po.pr_id %}· PR: <a href="{% url 'erp:procurement_pr_detail' po.pr.code %}">{{ po.pr.code }}</a>{% endif %}
+    · {{ po.ordered_at|default:"—" }}
+  </p>
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Təsvir" %}</th><th>SKU</th><th>{% translate "Miqdar" %}</th><th>{% translate "Qəbul" %}</th><th>{% translate "Qiymət" %}</th></tr></thead>
+    <tbody>
+      {% for line in po.lines.all %}
+      <tr>
+        <td>{{ line.description }}</td>
+        <td>{% if line.sku_id %}{{ line.sku.code }}{% else %}—{% endif %}</td>
+        <td>{{ line.qty }}</td>
+        <td>
+          {% if can_edit_procurement and can_receive %}
+          <input class="cp-input" form="recv-form" name="recv_qty_{{ line.id }}" placeholder="{{ line.qty|unlocalize }}" inputmode="decimal">
+          {% else %}{{ line.received_qty }}{% endif %}
+        </td>
+        <td>
+          {% if can_edit_procurement %}
+          <form method="post" class="flex gap-1">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="set_line_price">
+            <input type="hidden" name="line_id" value="{{ line.id }}">
+            <input class="cp-input" name="unit_price" value="{{ line.unit_price|unlocalize }}" inputmode="decimal">
+            <button class="cp-btn-ghost">OK</button>
+          </form>
+          {% else %}{{ line.unit_price }}{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if can_edit_procurement and can_receive %}
+  <form method="post" id="recv-form" class="flex gap-2 mt-3" style="align-items:end;flex-wrap:wrap;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="receive_po">
+    <input type="hidden" name="receive_mode" value="partial" id="recv-mode">
+    <input type="hidden" name="operation_key" value="{{ operation_key }}">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}">
+    <label>
+      <span class="cp-meta">{% translate "Anbar" %}</span>
+      <select class="cp-input" name="warehouse_id" required>
+        {% for w in warehouses %}<option value="{{ w.id }}">{{ w.code }}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="cp-btn" type="submit" onclick="document.getElementById('recv-mode').value='partial';">
+      {% translate "Qismən qəbul et" %}
+    </button>
+    <button class="cp-btn-ghost" type="submit" onclick="document.getElementById('recv-mode').value='full';">
+      {% translate "Qalanı tam qəbul et" %}
+    </button>
+  </form>
+  <p class="cp-meta mt-2">{% translate "Qismən qəbul üçün müsbət miqdar daxil edin. Boş qismən forma qəbul etmir. Aşırı qəbul bloklanır." %}</p>
+  {% endif %}
+</div>
+{% endblock %}

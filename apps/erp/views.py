@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
-from django.db.models import Count, Q
+from django.db.models import Count, IntegerField, OuterRef, Q, Subquery
+from django.db.models.functions import Coalesce
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
@@ -12,9 +13,10 @@ import json
 from apps.accounts.impersonation import can_start_impersonation, get_impersonator, is_impersonating
 from django.contrib.auth.mixins import LoginRequiredMixin
 
-from apps.accounts.mixins import RoleRequiredMixin, StaffRequiredMixin
+from apps.accounts.mixins import PermissionRequiredMixin, RoleRequiredMixin, StaffRequiredMixin
 from apps.accounts.models import Role, User
 from apps.accounts.routing import redirect_home
+from apps.rbac.services import require_permission
 from apps.core.services import DomainError
 from apps.documents.models import Document
 from apps.erp.forms import FloorForm, GuestVisitForm, SpaceForm, StaffTicketForm
@@ -62,7 +64,7 @@ from apps.residents.people_inside_export import (
     people_inside_snapshot,
     people_inside_xlsx_http_response,
 )
-from apps.rbac.services import user_has_permission
+from apps.rbac.services import user_has_permission  # noqa: F401 — used throughout reception/leases
 from apps.tickets.access import (
     can_delete_ticket,
     can_handoff_ticket,
@@ -102,22 +104,45 @@ class DashboardView(StaffRequiredMixin, TemplateView):
     template_name = "erp/dashboard.html"
 
     def dispatch(self, request, *args, **kwargs):
-        if request.user.is_authenticated and request.user.role == Role.RECEPTION:
+        if not request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
+        role = request.user.role
+        if role == Role.RECEPTION:
             return redirect("erp:reception")
-        if request.user.is_authenticated and request.user.role == Role.SERVICE_DESK:
-            return redirect("erp:tickets")
+        if role == Role.SERVICE_DESK:
+            return redirect("erp:helpdesk_dashboard")
+        if role == Role.PROPERTY_FM:
+            return redirect("erp:facility_dashboard")
+        if role == Role.ADMIN:
+            # Prefer dedicated IT workspace; allow ?ops=1 for legacy ops panel.
+            if request.GET.get("ops") != "1":
+                return redirect("erp:it_dashboard")
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         role = self.request.user.role
+        from apps.rbac.services import user_has_permission
+
         if role == Role.SALES:
+            if not user_has_permission(self.request.user, "crm.view"):
+                raise PermissionDenied(_("CRM panelinə baxış icazəniz yoxdur."))
             from apps.crm.dashboard import build_sales_dashboard
 
             sales = build_sales_dashboard(self.request.user, self.request.GET)
             ctx.update(sales)
             ctx["is_sales_dashboard"] = True
             # Ops KPI must not be computed or passed for sales.
+            return ctx
+
+        if role == Role.MANAGEMENT:
+            from apps.erp.department_dashboards import enhance_management_hub
+            from apps.erp.management_hub import build_management_hub
+            from apps.integrations.axtrax_health import axtrax_sync_health
+
+            hub = enhance_management_hub(build_management_hub(self.request.user), self.request.user)
+            ctx.update(hub)
+            ctx["axtrax_health"] = axtrax_sync_health()
             return ctx
 
         today = timezone.localdate()
@@ -209,10 +234,16 @@ class DashboardView(StaffRequiredMixin, TemplateView):
         return ctx
 
 
-class PeopleInsideView(StaffRequiredMixin, TemplateView):
-    """Hal-hazırda binada olan əməkdaşlar + qonaqlar (bu gün)."""
+class PeopleInsideView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    """Hal-hazırda binada olan əməkdaşlar + qonaqlar (bu gün).
+
+    Presence is a Security/HR operational surface (includes City Point staff).
+    Requires ``security.view`` or ``hr.view`` — not every ERP staff role.
+    """
 
     template_name = "erp/people_inside.html"
+    permission_required = ("security.view", "hr.view")
+    permission_denied_message = "Binada olanlara baxış icazəniz yoxdur."
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -229,18 +260,23 @@ class PeopleInsideView(StaffRequiredMixin, TemplateView):
         return ctx
 
 
-class PeopleInsideExportView(StaffRequiredMixin, View):
+class PeopleInsideExportView(PermissionRequiredMixin, StaffRequiredMixin, View):
     """Binada olanlar — Excel (şirkət adına görə)."""
+
+    permission_required = ("security.view", "hr.view")
+    permission_denied_message = "Binada olanlara baxış icazəniz yoxdur."
 
     def get(self, request):
         employees, guest_rows, today = people_inside_snapshot()
         return people_inside_xlsx_http_response(employees, guest_rows, report_date=today)
 
 
-class PeopleInsideDetailView(StaffRequiredMixin, TemplateView):
+class PeopleInsideDetailView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
     """Seçilmiş əməkdaşın bugünkü bütün kart eventləri."""
 
     template_name = "erp/people_inside_detail.html"
+    permission_required = ("security.view", "hr.view")
+    permission_denied_message = "Binada olanlara baxış icazəniz yoxdur."
 
     def get_employee(self):
         return get_object_or_404(
@@ -276,6 +312,7 @@ class ReceptionView(RoleRequiredMixin, FormView):
     template_name = "erp/reception.html"
     form_class = GuestVisitForm
     allowed_roles = (Role.RECEPTION,)
+    allow_management = False
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated and not (
@@ -458,6 +495,7 @@ class ReceptionView(RoleRequiredMixin, FormView):
 
 class ReceptionOverdueCheckoutView(RoleRequiredMixin, View):
     allowed_roles = (Role.RECEPTION,)
+    allow_management = False
 
     def post(self, request):
         if not user_has_permission(request.user, "reception.check_out"):
@@ -477,6 +515,7 @@ class ReceptionOverdueCheckoutView(RoleRequiredMixin, View):
 
 class ReceptionStatusView(RoleRequiredMixin, View):
     allowed_roles = (Role.RECEPTION,)
+    allow_management = False
 
     def post(self, request, pk):
         visit = get_object_or_404(GuestVisit.objects.select_related("guest"), pk=pk)
@@ -509,6 +548,11 @@ class ReceptionStatusView(RoleRequiredMixin, View):
                     allow_return_pending=allow_override and not id_returned,
                 )
                 messages.success(request, "Çıxış qeydə alındı.")
+            elif action == "return_id":
+                if not user_has_permission(request.user, "reception.check_out"):
+                    raise PermissionDenied()
+                ReceptionService.complete_id_return(visit, actor=request.user)
+                messages.success(request, "Vəsiqə qaytarıldı — ziyarət bağlandı.")
             elif action == "cancel":
                 if not user_has_permission(request.user, "reception.cancel_visit"):
                     raise PermissionDenied()
@@ -526,6 +570,7 @@ class ReceptionStatusView(RoleRequiredMixin, View):
 
 class ReceptionVisitUpdateView(RoleRequiredMixin, View):
     allowed_roles = (Role.RECEPTION,)
+    allow_management = False
 
     def post(self, request, pk):
         if not user_has_permission(request.user, "reception.create_visit"):
@@ -569,6 +614,7 @@ class ReceptionVisitUpdateView(RoleRequiredMixin, View):
 
 class ReceptionGuestListTemplateView(RoleRequiredMixin, View):
     allowed_roles = (Role.RECEPTION,)
+    allow_management = False
 
     def get(self, request):
         if not user_has_permission(request.user, "reception.create_visit"):
@@ -578,6 +624,7 @@ class ReceptionGuestListTemplateView(RoleRequiredMixin, View):
 
 class ReceptionGuestListPreviewView(RoleRequiredMixin, View):
     allowed_roles = (Role.RECEPTION,)
+    allow_management = False
 
     def post(self, request):
         if not user_has_permission(request.user, "reception.create_visit"):
@@ -627,6 +674,7 @@ class ReceptionGuestListPreviewView(RoleRequiredMixin, View):
 
 class ReceptionGuestListConfirmView(RoleRequiredMixin, View):
     allowed_roles = (Role.RECEPTION,)
+    allow_management = False
 
     def post(self, request):
         if not user_has_permission(request.user, "reception.create_visit"):
@@ -653,6 +701,7 @@ class ReceptionGuestListConfirmView(RoleRequiredMixin, View):
 
 class ReceptionGuestListCheckInView(RoleRequiredMixin, View):
     allowed_roles = (Role.RECEPTION,)
+    allow_management = False
 
     def post(self, request, pk):
         if not user_has_permission(request.user, "reception.check_in"):
@@ -675,6 +724,7 @@ class ReceptionGuestListCheckInView(RoleRequiredMixin, View):
 
 class ReceptionGuestLookupView(RoleRequiredMixin, View):
     allowed_roles = (Role.RECEPTION,)
+    allow_management = False
 
     def get(self, request):
         if not user_has_permission(request.user, "reception.search"):
@@ -703,6 +753,7 @@ class ReceptionGuestLookupView(RoleRequiredMixin, View):
 
 class ReceptionExportView(RoleRequiredMixin, View):
     allowed_roles = (Role.RECEPTION,)
+    allow_management = False
 
     def get(self, request):
         if not user_has_permission(request.user, "reception.export"):
@@ -814,6 +865,7 @@ class TicketCreateView(RoleRequiredMixin, FormView):
     template_name = "erp/ticket_create.html"
     form_class = StaffTicketForm
     allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
+    allow_management = False
 
     def get_context_data(self, **kwargs):
         from apps.tickets.taxonomy_map import type_category_map_payload
@@ -927,7 +979,14 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
         action = request.POST.get("action")
         try:
             if action == "advance" and ticket.next_status:
-                advance_ticket_status(ticket, actor=request.user)
+                note = (request.POST.get("resolution_note") or request.POST.get("note") or "").strip()
+                from apps.tickets.models import TicketStatus as _TS
+                from apps.tickets.services import set_ticket_status as _set_status
+
+                if ticket.next_status == _TS.RESOLVED:
+                    _set_status(ticket, _TS.RESOLVED, actor=request.user, note=note)
+                else:
+                    advance_ticket_status(ticket, actor=request.user)
             elif action == "waiting":
                 reason = request.POST.get("waiting_reason", "").strip()
                 reason_code = request.POST.get("waiting_reason_code", "").strip()
@@ -1048,6 +1107,7 @@ class SpaceListView(RoleRequiredMixin, ListView):
 
 class FloorCreateView(RoleRequiredMixin, View):
     allowed_roles = (Role.PROPERTY_FM,)
+    allow_management = False
 
     def post(self, request):
         form = FloorForm(request.POST)
@@ -1065,6 +1125,7 @@ class SpaceCreateView(RoleRequiredMixin, CreateView):
     form_class = SpaceForm
     model = Space
     allowed_roles = (Role.PROPERTY_FM,)
+    allow_management = False
 
     def get_initial(self):
         initial = super().get_initial()
@@ -1094,6 +1155,7 @@ class SpaceUpdateView(RoleRequiredMixin, UpdateView):
     slug_field = "code"
     slug_url_kwarg = "code"
     allowed_roles = (Role.PROPERTY_FM,)
+    allow_management = False
 
     def get_queryset(self):
         return Space.objects.select_related("floor", "resident")
@@ -1119,6 +1181,7 @@ class SpaceDeleteView(RoleRequiredMixin, DeleteView):
     slug_url_kwarg = "code"
     template_name = "erp/space_confirm_delete.html"
     allowed_roles = (Role.PROPERTY_FM,)
+    allow_management = False
     success_url = "/erp/spaces/"
 
     def get_success_url(self):
@@ -1401,8 +1464,8 @@ def _can_view_resident_guests(user) -> bool:
 
 
 def _can_view_resident_ticket_counts(user) -> bool:
-    """Şirkət siyahısındakı ticket sayı — Admin və Service Desk."""
-    return user.role in {Role.ADMIN, Role.SERVICE_DESK}
+    """Şirkət siyahısındakı ticket sayı — Admin, Rəhbərlik və Service Desk."""
+    return user.role in {Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK}
 
 
 class ResidentListView(StaffRequiredMixin, ListView):
@@ -1424,15 +1487,17 @@ class ResidentListView(StaffRequiredMixin, ListView):
             qs = filter_text_search(qs, q, "name", "slug", "contact_email", "voen")
         if _can_view_resident_ticket_counts(self.request.user):
             qs = qs.annotate(ticket_count=Count("tickets", distinct=True))
-        if _can_view_resident_guests(self.request.user):
-            today = timezone.localdate()
-            qs = qs.annotate(
-                guest_today=Count(
-                    "guest_visits",
-                    filter=Q(guest_visits__scheduled_for=today),
-                    distinct=True,
-                )
-            )
+        # Subquery avoids join/filter Count edge cases and always yields an int.
+        active_emp = (
+            ResidentEmployee.objects.filter(company_id=OuterRef("pk"), is_active=True)
+            .order_by()
+            .values("company_id")
+            .annotate(_c=Count("id"))
+            .values("_c")[:1]
+        )
+        qs = qs.annotate(
+            employee_count=Coalesce(Subquery(active_emp, output_field=IntegerField()), 0)
+        )
         self._can_manage = user_can_manage_resident_profile(self.request.user)
         return qs
 
@@ -1714,23 +1779,32 @@ class ResidentEmployeeAccessDetailView(RoleRequiredMixin, TemplateView):
         return ctx
 
 
-class InternalStaffAccessView(RoleRequiredMixin, TemplateView):
+class InternalStaffAccessView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
     """City Point öz işçilərinin giriş/çıxışı — yalnız Admin / Rəhbərlik."""
 
     template_name = "erp/internal_staff_access.html"
     allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+    permission_required = "hr.view"
+    permission_denied_message = "HR / daxili işçilərə baxış icazəniz yoxdur."
+    page_size = 40
 
     def get_company(self):
         return get_object_or_404(ResidentCompany, slug="city-point")
 
     def get_context_data(self, **kwargs):
+        from django.core.paginator import Paginator
+
         ctx = super().get_context_data(**kwargs)
         company = self.get_company()
         today = timezone.localdate()
         selected_date = parse_date(self.request.GET.get("date"), today)
+        q = (self.request.GET.get("q") or "").strip()
         base = company.employees.all().order_by("full_name")
+        if q:
+            base = base.filter(Q(full_name__icontains=q) | Q(card_number__icontains=q))
         employees, roster = employee_roster_qs(base, self.request.GET.get("roster"))
         rows, inside, left, present = build_employee_access_rows(employees, selected_date)
+        page = Paginator(rows, self.page_size).get_page(self.request.GET.get("page") or "1")
         export_preset, export_from, export_to = access_range_bounds(
             self.request, default_preset="month"
         )
@@ -1741,30 +1815,38 @@ class InternalStaffAccessView(RoleRequiredMixin, TemplateView):
         ctx.update(
             {
                 "company": company,
-                "rows": rows,
+                "rows": page.object_list,
+                "page_obj": page,
                 "inside": inside,
                 "left": left,
                 "present": present,
                 "roster": roster,
+                "q": q,
                 "today": today,
                 "selected_date": selected_date,
                 "is_today": selected_date == today,
                 "export_preset": export_preset,
                 "export_from": export_from,
                 "export_to": export_to,
+                "can_export_access": user_has_permission(
+                    self.request.user, "residents.export_access"
+                ),
+                "total_employees": len(rows),
             }
         )
         return ctx
 
 
-class InternalStaffAccessExportView(RoleRequiredMixin, View):
+class InternalStaffAccessExportView(PermissionRequiredMixin, RoleRequiredMixin, View):
     """Admin/Management: Excel for City Point internal staff."""
 
     allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+    permission_required = "hr.view"
+    permission_denied_message = "HR / daxili işçilərə baxış icazəniz yoxdur."
 
     def get(self, request, pk=None):
         if not user_has_permission(request.user, "residents.export_access"):
-            raise PermissionDenied("Export icazəsi yoxdur.")
+            raise PermissionDenied(_("Export icazəsi yoxdur."))
         company = get_object_or_404(ResidentCompany, slug="city-point")
         _preset, date_from, date_to = access_range_bounds(request, default_preset="month")
         employee = None
@@ -1784,9 +1866,11 @@ class InternalStaffAccessExportView(RoleRequiredMixin, View):
         )
 
 
-class InternalStaffAccessDetailView(RoleRequiredMixin, TemplateView):
+class InternalStaffAccessDetailView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = "erp/internal_staff_access_detail.html"
     allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+    permission_required = "hr.view"
+    permission_denied_message = "HR / daxili işçilərə baxış icazəniz yoxdur."
 
     def get_employee(self):
         return get_object_or_404(
@@ -1804,28 +1888,33 @@ class InternalStaffAccessDetailView(RoleRequiredMixin, TemplateView):
                 "employee": employee,
                 **period,
                 "today": timezone.localdate(),
+                "can_export_access": user_has_permission(
+                    self.request.user, "residents.export_access"
+                ),
             }
         )
         return ctx
 
 
 class AuditLogView(StaffRequiredMixin, TemplateView):
-    """Staff actions in one timeline. Real admin only, including role preview."""
+    """Staff actions in one timeline. Real admin only, including role preview.
+
+    Do not use PermissionRequiredMixin here: its require_permission() checks the
+    effective (preview) user and would block Admin impersonation incorrectly.
+    """
 
     template_name = "erp/audit.html"
 
     def dispatch(self, request, *args, **kwargs):
+        from apps.erp.it_access import can_access_erp_audit
+
         if not request.user.is_authenticated:
             return self.handle_no_permission()
         if not request.user.can_access_erp():
             return redirect_home(request.user)
-        impersonator = get_impersonator(request)
-        allowed = request.user.role == Role.ADMIN or (
-            impersonator is not None and can_start_impersonation(impersonator)
-        )
-        if not allowed:
-            return redirect_home(request.user)
-        return super(StaffRequiredMixin, self).dispatch(request, *args, **kwargs)
+        if not can_access_erp_audit(request.user, request):
+            raise PermissionDenied(_("Audit jurnalına baxış icazəniz yoxdur."))
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         from apps.audit.models import AuditLog
@@ -1844,17 +1933,89 @@ class AuditLogView(StaffRequiredMixin, TemplateView):
         return ctx
 
 
-class DocumentsView(StaffRequiredMixin, ListView):
+class DocumentsView(PermissionRequiredMixin, StaffRequiredMixin, ListView):
     template_name = "erp/documents.html"
-    queryset = Document.objects.select_related("company", "space")
+    queryset = Document.objects.select_related("company", "space", "document_type")
     context_object_name = "documents"
+    permission_required = "document.view"
+    permission_denied_message = "Sənədlərə baxış icazəniz yoxdur."
+
+    def get_context_data(self, **kwargs):
+        from apps.documents.services import DocumentService
+        from apps.rbac.services import user_has_permission
+
+        ctx = super().get_context_data(**kwargs)
+        docs = list(ctx["documents"])
+        for doc in docs:
+            doc.approval_info = DocumentService.approval_summary_for_document(doc)
+        ctx["documents"] = docs
+        ctx["can_submit_approval"] = user_has_permission(self.request.user, "document.edit")
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+
+        from apps.documents.services import DocumentService
+        from apps.rbac.services import require_permission
+
+        require_permission(
+            request.user,
+            "document.edit",
+            message=_("Sənəd təsdiqinə göndərmək üçün icazəniz yoxdur."),
+        )
+        action = request.POST.get("action")
+        doc = get_object_or_404(Document, pk=request.POST.get("document_id"))
+        try:
+            if action == "submit_approval":
+                DocumentService.submit_for_approval(doc, actor=request.user)
+                messages.success(request, _("Sənəd Management təsdiqinə göndərildi."))
+            else:
+                messages.error(request, _("Naməlum əməliyyat."))
+        except (DomainError, ValidationError) as exc:
+            if hasattr(exc, "messages"):
+                messages.error(request, "; ".join(exc.messages))
+            else:
+                messages.error(request, str(exc))
+        return redirect("erp:documents")
 
 
-class ReportsView(RoleRequiredMixin, TemplateView):
+class DocumentDownloadView(PermissionRequiredMixin, StaffRequiredMixin, View):
+    """ACL-gated download for the document (optional historical version)."""
+
+    permission_required = "document.view"
+    permission_denied_message = "Sənədlərə baxış icazəniz yoxdur."
+
+    def get(self, request, pk):
+        from django.http import FileResponse, Http404
+
+        from apps.documents.access import user_can_download_document
+        from apps.documents.models import DocumentVersion
+
+        document = get_object_or_404(Document, pk=pk)
+        if not user_can_download_document(request.user, document):
+            raise PermissionDenied(_("Bu sənədin məxfilik səviyyəsinə görə endirmə icazəniz yoxdur."))
+        version_id = request.GET.get("version")
+        file_field = document.file
+        if version_id:
+            version = get_object_or_404(DocumentVersion, pk=version_id, document=document)
+            file_field = version.file or document.file
+        if not file_field:
+            raise Http404()
+        try:
+            handle = file_field.open("rb")
+        except Exception as exc:
+            raise Http404() from exc
+        filename = (getattr(file_field, "name", "") or "document.bin").rsplit("/", 1)[-1]
+        return FileResponse(handle, as_attachment=False, filename=filename)
+
+
+class ReportsView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
     """M11 rəhbərlik hub — domain KPI + tarix/şirkət filter."""
 
     template_name = "erp/reports.html"
     allowed_roles = (Role.MANAGEMENT, Role.ADMIN)
+    permission_required = "report.view"
+    permission_denied_message = "Hesabatlara baxış icazəniz yoxdur."
 
     def get_context_data(self, **kwargs):
         from apps.core.models import ReportSnapshot
@@ -2000,10 +2161,24 @@ class LeaseDetailView(StaffRequiredMixin, TemplateView):
         from apps.leases.services import lease_space_ids
         from apps.property.models import ParkingAssignment, UtilityMeter
 
+        from apps.billing.models import Charge, ChargeSource
+        from apps.accounts.models import Role
+
         ctx["lease"] = lease
         ctx["lease_lines"] = list(lease.lines.select_related("space", "space__floor"))
         ctx["deposit_settlements"] = list(lease.deposit_settlements.all()[:20])
-        ctx["lease_addons"] = list(lease.addons.filter(is_active=True))
+        ctx["lease_addons"] = list(lease.addons.all())
+        ctx["deposit_charges"] = list(
+            Charge.objects.filter(lease=lease, source=ChargeSource.DEPOSIT).order_by("-pk")[:10]
+        )
+        ctx["recent_charges"] = list(
+            Charge.objects.filter(lease=lease).exclude(source=ChargeSource.DEPOSIT).order_by("-pk")[:15]
+        )
+        ctx["can_view_finance"] = getattr(request_user := self.request.user, "role", None) in (
+            Role.ACCOUNTANT,
+            Role.ADMIN,
+            Role.MANAGEMENT,
+        ) or user_has_permission(self.request.user, "finance.view")
         space_ids = lease_space_ids(lease)
         parking_qs = ParkingAssignment.objects.filter(lease=lease).select_related(
             "spot", "spot__zone", "space", "employee"
@@ -2065,17 +2240,11 @@ class CrmLeadListView(StaffRequiredMixin, ListView):
         return Lead.objects.select_related("interested_space", "party").order_by("-created_at")
 
     def post(self, request, *args, **kwargs):
-        from apps.crm.models import Lead
-        from apps.crm.pipeline import CrmService
-
-        lead = get_object_or_404(Lead, pk=request.POST.get("lead_id"))
-        action = request.POST.get("action")
-        if action == "qualify":
-            CrmService.qualify_lead(lead)
-            messages.success(request, "Potensial müştəri uyğun sayıldı.")
-        elif action == "opportunity":
-            opp = CrmService.create_opportunity_from_lead(lead)
-            messages.success(request, f"Fürsət #{opp.pk} yaradıldı.")
+        # Obsolete stub — live CRM routes use apps.erp.crm_views.
+        messages.error(
+            request,
+            "Bu köhnə CRM yolu bağlanıb. /erp/crm/leads/ üzərindən davam edin.",
+        )
         return redirect("erp:crm_leads")
 
 
@@ -2089,143 +2258,24 @@ class CrmOfferListView(StaffRequiredMixin, ListView):
         return Offer.objects.select_related("party", "space", "opportunity", "lease").order_by("-id")
 
     def post(self, request, *args, **kwargs):
-        from apps.crm.models import Offer
-        from apps.crm.pipeline import CrmService
-
-        offer = get_object_or_404(Offer, pk=request.POST.get("offer_id"))
-        if request.POST.get("action") == "to_lease":
-            lease = CrmService.accept_offer_to_lease(offer)
-            messages.success(request, f"İcarə qaralaması: {lease.code}")
-            return redirect("erp:lease_detail", code=lease.code)
+        # Obsolete stub — live CRM routes use apps.erp.crm_views.
+        messages.error(
+            request,
+            "Bu köhnə CRM yolu bağlanıb. /erp/crm/offers/ üzərindən davam edin.",
+        )
         return redirect("erp:crm_offers")
 
 
-class WarehouseListView(StaffRequiredMixin, TemplateView):
-    template_name = "erp/warehouse.html"
-
-    def get_context_data(self, **kwargs):
-        from apps.warehouse.models import SKU, Stock, StockMovement
-
-        ctx = super().get_context_data(**kwargs)
-        stocks = list(Stock.objects.select_related("sku", "warehouse", "bin"))
-        from apps.warehouse.models import IssueStatus, WarehouseIssue
-        from apps.warehouse.services import can_confirm_warehouse_issue
-
-        ctx.update(
-            {
-                "skus": SKU.objects.all()[:50],
-                "stocks": stocks[:50],
-                "movements": StockMovement.objects.select_related("sku", "warehouse")[:20],
-                "low_stock": [s for s in stocks if s.quantity <= (s.sku.reorder_level or 0)],
-                "open_issues": WarehouseIssue.objects.filter(status=IssueStatus.OPEN)
-                .select_related("work_order", "warehouse")
-                .prefetch_related("lines__sku"),
-                "can_confirm_issue": can_confirm_warehouse_issue(self.request.user),
-            }
-        )
-        return ctx
-
-    def post(self, request, *args, **kwargs):
-        from apps.procurement.services import ProcurementService
-        from apps.warehouse.models import Stock, WarehouseIssue
-        from apps.warehouse.services import can_confirm_warehouse_issue, confirm_issue
-        from apps.core.services import DomainError
-
-        action = request.POST.get("action")
-        if action == "create_pr":
-            stock = get_object_or_404(Stock, pk=request.POST.get("stock_id"))
-            pr = ProcurementService.create_pr_from_low_stock(stock=stock, requested_by=request.user)
-            messages.success(request, f"PR yaradıldı: {pr.code}")
-        elif action == "confirm_issue":
-            if not can_confirm_warehouse_issue(request.user):
-                from django.core.exceptions import PermissionDenied
-
-                raise PermissionDenied("Anbar çıxışını yalnız anbar təsdiqləyir.")
-            issue = get_object_or_404(WarehouseIssue, pk=request.POST.get("issue_id"))
-            posted = []
-            missing = False
-            for line in issue.lines.all():
-                raw_qty = request.POST.get(f"issued_qty_{line.pk}")
-                if raw_qty is None or str(raw_qty).strip() == "":
-                    missing = True
-                    break
-                posted.append(
-                    {
-                        "id": line.pk,
-                        "issued_qty": str(raw_qty).replace(",", "."),
-                        "unit_cost": str(request.POST.get(f"unit_cost_{line.pk}") or "0").replace(",", "."),
-                    }
-                )
-            if missing:
-                messages.error(request, "Hər sətir üçün faktiki miqdar yazılmalıdır.")
-                return redirect("erp:warehouse")
-            try:
-                confirm_issue(issue, actor=request.user, lines=posted)
-                messages.success(request, f"{issue.code} üzrə çıxış təsdiqləndi.")
-            except (DomainError, ValueError) as exc:
-                messages.error(request, str(exc))
-        return redirect("erp:warehouse")
+# WarehouseListView moved to apps.erp.warehouse_views (Phase 4.4.2.2).
 
 
-class ProcurementListView(StaffRequiredMixin, TemplateView):
-    template_name = "erp/procurement.html"
-
-    def get_context_data(self, **kwargs):
-        from apps.procurement.models import PurchaseOrder, PurchaseRequest
-
-        ctx = super().get_context_data(**kwargs)
-        ctx["prs"] = PurchaseRequest.objects.all()[:30]
-        ctx["pos"] = PurchaseOrder.objects.select_related("supplier_party", "pr").prefetch_related("lines")[:30]
-        return ctx
-
-    def post(self, request, *args, **kwargs):
-        from apps.procurement.models import PurchaseOrder, PurchaseRequest
-        from apps.procurement.services import ProcurementService
-        from apps.warehouse.models import Warehouse
-
-        action = request.POST.get("action")
-        if action == "approve_pr":
-            pr = get_object_or_404(PurchaseRequest, pk=request.POST.get("pr_id"))
-            ProcurementService.approve_pr(pr, actor=request.user)
-            messages.success(request, f"{pr.code} təsdiqləndi")
-        elif action == "create_po":
-            pr = get_object_or_404(PurchaseRequest, pk=request.POST.get("pr_id"))
-            po = ProcurementService.create_po_from_pr(pr)
-            messages.success(request, f"PO: {po.code}")
-        elif action == "set_line_price":
-            from decimal import Decimal, InvalidOperation
-
-            from apps.maintenance.costs import sync_procurement_cost
-            from apps.procurement.models import POLine
-
-            line = get_object_or_404(POLine.objects.select_related("po__pr"), pk=request.POST.get("line_id"))
-            raw = str(request.POST.get("unit_price") or "0").strip().replace(" ", "").replace(",", ".")
-            try:
-                price = Decimal(raw)
-            except InvalidOperation:
-                messages.error(request, "Qiymət rəqəm olmalıdır.")
-                return redirect("erp:procurement")
-            if price < 0:
-                messages.error(request, "Qiymət mənfi ola bilməz.")
-                return redirect("erp:procurement")
-            line.unit_price = price.quantize(Decimal("0.01"))
-            line.save(update_fields=["unit_price"])
-            if line.po.pr_id and line.po.pr.work_order_id:
-                sync_procurement_cost(line.po.pr.work_order)
-            messages.success(request, "Satınalma qiyməti saxlanıldı.")
-        elif action == "receive_po":
-            po = get_object_or_404(PurchaseOrder, pk=request.POST.get("po_id"))
-            wh = Warehouse.objects.first()
-            if not wh:
-                messages.error(request, "Anbar yoxdur")
-            else:
-                ProcurementService.receive_po(po, warehouse=wh, actor=request.user)
-                messages.success(request, f"{po.code} qəbul edildi")
-        return redirect("erp:procurement")
+# ProcurementListView moved to apps.erp.procurement_views (Phase 4.4.2.3).
 
 
-class BillingListView(StaffRequiredMixin, TemplateView):
+class BillingListView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
     template_name = "erp/billing.html"
+    permission_required = "finance.view"
+    permission_denied_message = "Billing baxış icazəniz yoxdur."
 
     def get_context_data(self, **kwargs):
         from apps.billing.models import Charge, Invoice
@@ -2240,6 +2290,11 @@ class BillingListView(StaffRequiredMixin, TemplateView):
         from apps.billing.services import generate_invoice_from_charges
         from apps.leases.lease_ops import generate_monthly_lease_charges
 
+        require_permission(
+            request.user,
+            "finance.edit",
+            message=_("Billing əməliyyatı icazəniz yoxdur."),
+        )
         action = request.POST.get("action")
         if action == "generate_lease_charges":
             stats = generate_monthly_lease_charges()

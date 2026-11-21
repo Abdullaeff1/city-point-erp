@@ -149,6 +149,13 @@ def permission_denied_view(request, exception=None):
     if getattr(request, "user", None) is not None and request.user.is_authenticated:
         if request.user.must_set_password:
             return redirect("accounts:force_set_password")
+        detail = ""
+        if exception is not None:
+            detail = str(exception).strip()
+        messages.warning(
+            request,
+            detail or _("Bu əməliyyata icazəniz yoxdur."),
+        )
         home = reverse(home_url_name_for(request.user))
         # Avoid redirect loop if the home URL itself raised 403
         if request.path.rstrip("/") == home.rstrip("/"):

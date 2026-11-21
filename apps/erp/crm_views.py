@@ -7,8 +7,10 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.translation import gettext as _
 from django.views import View
 from django.views.generic import DetailView, ListView, TemplateView
 
@@ -48,6 +50,76 @@ from apps.crm.services import (
 
 def _pipeline_ctx(active: str) -> dict:
     return {"pipeline_steps": pipeline_strip_counts(), "pipeline_active": active}
+
+
+def _tab(label: str, url: str, active: bool, count=None) -> dict:
+    return {"label": label, "url": url, "active": active, "count": count}
+
+
+def _kpi(label: str, value, *, meta: str = "", url: str = "") -> dict:
+    item = {"label": label, "value": value, "meta": meta}
+    if url:
+        item["url"] = url
+    return item
+
+
+def _lead_list_chrome(request) -> dict:
+    """KPI strip + qualification tabs for leads list (mock chrome, real counts)."""
+    base = Lead.objects.all()
+    q = (request.GET.get("q") or "").strip()
+    if q:
+        from django.db.models import Q
+
+        base = base.filter(
+            Q(company_name__icontains=q)
+            | Q(full_name__icontains=q)
+            | Q(phone__icontains=q)
+            | Q(email__icontains=q)
+        )
+    source = request.GET.get("source") or ""
+    if source:
+        base = base.filter(source=source)
+    stage = request.GET.get("pipeline_stage") or ""
+    if stage:
+        base = base.filter(pipeline_stage=stage)
+
+    qual = request.GET.get("qualification") or ""
+    total = base.count()
+    unreviewed = base.filter(qualification=Qualification.UNREVIEWED).count()
+    potential = base.filter(qualification=Qualification.POTENTIAL).count()
+    non_potential = base.filter(qualification=Qualification.NON_POTENTIAL).count()
+    open_n = base.filter(record_status=RecordStatus.OPEN).count()
+
+    def _url(**extra):
+        params = request.GET.copy()
+        for k, v in extra.items():
+            if v in (None, ""):
+                params.pop(k, None)
+            else:
+                params[k] = v
+        qs = params.urlencode()
+        return reverse("erp:crm_leads") + (f"?{qs}" if qs else "")
+
+    return {
+        "list_total": total,
+        "kpi_items": [
+            _kpi(_("Bütün lidlər"), total, meta=_("cari siyahı")),
+            _kpi(_("Qiymətləndirilməyib"), unreviewed, url=_url(qualification=Qualification.UNREVIEWED)),
+            _kpi(_("Potensial"), potential, url=_url(qualification=Qualification.POTENTIAL)),
+            _kpi(_("Açıq status"), open_n, meta=_("record status")),
+        ],
+        "filter_tabs": [
+            _tab(_("Hamısı"), _url(qualification=""), qual == "", total),
+            _tab(_("Yeni"), _url(qualification=Qualification.UNREVIEWED), qual == Qualification.UNREVIEWED, unreviewed),
+            _tab(_("Potensial"), _url(qualification=Qualification.POTENTIAL), qual == Qualification.POTENTIAL, potential),
+            _tab(
+                _("Qeyri-potensial"),
+                _url(qualification=Qualification.NON_POTENTIAL),
+                qual == Qualification.NON_POTENTIAL,
+                non_potential,
+            ),
+        ],
+    }
 
 
 def _dec(raw):
@@ -95,6 +167,7 @@ class CrmLeadListView(CrmAccessMixin, ListView):
         ctx = super().get_context_data(**kwargs)
         pending = self.request.session.pop("crm_pending_lead", None) or {}
         ctx.update(_pipeline_ctx("leads"))
+        ctx.update(_lead_list_chrome(self.request))
         ctx.update(
             {
                 "can_mutate": can_mutate_crm(self.request.user),
@@ -178,7 +251,18 @@ class CrmLeadDetailView(CrmAccessMixin, DetailView):
         )
 
     def get_context_data(self, **kwargs):
+        from apps.property.models import CommercialStatus, Space
+
         ctx = super().get_context_data(**kwargs)
+        space_choices = list(
+            Space.objects.filter(commercial_status=CommercialStatus.VACANT)
+            .order_by("code")
+            .values_list("pk", "code")[:300]
+        )
+        if self.object.interested_space_id:
+            cur = (self.object.interested_space_id, self.object.interested_space.code)
+            if cur not in space_choices:
+                space_choices.insert(0, cur)
         ctx.update(
             {
                 "can_mutate": can_mutate_crm(self.request.user),
@@ -188,6 +272,7 @@ class CrmLeadDetailView(CrmAccessMixin, DetailView):
                 "record_statuses": RecordStatus.choices,
                 "outcomes": Outcome.choices,
                 "sources": LeadSource.choices,
+                "space_choices": space_choices,
                 "duplicates": find_duplicate_leads(
                     phone=self.object.phone,
                     email=self.object.email,
@@ -199,6 +284,9 @@ class CrmLeadDetailView(CrmAccessMixin, DetailView):
         return ctx
 
     def post(self, request, *args, **kwargs):
+        from apps.crm.mapping import try_resolve_space_from_text
+        from apps.property.models import Space
+
         lead = self.get_object()
         if not can_mutate_crm(request.user):
             messages.error(request, "CRM dəyişiklik icazəniz yoxdur.")
@@ -214,28 +302,37 @@ class CrmLeadDetailView(CrmAccessMixin, DetailView):
                 )
                 messages.success(request, "Aktivlik əlavə olundu.")
             elif action == "update":
-                CrmLeadService.update_lead(
-                    lead,
-                    actor=request.user,
-                    data={
-                        "company_name": request.POST.get("company_name", lead.company_name),
-                        "full_name": request.POST.get("full_name", lead.full_name),
-                        "phone": request.POST.get("phone", lead.phone),
-                        "email": request.POST.get("email", lead.email),
-                        "source": request.POST.get("source") or lead.source,
-                        "source_note": request.POST.get("source_note", lead.source_note),
-                        "qualification": request.POST.get("qualification") or lead.qualification,
-                        "qualification_reason": request.POST.get("qualification_reason", ""),
-                        "pipeline_stage": request.POST.get("pipeline_stage") or lead.pipeline_stage,
-                        "record_status": request.POST.get("record_status") or lead.record_status,
-                        "outcome": request.POST.get("outcome", lead.outcome),
-                        "outcome_note": request.POST.get("outcome_note", lead.outcome_note),
-                        "message": request.POST.get("message", lead.message),
-                        "min_area_m2": _dec(request.POST.get("min_area_m2")),
-                        "max_area_m2": _dec(request.POST.get("max_area_m2")),
-                        "employee_count": _int(request.POST.get("employee_count")),
-                    },
-                )
+                initial_note = request.POST.get("initial_note", lead.initial_note)
+                space_id = request.POST.get("interested_space") or ""
+                interested = None
+                if space_id.isdigit():
+                    interested = Space.objects.filter(pk=int(space_id)).first()
+                elif initial_note and not lead.interested_space_id:
+                    interested = try_resolve_space_from_text(initial_note)
+                data = {
+                    "company_name": request.POST.get("company_name", lead.company_name),
+                    "full_name": request.POST.get("full_name", lead.full_name),
+                    "phone": request.POST.get("phone", lead.phone),
+                    "email": request.POST.get("email", lead.email),
+                    "source": request.POST.get("source") or lead.source,
+                    "source_note": request.POST.get("source_note", lead.source_note),
+                    "qualification": request.POST.get("qualification") or lead.qualification,
+                    "qualification_reason": request.POST.get("qualification_reason", ""),
+                    "pipeline_stage": request.POST.get("pipeline_stage") or lead.pipeline_stage,
+                    "record_status": request.POST.get("record_status") or lead.record_status,
+                    "outcome": request.POST.get("outcome", lead.outcome),
+                    "outcome_note": request.POST.get("outcome_note", lead.outcome_note),
+                    "message": request.POST.get("message", lead.message),
+                    "initial_note": initial_note,
+                    "min_area_m2": _dec(request.POST.get("min_area_m2")),
+                    "max_area_m2": _dec(request.POST.get("max_area_m2")),
+                    "employee_count": _int(request.POST.get("employee_count")),
+                }
+                if space_id == "" and "interested_space" in request.POST:
+                    data["interested_space"] = None
+                elif interested is not None:
+                    data["interested_space"] = interested
+                CrmLeadService.update_lead(lead, actor=request.user, data=data)
                 messages.success(request, "Lid yeniləndi.")
             elif action == "opportunity":
                 if lead.qualification != Qualification.POTENTIAL:
@@ -270,6 +367,35 @@ class CrmOpportunityListView(CrmAccessMixin, ListView):
         ctx["can_mutate"] = can_mutate_crm(self.request.user)
         ctx["stages"] = PipelineStage.choices
         ctx["filters"] = self.request.GET
+        status = self.request.GET.get("status") or ""
+        base = Opportunity.objects.all()
+        open_n = base.filter(status="open").count()
+        won_n = base.filter(status="won").count()
+        lost_n = base.filter(status="lost").count()
+        total = base.count()
+
+        def _url(st=""):
+            params = self.request.GET.copy()
+            if st:
+                params["status"] = st
+            else:
+                params.pop("status", None)
+            qs = params.urlencode()
+            return reverse("erp:crm_opportunities") + (f"?{qs}" if qs else "")
+
+        ctx["list_total"] = total
+        ctx["kpi_items"] = [
+            _kpi(_("İmkanlar"), total),
+            _kpi(_("Açıq"), open_n, url=_url("open")),
+            _kpi(_("Qazanıldı"), won_n, url=_url("won")),
+            _kpi(_("İtirildi"), lost_n, url=_url("lost")),
+        ]
+        ctx["filter_tabs"] = [
+            _tab(_("Hamısı"), _url(""), status == "", total),
+            _tab(_("Açıq"), _url("open"), status == "open", open_n),
+            _tab(_("Qazanıldı"), _url("won"), status == "won", won_n),
+            _tab(_("İtirildi"), _url("lost"), status == "lost", lost_n),
+        ]
         return ctx
 
 
@@ -386,6 +512,42 @@ class CrmOfferListView(CrmAccessMixin, ListView):
         ctx["can_approve"] = can_approve_offer(self.request.user)
         ctx["offer_statuses"] = OfferStatus.choices
         ctx["filters"] = self.request.GET
+        status = self.request.GET.get("status") or ""
+        base = Offer.objects.all()
+        total = base.count()
+        pending = base.filter(status=OfferStatus.PENDING_APPROVAL).count()
+        approved = base.filter(status=OfferStatus.APPROVED).count()
+        sent = base.filter(status=OfferStatus.SENT).count()
+        draft = base.filter(status=OfferStatus.DRAFT).count()
+
+        def _url(st=""):
+            params = self.request.GET.copy()
+            if st:
+                params["status"] = st
+            else:
+                params.pop("status", None)
+            qs = params.urlencode()
+            return reverse("erp:crm_offers") + (f"?{qs}" if qs else "")
+
+        ctx["list_total"] = total
+        ctx["kpi_items"] = [
+            _kpi(_("Təkliflər"), total),
+            _kpi(_("Draft"), draft, url=_url(OfferStatus.DRAFT)),
+            _kpi(_("Təsdiq gözləyir"), pending, url=_url(OfferStatus.PENDING_APPROVAL)),
+            _kpi(_("Göndərilib"), sent, url=_url(OfferStatus.SENT)),
+        ]
+        ctx["filter_tabs"] = [
+            _tab(_("Hamısı"), _url(""), status == "", total),
+            _tab(_("Draft"), _url(OfferStatus.DRAFT), status == OfferStatus.DRAFT, draft),
+            _tab(
+                _("Təsdiq"),
+                _url(OfferStatus.PENDING_APPROVAL),
+                status == OfferStatus.PENDING_APPROVAL,
+                pending,
+            ),
+            _tab(_("Təsdiqlənib"), _url(OfferStatus.APPROVED), status == OfferStatus.APPROVED, approved),
+            _tab(_("Göndərilib"), _url(OfferStatus.SENT), status == OfferStatus.SENT, sent),
+        ]
         return ctx
 
 
@@ -458,6 +620,11 @@ class CrmOfferDetailView(CrmAccessMixin, DetailView):
                 app = LeaseApplicationService.create_from_offer(offer, actor=request.user)
                 messages.success(request, f"Müraciət formu #{app.pk} yaradıldı.")
                 return redirect("erp:crm_lease_application_detail", pk=app.pk)
+            elif action == "reject":
+                LeaseApplicationService.reject_offer(
+                    offer, actor=request.user, reason=request.POST.get("reason", "")
+                )
+                messages.success(request, "Təklif rədd edildi.")
         except Exception as exc:  # noqa: BLE001
             messages.error(request, str(exc))
         return redirect("erp:crm_offer_detail", pk=offer.pk)
@@ -509,6 +676,51 @@ class CrmLeaseApplicationListView(CrmAccessMixin, ListView):
         ctx["can_review"] = can_review_lease_application(self.request.user)
         ctx["statuses"] = LeaseApplicationStatus.choices
         ctx["filters"] = self.request.GET
+        status = self.request.GET.get("status") or ""
+        queue = self.request.GET.get("queue") or ""
+        base = LeaseApplication.objects.all()
+        total = base.count()
+        draft = base.filter(status=LeaseApplicationStatus.DRAFT).count()
+        returned = base.filter(status=LeaseApplicationStatus.RETURNED_FOR_CORRECTION).count()
+        accounting = base.filter(
+            status__in=(
+                LeaseApplicationStatus.SUBMITTED_TO_ACCOUNTING,
+                LeaseApplicationStatus.UNDER_REVIEW,
+                LeaseApplicationStatus.LEASE_DRAFT_CREATED,
+            )
+        ).count()
+
+        def _url(*, st="", q=""):
+            params = self.request.GET.copy()
+            if st:
+                params["status"] = st
+            else:
+                params.pop("status", None)
+            if q:
+                params["queue"] = q
+            else:
+                params.pop("queue", None)
+            qs = params.urlencode()
+            return reverse("erp:crm_lease_applications") + (f"?{qs}" if qs else "")
+
+        ctx["list_total"] = total
+        ctx["kpi_items"] = [
+            _kpi(_("Müraciətlər"), total),
+            _kpi(_("Qaralama"), draft, url=_url(st=LeaseApplicationStatus.DRAFT)),
+            _kpi(_("Mühasib növbəsi"), accounting, url=_url(q="1")),
+            _kpi(_("Düzəliş"), returned, url=_url(st=LeaseApplicationStatus.RETURNED_FOR_CORRECTION)),
+        ]
+        ctx["filter_tabs"] = [
+            _tab(_("Hamısı"), _url(), status == "" and queue == "", total),
+            _tab(_("Qaralama"), _url(st=LeaseApplicationStatus.DRAFT), status == LeaseApplicationStatus.DRAFT, draft),
+            _tab(_("Mühasib"), _url(q="1"), queue == "1", accounting),
+            _tab(
+                _("Düzəliş"),
+                _url(st=LeaseApplicationStatus.RETURNED_FOR_CORRECTION),
+                status == LeaseApplicationStatus.RETURNED_FOR_CORRECTION,
+                returned,
+            ),
+        ]
         return ctx
 
 
@@ -591,8 +803,20 @@ class CrmLeaseApplicationDetailView(CrmAccessMixin, DetailView):
                 )
                 messages.success(request, "Düzəlişə qaytarıldı.")
             elif action == "lease_draft":
-                LeaseApplicationService.create_lease_draft(app, actor=request.user)
+                app = LeaseApplicationService.create_lease_draft(app, actor=request.user)
                 messages.success(request, f"İcarə qaralaması: {app.lease.code if app.lease_id else ''}")
+            elif action == "cancel":
+                LeaseApplicationService.cancel_lease_application(
+                    app, actor=request.user, reason=request.POST.get("reason", "")
+                )
+                messages.success(request, "Müraciət ləğv edildi.")
+            elif action == "fitout_wo":
+                wo = LeaseApplicationService.create_fit_out_work_order(
+                    app,
+                    actor=request.user,
+                    pay_note=request.POST.get("pay_note", ""),
+                )
+                messages.success(request, f"Fit-out iş əmri: {wo.code}")
             elif action == "complete":
                 LeaseApplicationService.mark_signed_and_complete(app, actor=request.user)
                 messages.success(request, "Tamamlandı — imzalanmış sənədlər qeyd olundu.")

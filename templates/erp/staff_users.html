@@ -1,0 +1,79 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{% translate "İstifadəçilər" %}{% endblock %}
+{% block heading %}{% translate "İstifadəçilər" %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:it_dashboard' %}">{% translate "IT / Admin" %}</a>
+{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3">
+  {% translate "ERP giriş hesabları (oxu). Dəyişiklik yalnız Django Admin vasitəsilə." %}
+  · {{ total_count }}
+</p>
+<form method="get" class="cp-card p-card mb-4 flex gap-2" style="flex-wrap:wrap;align-items:end;">
+  <label>
+    <span class="cp-meta">{% translate "Axtarış" %}</span>
+    <input class="cp-input mt-1" type="search" name="q" value="{{ q }}" placeholder="{% translate 'ad, e-poçt, istifadəçi' %}">
+  </label>
+  <label>
+    <span class="cp-meta">{% translate "Rol" %}</span>
+    <select class="cp-input mt-1" name="role">
+      <option value="">{% translate "Hamısı" %}</option>
+      {% for value, label in role_choices %}
+        {% if value != "resident_user" %}
+        <option value="{{ value }}" {% if role == value %}selected{% endif %}>{{ label }}</option>
+        {% endif %}
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    <span class="cp-meta">{% translate "Status" %}</span>
+    <select class="cp-input mt-1" name="status">
+      <option value="">{% translate "Hamısı" %}</option>
+      <option value="active" {% if status == "active" %}selected{% endif %}>{% translate "Aktiv" %}</option>
+      <option value="inactive" {% if status == "inactive" %}selected{% endif %}>{% translate "Deaktiv" %}</option>
+    </select>
+  </label>
+  <button class="cp-btn" type="submit">{% translate "Filtrlə" %}</button>
+  {% if can_admin_users %}
+  <a class="cp-btn-ghost" href="/admin/accounts/user/">{% translate "Django Admin" %}</a>
+  {% endif %}
+</form>
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Ad" %}</th>
+        <th>{% translate "E-poçt" %}</th>
+        <th>{% translate "Rol" %}</th>
+        <th>{% translate "Ticket şöbəsi" %}</th>
+        <th>{% translate "Status" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users_page %}
+      <tr class="is-clickable" onclick="window.location='{% url 'erp:staff_user_detail' u.pk %}'">
+        <td><a href="{% url 'erp:staff_user_detail' u.pk %}">{{ u.display_name }}</a></td>
+        <td>{{ u.email }}</td>
+        <td>{{ u.get_role_display }}</td>
+        <td>{% if u.ticket_department_id %}{{ u.ticket_department.name }}{% else %}—{% endif %}</td>
+        <td>{% if u.is_active %}{% translate "Aktiv" %}{% else %}{% translate "Deaktiv" %}{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "İstifadəçi tapılmadı." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="flex gap-2 mt-3" style="flex-wrap:wrap;">
+  {% if page_obj.has_previous %}
+  <a class="cp-btn-ghost" href="?page={{ page_obj.previous_page_number }}&q={{ q }}&role={{ role }}&status={{ status }}">{% translate "Əvvəl" %}</a>
+  {% endif %}
+  <span class="cp-meta">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+  <a class="cp-btn-ghost" href="?page={{ page_obj.next_page_number }}&q={{ q }}&role={{ role }}&status={{ status }}">{% translate "Sonra" %}</a>
+  {% endif %}
+</nav>
+{% endif %}
+{% endblock %}

@@ -15,6 +15,14 @@ OPEN_LEASE_STATUSES = (
     LeaseStatus.AMENDED,
 )
 
+# Pre-active + active commercial holds (offer bind / reservation through occupancy).
+COMMERCIAL_HOLD_STATUSES = (
+    LeaseStatus.NEGOTIATION,
+    LeaseStatus.APPROVED,
+    LeaseStatus.SIGNED,
+    *OPEN_LEASE_STATUSES,
+)
+
 
 def next_lease_code():
     """Allocate next LS-* code under row lock (call inside transaction.atomic)."""
@@ -84,6 +92,25 @@ def space_held_by_other_open_lease(space_id: int, *, exclude_lease_id: int | Non
     return qs.distinct().exists()
 
 
+def space_commercially_held(
+    space_id: int, *, exclude_lease_id: int | None = None
+) -> bool:
+    """True if another lease commercially holds the space (reserved/contracted/active)."""
+    qs = Lease.objects.filter(status__in=COMMERCIAL_HOLD_STATUSES).filter(
+        Q(space_id=space_id) | Q(lines__space_id=space_id)
+    )
+    if exclude_lease_id:
+        qs = qs.exclude(pk=exclude_lease_id)
+    return qs.distinct().exists()
+
+
+def lock_space_for_reservation(space_id: int):
+    """Row-lock Space for concurrent commercial reservation (call inside atomic)."""
+    from apps.property.models import Space
+
+    return Space.objects.select_for_update().get(pk=space_id)
+
+
 def party_has_other_open_leases(party_id: int, *, exclude_lease_id: int | None = None) -> bool:
     qs = Lease.objects.filter(party_id=party_id, status__in=OPEN_LEASE_STATUSES)
     if exclude_lease_id:
@@ -113,10 +140,10 @@ def sync_space_from_lease(lease: Lease):
     if not ids:
         return
     for space in Space.objects.filter(pk__in=ids):
-        # Don't force VACANT if another open lease still holds the space.
+        # Don't force VACANT if another commercial hold still claims the space.
         if (
             new_status == CommercialStatus.VACANT
-            and space_held_by_other_open_lease(space.pk, exclude_lease_id=lease.pk)
+            and space_commercially_held(space.pk, exclude_lease_id=lease.pk)
         ):
             continue
         if space.commercial_status != new_status:
@@ -151,9 +178,19 @@ def apply_space_bridge_from_lease(lease: Lease, *, occupying: bool) -> None:
 
 @transaction.atomic
 def activate_lease(lease: Lease, actor=None):
-    """Active lease cascade: all spaces, party resident, portal/access/billing flags."""
+    """Active lease cascade: all spaces, party resident, portal/access/billing flags.
+
+    Idempotent under concurrent calls: row-locks the lease; already-ACTIVE leases
+    only re-ensure the deposit charge (no duplicate cascade/events).
+    """
+    from apps.leases.lease_ops import ensure_deposit_charge
     from apps.parties.models import PartyRole, PartyRoleCode, PartyStatus
-    from apps.property.models import CommercialStatus
+    from apps.property.models import CommercialStatus, Space
+
+    lease = Lease.objects.select_for_update().get(pk=lease.pk)
+    if lease.status == LeaseStatus.ACTIVE:
+        ensure_deposit_charge(lease, actor=actor)
+        return lease
 
     ensure_primary_lease_line(lease)
 
@@ -177,8 +214,6 @@ def activate_lease(lease: Lease, actor=None):
     sync_space_from_lease(lease)
     apply_space_bridge_from_lease(lease, occupying=True)
     # Keep commercial ACTIVE on all spaces (sync already did; reinforce after bridge).
-    from apps.property.models import Space
-
     Space.objects.filter(pk__in=lease_space_ids(lease)).exclude(
         commercial_status=CommercialStatus.ACTIVE
     ).update(commercial_status=CommercialStatus.ACTIVE)
@@ -198,6 +233,8 @@ def activate_lease(lease: Lease, actor=None):
             company.portal_active = True
             company.status = "active"
             company.save(update_fields=["portal_active", "status"])
+
+    ensure_deposit_charge(lease, actor=actor)
 
     from apps.core import events as bus
 

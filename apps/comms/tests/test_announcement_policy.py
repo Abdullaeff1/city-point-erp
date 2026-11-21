@@ -113,8 +113,8 @@ class AnnouncementPublishPermissionTests(TestCase):
     def test_admin_can_publish(self):
         self.assertTrue(can_publish_announcement(self.admin))
 
-    def test_management_cannot_without_rbac(self):
-        self.assertFalse(can_publish_announcement(self.mgmt))
+    def test_management_can_publish(self):
+        self.assertTrue(can_publish_announcement(self.mgmt))
 
     def test_service_desk_cannot(self):
         self.assertFalse(can_publish_announcement(self.desk))
@@ -129,20 +129,39 @@ class AnnouncementPublishPermissionTests(TestCase):
         RolePermission.objects.filter(role=Role.SERVICE_DESK, permission=perm).delete()
         self.assertFalse(can_publish_announcement(self.desk))
 
-    def test_erp_create_admin_ok_others_403(self):
+    def test_erp_create_admin_and_management_ok_others_403(self):
         url = reverse("erp:announcement_create")
         self.client.force_login(self.admin)
-        resp = self.client.get(url)
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        self.client.force_login(self.mgmt)
+        self.assertEqual(self.client.get(url).status_code, 200)
 
         # Custom handler403 sends staff home (302) instead of HTML 403
         self.client.force_login(self.desk)
         resp = self.client.get(url)
         self.assertIn(resp.status_code, (302, 403))
 
+    def test_management_announcements_match_admin_ui(self):
+        Announcement.objects.create(
+            title="Bina elanı",
+            body="body",
+            published_at=timezone.localdate(),
+            visibility=AnnouncementVisibility.BUILDING,
+        )
+        list_url = reverse("erp:announcements")
         self.client.force_login(self.mgmt)
-        resp = self.client.get(url)
-        self.assertIn(resp.status_code, (302, 403))
+        resp = self.client.get(list_url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Bina elanı")
+        self.assertTrue(resp.context["can_publish_announcement"])
+        self.assertContains(resp, reverse("erp:announcement_create"))
+        self.assertContains(resp, "Elan əlavə et")
+        self.assertContains(resp, "cp-theme-crm")
+
+        self.client.force_login(self.desk)
+        desk = self.client.get(list_url)
+        self.assertIn(desk.status_code, (302, 403))
 
     def test_admin_can_create_multi_company(self):
         c1 = ResidentCompany.objects.create(name="X", slug="x-co")

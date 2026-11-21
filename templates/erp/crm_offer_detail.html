@@ -9,33 +9,42 @@
     · <a href="{% url 'erp:crm_opportunity_detail' offer.opportunity_id %}">{% translate "İmkan" %} #{{ offer.opportunity_id }}</a>
   </p>
 
-  <section class="crm-opp-detail-hero cp-card p-card mb-4">
-    <div class="crm-opp-detail-hero-top">
-      <div>
-        <p class="crm-lead-create-label">{% translate "Təklif" %}</p>
-        <h2 class="cp-section mt-1">#{{ offer.pk }} · {{ offer.party }}</h2>
-        <p class="cp-meta mt-2">
-          {% if offer.space %}{% translate "Sahə" %}: <strong>{{ offer.space }}</strong>{% endif %}
-          {% if offer.current_version %}
-          {% if offer.space %} · {% endif %}
-          {% translate "Cari versiya" %}: <strong>v{{ offer.current_version.version_number }}</strong>
-          · {{ offer.current_version.monthly_rent_net }} AZN net
-          {% endif %}
-          {% if offer.sent_at %}
-          · <span class="crm-opp-chip">{% translate "Göndərilib" %} {{ offer.sent_at|date:"d.m.Y H:i" }}{% if offer.sent_to %} → {{ offer.sent_to }}{% endif %}</span>
-          {% endif %}
-          {% if offer.lease %}
-          · {% translate "İcarə" %}: <a href="{% url 'erp:lease_detail' offer.lease.code %}"><strong>{{ offer.lease.code }}</strong></a>
-          {% endif %}
-        </p>
-      </div>
-      <div class="crm-opp-detail-chips">
-        <span class="crm-opp-chip crm-opp-chip--accent">{{ offer.get_status_display }}</span>
+  <section class="crm-profile-header">
+    <div class="crm-profile-header__top">
+      <div class="crm-profile-header__identity">
+        <div class="crm-profile-avatar" aria-hidden="true">T</div>
+        <div class="min-0">
+          <h2 class="crm-profile-header__title">#{{ offer.pk }} · {{ offer.party }}</h2>
+          <p class="crm-profile-header__sub">
+            {% if offer.space %}{% translate "Sahə" %}: {{ offer.space }} · {% endif %}
+            {% if offer.current_version %}
+            {% translate "Cari versiya" %}: v{{ offer.current_version.version_number }}
+            · {{ offer.current_version.monthly_rent_net }} AZN net
+            {% endif %}
+            {% if offer.sent_at %} · {% translate "Göndərilib" %} {{ offer.sent_at|date:"d.m.Y H:i" }}{% endif %}
+            {% if offer.lease %} · {% translate "İcarə" %}: <a href="{% url 'erp:lease_detail' offer.lease.code %}">{{ offer.lease.code }}</a>{% endif %}
+          </p>
+          <div class="flex gap-2 mt-2" style="flex-wrap:wrap;">
+            {% if offer.status == "sent" or offer.status == "approved" %}
+              {% include "partials/crm_status_pill.html" with pill_label=offer.get_status_display pill_kind="sent" %}
+            {% elif offer.status == "pending_approval" %}
+              {% include "partials/crm_status_pill.html" with pill_label=offer.get_status_display pill_kind="pending" %}
+            {% elif offer.status == "rejected" %}
+              {% include "partials/crm_status_pill.html" with pill_label=offer.get_status_display pill_kind="rejected" %}
+            {% else %}
+              {% include "partials/crm_status_pill.html" with pill_label=offer.get_status_display pill_kind="draft" %}
+            {% endif %}
+          </div>
+        </div>
       </div>
     </div>
+    <nav class="crm-profile-tabs" aria-label="{% translate 'Bölmələr' %}">
+      <a href="#versions" class="is-active">{% translate "Versiyalar" %}</a>
+      <a href="#actions">{% translate "Əməliyyatlar" %}</a>
+    </nav>
   </section>
 
-  <section class="crm-opp-panel cp-card p-card mb-4">
+  <section id="versions" class="crm-opp-panel cp-card p-card mb-4">
     <div class="crm-opp-panel-head">
       <div>
         <h3 class="cp-section">{% translate "Versiyalar" %}</h3>
@@ -134,7 +143,7 @@
   </section>
 
   {% if can_mutate %}
-  <section class="crm-opp-panel cp-card p-card mb-4">
+  <section id="actions" class="crm-opp-panel cp-card p-card mb-4">
     <div class="crm-opp-panel-head">
       <div>
         <h3 class="cp-section">{% translate "Yeni versiya" %}</h3>
@@ -179,6 +188,12 @@
       {% csrf_token %}
       <input type="hidden" name="action" value="lease_application">
       <button type="submit" class="cp-btn">{% translate "Müqavilə müraciət formu" %}</button>
+    </form>
+    <form method="post" class="crm-lead-create-actions mt-3">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="reject">
+      <input class="cp-input" name="reason" placeholder="{% translate 'Rədd səbəbi' %}">
+      <button type="submit" class="cp-btn soft">{% translate "Təklifi rədd et" %}</button>
     </form>
   </section>
   {% endif %}

@@ -163,11 +163,60 @@ class RFQQuote(models.Model):
 
 
 class PurchaseApprovalLimit(models.Model):
-    """Max PR total a role may approve without escalation."""
+    """Monetary AZN ceiling a role may approve without Management escalation.
+
+    Tax basis (net/gross/VAT) is not encoded here — Finance must confirm before
+    local approval uses quoted totals as spending authority. PR lines currently
+    carry no unit price; comparable money appears at RFQ quote / PO line stage.
+    """
 
     role = models.CharField(max_length=32, unique=True)
-    max_amount = models.DecimalField(max_digits=14, decimal_places=2)
+    max_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        help_text=_("Maksimum məbləğ (AZN). Miqdar deyil."),
+    )
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"{self.role}:{self.max_amount}"
+        return f"{self.role}:{self.max_amount} AZN"
+
+
+class GoodsReceiptOperation(models.Model):
+    """Durable idempotency record for a single goods-receipt submission."""
+
+    MODE_FULL = "full"
+    MODE_PARTIAL = "partial"
+    MODE_CHOICES = (
+        (MODE_FULL, _("Full")),
+        (MODE_PARTIAL, _("Partial")),
+    )
+
+    operation_key = models.CharField(max_length=64, unique=True)
+    po = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name="receipt_operations",
+    )
+    warehouse = models.ForeignKey(
+        "warehouse.Warehouse",
+        on_delete=models.PROTECT,
+        related_name="goods_receipt_operations",
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="goods_receipt_operations",
+    )
+    mode = models.CharField(max_length=16, choices=MODE_CHOICES)
+    payload_fingerprint = models.CharField(max_length=64)
+    lines_json = models.JSONField(default=list, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return self.operation_key

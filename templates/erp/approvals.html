@@ -3,7 +3,7 @@
 {% block heading %}{% translate "Təsdiq növbəsi" %}{% endblock %}
 {% block content %}
 <div class="cp-card p-card">
-  <p class="cp-meta mb-3">{% translate "CRM təklif göndərişi və maliyyə ödənişləri." %}</p>
+  <p class="cp-meta mb-3">{% translate "CRM təklif, ödəniş, sənəd və satınalma eskalasiyaları." %}</p>
   <table class="cp-table">
     <thead>
       <tr>
@@ -17,20 +17,10 @@
     <tbody>
       {% for req in pending %}
       <tr>
-        <td>
-          {% if req.workflow_code == "crm.offer.send" %}{% translate "CRM təklif" %}
-          {% elif req.workflow_code == "finance.payment" %}{% translate "Ödəniş" %}
-          {% else %}{{ req.workflow_code }}{% endif %}
-        </td>
+        <td>{{ req.kind_label }}</td>
         <td>{{ req.requested_by }}</td>
         <td>{{ req.created_at }}</td>
-        <td>
-          {% if req.workflow_code == "finance.payment" %}
-            {{ req.payload.invoice_code|default:"—" }} · {{ req.payload.amount }} {{ req.payload.method }}
-          {% else %}
-            #{{ req.entity_id }}
-          {% endif %}
-        </td>
+        <td>{{ req.detail_bits|default:"—" }}</td>
         <td>
           <div class="flex gap-2" style="flex-wrap:wrap;align-items:center;">
             {% if req.view_url %}
@@ -59,4 +49,32 @@
     </tbody>
   </table>
 </div>
+
+{% if history %}
+<div class="cp-card p-card" style="margin-top:1.25rem;">
+  <h2 class="cp-h2" style="margin-bottom:0.75rem;">{% translate "Tamamlanmış qərarlar" %}</h2>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Növ" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th>{% translate "Sorğu" %}</th>
+        <th>{% translate "Qərar" %}</th>
+        <th>{% translate "Şərh" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for req in history %}
+      <tr>
+        <td>{{ req.workflow_code }}</td>
+        <td>{{ req.get_status_display }}</td>
+        <td>{{ req.requested_by|default:"—" }}</td>
+        <td class="cp-meta">{{ req.decided_by|default:"—" }} · {{ req.decided_at|default:"—" }}</td>
+        <td class="cp-meta">{{ req.comment|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 {% endblock %}

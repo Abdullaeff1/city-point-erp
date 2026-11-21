@@ -40,6 +40,11 @@ urlpatterns = [
     path("guests/", views.GuestsView.as_view(), name="guests"),
     path("guests/<int:pk>/checkout/", views.GuestCheckoutView.as_view(), name="guest_checkout"),
     path("announcements/", views.AnnouncementsView.as_view(), name="announcements"),
+    path(
+        "announcements/attachments/<int:pk>/",
+        views.AnnouncementAttachmentDownloadView.as_view(),
+        name="announcement_attachment",
+    ),
     path("documents/", views.DocumentsView.as_view(), name="documents"),
     path("documents/<int:pk>/download/", views.DocumentDownloadView.as_view(), name="document_download"),
     path("invoices/", views.InvoicesView.as_view(), name="invoices"),

@@ -9,7 +9,7 @@ from django.utils import timezone
 from apps.accounts.models import Role
 from apps.reception.models import Guest, GuestVisit, VisitStatus, mask_fin
 from apps.rbac.services import seed_rbac_catalog
-from apps.residents.models import ResidentCompany
+from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.tickets.models import Ticket, TicketCategory
 
 User = get_user_model()
@@ -122,10 +122,23 @@ class ResidentGuestPeriodTests(TestCase):
         self.assertNotContains(guests, "OtherCo Guest")
         self.assertNotContains(detail, "Portal Guest")
         self.assertContains(detail, reverse("erp:resident_employees", args=[self.company.slug]))
+        ResidentEmployee.objects.create(
+            company=self.company, full_name="Active One", is_active=True
+        )
+        ResidentEmployee.objects.create(
+            company=self.company, full_name="Former One", is_active=False
+        )
+        ResidentEmployee.objects.create(
+            company=self.other, full_name="Other Staff", is_active=True
+        )
         residents = self.client.get(self.residents)
-        counts = {c.slug: c.guest_today for c in residents.context["companies"]}
-        self.assertEqual(counts[self.company.slug], detail.context["guest_today"])
-        self.assertEqual(counts[self.other.slug], 1)
+        self.assertContains(residents, 'class="resident-employees__n">1</strong>')
+        self.assertContains(residents, "aktiv əməkdaş")
+        self.assertNotContains(residents, "Bugünkü qonaq")
+        self.assertNotContains(residents, 'class="cp-meta resident-status"')
+        emp_counts = {c.slug: c.employee_count for c in residents.context["companies"]}
+        self.assertEqual(emp_counts[self.company.slug], 1)
+        self.assertEqual(emp_counts[self.other.slug], 1)
 
     def test_management_can_access_erp_ro(self):
         self.assertTrue(self.management.can_access_erp())
@@ -150,8 +163,11 @@ class ResidentGuestPeriodTests(TestCase):
         self.assertNotContains(guests, mask_fin("AA1234567"))
         self.assertNotContains(detail, "Açıq ticket")
         self.assertNotContains(detail, reverse("erp:resident_employees", args=[self.company.slug]))
-        counts = {c.slug: c.guest_today for c in residents.context["companies"]}
-        self.assertEqual(counts[self.company.slug], 4)
+        self.assertContains(residents, "aktiv əməkdaş")
+        self.assertNotContains(residents, "Bugünkü qonaq")
+        self.assertNotContains(residents, 'class="cp-meta resident-status"')
+        emp_counts = {c.slug: c.employee_count for c in residents.context["companies"]}
+        self.assertEqual(emp_counts[self.company.slug], 0)
         self.assertEqual(self.client.get(self.employees).status_code, 302)
         self.assertEqual(self.client.get(self.tickets).status_code, 302)
 
@@ -172,7 +188,9 @@ class ResidentGuestPeriodTests(TestCase):
             residents = self.client.get(self.residents)
             self.assertFalse(residents.context["can_view_resident_guests"])
             self.assertNotContains(residents, "Bugünkü qonaq")
-            self.assertFalse(hasattr(residents.context["companies"][0], "guest_today"))
+            self.assertTrue(hasattr(residents.context["companies"][0], "employee_count"))
+            self.assertContains(residents, "aktiv əməkdaş")
+            self.assertNotContains(residents, 'class="cp-meta resident-status"')
 
     def test_four_period_filters_and_current_status(self):
         self.client.force_login(self.admin)
@@ -274,7 +292,9 @@ class ResidentGuestPeriodTests(TestCase):
         self.client.force_login(self.reception)
         hidden = self.client.get(self.residents)
         self.assertNotContains(hidden, "resident-tickets")
-        self.assertContains(hidden, "Bugünkü qonaq")
+        self.assertNotContains(hidden, "Bugünkü qonaq")
+        self.assertContains(hidden, "aktiv əməkdaş")
+        self.assertNotContains(hidden, 'class="cp-meta resident-status"')
 
         tickets_url = reverse("erp:resident_tickets", args=[self.company.slug])
         self.assertContains(desk, f"{tickets_url}?tab=all")

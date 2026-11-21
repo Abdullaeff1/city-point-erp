@@ -10,11 +10,16 @@ City Point ERP follows the **Final Master Implementation Plan** (Phases 0–13).
 
 Start here: **[phase0-README.md](./phase0-README.md)** — ten audit artifacts, preserve/extend/migrate decisions, next = Phase 1.
 
+## Department architecture (Phase 1)
+
+**[department-based-architecture-blueprint.md](./department-based-architecture-blueprint.md)** — nine departments mapped to roles/portals/shared domains; RBAC/nav/dashboard roadmap; no duplicate entities.
+
 ## Documents in this folder
 
 | Doc | Purpose |
 |-----|---------|
 | [CityPoint_Tam_Texniki_Plan.md](./CityPoint_Tam_Texniki_Plan.md) | Tam bitmiş sistem texniki planı + xərc |
+| [department-based-architecture-blueprint.md](./department-based-architecture-blueprint.md) | Phase 1 dept architecture blueprint |
 | [phase0-README.md](./phase0-README.md) | Phase 0 audit index + decisions |
 | [phase-gaps-and-open-questions.md](./phase-gaps-and-open-questions.md) | M1–M12 boşluqlar + P0–P3 cavab gözləyənlər |
 | [finish-requirements.md](./finish-requirements.md) | Production üçün lazım olan biznes/ops məlumat |
@@ -32,6 +37,7 @@ Start here: **[phase0-README.md](./phase0-README.md)** — ten audit artifacts, 
 | [../uat/crm-written-acceptance.md](../uat/crm-written-acceptance.md) | Satış CRM yazılı qəbul (A7) |
 | [../uat/functional-readiness-checklist.md](../uat/functional-readiness-checklist.md) | UAT §A–E |
 | [../uat/coa-import-uat.md](../uat/coa-import-uat.md) | Real CoA + TB UAT (M10) |
+| [../uat/workflow-a-qonaq-live-acceptance.md](../uat/workflow-a-qonaq-live-acceptance.md) | Workflow A canlı QONAQ qəbul vərəqi |
 | [../ops/p0-go-live-answers.md](../ops/p0-go-live-answers.md) | P0 mail / LAN / pilot / AxTrax RO |
 | [../deployment/netadmin-handoff-checklist.md](../deployment/netadmin-handoff-checklist.md) | NetAdmin 9 tapşırıq |
 

@@ -11,36 +11,43 @@
     {% endif %}
   </p>
 
-  <section class="crm-opp-detail-hero cp-card p-card mb-4">
-    <div class="crm-opp-detail-hero-top">
-      <div>
-        <p class="crm-lead-create-label">{% translate "İmkan" %}</p>
-        <h2 class="cp-section mt-1">{{ opportunity.title }}</h2>
-        <p class="cp-meta mt-2">
-          {% translate "Party" %}: <strong>{{ opportunity.party|default:"—" }}</strong>
-          {% if opportunity.space %} · {% translate "Sahə" %}: <strong>{{ opportunity.space }}</strong>{% endif %}
-          {% if opportunity.expected_area %} · {% translate "Sahə tələbi" %}: <strong>{{ opportunity.expected_area }} m²</strong>{% endif %}
-        </p>
-        {% if opportunity.contact_channels %}
-        <div class="crm-opp-detail-chips mt-2">
-          {% for ch in opportunity.contact_channels %}
-          <span class="crm-opp-chip">{{ ch }}</span>
-          {% endfor %}
+  <section class="crm-profile-header">
+    <div class="crm-profile-header__top">
+      <div class="crm-profile-header__identity">
+        <div class="crm-profile-avatar" aria-hidden="true">İ</div>
+        <div class="min-0">
+          <h2 class="crm-profile-header__title">{{ opportunity.title }}</h2>
+          <p class="crm-profile-header__sub">
+            {% translate "İmkan" %} #{{ opportunity.pk }}
+            · {% translate "Party" %}: {{ opportunity.party|default:"—" }}
+            {% if opportunity.space %} · {% translate "Sahə" %}: {{ opportunity.space }}{% endif %}
+            {% if opportunity.expected_area %} · {{ opportunity.expected_area }} m²{% endif %}
+          </p>
+          <div class="flex gap-2 mt-2" style="flex-wrap:wrap;">
+            {% if opportunity.status == "won" %}
+              {% include "partials/crm_status_pill.html" with pill_label=opportunity.get_status_display pill_kind="won" %}
+            {% elif opportunity.status == "lost" %}
+              {% include "partials/crm_status_pill.html" with pill_label=opportunity.get_status_display pill_kind="lost" %}
+            {% else %}
+              {% include "partials/crm_status_pill.html" with pill_label=opportunity.get_status_display pill_kind="open" %}
+            {% endif %}
+            {% include "partials/crm_status_pill.html" with pill_label=opportunity.get_pipeline_stage_display pill_kind="info" %}
+            {% if opportunity.outcome %}{% include "partials/crm_status_pill.html" with pill_label=opportunity.get_outcome_display pill_kind="pending" %}{% endif %}
+          </div>
         </div>
-        {% endif %}
-      </div>
-      <div class="crm-opp-detail-chips">
-        <span class="crm-opp-chip">{{ opportunity.get_status_display }}</span>
-        <span class="crm-opp-chip crm-opp-chip--accent">{{ opportunity.get_pipeline_stage_display }}</span>
-        {% if opportunity.outcome %}<span class="crm-opp-chip">{{ opportunity.get_outcome_display }}</span>{% endif %}
       </div>
     </div>
+    <nav class="crm-profile-tabs" aria-label="{% translate 'Bölmələr' %}">
+      <a href="#stage" class="is-active">{% translate "Info" %}</a>
+      <a href="#activity">{% translate "Aktivliklər" %}</a>
+      <a href="#offers">{% translate "Təkliflər" %}</a>
+    </nav>
   </section>
 
   <div class="crm-lead-detail-grid">
     <div>
       {% if can_mutate %}
-      <section class="crm-opp-panel cp-card p-card mb-4">
+      <section id="stage" class="crm-opp-panel cp-card p-card mb-4">
         <div class="crm-opp-panel-head">
           <div>
             <h3 class="cp-section">{% translate "Mərhələ yenilə" %}</h3>
@@ -121,7 +128,7 @@
       </section>
       {% endif %}
 
-      <section class="crm-opp-panel cp-card p-card mb-4">
+      <section id="offers" class="crm-opp-panel cp-card p-card mb-4">
         <div class="crm-opp-panel-head">
           <div>
             <h3 class="cp-section">{% translate "Təkliflər" %}</h3>
@@ -157,7 +164,7 @@
       </section>
     </div>
 
-    <div>
+    <div id="activity">
       {% if can_mutate %}
       <section class="crm-opp-panel cp-card p-card mb-4">
         <div class="crm-opp-panel-head">

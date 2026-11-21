@@ -14,17 +14,15 @@ ANNOUNCEMENT_PUBLISH_PERM = "announcement.publish"
 def can_publish_announcement(user) -> bool:
     """Who may create/publish portal announcements.
 
-    Now: Admin (or superuser) only.
-    Later: explicit RolePermission for ``announcement.publish`` (not Management blanket
-    bypass — spam risk). Seed the permission code; grant via RBAC when ready.
+    Admin, Rəhbərlik (ERP elan idarəsi), superuser, or RBAC ``announcement.publish``.
     """
     if not user or not getattr(user, "is_authenticated", False):
         return False
     if getattr(user, "is_superuser", False):
         return True
-    if getattr(user, "role", None) == Role.ADMIN:
+    if getattr(user, "role", None) in {Role.ADMIN, Role.MANAGEMENT}:
         return True
-    # Future hook: designated staff (e.g. ticket_department) via RBAC grant.
+    # Designated staff (e.g. ticket_department) via RBAC grant.
     from apps.rbac.models import RolePermission
 
     return RolePermission.objects.filter(

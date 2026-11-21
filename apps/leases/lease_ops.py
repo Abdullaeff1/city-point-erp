@@ -104,6 +104,65 @@ def refresh_lease_cached_amounts(lease: Lease) -> Lease:
     return lease
 
 
+@transaction.atomic
+def ensure_deposit_charge(lease: Lease, *, actor=None):
+    """Idempotent deposit Charge (ChargeSource.DEPOSIT) for an activated lease.
+
+    Uses Lease.deposit when set; otherwise refresh_lease_cached_amounts (2-month default).
+    Returns existing charge on repeat calls. Locks lease row to prevent races.
+    """
+    from apps.core import events as bus
+    from apps.core.services import DomainError
+
+    lease = Lease.objects.select_for_update().get(pk=lease.pk)
+    existing = (
+        Charge.objects.filter(lease_id=lease.pk, source=ChargeSource.DEPOSIT)
+        .order_by("pk")
+        .first()
+    )
+    if existing:
+        return existing
+
+    if not lease.party_id:
+        raise DomainError("Depozit üçün party tələb olunur.")
+
+    if not lease.deposit or Decimal(str(lease.deposit)) <= 0:
+        refresh_lease_cached_amounts(lease)
+        lease.refresh_from_db(fields=["deposit", "rent", "service_charge"])
+
+    amount = _q(lease.deposit)
+    if amount <= 0:
+        # Legacy / zero-rent leases: skip silently (no invented deposit).
+        return None
+
+    # Contractual due = lease start (catch-up polls must not use wall-clock poll day).
+    due = lease.start_date or timezone.localdate()
+    charge = Charge.objects.create(
+        party=lease.party,
+        lease=lease,
+        space=lease.space,
+        source=ChargeSource.DEPOSIT,
+        description=f"Depozit · {lease.code}",
+        amount=amount,
+        currency=lease.currency or "AZN",
+        period_start=due,
+        period_end=due,
+    )
+    bus.emit(
+        bus.DEPOSIT_CHARGE_CREATED,
+        payload={
+            "lease_id": lease.pk,
+            "charge_id": charge.pk,
+            "amount": str(amount),
+            "due_date": str(due),
+            "entity_model": "charge",
+        },
+        actor=actor,
+        event_key=f"deposit.charge.{lease.pk}",
+    )
+    return charge
+
+
 def month_bounds(as_of: date) -> tuple[date, date]:
     period_start = as_of.replace(day=1)
     last = monthrange(as_of.year, as_of.month)[1]

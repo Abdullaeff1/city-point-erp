@@ -1,0 +1,35 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{% translate "Yeni SKU" %}{% endblock %}
+{% block heading %}{% translate "Yeni SKU" %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:warehouse' %}">{% translate "Anbar" %}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card" style="max-width:640px;">
+  <p class="cp-meta mb-3">{% translate "SKU yaradılması stok miqdarını dəyişmir. Stok qəbul / düzəliş / çıxış ilə dəyişir." %}</p>
+  <form method="post" class="flex-col gap-3">
+    {% csrf_token %}
+    <input type="hidden" name="submit_token" value="{{ submit_token }}">
+    <label>
+      <span class="cp-meta">SKU {% translate "kodu" %} *</span>
+      <div class="mt-1"><input class="cp-input" name="code" required maxlength="64" value="{{ request.POST.code|default:'' }}"></div>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Ad" %} *</span>
+      <div class="mt-1"><input class="cp-input" name="name" required maxlength="200" value="{{ request.POST.name|default:'' }}"></div>
+    </label>
+    <div class="grid-2">
+      <label>
+        <span class="cp-meta">{% translate "Vahid" %}</span>
+        <div class="mt-1"><input class="cp-input" name="unit" maxlength="16" value="{{ request.POST.unit|default:'pcs' }}"></div>
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Minimum stok" %}</span>
+        <div class="mt-1"><input class="cp-input" name="reorder_level" inputmode="decimal" value="{{ request.POST.reorder_level|default:'0' }}"></div>
+      </label>
+    </div>
+    <button class="cp-btn" type="submit">{% translate "Yarat" %}</button>
+  </form>
+</div>
+{% endblock %}

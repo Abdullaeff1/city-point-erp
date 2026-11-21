@@ -1,0 +1,75 @@
+"""Permission-gated department dashboard views (Phase 3)."""
+
+from __future__ import annotations
+
+from django.utils.translation import gettext as _
+from django.views.generic import TemplateView
+
+from apps.accounts.mixins import PermissionRequiredMixin, StaffRequiredMixin
+from apps.erp.department_dashboards import (
+    build_facility_dashboard,
+    build_helpdesk_dashboard,
+    build_hr_dashboard,
+    build_it_dashboard,
+    build_procurement_dashboard,
+)
+
+
+class _DeptDashboardView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    template_name = "erp/dept_dashboard.html"
+    dashboard_title = ""
+    builder = None
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        board = self.builder(self.request.user) if self.builder else {}
+        ctx["dashboard_title"] = self.dashboard_title
+        ctx.update(board)
+        return ctx
+
+
+class FacilityDashboardView(_DeptDashboardView):
+    permission_required = "space.view"
+    permission_denied_message = "Obyekt panelinə baxış icazəniz yoxdur."
+    dashboard_title = _("Obyekt idarəetməsi")
+    builder = staticmethod(build_facility_dashboard)
+
+
+class HelpdeskDashboardView(_DeptDashboardView):
+    permission_required = "ticket.view"
+    permission_denied_message = "Helpdesk panelinə baxış icazəniz yoxdur."
+    dashboard_title = _("Helpdesk")
+    builder = staticmethod(build_helpdesk_dashboard)
+
+
+class HrDashboardView(_DeptDashboardView):
+    permission_required = "hr.view"
+    permission_denied_message = "HR panelinə baxış icazəniz yoxdur."
+    dashboard_title = _("HR & Employees")
+    builder = staticmethod(build_hr_dashboard)
+
+
+class ProcurementDashboardView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    template_name = "erp/dept_dashboard.html"
+    permission_required = "procurement.view"
+    permission_denied_message = "Satınalma panelinə baxış icazəniz yoxdur."
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        board = build_procurement_dashboard(self.request.user)
+        ctx["dashboard_title"] = _("Satınalma")
+        ctx.update(board)
+        return ctx
+
+
+class ItDashboardView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    template_name = "erp/dept_dashboard.html"
+    permission_required = ("user.admin", "audit.view")
+    permission_denied_message = "IT panelinə baxış icazəniz yoxdur."
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        board = build_it_dashboard(self.request.user, request=self.request)
+        ctx["dashboard_title"] = _("IT / Admin")
+        ctx.update(board)
+        return ctx

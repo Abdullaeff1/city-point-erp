@@ -6,8 +6,8 @@ from apps.accounts.impersonation import (
     list_role_switch_targets,
 )
 from apps.accounts.models import Role
+from apps.accounts.nav import build_nav_flags
 from apps.accounts.portal_scope import MODE_ALL, get_portal_scope
-from apps.comms.announcements import can_publish_announcement
 from apps.comms.models import Notification
 
 
@@ -24,10 +24,14 @@ def role_context(request):
 
             open_rapid_alerts = RapidCardSwipeAlert.objects.filter(acknowledged_at__isnull=True).count()
             open_shaft_alerts = ShaftAccessAlert.objects.filter(acknowledged_at__isnull=True).count()
+
     role = getattr(user, "role", None) if user and user.is_authenticated else None
     is_adminish = role == Role.ADMIN
-    nav_residents = is_adminish or role in {Role.SERVICE_DESK, Role.PROPERTY_FM, Role.RECEPTION}
-    if user and user.is_authenticated and nav_residents:
+    is_management = role == Role.MANAGEMENT
+
+    nav_flags = build_nav_flags(user) if user and user.is_authenticated else build_nav_flags(None)
+
+    if user and user.is_authenticated and nav_flags.get("nav_residents"):
         from apps.residents.models import ResidentCompany
 
         resident_count = ResidentCompany.objects.filter(is_internal=False, is_archived=False).count()
@@ -42,6 +46,10 @@ def role_context(request):
             role_targets = list_role_switch_targets(request)
         impersonating = is_impersonating(request)
         impersonator = get_impersonator(request) if impersonating else None
+
+    # Audit nav: permission OR impersonator who may start switch (ops preview)
+    if impersonator and can_start_impersonation(impersonator):
+        nav_flags["nav_audit"] = True
 
     portal_scope_label = ""
     portal_scope_mode = None
@@ -67,47 +75,8 @@ def role_context(request):
         "open_shaft_alerts": open_shaft_alerts,
         "open_security_alerts": open_rapid_alerts + open_shaft_alerts,
         "resident_count": resident_count,
-        "nav_reception": is_adminish or role == Role.RECEPTION,
-        "nav_tickets": is_adminish or role in {Role.SERVICE_DESK, Role.PROPERTY_FM},
-        "nav_property": is_adminish or role == Role.PROPERTY_FM,
-        "nav_building_assets": bool(
-            user
-            and user.is_authenticated
-            and role
-            in {
-                Role.ADMIN,
-                Role.PROPERTY_FM,
-                Role.SERVICE_DESK,
-                Role.MANAGEMENT,
-                Role.ACCOUNTANT,
-            }
-        ),
-        "nav_residents": nav_residents,
-        "nav_docs": is_adminish,
-        "nav_announcements": bool(user and user.is_authenticated and can_publish_announcement(user)),
-        "nav_reports": is_adminish or role == Role.MANAGEMENT,
-        "nav_approvals": bool(
-            user and user.is_authenticated and role in {Role.ADMIN, Role.MANAGEMENT}
-        ),
-        "nav_internal_access": is_adminish,
-        # İcarələr sidebar gizlədilir — məlumat Rezident kartında (Sənədlər) saxlanır
-        "nav_leases": False,
-        # CRM: sales mutate; management/accountant RO (Admin out — A.10)
-        "nav_crm": bool(
-            user
-            and user.is_authenticated
-            and role in {Role.SALES, Role.ACCOUNTANT, Role.MANAGEMENT}
-        ),
-        "nav_supply": False,
-        "nav_finance": False,
-        "nav_audit": bool(
-            user
-            and user.is_authenticated
-            and (
-                role == Role.ADMIN
-                or (impersonator and can_start_impersonation(impersonator))
-            )
-        ),
+        **nav_flags,
+        "is_management": is_management,
         "is_adminish": is_adminish,
         "nav_role_switch": can_switch,
         "role_switch_targets": role_targets,

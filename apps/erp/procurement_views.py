@@ -1,0 +1,670 @@
+"""Procurement operator UI — PR / Supplier / PO / RFQ (Phase 4.4.2.3)."""
+
+from __future__ import annotations
+
+import uuid
+from decimal import Decimal, InvalidOperation
+
+from django.contrib import messages
+from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
+from django.utils.translation import gettext as _
+from django.views.generic import TemplateView
+
+from apps.accounts.mixins import PermissionRequiredMixin, StaffRequiredMixin
+from apps.core.services import DomainError
+from apps.rbac.services import require_permission, user_has_permission
+from apps.procurement.models import (
+    POLine,
+    POStatus,
+    PRSource,
+    PRStatus,
+    PurchaseOrder,
+    PurchaseRequest,
+    RFQ,
+    RFQQuote,
+)
+from apps.procurement.services import ProcurementService
+from apps.parties.models import Party, PartyStatus
+from apps.warehouse.models import SKU, Warehouse
+
+
+PAGE_SIZE = 40
+
+
+def _can_edit(user) -> bool:
+    from apps.accounts.models import Role
+
+    if getattr(user, "role", None) == Role.MANAGEMENT:
+        return False
+    return user_has_permission(user, "procurement.edit")
+
+
+def _can_approve(user) -> bool:
+    return user_has_permission(user, "procurement.approve")
+
+
+def _pr_allows_po(pr: PurchaseRequest) -> bool:
+    """Service allows PO/RFQ quote→PO while PR is approved or already ordered."""
+    return pr.status in {PRStatus.APPROVED, PRStatus.ORDERED}
+
+
+def _pending_commitments_for_pr(pr: PurchaseRequest):
+    from django.contrib.contenttypes.models import ContentType
+
+    from apps.procurement.services import WF_PROCUREMENT_COMMITMENT
+    from apps.workflows.models import ApprovalRequest, ApprovalStatus
+
+    ct = ContentType.objects.get_for_model(PurchaseRequest)
+    return list(
+        ApprovalRequest.objects.filter(
+            workflow_code=WF_PROCUREMENT_COMMITMENT,
+            status=ApprovalStatus.PENDING,
+            entity_type=ct,
+            entity_id=pr.pk,
+        ).order_by("-id")[:5]
+    )
+
+
+class ProcurementListView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    template_name = "erp/procurement.html"
+    permission_required = "procurement.view"
+    permission_denied_message = "Satınalmaya baxış icazəniz yoxdur."
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        request = self.request
+        q = (request.GET.get("q") or "").strip()
+        source = (request.GET.get("source") or "").strip()
+        status = (request.GET.get("status") or "").strip()
+        pr_page = request.GET.get("pr_page") or "1"
+        po_page = request.GET.get("po_page") or "1"
+
+        pr_qs = PurchaseRequest.objects.select_related("work_order", "requested_by").prefetch_related(
+            "lines"
+        )
+        po_qs = (
+            PurchaseOrder.objects.select_related("supplier_party", "pr")
+            .prefetch_related("lines")
+            .order_by("-id")
+        )
+        pr_qs = pr_qs.order_by("-created_at", "-id")
+        if q:
+            pr_qs = pr_qs.filter(Q(code__icontains=q) | Q(title__icontains=q) | Q(notes__icontains=q))
+            po_qs = po_qs.filter(
+                Q(code__icontains=q)
+                | Q(supplier_party__legal_name__icontains=q)
+                | Q(pr__code__icontains=q)
+            )
+        if source in {c.value for c in PRSource}:
+            pr_qs = pr_qs.filter(source=source)
+        if status in {c.value for c in PRStatus}:
+            pr_qs = pr_qs.filter(status=status)
+
+        ctx.update(
+            {
+                "q": q,
+                "source": source,
+                "status": status,
+                "prs_page": Paginator(pr_qs, PAGE_SIZE).get_page(pr_page),
+                "pos_page": Paginator(po_qs, PAGE_SIZE).get_page(po_page),
+                "warehouses": Warehouse.objects.order_by("code"),
+                "suppliers": ProcurementService.supplier_queryset().filter(status=PartyStatus.ACTIVE),
+                "skus": SKU.objects.order_by("code")[:300],
+                "can_edit_procurement": _can_edit(request.user),
+                "can_approve_procurement": _can_approve(request.user),
+                "pr_sources": PRSource.choices,
+                "pr_statuses": PRStatus.choices,
+                "submit_token": uuid.uuid4().hex,
+            }
+        )
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        from apps.maintenance.costs import sync_procurement_cost
+
+        action = request.POST.get("action")
+        token = (request.POST.get("submit_token") or "").strip()
+        session_key = f"proc_{action}"
+        # Durable receipt idempotency is handled by operation_key in the service layer.
+        if action != "receive_po" and token and request.session.get(session_key) == token:
+            messages.info(request, _("Bu forma artıq göndərilib."))
+            return redirect("erp:procurement")
+
+        try:
+            if action == "approve_pr":
+                require_permission(
+                    request.user, "procurement.approve", message=_("Satınalma təsdiqi icazəniz yoxdur.")
+                )
+                pr = get_object_or_404(PurchaseRequest, pk=request.POST.get("pr_id"))
+                ProcurementService.approve_pr(pr, actor=request.user)
+                messages.success(request, _("%(code)s təsdiqləndi") % {"code": pr.code})
+            elif action == "create_po":
+                require_permission(
+                    request.user, "procurement.edit", message=_("PO yaratmaq icazəniz yoxdur.")
+                )
+                pr = get_object_or_404(PurchaseRequest, pk=request.POST.get("pr_id"))
+                supplier = get_object_or_404(Party, pk=request.POST.get("supplier_party_id"))
+                po = ProcurementService.create_po_from_pr(
+                    pr, supplier_party=supplier, actor=request.user
+                )
+                messages.success(request, _("PO: %(code)s") % {"code": po.code})
+            elif action == "set_line_price":
+                require_permission(
+                    request.user,
+                    "procurement.edit",
+                    message=_("Satınalma qiyməti dəyişmək icazəniz yoxdur."),
+                )
+                line = get_object_or_404(
+                    POLine.objects.select_related("po__pr"), pk=request.POST.get("line_id")
+                )
+                raw = str(request.POST.get("unit_price") or "0").strip().replace(" ", "").replace(",", ".")
+                try:
+                    price = Decimal(raw)
+                except InvalidOperation:
+                    messages.error(request, _("Qiymət rəqəm olmalıdır."))
+                    return redirect("erp:procurement")
+                if price < 0:
+                    messages.error(request, _("Qiymət mənfi ola bilməz."))
+                    return redirect("erp:procurement")
+                line.unit_price = price.quantize(Decimal("0.01"))
+                line.save(update_fields=["unit_price"])
+                if line.po.pr_id and line.po.pr.work_order_id:
+                    sync_procurement_cost(line.po.pr.work_order)
+                messages.success(request, _("Satınalma qiyməti saxlanıldı."))
+            elif action == "receive_po":
+                require_permission(
+                    request.user, "procurement.edit", message=_("PO qəbulu icazəniz yoxdur.")
+                )
+                po = get_object_or_404(PurchaseOrder, pk=request.POST.get("po_id"))
+                wh = Warehouse.objects.filter(pk=request.POST.get("warehouse_id") or None).first()
+                if wh is None:
+                    wh = Warehouse.objects.first()
+                if not wh:
+                    messages.error(request, _("Anbar yoxdur"))
+                else:
+                    receive_mode = (request.POST.get("receive_mode") or "full").strip().lower()
+                    operation_key = (request.POST.get("operation_key") or "").strip() or uuid.uuid4().hex
+                    line_qtys = {}
+                    for line in po.lines.all():
+                        raw = request.POST.get(f"recv_qty_{line.pk}")
+                        if raw is not None and str(raw).strip() != "":
+                            line_qtys[line.pk] = str(raw).replace(",", ".")
+                    if receive_mode == "partial":
+                        result = ProcurementService.receive_po(
+                            po,
+                            warehouse=wh,
+                            actor=request.user,
+                            line_qtys=line_qtys,
+                            operation_key=operation_key,
+                            receive_mode="partial",
+                        )
+                    else:
+                        result = ProcurementService.receive_po(
+                            po,
+                            warehouse=wh,
+                            actor=request.user,
+                            line_qtys=None,
+                            operation_key=operation_key,
+                            receive_mode="full",
+                        )
+                    result.refresh_from_db()
+                    if getattr(result, "receipt_replayed", False):
+                        messages.info(request, _("Bu qəbul artıq qeydə alınıb."))
+                    else:
+                        messages.success(
+                            request,
+                            _("%(code)s qəbul edildi (%(status)s)")
+                            % {"code": result.code, "status": result.status},
+                        )
+            elif action == "create_rfq":
+                require_permission(
+                    request.user, "procurement.edit", message=_("RFQ yaratmaq icazəniz yoxdur.")
+                )
+                pr = get_object_or_404(PurchaseRequest, pk=request.POST.get("pr_id"))
+                rfq = ProcurementService.create_rfq_from_pr(pr, actor=request.user)
+                messages.success(request, _("RFQ: %(code)s") % {"code": rfq.code})
+                if token:
+                    request.session[session_key] = token
+                    request.session.modified = True
+                return redirect("erp:procurement_rfq_detail", code=rfq.code)
+            else:
+                messages.error(request, _("Naməlum əməliyyat."))
+        except DomainError as exc:
+            messages.info(request, str(exc))
+        except (ValueError, PermissionDenied) as exc:
+            messages.error(request, str(exc))
+
+        if token:
+            request.session[session_key] = token
+            request.session.modified = True
+        return redirect("erp:procurement")
+
+
+class ProcurementPRCreateView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    template_name = "erp/procurement_pr_form.html"
+    permission_required = "procurement.edit"
+    permission_denied_message = "Satınalma sorğusu yaratmaq icazəniz yoxdur."
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not _can_edit(request.user):
+            raise PermissionDenied(_("Satınalma sorğusu yaratmaq icazəniz yoxdur."))
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["skus"] = SKU.objects.order_by("code")[:500]
+        ctx["submit_token"] = uuid.uuid4().hex
+        ctx["line_range"] = range(5)
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        if not _can_edit(request.user):
+            raise PermissionDenied(_("Satınalma sorğusu yaratmaq icazəniz yoxdur."))
+        token = (request.POST.get("submit_token") or "").strip()
+        if token and request.session.get("proc_manual_pr") == token:
+            last = request.session.get("proc_manual_pr_code")
+            if last:
+                messages.info(request, _("Bu forma artıq göndərilib."))
+                return redirect("erp:procurement_pr_detail", code=last)
+        # Ignore any posted source — server assigns MANUAL.
+        lines = []
+        for i in range(12):
+            desc = request.POST.get(f"line_description_{i}", "")
+            qty = request.POST.get(f"line_qty_{i}", "")
+            unit = request.POST.get(f"line_unit_{i}", "pcs")
+            sku_id = request.POST.get(f"line_sku_{i}") or None
+            if not str(desc).strip() and not sku_id and not str(qty).strip():
+                continue
+            lines.append(
+                {"description": desc, "qty": qty or "0", "unit": unit, "sku_id": sku_id}
+            )
+        try:
+            pr = ProcurementService.create_manual_pr(
+                actor=request.user,
+                title=request.POST.get("title", ""),
+                notes=request.POST.get("notes", ""),
+                lines=lines,
+            )
+        except DomainError as exc:
+            messages.error(request, str(exc))
+            return self.render_to_response(self.get_context_data())
+        if token:
+            request.session["proc_manual_pr"] = token
+            request.session["proc_manual_pr_code"] = pr.code
+            request.session.modified = True
+        messages.success(request, _("PR yaradıldı: %(code)s") % {"code": pr.code})
+        return redirect("erp:procurement_pr_detail", code=pr.code)
+
+
+class ProcurementPRDetailView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    template_name = "erp/procurement_pr_detail.html"
+    permission_required = "procurement.view"
+    permission_denied_message = "Satınalmaya baxış icazəniz yoxdur."
+
+    def get_pr(self):
+        return get_object_or_404(
+            PurchaseRequest.objects.select_related("work_order", "requested_by").prefetch_related(
+                "lines__sku", "rfqs", "purchase_orders__supplier_party"
+            ),
+            code=self.kwargs["code"],
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        pr = self.get_pr()
+        qty_progress = ProcurementService.pr_qty_progress(pr)
+        has_remaining = any(row["outstanding_order"] > 0 for row in qty_progress)
+        ctx.update(
+            {
+                "pr": pr,
+                "qty_progress": qty_progress,
+                "can_edit_procurement": _can_edit(self.request.user),
+                "can_approve_procurement": _can_approve(self.request.user),
+                "can_issue_po": _can_edit(self.request.user)
+                and _pr_allows_po(pr)
+                and has_remaining,
+                "pending_commitments": _pending_commitments_for_pr(pr),
+                "suppliers": ProcurementService.supplier_queryset().filter(status=PartyStatus.ACTIVE),
+                "submit_token": uuid.uuid4().hex,
+            }
+        )
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        pr = self.get_pr()
+        action = request.POST.get("action")
+        try:
+            if action == "approve_pr":
+                require_permission(
+                    request.user, "procurement.approve", message=_("Satınalma təsdiqi icazəniz yoxdur.")
+                )
+                ProcurementService.approve_pr(pr, actor=request.user)
+                messages.success(request, _("Təsdiqləndi."))
+            elif action == "create_po":
+                require_permission(
+                    request.user, "procurement.edit", message=_("PO yaratmaq icazəniz yoxdur.")
+                )
+                supplier = get_object_or_404(Party, pk=request.POST.get("supplier_party_id"))
+                po = ProcurementService.create_po_from_pr(
+                    pr, supplier_party=supplier, actor=request.user
+                )
+                messages.success(request, _("PO: %(code)s") % {"code": po.code})
+                return redirect("erp:procurement_po_detail", code=po.code)
+            elif action == "create_rfq":
+                require_permission(
+                    request.user, "procurement.edit", message=_("RFQ yaratmaq icazəniz yoxdur.")
+                )
+                rfq = ProcurementService.create_rfq_from_pr(pr, actor=request.user)
+                return redirect("erp:procurement_rfq_detail", code=rfq.code)
+            else:
+                messages.error(request, _("Naməlum əməliyyat."))
+        except DomainError as exc:
+            messages.info(request, str(exc))
+        return redirect("erp:procurement_pr_detail", code=pr.code)
+
+
+class ProcurementPODetailView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    template_name = "erp/procurement_po_detail.html"
+    permission_required = "procurement.view"
+    permission_denied_message = "Satınalmaya baxış icazəniz yoxdur."
+
+    def get_po(self):
+        return get_object_or_404(
+            PurchaseOrder.objects.select_related("supplier_party", "pr").prefetch_related("lines__sku"),
+            code=self.kwargs["code"],
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        po = self.get_po()
+        ctx.update(
+            {
+                "po": po,
+                "warehouses": Warehouse.objects.order_by("code"),
+                "can_edit_procurement": _can_edit(self.request.user),
+                "submit_token": uuid.uuid4().hex,
+                "operation_key": uuid.uuid4().hex,
+                "can_receive": po.status in {POStatus.SENT, POStatus.PARTIAL, POStatus.DRAFT},
+            }
+        )
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        from apps.maintenance.costs import sync_procurement_cost
+
+        po = self.get_po()
+        action = request.POST.get("action")
+        try:
+            if action == "set_line_price":
+                require_permission(
+                    request.user, "procurement.edit", message=_("Qiymət dəyişmək icazəniz yoxdur.")
+                )
+                line = get_object_or_404(po.lines.all(), pk=request.POST.get("line_id"))
+                raw = str(request.POST.get("unit_price") or "0").strip().replace(",", ".")
+                price = Decimal(raw)
+                if price < 0:
+                    raise DomainError(_("Qiymət mənfi ola bilməz."))
+                line.unit_price = price.quantize(Decimal("0.01"))
+                line.save(update_fields=["unit_price"])
+                if po.pr_id and po.pr.work_order_id:
+                    sync_procurement_cost(po.pr.work_order)
+                messages.success(request, _("Qiymət saxlanıldı."))
+            elif action == "receive_po":
+                require_permission(
+                    request.user, "procurement.edit", message=_("PO qəbulu icazəniz yoxdur.")
+                )
+                wh = Warehouse.objects.filter(pk=request.POST.get("warehouse_id") or None).first()
+                if not wh:
+                    raise DomainError(_("Anbar seçilməlidir."))
+                receive_mode = (request.POST.get("receive_mode") or "partial").strip().lower()
+                operation_key = (request.POST.get("operation_key") or "").strip() or uuid.uuid4().hex
+                line_qtys = {}
+                for line in po.lines.all():
+                    raw = request.POST.get(f"recv_qty_{line.pk}")
+                    if raw is not None and str(raw).strip() != "":
+                        line_qtys[line.pk] = str(raw).replace(",", ".")
+                if receive_mode == "full":
+                    result = ProcurementService.receive_po(
+                        po,
+                        warehouse=wh,
+                        actor=request.user,
+                        line_qtys=None,
+                        operation_key=operation_key,
+                        receive_mode="full",
+                    )
+                else:
+                    result = ProcurementService.receive_po(
+                        po,
+                        warehouse=wh,
+                        actor=request.user,
+                        line_qtys=line_qtys,
+                        operation_key=operation_key,
+                        receive_mode="partial",
+                    )
+                if getattr(result, "receipt_replayed", False):
+                    messages.info(request, _("Bu qəbul artıq qeydə alınıb."))
+                else:
+                    messages.success(request, _("Qəbul edildi."))
+            else:
+                messages.error(request, _("Naməlum əməliyyat."))
+        except (DomainError, ValueError, InvalidOperation) as exc:
+            messages.error(request, str(exc))
+        return redirect("erp:procurement_po_detail", code=po.code)
+
+
+class ProcurementSupplierListView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    template_name = "erp/procurement_suppliers.html"
+    permission_required = "procurement.view"
+    permission_denied_message = "Satınalmaya baxış icazəniz yoxdur."
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        q = (self.request.GET.get("q") or "").strip()
+        qs = ProcurementService.supplier_queryset()
+        if q:
+            qs = qs.filter(
+                Q(legal_name__icontains=q)
+                | Q(brand_name__icontains=q)
+                | Q(tax_id__icontains=q)
+                | Q(contact_email__icontains=q)
+            )
+        status = (self.request.GET.get("status") or "").strip()
+        if status in {c.value for c in PartyStatus}:
+            qs = qs.filter(status=status)
+        page = Paginator(qs, PAGE_SIZE).get_page(self.request.GET.get("page") or "1")
+        ctx.update(
+            {
+                "q": q,
+                "status": status,
+                "suppliers_page": page,
+                "can_edit_procurement": _can_edit(self.request.user),
+                "statuses": PartyStatus.choices,
+            }
+        )
+        return ctx
+
+
+class ProcurementSupplierFormView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    template_name = "erp/procurement_supplier_form.html"
+    permission_required = "procurement.edit"
+    permission_denied_message = "Təchizatçı idarəetməsi icazəniz yoxdur."
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not _can_edit(request.user):
+            raise PermissionDenied(_("Təchizatçı idarəetməsi icazəniz yoxdur."))
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_party(self):
+        pk = self.kwargs.get("pk")
+        if not pk:
+            return None
+        return get_object_or_404(ProcurementService.supplier_queryset(), pk=pk)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        party = self.get_party()
+        ctx.update(
+            {
+                "party": party,
+                "mode": "edit" if party else "create",
+                "statuses": PartyStatus.choices,
+                "submit_token": uuid.uuid4().hex,
+            }
+        )
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        party = self.get_party()
+        token = (request.POST.get("submit_token") or "").strip()
+        session_key = f"proc_supplier_{party.pk if party else 'new'}"
+        if token and request.session.get(session_key) == token:
+            messages.info(request, _("Bu forma artıq göndərilib."))
+            if party:
+                return redirect("erp:procurement_supplier_detail", pk=party.pk)
+            return redirect("erp:procurement_suppliers")
+        try:
+            party = ProcurementService.create_or_update_supplier(
+                actor=request.user,
+                party=party,
+                legal_name=request.POST.get("legal_name", ""),
+                brand_name=request.POST.get("brand_name", ""),
+                tax_id=request.POST.get("tax_id", ""),
+                contact_email=request.POST.get("contact_email", ""),
+                contact_phone=request.POST.get("contact_phone", ""),
+                notes=request.POST.get("notes", ""),
+                status=request.POST.get("status") or PartyStatus.ACTIVE,
+            )
+        except DomainError as exc:
+            messages.error(request, str(exc))
+            return self.render_to_response(self.get_context_data())
+        if token:
+            request.session[session_key] = token
+            request.session.modified = True
+        messages.success(request, _("Təchizatçı saxlanıldı."))
+        return redirect("erp:procurement_supplier_detail", pk=party.pk)
+
+
+class ProcurementSupplierDetailView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    template_name = "erp/procurement_supplier_detail.html"
+    permission_required = "procurement.view"
+    permission_denied_message = "Satınalmaya baxış icazəniz yoxdur."
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        party = get_object_or_404(ProcurementService.supplier_queryset(), pk=self.kwargs["pk"])
+        pos = PurchaseOrder.objects.filter(supplier_party=party).select_related("pr").order_by("-id")[:50]
+        ctx.update(
+            {
+                "party": party,
+                "purchase_orders": pos,
+                "can_edit_procurement": _can_edit(self.request.user),
+            }
+        )
+        return ctx
+
+
+class ProcurementRFQDetailView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    template_name = "erp/procurement_rfq_detail.html"
+    permission_required = "procurement.view"
+    permission_denied_message = "Satınalmaya baxış icazəniz yoxdur."
+
+    def get_rfq(self):
+        return get_object_or_404(
+            RFQ.objects.select_related("pr").prefetch_related("quotes__supplier_party"),
+            code=self.kwargs["code"],
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        rfq = self.get_rfq()
+        quotes = list(rfq.quotes.select_related("supplier_party").order_by("unit_price", "id"))
+        pr_lines = list(rfq.pr.lines.select_related("sku").all()) if rfq.pr_id else []
+        qty_progress = ProcurementService.pr_qty_progress(rfq.pr) if rfq.pr_id else []
+        remaining_total_qty = sum(
+            (row["outstanding_order"] for row in qty_progress), Decimal("0")
+        )
+        quote_rows = []
+        comparable = []
+        for q in quotes:
+            assessed = (
+                ProcurementService.assess_quote_amount(q, rfq.pr)
+                if rfq.pr_id
+                else None
+            )
+            complete = bool(assessed and assessed.is_known and assessed.reason == "ok")
+            row = {
+                "quote": q,
+                "assessed": assessed,
+                "complete": complete,
+                "covers_all_pr_lines": bool(pr_lines) and complete,
+            }
+            quote_rows.append(row)
+            if complete:
+                comparable.append(row)
+        lowest_id = None
+        if comparable:
+            comparable.sort(
+                key=lambda r: (r["assessed"].amount, r["quote"].pk)
+            )
+            lowest_id = comparable[0]["quote"].pk
+        can_select = (
+            _can_edit(self.request.user)
+            and rfq.pr_id is not None
+            and _pr_allows_po(rfq.pr)
+            and remaining_total_qty > 0
+        )
+        ctx.update(
+            {
+                "rfq": rfq,
+                "quotes": quotes,
+                "quote_rows": quote_rows,
+                "pr_lines": pr_lines,
+                "qty_progress": qty_progress,
+                "remaining_total_qty": remaining_total_qty,
+                "lowest_quote_id": lowest_id,
+                "suppliers": ProcurementService.supplier_queryset().filter(status=PartyStatus.ACTIVE),
+                "can_edit_procurement": _can_edit(self.request.user),
+                "can_select_quote": can_select,
+                "pending_commitments": (
+                    _pending_commitments_for_pr(rfq.pr) if rfq.pr_id else []
+                ),
+                "submit_token": uuid.uuid4().hex,
+            }
+        )
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        rfq = self.get_rfq()
+        action = request.POST.get("action")
+        try:
+            if action == "add_quote":
+                require_permission(
+                    request.user, "procurement.edit", message=_("Təklif əlavə etmək icazəniz yoxdur.")
+                )
+                supplier = get_object_or_404(Party, pk=request.POST.get("supplier_party_id"))
+                ProcurementService.add_rfq_quote(
+                    rfq,
+                    supplier_party=supplier,
+                    unit_price=request.POST.get("unit_price"),
+                    lead_time_days=request.POST.get("lead_time_days") or 0,
+                    notes=request.POST.get("notes", ""),
+                    actor=request.user,
+                )
+                messages.success(request, _("Təklif əlavə olundu."))
+            elif action == "select_quote":
+                require_permission(
+                    request.user, "procurement.edit", message=_("PO yaratmaq icazəniz yoxdur.")
+                )
+                quote = get_object_or_404(RFQQuote, pk=request.POST.get("quote_id"), rfq=rfq)
+                po = ProcurementService.select_rfq_quote_and_create_po(quote, actor=request.user)
+                messages.success(request, _("PO yaradıldı: %(code)s") % {"code": po.code})
+                return redirect("erp:procurement_po_detail", code=po.code)
+            else:
+                messages.error(request, _("Naməlum əməliyyat."))
+        except DomainError as exc:
+            messages.info(request, str(exc))
+        return redirect("erp:procurement_rfq_detail", code=rfq.code)

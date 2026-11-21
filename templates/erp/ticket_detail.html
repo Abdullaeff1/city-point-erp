@@ -143,7 +143,15 @@
     </form>
     {% endif %}
     {% if ticket.next_status %}
-    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="advance"><button class="cp-btn w-full">{% translate "Növbəti status" %} → {{ ticket.get_next_status_display }}</button></form>
+    <form method="post" class="flex-col gap-2">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="advance">
+      {% if ticket.next_status == "resolved" %}
+      <label class="cp-meta" for="resolution_note">{% translate "Həll nəticəsi (rezidentə görünür)" %}</label>
+      <textarea class="cp-input" id="resolution_note" name="resolution_note" rows="2" placeholder="{% translate 'Qısa nəticə…' %}"></textarea>
+      {% endif %}
+      <button class="cp-btn w-full">{% translate "Növbəti status" %} → {{ ticket.get_next_status_display }}</button>
+    </form>
     {% endif %}
     {% if ticket.status == "in_progress" or ticket.status == "accepted" or ticket.status == "assigned" %}
     <form method="post" class="flex-col gap-2">

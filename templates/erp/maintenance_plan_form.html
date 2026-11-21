@@ -1,0 +1,52 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{% if plan %}{% translate "Planı redaktə et" %}{% else %}{% translate "Yeni PM planı" %}{% endif %}{% endblock %}
+{% block heading %}{% if plan %}{% translate "Planı redaktə et" %}{% else %}{% translate "Yeni PM planı" %}{% endif %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:maintenance_plans' %}">{% translate "Texniki xidmət planları" %}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card">
+  <form method="post" class="flex-col gap-3">
+    {% csrf_token %}
+    <label class="cp-meta" for="name">{% translate "Ad" %}</label>
+    <input class="cp-input" id="name" name="name" required maxlength="200"
+      value="{{ plan.name|default:'' }}">
+
+    <label class="cp-meta" for="frequency">{% translate "Tezlik" %}</label>
+    <select class="cp-input" id="frequency" name="frequency">
+      {% for value, label in frequencies %}
+      <option value="{{ value }}" {% if plan and plan.frequency == value %}selected{% elif not plan and value == 'monthly' %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <label class="cp-meta" for="next_due">{% translate "Növbəti tarix" %}</label>
+    <input class="cp-input" type="date" id="next_due" name="next_due"
+      value="{% if plan.next_due %}{{ plan.next_due|date:'Y-m-d' }}{% endif %}">
+
+    <label class="cp-meta" for="building_asset">{% translate "Bina avadanlığı" %}</label>
+    <select class="cp-input" id="building_asset" name="building_asset">
+      <option value="">—</option>
+      {% for a in building_assets %}
+      <option value="{{ a.pk }}" {% if plan.building_asset_id == a.pk %}selected{% endif %}>{{ a.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label class="cp-meta" for="space">{% translate "Sahə (opsional)" %}</label>
+    <select class="cp-input" id="space" name="space">
+      <option value="">—</option>
+      {% for s in spaces %}
+      <option value="{{ s.pk }}" {% if plan.space_id == s.pk %}selected{% endif %}>{{ s.code }} — {{ s.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label class="cp-meta">
+      <input type="checkbox" name="is_active" value="1"
+        {% if not plan or plan.is_active %}checked{% endif %}>
+      {% translate "Aktiv" %}
+    </label>
+
+    <button class="cp-btn" type="submit">{% translate "Saxla" %}</button>
+  </form>
+</div>
+{% endblock %}

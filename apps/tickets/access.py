@@ -1,17 +1,23 @@
-"""Central ticket visibility and mutation ACL (department-scoped)."""
+"""Central ticket visibility and mutation ACL (department-scoped).
+
+Dual gate: department/role rules AND PermissionCode ticket.view / ticket.edit.
+"""
 
 from __future__ import annotations
 
 from django.db.models import QuerySet
 
 from apps.accounts.models import Role, User
+from apps.rbac.services import user_has_permission
 from apps.tickets.models import DELETABLE_STATUSES, Ticket
 
 
 def can_view_all_tickets(user) -> bool:
     if not user or not getattr(user, "is_authenticated", False):
         return False
-    return user.role in {Role.ADMIN, Role.MANAGEMENT}
+    if user.role not in {Role.ADMIN, Role.MANAGEMENT}:
+        return False
+    return user_has_permission(user, "ticket.view")
 
 
 def user_ticket_department(user):
@@ -50,6 +56,8 @@ def can_view_ticket(user, ticket) -> bool:
 
     if not user or not getattr(user, "is_authenticated", False) or ticket is None:
         return False
+    if not user_has_permission(user, "ticket.view"):
+        return False
     if can_view_all_tickets(user):
         return True
     dept_id = effective_ticket_department_id(user)
@@ -62,7 +70,13 @@ def can_mutate_ticket(user, ticket) -> bool:
     """Staff may mutate own-dept tickets; residents never mutate staff workflow."""
     if not user or not getattr(user, "is_authenticated", False) or ticket is None:
         return False
-    if getattr(user, "role", None) == Role.RESIDENT_USER:
+    role = getattr(user, "role", None)
+    if role == Role.RESIDENT_USER:
+        return False
+    # Rəhbərlik yalnız nəticə görür — dəyişiklik service desk / FM-dədir.
+    if role == Role.MANAGEMENT:
+        return False
+    if not user_has_permission(user, "ticket.edit"):
         return False
     return can_view_ticket(user, ticket)
 

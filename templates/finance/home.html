@@ -28,16 +28,23 @@
     <div class="cp-meta">{% translate "Ödəniş təsdiqi" %}</div>
     <div class="cp-metric mt-2">{{ pending_payments }}</div>
   </a>
+  <a class="cp-card p-card cp-card-link" href="{% url 'finance:payments' %}" style="min-width:148px;flex:1 1 148px;">
+    <div class="cp-meta">{% translate "Bu ay ödəniş" %}</div>
+    <div class="cp-metric mt-2">{{ paid_month }}</div>
+  </a>
 </div>
 
 <div class="cp-card p-card">
   <div class="cp-section">{% translate "Tez keçidlər" %}</div>
   <div class="flex gap-2" style="flex-wrap:wrap;margin-top:12px;">
+    {% if can_mutate %}
     <a class="cp-btn" href="{% url 'finance:charges' %}">{% translate "Charge → faktura" %}</a>
+    {% endif %}
     <a class="cp-btn" href="{% url 'finance:aging' %}">{% translate "Aging" %}</a>
     <a class="cp-btn" href="{% url 'finance:trial_balance' %}">{% translate "Trial balance" %}</a>
     <a class="cp-btn" href="{% url 'finance:journals' %}">{% translate "Jurnal" %}</a>
     <a class="cp-btn" href="{% url 'finance:periods' %}">{% translate "Dövr bağla" %}</a>
+    <a class="cp-btn" href="{% url 'finance:invoices' %}">{% translate "Fakturalar" %}</a>
   </div>
   <p class="cp-meta mt-3">
     {% translate "A.5: invoice ayın 1–5; due 30 gün; ƏDV net+VAT+gross; cərimə əl ilə." %}

@@ -1,0 +1,12 @@
+{% comment %}
+Expects: filter_tabs — list of dicts: label, url, active (bool), count (optional)
+{% endcomment %}
+{% if filter_tabs %}
+<nav class="crm-filter-tabs" aria-label="Filter">
+  {% for tab in filter_tabs %}
+  <a href="{{ tab.url }}" class="{% if tab.active %}is-active{% endif %}">
+    {{ tab.label }}{% if tab.count != None %} <span class="cp-meta">({{ tab.count }})</span>{% endif %}
+  </a>
+  {% endfor %}
+</nav>
+{% endif %}

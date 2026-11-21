@@ -257,13 +257,24 @@ class MediaAclAndCrossCompanyTests(TestCase):
         self.assertEqual(r.status_code, 404)
 
     def test_portal_cross_company_document_403(self):
+        from apps.accounts.test_utils import assert_soft_denied
+
         c = Client()
         c.force_login(self.resident)
         # establish portal scope for co_a
         c.post(reverse("portal:choose_companies"), {"choice": str(self.co_a.id)})
         url = reverse("portal:document_download", kwargs={"pk": self.doc_b.pk})
         r = c.get(url)
-        self.assertEqual(r.status_code, 403)
+        # Soft-deny (not company-hide 404): redirect home; file bytes never returned.
+        assert_soft_denied(
+            self,
+            c,
+            r,
+            self.resident,
+            expected_url=reverse("portal:home"),
+        )
+        self.assertNotEqual(r.status_code, 200)
+        self.assertFalse(hasattr(r, "streaming_content") and r.status_code == 200)
 
 
 class ReceptionLimitedPayloadTests(TestCase):
@@ -294,10 +305,19 @@ class ReceptionLimitedPayloadTests(TestCase):
         self.assertNotContains(r, "AZ00")
 
     def test_reception_documents_forbidden(self):
+        from apps.accounts.routing import home_url_for
+        from apps.accounts.test_utils import assert_soft_denied
+
         c = Client()
         c.force_login(self.reception)
         r = c.get(reverse("erp:resident_documents", args=[self.company.slug]))
-        self.assertEqual(r.status_code, 403)
+        assert_soft_denied(
+            self,
+            c,
+            r,
+            self.reception,
+            expected_url=home_url_for(self.reception),
+        )
 
     def test_admin_sees_legal(self):
         c = Client()

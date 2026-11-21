@@ -201,6 +201,30 @@ def parse_area_range(raw: str) -> tuple[Decimal | None, Decimal | None, str]:
     return None, None, note[:255]
 
 
+def try_resolve_space_from_text(raw: str):
+    """Link offered-space free text to Property Space when a unique Space.code match exists."""
+    from apps.property.models import Space
+
+    text = (raw or "").strip()
+    if not text or text in {"-", "—"}:
+        return None
+    # Prefer exact code tokens (e.g. CP-F07-OFF-701)
+    codes = re.findall(r"\b([A-Za-z]{1,6}(?:-[A-Za-z0-9]+){1,4})\b", text)
+    found = []
+    seen = set()
+    for code in codes:
+        key = code.upper()
+        if key in seen:
+            continue
+        seen.add(key)
+        space = Space.objects.filter(code__iexact=code).first()
+        if space:
+            found.append(space)
+    if len(found) == 1:
+        return found[0]
+    return None
+
+
 def legacy_status_to_fields(status: str) -> dict:
     """Map old Lead.status → qualification / record_status / pipeline_stage."""
     if status == "qualified":

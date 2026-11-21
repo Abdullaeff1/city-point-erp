@@ -224,27 +224,69 @@ class FloorPatrolTests(TestCase):
         self.assertIn("YOX", joined)
         self.assertIn("Elvin", joined)
         self.assertIn("X", joined)
+        from apps.accounts.routing import home_url_for
+        from apps.accounts.test_utils import assert_soft_denied
+
         self.client.force_login(self.reception)
         denied = self.client.get(reverse("security:patrol_word", args=[sheet.pk]))
-        self.assertEqual(denied.status_code, 403)
+        assert_soft_denied(
+            self,
+            self.client,
+            denied,
+            self.reception,
+            expected_url=home_url_for(self.reception),
+        )
 
     def test_management_can_view_but_not_save(self):
+        from apps.accounts.routing import home_url_for
+        from apps.accounts.test_utils import assert_soft_denied
+
         sheet = self._open()
         self.client.force_login(self.management)
         page = self.client.get(reverse("security:patrol_detail", args=[sheet.pk]))
         self.assertEqual(page.status_code, 200)
         self.assertNotContains(page, "Hamısını saxla")
+        before_started = list(
+            FloorPatrolRound.objects.filter(sheet=sheet).values_list("started_at", flat=True)
+        )
         denied = self.client.post(
             reverse("security:patrol_detail", args=[sheet.pk]),
             {"action": "save", "round__2__2000__started": "20:32"},
         )
-        self.assertEqual(denied.status_code, 403)
+        assert_soft_denied(
+            self,
+            self.client,
+            denied,
+            self.management,
+            expected_url=home_url_for(self.management),
+        )
+        after_started = list(
+            FloorPatrolRound.objects.filter(sheet=sheet).values_list("started_at", flat=True)
+        )
+        self.assertEqual(after_started, before_started)
 
     def test_reception_and_resident_are_forbidden(self):
+        from apps.accounts.routing import home_url_for
+        from apps.accounts.test_utils import assert_soft_denied
+
         self.client.force_login(self.reception)
-        self.assertEqual(self.client.get(reverse("security:patrol_list")).status_code, 403)
+        assert_soft_denied(
+            self,
+            self.client,
+            self.client.get(reverse("security:patrol_list")),
+            self.reception,
+            expected_url=home_url_for(self.reception),
+            protected_markers=("/security/patrol/",),
+        )
         self.client.force_login(self.resident)
-        self.assertEqual(self.client.get(reverse("security:patrol_list")).status_code, 403)
+        assert_soft_denied(
+            self,
+            self.client,
+            self.client.get(reverse("security:patrol_list")),
+            self.resident,
+            expected_url=home_url_for(self.resident),
+            protected_markers=("/security/patrol/",),
+        )
 
     def test_same_night_returns_existing_sheet(self):
         first, created = open_or_create_sheet(

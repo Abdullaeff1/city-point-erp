@@ -30,8 +30,8 @@
           <li class="announcement-file-row">
             <span class="announcement-file-name">{{ att.display_name }}</span>
             <span class="announcement-file-actions">
-              <a class="cp-btn-ghost" href="{{ att.file.url }}" target="_blank" rel="noopener">{% translate "Aç" %}</a>
-              <a class="cp-btn" href="{{ att.file.url }}" download="{{ att.display_name }}">{% translate "Yüklə" %}</a>
+              <a class="cp-btn-ghost" href="{% url 'portal:announcement_attachment' att.pk %}" target="_blank" rel="noopener">{% translate "Aç" %}</a>
+              <a class="cp-btn" href="{% url 'portal:announcement_attachment' att.pk %}">{% translate "Yüklə" %}</a>
             </span>
           </li>
           {% endif %}

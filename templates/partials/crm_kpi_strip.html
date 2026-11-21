@@ -1,0 +1,23 @@
+{% comment %}
+Expects: kpi_items — list of dicts with keys:
+  label, value, meta (optional), url (optional), trend (optional: "up"|"down"), trend_label (optional)
+{% endcomment %}
+{% if kpi_items %}
+<div class="crm-kpi-strip" role="list">
+  {% for item in kpi_items %}
+    {% if item.url %}
+    <a class="crm-kpi-card" href="{{ item.url }}" role="listitem">
+    {% else %}
+    <div class="crm-kpi-card" role="listitem">
+    {% endif %}
+      <div class="crm-kpi-card__label">{{ item.label }}</div>
+      <div class="crm-kpi-card__value">{{ item.value }}</div>
+      {% if item.trend_label %}
+      <div class="crm-kpi-card__meta{% if item.trend == 'up' %} crm-kpi-card__meta--up{% elif item.trend == 'down' %} crm-kpi-card__meta--down{% endif %}">{{ item.trend_label }}</div>
+      {% elif item.meta %}
+      <div class="crm-kpi-card__meta">{{ item.meta }}</div>
+      {% endif %}
+    {% if item.url %}</a>{% else %}</div>{% endif %}
+  {% endfor %}
+</div>
+{% endif %}

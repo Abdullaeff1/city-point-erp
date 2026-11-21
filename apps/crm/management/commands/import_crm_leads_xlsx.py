@@ -19,6 +19,7 @@ from apps.crm.mapping import (
     map_record_status,
     map_source,
     parse_area_range,
+    try_resolve_space_from_text,
 )
 from apps.crm.models import (
     ActivityType,
@@ -209,6 +210,7 @@ class Command(BaseCommand):
                 min_a, max_a, area_note = parse_area_range(_get(row, cols, "area_wanted"))
                 offered = _get(row, cols, "area_offered")
                 price = _get(row, cols, "price")
+                linked_space = try_resolve_space_from_text(offered)
                 initial_parts = [p for p in (area_note if area_note != _get(row, cols, "area_wanted") else "", offered, price) if p and p not in {"-", "—"}]
                 # Keep area wanted text in initial_note when useful
                 if _get(row, cols, "area_wanted") and _get(row, cols, "area_wanted") not in {"-", "—"}:
@@ -248,6 +250,8 @@ class Command(BaseCommand):
                         lead.outcome = outcome
                     lead.message = (notes or "")[:5000]
                     lead.initial_note = initial_note
+                    if linked_space is not None and not lead.interested_space_id:
+                        lead.interested_space = linked_space
                     if record == RecordStatus.CLOSED and stage not in (
                         PipelineStage.WON,
                         PipelineStage.LOST,

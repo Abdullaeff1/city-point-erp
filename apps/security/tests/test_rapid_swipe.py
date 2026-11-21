@@ -186,8 +186,18 @@ class RapidSwipeSecurityUITests(TestCase):
         self.client = Client()
 
     def test_resident_forbidden(self):
+        from apps.accounts.test_utils import assert_soft_denied
+
         self.client.force_login(self.resident)
-        self.assertEqual(self.client.get(reverse("security:alerts")).status_code, 403)
+        resp = self.client.get(reverse("security:alerts"))
+        assert_soft_denied(
+            self,
+            self.client,
+            resp,
+            self.resident,
+            expected_url=reverse("portal:home"),
+            protected_markers=("/security/alerts/",),
+        )
 
     def test_list_and_detail(self):
         self.client.force_login(self.security)

@@ -90,12 +90,19 @@
           {{ visits|length }} {% translate "qonaq" %} · {% translate "girişdən 24 saatdan çox" %}
         {% elif filter_status == "inside" %}
           {{ visits|length }} {% translate "qonaq" %} · {% translate "bu gün" %}
-        {% elif filter_status == "waiting" or filter_status == "id_pending" %}
+        {% elif filter_status == "id_pending" %}
+          {{ visits|length }} {% translate "qonaq" %} · {% translate "Reception vəsiqə qaytarmasını tamamlamalıdır (baxış rejimi)" %}
+        {% elif filter_status == "waiting" %}
           {{ visits|length }} {% translate "qonaq" %}
         {% else %}
           {{ visits|length }} {% translate "qonaq" %}{% if not journal_single_day %} · {{ export_from|date:"d.m.Y" }} – {{ export_to|date:"d.m.Y" }}{% endif %}
         {% endif %}
       </p>
+      {% if filter_status != "id_pending" %}
+      <p class="cp-meta mt-2">
+        <a href="?range={{ export_preset }}&status=id_pending{% if q %}&q={{ q }}{% endif %}{% if filter_company %}&company={{ filter_company }}{% endif %}#journal-panel">{% translate "Vəsiqə gözləyənlərə bax" %}</a>
+      </p>
+      {% endif %}
     </div>
     {% if export_preset == 'today' %}
     <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;margin:0;">

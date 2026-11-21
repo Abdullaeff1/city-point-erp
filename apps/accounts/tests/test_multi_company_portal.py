@@ -123,7 +123,7 @@ class MultiCompanyLoginTests(TestCase):
         self.client.login(username="adm@test.az", password="Pass12345!")
         resp = self.client.get(reverse("post_login"))
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp["Location"], reverse("erp:dashboard"))
+        self.assertEqual(resp["Location"], reverse("erp:it_dashboard"))
 
 
 class EligibilityAndSessionTests(TestCase):
@@ -262,7 +262,7 @@ class IsolationAndCreateTests(TestCase):
 
     def test_create_all_with_allowed_company(self):
         self.client.post(reverse("portal:choose_companies"), {"choice": "all"})
-        sub = TicketSubcategory.objects.filter(is_active=True).first()
+        sub = TicketSubcategory.objects.get(slug="electric", is_active=True)
         resp = self.client.post(
             reverse("portal:request_new"),
             {
@@ -297,7 +297,7 @@ class IsolationAndCreateTests(TestCase):
 
     def test_single_create_uses_scope_company(self):
         self.client.post(reverse("portal:choose_companies"), {"choice": str(self.c1.pk)})
-        sub = TicketSubcategory.objects.filter(is_active=True).first()
+        sub = TicketSubcategory.objects.get(slug="electric", is_active=True)
         resp = self.client.post(
             reverse("portal:request_new"),
             {

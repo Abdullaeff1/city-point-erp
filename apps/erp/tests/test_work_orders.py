@@ -151,7 +151,11 @@ class WorkOrderRestoreTests(TestCase):
         self.client.post(detail, {"action": "purchase", "description": "Ehtiyat nasos", "qty": "2"})
         pr = PurchaseRequest.objects.get(work_order=wo)
         ProcurementService.approve_pr(pr, actor=self.admin)
-        po = ProcurementService.create_po_from_pr(pr)
+        from apps.parties.models import Party, PartyRole, PartyRoleCode
+
+        supplier = Party.objects.create(legal_name="WO Test Supplier")
+        PartyRole.objects.get_or_create(party=supplier, role=PartyRoleCode.SUPPLIER)
+        po = ProcurementService.create_po_from_pr(pr, supplier_party=supplier)
         po_line = po.lines.get()
         self.client.force_login(self.admin)
         self.client.post(

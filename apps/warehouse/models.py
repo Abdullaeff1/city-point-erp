@@ -145,3 +145,124 @@ class WarehouseIssueLine(models.Model):
 
     def __str__(self):
         return f"{self.issue_id}:{self.sku_id}"
+
+
+class StocktakeStatus(models.TextChoices):
+    OPEN = "open", _("Açıq")
+    COMPLETED = "completed", _("Bitirilib")
+    POSTING = "posting", _("Düzəlişlər tətbiq olunur")
+    POSTED = "posted", _("Düzəlişlər tətbiq olunub")
+    CANCELLED = "cancelled", _("Ləğv")
+
+
+class Stocktake(models.Model):
+    """Warehouse physical count session with historical variance report."""
+
+    code = models.CharField(max_length=32, unique=True)
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT, related_name="stocktakes")
+    status = models.CharField(
+        max_length=16, choices=StocktakeStatus.choices, default=StocktakeStatus.OPEN
+    )
+    started_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="stocktakes_started",
+    )
+    started_at = models.DateTimeField(default=timezone.now, editable=False)
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="stocktakes_completed",
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
+    posted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="stocktakes_posted",
+    )
+    posted_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return self.code
+
+
+class StocktakeLine(models.Model):
+    """
+    One countable balance key: warehouse + SKU (+ bin when used).
+
+    expected_qty is the system on-hand captured when the physical count is saved
+    (not a frozen session-start snapshot alone). counted_qty null = uncounted;
+    never coerce an empty form field to zero.
+    """
+
+    stocktake = models.ForeignKey(Stocktake, on_delete=models.CASCADE, related_name="lines")
+    sku = models.ForeignKey(SKU, on_delete=models.PROTECT, related_name="stocktake_lines")
+    bin = models.ForeignKey(
+        Bin,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="stocktake_lines",
+    )
+    unit = models.CharField(max_length=16, default="pcs")
+    # On-hand at session start (evidence / progress only).
+    baseline_qty = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    baseline_at = models.DateTimeField(default=timezone.now)
+    # System on-hand when the operator saved the physical quantity.
+    expected_qty = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
+    counted_qty = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
+    variance_qty = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
+    counted_at = models.DateTimeField(null=True, blank=True)
+    counted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="stocktake_lines_counted",
+    )
+    recount_required = models.BooleanField(default=False)
+    activity_after_count = models.BooleanField(
+        default=False,
+        help_text=_("Balance-affecting movement after counted_at; review before posting."),
+    )
+    adjustment_movement = models.ForeignKey(
+        StockMovement,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="stocktake_lines",
+    )
+    posted_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("stocktake", "sku", "bin")
+        ordering = ["sku__code"]
+
+    def __str__(self):
+        return f"{self.stocktake_id}:{self.sku_id}"
+
+    @property
+    def is_counted(self) -> bool:
+        return self.counted_qty is not None
+
+    @property
+    def variance_kind(self) -> str:
+        if self.counted_qty is None:
+            return "uncounted"
+        if self.variance_qty is None:
+            return "uncounted"
+        if self.variance_qty == 0:
+            return "match"
+        if self.variance_qty > 0:
+            return "surplus"
+        return "shortage"

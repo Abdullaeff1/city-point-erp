@@ -1,19 +1,22 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
-{% block page_title %}{% translate "CRM Lidlər" %}{% endblock %}
-{% block heading %}{% translate "CRM Lidlər" %}{% endblock %}
+{% block page_title %}{% translate "Lidlər" %}{% endblock %}
+{% block heading %}{% translate "Lidlər" %}{% endblock %}
+{% block heading_count %}{% if list_total != None %}<span class="crm-page-count">{{ list_total }}</span>{% endif %}{% endblock %}
 {% block content %}
-{% include "partials/crm_pipeline_strip.html" %}
+{% include "partials/crm_kpi_strip.html" %}
+{% include "partials/crm_filter_tabs.html" %}
+
 {% if can_mutate %}
 <section class="crm-lead-create cp-card p-card mb-4">
   <details class="crm-lead-create-fold"{% if pending_lead_open %} open{% endif %}>
-    <summary class="crm-lead-create-summary">
+    <summary class="crm-lead-create-summary flex justify-between items-center gap-3">
       <div class="crm-lead-create-summary-text">
         <h3 class="cp-section">{% translate "Yeni lid" %}</h3>
         <p class="cp-meta mt-1">{% translate "Şirkət, əlaqə, telefon və ya e-poçtdan ən azı biri kifayətdir." %}</p>
       </div>
       <span class="cp-btn crm-lead-create-toggle">
-        <span class="crm-lead-create-toggle-closed">{% translate "Formanı aç" %}</span>
+        <span class="crm-lead-create-toggle-closed">+ {% translate "Lid əlavə et" %}</span>
         <span class="crm-lead-create-toggle-open">{% translate "Bağla" %}</span>
       </span>
     </summary>
@@ -99,59 +102,70 @@
 </section>
 {% endif %}
 
-<form method="get" class="crm-lead-filters cp-card p-card-sm mb-4">
-  <label>
-    <span class="cp-meta">{% translate "Axtarış" %}</span>
-    <input class="cp-input mt-1" name="q" value="{{ filters.q }}" placeholder="{% translate 'Şirkət, əlaqə, telefon…' %}">
-  </label>
-  <label>
-    <span class="cp-meta">{% translate "Mənbə" %}</span>
-    <select class="cp-input mt-1" name="source">
-      <option value="">—</option>
-      {% for v,l in sources %}<option value="{{ v }}" {% if filters.source == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
-    </select>
-  </label>
-  <label>
-    <span class="cp-meta">{% translate "Kvalifikasiya" %}</span>
-    <select class="cp-input mt-1" name="qualification">
-      <option value="">—</option>
-      {% for v,l in qualifications %}<option value="{{ v }}" {% if filters.qualification == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
-    </select>
-  </label>
-  <label>
-    <span class="cp-meta">{% translate "Mərhələ" %}</span>
-    <select class="cp-input mt-1" name="pipeline_stage">
-      <option value="">—</option>
-      {% for v,l in stages %}<option value="{{ v }}" {% if filters.pipeline_stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
-    </select>
-  </label>
-  <div class="crm-lead-filters-actions">
-    <button type="submit" class="cp-btn">{% translate "Filter" %}</button>
+<form method="get" class="mb-4">
+  <div class="crm-table-toolbar">
+    <div class="crm-table-toolbar__search">
+      <span class="crm-table-toolbar__search-icon" aria-hidden="true"><i data-lucide="search" width="16" height="16"></i></span>
+      <input class="cp-input" type="search" name="q" value="{{ filters.q }}" placeholder="{% translate 'Şirkət, əlaqə, telefon…' %}">
+    </div>
+    <div class="crm-table-toolbar__actions">
+      {% if filters.qualification %}<input type="hidden" name="qualification" value="{{ filters.qualification }}">{% endif %}
+      <select class="cp-input" name="source" style="min-width:8rem;">
+        <option value="">{% translate "Mənbə" %}</option>
+        {% for v,l in sources %}<option value="{{ v }}" {% if filters.source == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select>
+      <select class="cp-input" name="pipeline_stage" style="min-width:8rem;">
+        <option value="">{% translate "Mərhələ" %}</option>
+        {% for v,l in stages %}<option value="{{ v }}" {% if filters.pipeline_stage == v %}selected{% endif %}>{{ l }}</option>{% endfor %}
+      </select>
+      <button type="submit" class="cp-btn soft">{% translate "Filter" %}</button>
+    </div>
   </div>
 </form>
 
-<div class="cp-card">
+<div class="crm-table-panel">
   <table class="cp-table">
     <thead>
       <tr>
-        <th>#</th><th>{% translate "Şirkət" %}</th><th>{% translate "Əlaqə" %}</th><th>{% translate "Telefon" %}</th><th>{% translate "Mənbə" %}</th>
-        <th>{% translate "Kvalifikasiya" %}</th><th>{% translate "Mərhələ" %}</th><th>{% translate "Status" %}</th><th></th>
+        <th>{% translate "Əlaqə" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "E-poçt" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th>{% translate "Məsul" %}</th>
+        <th>{% translate "Mənbə" %}</th>
+        <th>{% translate "Yaradılıb" %}</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
       {% for lead in leads %}
-      <tr>
-        <td>{{ lead.pk }}</td>
+      <tr class="crm-list-row" onclick="location.href='{% url 'erp:crm_lead_detail' lead.pk %}'">
+        <td>
+          <strong>{{ lead.full_name|default:"—" }}</strong>
+          {% if lead.phone %}<div class="cp-meta">{{ lead.phone }}</div>{% endif %}
+        </td>
         <td>{{ lead.company_name|default:"—" }}</td>
-        <td>{{ lead.full_name|default:"—" }}</td>
-        <td>{{ lead.phone|default:"—" }}</td>
+        <td>{% if lead.email %}<a href="mailto:{{ lead.email }}" onclick="event.stopPropagation()">{{ lead.email }}</a>{% else %}—{% endif %}</td>
+        <td>
+          {% if lead.qualification == "potential" %}
+            {% include "partials/crm_status_pill.html" with pill_label=lead.get_qualification_display pill_kind="potential" %}
+          {% elif lead.qualification == "non_potential" %}
+            {% include "partials/crm_status_pill.html" with pill_label=lead.get_qualification_display pill_kind="non_potential" %}
+          {% elif lead.qualification == "unreviewed" %}
+            {% include "partials/crm_status_pill.html" with pill_label=lead.get_qualification_display pill_kind="new" %}
+          {% else %}
+            {% include "partials/crm_status_pill.html" with pill_label=lead.get_qualification_display pill_kind="open" %}
+          {% endif %}
+          <div class="cp-meta mt-1">{{ lead.get_pipeline_stage_display }}</div>
+        </td>
+        <td>{% if lead.owner %}{{ lead.owner.display_name }}{% else %}—{% endif %}</td>
         <td>{{ lead.get_source_display }}</td>
-        <td>{{ lead.get_qualification_display }}</td>
-        <td>{{ lead.get_pipeline_stage_display }}</td>
-        <td>{{ lead.get_record_status_display }}</td>
-        <td><a href="{% url 'erp:crm_lead_detail' lead.pk %}">{% translate "Aç" %}</a></td>
+        <td>{% if lead.inquired_at %}{{ lead.inquired_at|date:"d M Y" }}{% else %}{{ lead.created_at|date:"d M Y" }}{% endif %}</td>
+        <td><a class="cp-btn soft" href="{% url 'erp:crm_lead_detail' lead.pk %}" onclick="event.stopPropagation()">{% translate "Aç" %}</a></td>
       </tr>
-      {% empty %}<tr><td colspan="9">{% translate "Lid yoxdur." %}</td></tr>{% endfor %}
+      {% empty %}
+      <tr><td colspan="8"><div class="crm-empty-state"><p class="cp-section">{% translate "Lid yoxdur." %}</p></div></td></tr>
+      {% endfor %}
     </tbody>
   </table>
 </div>

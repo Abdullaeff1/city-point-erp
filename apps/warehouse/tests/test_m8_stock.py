@@ -71,7 +71,10 @@ class M8StockProcurementTests(TestCase):
     def test_partial_po_receive(self):
         pr = ProcurementService.create_pr_from_low_stock(stock=self.stock, requested_by=self.admin)
         ProcurementService.approve_pr(pr, actor=self.admin)
+        from apps.parties.models import PartyRole, PartyRoleCode
+
         supplier = Party.objects.create(legal_name="Supplier MMC")
+        PartyRole.objects.get_or_create(party=supplier, role=PartyRoleCode.SUPPLIER)
         po = ProcurementService.create_po_from_pr(pr, supplier_party=supplier)
         line = po.lines.get()
         half = (line.qty or Decimal("1")) / 2

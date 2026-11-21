@@ -26,7 +26,15 @@ def axtrax_sync_health(*, stale_after_minutes: int = 30) -> dict:
         .first()
     )
     last_fail = (
-        SyncLog.objects.filter(system=AXTRAX_SYSTEM, status=SyncStatus.ERROR).order_by("-created_at").first()
+        SyncLog.objects.filter(system=AXTRAX_SYSTEM, status=SyncStatus.ERROR)
+        .exclude(operation="guest_checkout_ambiguous")
+        .order_by("-created_at")
+        .first()
+    )
+    last_ambiguous = (
+        SyncLog.objects.filter(system=AXTRAX_SYSTEM, operation="guest_checkout_ambiguous")
+        .order_by("-created_at")
+        .first()
     )
     last_access = AccessEvent.objects.order_by("-occurred_at").first()
     cursor = get_events_cursor()
@@ -44,6 +52,17 @@ def axtrax_sync_health(*, stale_after_minutes: int = 30) -> dict:
         "last_access_event_at": last_access.occurred_at if last_access else None,
         "last_error_at": last_fail.created_at if last_fail else None,
         "last_error_payload": (last_fail.response_payload if last_fail else None),
+        "last_guest_checkout_ambiguous_at": last_ambiguous.created_at if last_ambiguous else None,
+        "last_guest_checkout_ambiguous": (
+            {
+                "correlation_id": last_ambiguous.correlation_id,
+                "request": last_ambiguous.request_payload,
+                "response": last_ambiguous.response_payload,
+                "error_message": last_ambiguous.error_message,
+            }
+            if last_ambiguous
+            else None
+        ),
         "stale_after_minutes": stale_after_minutes,
         "cursor_operation": EVENT_CURSOR_KEY,
     }

@@ -1,25 +1,103 @@
 {% extends "erp/base.html" %}
 {% load i18n l10n %}
-{% block page_title %}{% translate "Procurement" %}{% endblock %}
-{% block heading %}{% translate "Procurement" %}{% endblock %}
+{% block page_title %}{% translate "Satınalma" %}{% endblock %}
+{% block heading %}{% translate "Satınalma" %}{% endblock %}
 {% block content %}
+<div class="cp-card p-card mb-4">
+  <form method="get" class="flex-wrap gap-2" style="display:flex;align-items:end;gap:12px;flex-wrap:wrap;">
+    <label>
+      <span class="cp-meta">{% translate "Axtarış" %}</span>
+      <input class="cp-input" type="search" name="q" value="{{ q }}" placeholder="PR / PO / təchizatçı…">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Mənbə" %}</span>
+      <select class="cp-input" name="source">
+        <option value="">{% translate "Hamısı" %}</option>
+        {% for value, label in pr_sources %}
+        <option value="{{ value }}" {% if source == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Status" %}</span>
+      <select class="cp-input" name="status">
+        <option value="">{% translate "Hamısı" %}</option>
+        {% for value, label in pr_statuses %}
+        <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Filter" %}</button>
+    {% if can_edit_procurement %}
+    <a class="cp-btn" href="{% url 'erp:procurement_pr_create' %}">{% translate "Yeni PR" %}</a>
+    <a class="cp-btn-ghost" href="{% url 'erp:procurement_suppliers' %}">{% translate "Təchizatçılar" %}</a>
+    {% endif %}
+  </form>
+</div>
+
 <div class="grid gap-4" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
   <div class="cp-card p-card">
     <h3 class="cp-section">{% translate "Purchase Requests" %}</h3>
     <table class="cp-table">
-      <thead><tr><th>Kod</th><th>Başlıq</th><th>Status</th></tr></thead>
+      <thead><tr><th>Kod</th><th>Başlıq</th><th>Mənbə</th><th>Status</th><th></th></tr></thead>
       <tbody>
-        {% for pr in prs %}
-        <tr><td>{{ pr.code }}</td><td>{{ pr.title }}</td><td>{{ pr.get_status_display }}</td></tr>
-        {% empty %}<tr><td colspan="3">Boş</td></tr>{% endfor %}
+        {% for pr in prs_page %}
+        <tr>
+          <td><a href="{% url 'erp:procurement_pr_detail' pr.code %}">{{ pr.code }}</a></td>
+          <td>
+            {{ pr.title }}
+            {% if pr.work_order_id %}<div class="cp-meta"><a href="{% url 'erp:work_order_detail' pr.work_order.code %}">{{ pr.work_order.code }}</a></div>{% endif %}
+          </td>
+          <td>{{ pr.get_source_display }}</td>
+          <td>{{ pr.get_status_display }}</td>
+          <td>
+            {% if can_approve_procurement %}
+              {% if pr.status == "submitted" or pr.status == "draft" %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="approve_pr">
+              <input type="hidden" name="pr_id" value="{{ pr.id }}">
+              <input type="hidden" name="submit_token" value="{{ submit_token }}-ap-{{ pr.id }}">
+              <button class="cp-btn-ghost" style="font-size:12px;">{% translate "Təsdiq" %}</button>
+            </form>
+              {% endif %}
+            {% endif %}
+            {% if can_edit_procurement %}
+              {% if pr.status == "approved" or pr.status == "ordered" %}
+            <form method="post" class="flex-col gap-1">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="create_po">
+              <input type="hidden" name="pr_id" value="{{ pr.id }}">
+              <input type="hidden" name="submit_token" value="{{ submit_token }}-po-{{ pr.id }}">
+              <select class="cp-input" name="supplier_party_id" required>
+                <option value="">{% translate "Təchizatçı…" %}</option>
+                {% for s in suppliers %}
+                <option value="{{ s.id }}">{{ s.display_name }}</option>
+                {% endfor %}
+              </select>
+              <button class="cp-btn-ghost" style="font-size:12px;">{% translate "PO yarat" %}</button>
+            </form>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}<tr><td colspan="5" class="cp-meta">{% translate "Boş" %}</td></tr>{% endfor %}
       </tbody>
     </table>
+    {% if prs_page.has_other_pages %}
+    <p class="cp-meta mt-2">{{ prs_page.number }}/{{ prs_page.paginator.num_pages }}</p>
+    {% endif %}
   </div>
   <div class="cp-card p-card">
     <h3 class="cp-section">{% translate "Purchase Orders" %}</h3>
-    {% for po in pos %}
-    <div class="wo-issue">
-      <div><strong>{{ po.code }}</strong> · {{ po.supplier_party.display_name|default:"—" }} · {{ po.get_status_display }}</div>
+    {% for po in pos_page %}
+    <div class="wo-issue mb-3">
+      <div>
+        <strong><a href="{% url 'erp:procurement_po_detail' po.code %}">{{ po.code }}</a></strong>
+        · {{ po.supplier_party.display_name|default:"—" }}
+        · {{ po.get_status_display }}
+        {% if po.pr_id %}· <a href="{% url 'erp:procurement_pr_detail' po.pr.code %}">{{ po.pr.code }}</a>{% endif %}
+      </div>
       <table class="cp-table">
         <thead><tr><th>Təsvir</th><th>Miqdar</th><th>Qəbul</th><th>Vahid qiymət</th></tr></thead>
         <tbody>
@@ -29,6 +107,7 @@
             <td>{{ line.qty }}</td>
             <td>{{ line.received_qty }}</td>
             <td>
+              {% if can_edit_procurement %}
               <form method="post" class="flex-col gap-2">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="set_line_price">
@@ -36,13 +115,35 @@
                 <input class="cp-input" name="unit_price" value="{{ line.unit_price|unlocalize }}" inputmode="decimal">
                 <button class="cp-btn-ghost">Qiyməti saxla</button>
               </form>
+              {% else %}{{ line.unit_price }}{% endif %}
             </td>
           </tr>
           {% empty %}<tr><td colspan="4">Sətir yoxdur.</td></tr>{% endfor %}
         </tbody>
       </table>
+      {% if can_edit_procurement %}
+      {% if po.status == "sent" or po.status == "partial" or po.status == "draft" %}
+      <form method="post" class="flex gap-2 mt-2" style="align-items:end;flex-wrap:wrap;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="receive_po">
+        <input type="hidden" name="po_id" value="{{ po.id }}">
+        <input type="hidden" name="receive_mode" value="full">
+        <input type="hidden" name="operation_key" value="{{ submit_token }}-recv-{{ po.id }}">
+        <input type="hidden" name="submit_token" value="{{ submit_token }}-recv-{{ po.id }}">
+        {% if warehouses %}
+        <label>
+          <span class="cp-meta">{% translate "Anbar" %}</span>
+          <select class="cp-input mt-1" name="warehouse_id">
+            {% for w in warehouses %}<option value="{{ w.id }}">{{ w.code }} — {{ w.name }}</option>{% endfor %}
+          </select>
+        </label>
+        {% endif %}
+        <button class="cp-btn">{% translate "Qəbul et" %}</button>
+      </form>
+      {% endif %}
+      {% endif %}
     </div>
-    {% empty %}<p class="cp-meta">Boş</p>{% endfor %}
+    {% empty %}<p class="cp-meta">{% translate "Boş" %}</p>{% endfor %}
   </div>
 </div>
 {% endblock %}

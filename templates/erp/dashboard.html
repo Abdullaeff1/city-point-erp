@@ -1,15 +1,15 @@
 {% extends "erp/base.html" %}
 {% load i18n cp_ui %}
-{% block heading %}{% if is_sales_dashboard %}{% translate "Satış paneli" %}{% else %}{% translate "İdarə paneli" %}{% endif %}{% endblock %}
+{% block heading %}{% if is_sales_dashboard %}{% translate "Satış paneli" %}{% elif is_management_hub %}{% translate "ERP Dashboard" %}{% else %}{% translate "İdarə paneli" %}{% endif %}{% endblock %}
 {% block content %}
 {% if is_sales_dashboard %}
-{# —— Satış paneli —— #}
+{# —— Satış paneli (CRM mock layout) —— #}
 <div class="flex gap-3 mb-4" style="flex-wrap:wrap;align-items:flex-end;justify-content:space-between;">
   <p class="cp-meta" style="margin:0;max-width:36rem;">{% translate "Cari vəziyyət dövr süzgəcindən asılı deyil. Dövr yalnız hadisə saylarını dəyişir." %}</p>
   <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:flex-end;">
     <label class="cp-meta">
       {% translate "Dövr" %}
-      <select name="period" onchange="this.form.submit()" style="display:block;margin-top:4px;min-width:10rem;">
+      <select class="cp-input" name="period" onchange="this.form.submit()" style="display:block;margin-top:4px;min-width:10rem;">
         {% for key, label in period.choices %}
         <option value="{{ key }}" {% if period.key == key %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
@@ -18,106 +18,97 @@
     {% if period.key == "custom" %}
     <label class="cp-meta">
       {% translate "Başlanğıc" %}
-      <input type="date" name="date_from" value="{{ period.date_from|date:'Y-m-d' }}" style="display:block;margin-top:4px;">
+      <input class="cp-input" type="date" name="date_from" value="{{ period.date_from|date:'Y-m-d' }}" style="display:block;margin-top:4px;">
     </label>
     <label class="cp-meta">
       {% translate "Son" %}
-      <input type="date" name="date_to" value="{{ period.date_to|date:'Y-m-d' }}" style="display:block;margin-top:4px;">
+      <input class="cp-input" type="date" name="date_to" value="{{ period.date_to|date:'Y-m-d' }}" style="display:block;margin-top:4px;">
     </label>
-    <button type="submit" class="cp-btn-ghost">{% translate "Tətbiq et" %}</button>
+    <button type="submit" class="cp-btn soft">{% translate "Tətbiq et" %}</button>
     {% endif %}
   </form>
 </div>
 
-<div class="grid-kpi mb-5">
-  <a class="cp-card p-card-sm cp-card-link" href="{{ kpi.open_leads.url }}">
-    <div class="cp-meta">{% translate "Açıq lidlər" %}</div>
-    <div class="cp-metric mt-2">{{ kpi.open_leads.count }}</div>
-    <div class="cp-meta mt-2">{% translate "cari vəziyyət" %}</div>
+<div class="crm-kpi-strip mb-4">
+  <a class="crm-kpi-card" href="{{ kpi.open_leads.url }}">
+    <div class="crm-kpi-card__label">{% translate "Açıq lidlər" %}</div>
+    <div class="crm-kpi-card__value">{{ kpi.open_leads.count }}</div>
+    <div class="crm-kpi-card__meta">{% translate "cari vəziyyət" %}</div>
   </a>
-  <a class="cp-card p-card-sm cp-card-link" href="{{ kpi.open_opportunities.url }}">
-    <div class="cp-meta">{% translate "Aktiv imkanlar" %}</div>
-    <div class="cp-metric mt-2">{{ kpi.open_opportunities.count }}</div>
+  <a class="crm-kpi-card" href="{{ kpi.open_opportunities.url }}">
+    <div class="crm-kpi-card__label">{% translate "Aktiv imkanlar" %}</div>
+    <div class="crm-kpi-card__value">{{ kpi.open_opportunities.count }}</div>
     {% if kpi.open_opportunities.expected_area_m2 %}
-    <div class="cp-meta mt-2">{{ kpi.open_opportunities.expected_area_m2 }} m² · {% translate "tələb olunan" %}</div>
+    <div class="crm-kpi-card__meta">{{ kpi.open_opportunities.expected_area_m2 }} m² · {% translate "tələb olunan" %}</div>
     {% else %}
-    <div class="cp-meta mt-2">{% translate "cari vəziyyət" %}</div>
+    <div class="crm-kpi-card__meta">{% translate "cari vəziyyət" %}</div>
     {% endif %}
   </a>
-  <div class="cp-card p-card-sm">
-    <div class="cp-meta">{% translate "Təkliflər — hərəkət" %}</div>
-    <div class="cp-metric mt-2">{{ kpi.offers_action.pending_approval|add:kpi.offers_action.approved_unsent|add:kpi.offers_action.expiring }}</div>
-    <div class="cp-meta mt-2">
+  <div class="crm-kpi-card">
+    <div class="crm-kpi-card__label">{% translate "Təkliflər — hərəkət" %}</div>
+    <div class="crm-kpi-card__value">{{ kpi.offers_action.pending_approval|add:kpi.offers_action.approved_unsent|add:kpi.offers_action.expiring }}</div>
+    <div class="crm-kpi-card__meta">
       <a href="{{ kpi.offers_action.url_pending }}">{% translate "Təsdiq" %}: {{ kpi.offers_action.pending_approval }}</a>
       · <a href="{{ kpi.offers_action.url_approved }}">{% translate "Göndərilməyib" %}: {{ kpi.offers_action.approved_unsent }}</a>
       · {% translate "Müddət" %}: {{ kpi.offers_action.expiring }}
     </div>
   </div>
-  <a class="cp-card p-card-sm cp-card-link" href="{{ kpi.applications.url }}">
-    <div class="cp-meta">{% translate "Müqavilə müraciətləri" %}</div>
-    <div class="cp-metric mt-2">{{ kpi.applications.sales_work }}</div>
-    <div class="cp-meta mt-2">
+  <a class="crm-kpi-card" href="{{ kpi.applications.url }}">
+    <div class="crm-kpi-card__label">{% translate "Müqavilə müraciətləri" %}</div>
+    <div class="crm-kpi-card__value">{{ kpi.applications.sales_work }}</div>
+    <div class="crm-kpi-card__meta">
       {% translate "Satış işi" %}: {{ kpi.applications.sales_work }}
       · {% translate "Mühasibdə" %}: {{ kpi.applications.accountant_queue }}
     </div>
   </a>
   {% if kpi.available_spaces.show %}
-  <a class="cp-card p-card-sm cp-card-link" href="{{ kpi.available_spaces.url }}">
-    <div class="cp-meta">{% translate "İcarəyə əlçatan sahələr" %}</div>
-    <div class="cp-metric mt-2">{{ kpi.available_spaces.count }}</div>
-    <div class="cp-meta mt-2">{{ kpi.available_spaces.total_m2 }} m²
+  <a class="crm-kpi-card" href="{{ kpi.available_spaces.url }}">
+    <div class="crm-kpi-card__label">{% translate "İcarəyə əlçatan sahələr" %}</div>
+    <div class="crm-kpi-card__value">{{ kpi.available_spaces.count }}</div>
+    <div class="crm-kpi-card__meta">{{ kpi.available_spaces.total_m2 }} m²
       {% if kpi.available_spaces.conflict_count %} · {% translate "uyğunsuzluq" %}: {{ kpi.available_spaces.conflict_count }}{% endif %}
     </div>
   </a>
   {% else %}
-  <div class="cp-card p-card-sm">
-    <div class="cp-meta">{% translate "İcarəyə əlçatan sahələr" %}</div>
-    <p class="cp-meta mt-2">{% translate "Sahə məlumatı natamam — göstərici gizlədilib." %}</p>
+  <div class="crm-kpi-card">
+    <div class="crm-kpi-card__label">{% translate "İcarəyə əlçatan sahələr" %}</div>
+    <div class="crm-kpi-card__meta mt-2">{% translate "Sahə məlumatı natamam — göstərici gizlədilib." %}</div>
   </div>
   {% endif %}
 </div>
 
 <div class="cp-card p-card-sm mb-4">
-  <div class="cp-meta mb-2">{% translate "Satış axını" %}</div>
-  <nav class="crm-pipeline-strip" aria-label="{% translate 'Satış hunisi' %}">
+  <div class="cp-meta mb-3">{% translate "Satış axını" %}</div>
+  <nav class="crm-pipeline-modern" aria-label="{% translate 'Satış hunisi' %}">
     {% for step in pipeline_steps %}
-    <a class="crm-pipeline-step" href="{{ step.url }}">
-      <span class="crm-pipeline-step-label">{{ step.label }}</span>
-      <span class="crm-pipeline-step-count">{{ step.count }}</span>
+    <a href="{{ step.url }}">
+      <span class="crm-pipeline-modern__label">{{ step.label }}</span>
+      <span class="crm-pipeline-modern__count">{{ step.count }}</span>
     </a>
-    {% if not forloop.last %}<span class="crm-pipeline-arrow" aria-hidden="true">→</span>{% endif %}
     {% endfor %}
   </nav>
-  <p class="cp-meta mt-2">{% translate "Hər mərhələ öz aktiv qeydlərinin sayıdır; eyni müştəri bir neçə mərhələdə görünə bilər." %}</p>
+  <p class="cp-meta mt-3">{% translate "Hər mərhələ öz aktiv qeydlərinin sayıdır; eyni müştəri bir neçə mərhələdə görünə bilər." %}</p>
 </div>
 
-<div class="cp-card p-card-sm mb-4">
-  <div class="cp-meta">{% translate "Dövr ərzində" %}
-    ({{ period.date_from|date:"d.m.Y" }} – {{ period.date_to|date:"d.m.Y" }})
+<div class="crm-kpi-strip mb-4">
+  <div class="crm-kpi-card">
+    <div class="crm-kpi-card__label">{% translate "Yaradılmış lidlər" %} · {{ period.date_from|date:"d.m" }}–{{ period.date_to|date:"d.m.Y" }}</div>
+    <div class="crm-kpi-card__value">{{ period_events.leads_created }}</div>
   </div>
-  <div class="flex gap-3 mt-2" style="flex-wrap:wrap;">
-    <div>
-      <div class="cp-metric">{{ period_events.leads_created }}</div>
-      <div class="cp-meta">{% translate "Yaradılmış lidlər" %}</div>
-    </div>
-    <div>
-      <div class="cp-metric">{{ period_events.viewings }}</div>
-      <div class="cp-meta">{% translate "Sahəyə baxışlar" %}</div>
-    </div>
-    <div>
-      <div class="cp-metric">{{ period_events.offers_sent }}</div>
-      <div class="cp-meta">{% translate "Göndərilmiş təkliflər" %}</div>
-    </div>
+  <div class="crm-kpi-card">
+    <div class="crm-kpi-card__label">{% translate "Sahəyə baxışlar" %}</div>
+    <div class="crm-kpi-card__value">{{ period_events.viewings }}</div>
   </div>
-  <p class="cp-meta mt-2">
-    {% translate "Qazanma / itirmə və dönüşüm faizləri mərhələ tarixçəsi olmadan göstərilmir." %}
-    <a href="{{ reports_url }}">{% translate "CRM hesabatı" %} →</a>
-  </p>
+  <div class="crm-kpi-card">
+    <div class="crm-kpi-card__label">{% translate "Göndərilmiş təkliflər" %}</div>
+    <div class="crm-kpi-card__value">{{ period_events.offers_sent }}</div>
+    <div class="crm-kpi-card__meta"><a href="{{ reports_url }}">{% translate "CRM hesabatı" %} →</a></div>
+  </div>
 </div>
 
-<div class="grid-dash mb-4 grid-dash--triple" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;">
-  <div class="cp-card" style="padding:8px 0;">
-    <div class="cp-section section-pad">{% translate "Əlaqə tələb edir" %}</div>
+<div class="crm-attention-grid mb-4">
+  <div class="crm-attention-card">
+    <h3 class="crm-attention-card__title">{% translate "Əlaqə tələb edir" %}</h3>
     {% for row in attention_contact %}
     <a href="{{ row.url }}" class="cp-list-row">
       <span>
@@ -134,8 +125,8 @@
     <p class="empty-pad"><a href="{% url 'erp:crm_leads' %}">{% translate "Lidlərə bax" %} →</a></p>
     {% endfor %}
   </div>
-  <div class="cp-card" style="padding:8px 0;">
-    <div class="cp-section section-pad">{% translate "Təkliflərdə gözləyən addımlar" %}</div>
+  <div class="crm-attention-card">
+    <h3 class="crm-attention-card__title">{% translate "Təkliflərdə gözləyən addımlar" %}</h3>
     {% for row in attention_offers %}
     <a href="{{ row.url }}" class="cp-list-row">
       <span>
@@ -157,8 +148,8 @@
     <p class="empty-pad"><a href="{% url 'erp:crm_offers' %}">{% translate "Təkliflərə bax" %} →</a></p>
     {% endfor %}
   </div>
-  <div class="cp-card" style="padding:8px 0;">
-    <div class="cp-section section-pad">{% translate "Müraciətlərdə gözləyən addımlar" %}</div>
+  <div class="crm-attention-card">
+    <h3 class="crm-attention-card__title">{% translate "Müraciətlərdə gözləyən addımlar" %}</h3>
     {% for row in attention_applications %}
     <a href="{{ row.url }}" class="cp-list-row">
       <span>
@@ -176,6 +167,62 @@
     {% endfor %}
   </div>
 </div>
+
+{% elif is_management_hub %}
+{# —— Rəhbərlik modul hub —— #}
+<p class="cp-meta mgmt-hub-intro">{% translate "Əsas idarəetmə modulları — şöbə işinin nəticələri burada görünür; dəyişiklikləri şöbə işçiləri edir." %}</p>
+
+{% if show_approvals %}
+<div class="crm-kpi-strip mb-4">
+  <a class="crm-kpi-card" href="{% url 'erp:approvals' %}">
+    <div class="crm-kpi-card__label">{% translate "Gözləyən təsdiq" %}</div>
+    <div class="crm-kpi-card__value">{{ pending_total }}</div>
+  </a>
+  <a class="crm-kpi-card" href="{% url 'erp:crm_offers' %}?status=pending_approval">
+    <div class="crm-kpi-card__label">{% translate "CRM təklif" %}</div>
+    <div class="crm-kpi-card__value">{{ pending_offers }}</div>
+  </a>
+  <a class="crm-kpi-card" href="{% url 'erp:payment_approvals' %}">
+    <div class="crm-kpi-card__label">{% translate "Ödəniş təsdiqi" %}</div>
+    <div class="crm-kpi-card__value">{{ pending_payments }}</div>
+  </a>
+  <a class="crm-kpi-card" href="{% url 'erp:people_inside' %}">
+    <div class="crm-kpi-card__label">{% translate "İçəridə" %}</div>
+    <div class="crm-kpi-card__value">{{ people_inside_count }}</div>
+    {% if security_alerts %}<div class="crm-kpi-card__meta">{{ security_alerts }} {% translate "açıq alert" %}</div>{% endif %}
+  </a>
+</div>
+{% endif %}
+
+<div class="mgmt-module-grid mb-4">
+  {% for m in hub_modules %}
+  <a class="mgmt-module-card" href="{{ m.url }}">
+    <div class="mgmt-module-card__icon" aria-hidden="true"><i data-lucide="{{ m.icon }}" width="22" height="22"></i></div>
+    <div class="mgmt-module-card__body">
+      <h3 class="mgmt-module-card__title">{{ m.title }}</h3>
+      <p class="mgmt-module-card__sub">{{ m.subtitle }}</p>
+      <div class="mgmt-module-card__kpi">
+        {% if m.kpi != None %}
+        <span class="mgmt-module-card__kpi-value">{{ m.kpi }}</span>
+        {% if m.kpi_label %}<span class="mgmt-module-card__kpi-label">{{ m.kpi_label }}</span>{% endif %}
+        {% endif %}
+        {% if m.meta %}<span class="mgmt-module-card__meta">{{ m.meta }}</span>{% endif %}
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+
+{% if axtrax_health %}
+<div class="cp-card p-card-sm mb-4">
+  <div class="cp-meta">{% translate "AxTrax sync" %}</div>
+  {% if axtrax_health.events_ok %}
+  <div class="cp-meta mt-1" style="color:var(--cp-success);">{% translate "Events sync OK" %}</div>
+  {% else %}
+  <div class="cp-meta mt-1" style="color:var(--cp-danger);">{% translate "Events sync stale / yoxdur — poller yoxlayın" %}</div>
+  {% endif %}
+</div>
+{% endif %}
 
 {% else %}
 {# —— Ops İdarə paneli —— #}
@@ -221,11 +268,11 @@
     <a class="cp-meta mt-3" href="{% url 'erp:tickets' %}?tab=sla" style="display:inline-block;">{% translate "Bax" %} →</a>
   </div>
   {% endif %}
-  <div class="cp-card p-card-sm">
+  <a class="cp-card p-card-sm cp-card-link" href="{% url 'erp:residents' %}">
     <div class="cp-meta">{% translate "REZİDENTLƏR" %}</div>
     <div class="cp-metric mt-2">{{ new_residents }}</div>
-    <div class="cp-meta mt-2">{% translate "aktiv" %}</div>
-  </div>
+    <div class="cp-meta mt-2">{% translate "aktiv" %} · {% translate "Bax" %} →</div>
+  </a>
   {% if show_guests %}
   <a class="cp-card p-card-sm cp-card-link" href="{% url 'erp:people_inside' %}">
     <div class="cp-meta">{% translate "İÇƏRİDƏ" %}</div>

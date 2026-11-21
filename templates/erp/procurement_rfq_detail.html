@@ -1,0 +1,136 @@
+{% extends "erp/base.html" %}
+{% load i18n l10n %}
+{% block page_title %}{{ rfq.code }}{% endblock %}
+{% block heading %}{{ rfq.code }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:procurement' %}">{% translate "Satınalma" %}</a>
+ {% if rfq.pr_id %}· <a href="{% url 'erp:procurement_pr_detail' rfq.pr.code %}">{{ rfq.pr.code }}</a>{% endif %}
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card mb-4">
+  <h2 class="cp-section">{{ rfq.title }}</h2>
+  <p class="cp-meta">{% if rfq.pr_id %}PR: {{ rfq.pr.code }} · {{ rfq.pr.get_status_display }}{% endif %}</p>
+  <p class="cp-meta">
+    {% translate "Müqayisə modeli: hər təklif bir vahid qiymət daşıyır və PR-in bütün qalan sətir miqdarlarına tətbiq olunur. Sətir üzrə ayrı qiymət / qismən təklif bu RFQ modelində yoxdur — ona görə qismən təklif «ən ucuz» kimi seçilə bilməz. Vergi bazası (net/gross) və AZN-dən kənar valyuta Finance qərarını gözləyir." %}
+  </p>
+  {% if pending_commitments %}
+  <div class="badge badge-urgent" style="display:block;padding:10px 12px;border-radius:10px;margin-top:12px;">
+    {% translate "Management maliyyə öhdəlik təsdiqi gözlənilir — PO yaratmaq üçün təsdiq tələb olunur." %}
+    {% for c in pending_commitments %}
+      · #{{ c.pk }}{% if c.payload.amount %} ({{ c.payload.amount }} {{ c.payload.currency|default:"AZN" }}){% endif %}
+    {% endfor %}
+    — <a href="{% url 'erp:approvals' %}">{% translate "Təsdiqlər" %}</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if pr_lines %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "PR sətirləri (qalıq)" %}</h3>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>{% translate "Təsvir" %}</th>
+        <th>{% translate "Vahid" %}</th>
+        <th>{% translate "Tələb" %}</th>
+        <th>{% translate "Sifariş" %}</th>
+        <th>{% translate "Qalan" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in qty_progress %}
+      <tr>
+        <td>{% if row.line.sku_id %}{{ row.line.sku.code }}{% else %}—{% endif %}</td>
+        <td>{{ row.line.description }}</td>
+        <td>{{ row.line.unit }}</td>
+        <td>{{ row.requested|unlocalize }}</td>
+        <td>{{ row.ordered|unlocalize }}</td>
+        <td>{{ row.outstanding_order|unlocalize }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Təkliflər" %}</h3>
+  <p class="cp-meta">{% translate "Müqayisə olunan cəm = vahid qiymət × qalan PR miqdarları. Boş qiymət sıfır deyil. Yalnız AZN və tam əhatəli təkliflər «ən ucuz» üçün uyğundur." %}</p>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Təchizatçı" %}</th>
+        <th>{% translate "Vahid qiymət" %}</th>
+        <th>{% translate "Valyuta" %}</th>
+        <th>{% translate "Müqayisə cəmi" %}</th>
+        <th>{% translate "Müddət" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in quote_rows %}
+      <tr{% if row.quote.id == lowest_quote_id %} class="is-lowest-quote"{% endif %}>
+        <td>
+          {{ row.quote.supplier_party.display_name|default:"—" }}
+          {% if row.quote.is_selected %} · <strong>{% translate "seçilib" %}</strong>{% endif %}
+          {% if row.quote.id == lowest_quote_id %} · <strong>{% translate "ən ucuz (müqayisəolunan)" %}</strong>{% endif %}
+        </td>
+        <td>{{ row.quote.unit_price|unlocalize }}</td>
+        <td>{{ row.quote.currency }}</td>
+        <td>
+          {% if row.assessed and row.assessed.is_known %}
+            {{ row.assessed.amount|unlocalize }} {{ row.assessed.currency }}
+          {% elif row.assessed %}
+            <span class="cp-meta">{{ row.assessed.reason }}</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ row.quote.lead_time_days }} {% translate "gün" %}</td>
+        <td>
+          {% if can_select_quote and not row.quote.is_selected and row.complete %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="select_quote">
+            <input type="hidden" name="quote_id" value="{{ row.quote.id }}">
+            <button class="cp-btn-ghost" style="font-size:12px;">{% translate "Seç və PO yarat" %}</button>
+          </form>
+          {% elif not row.complete %}
+          <span class="cp-meta">{% translate "Müqayisə üçün uyğun deyil" %}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}<tr><td colspan="6" class="cp-meta">{% translate "Təklif yoxdur." %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if can_edit_procurement %}
+<div class="cp-card p-card">
+  <h3 class="cp-section">{% translate "Təklif əlavə et" %}</h3>
+  <form method="post" class="grid-2 gap-2">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_quote">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}">
+    <label>
+      <span class="cp-meta">{% translate "Təchizatçı" %}</span>
+      <select class="cp-input" name="supplier_party_id" required>
+        <option value="">—</option>
+        {% for s in suppliers %}<option value="{{ s.id }}">{{ s.display_name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Vahid qiymət" %}</span>
+      <input class="cp-input" name="unit_price" required inputmode="decimal">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Çatdırılma (gün)" %}</span>
+      <input class="cp-input" name="lead_time_days" value="0" inputmode="numeric">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Qeyd" %}</span>
+      <input class="cp-input" name="notes">
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Əlavə et" %}</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

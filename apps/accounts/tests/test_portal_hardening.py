@@ -38,11 +38,18 @@ class PortalActiveGateTests(TestCase):
         self.assertEqual(r.status_code, 200)
 
     def test_portal_denied_when_inactive(self):
+        from apps.accounts.test_utils import assert_login_redirect
+
         self.company.portal_active = False
         self.company.save(update_fields=["portal_active"])
         self.client.force_login(self.user)
         r = self.client.get(reverse("portal:home"))
-        self.assertEqual(r.status_code, 403)
+        # No eligible company → logout + login redirect (not hard 403 / soft-deny home).
+        assert_login_redirect(self, r, fragment="/login/")
+        follow = self.client.get(r["Location"], follow=True)
+        self.assertEqual(follow.status_code, 200)
+        self.assertNotContains(follow, "Elanlar")
+        self.assertFalse(follow.wsgi_request.user.is_authenticated)
 
 
 class AnnouncementScopeTests(TestCase):

@@ -1,0 +1,47 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{% translate "Yeni PR" %}{% endblock %}
+{% block heading %}{% translate "Yeni əl ilə satınalma sorğusu" %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:procurement' %}">{% translate "Satınalma" %}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card" style="max-width:860px;">
+  <p class="cp-meta mb-3">{% translate "Mənbə avtomatik MANUAL təyin olunur. Yaratmaq təsdiq hüququ vermir." %}</p>
+  <form method="post" class="flex-col gap-3">
+    {% csrf_token %}
+    <input type="hidden" name="submit_token" value="{{ submit_token }}">
+    <input type="hidden" name="source" value="wo">
+    <label>
+      <span class="cp-meta">{% translate "Başlıq" %} *</span>
+      <input class="cp-input mt-1" name="title" required maxlength="200" value="{{ request.POST.title|default:'' }}">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Əsaslandırma / qeyd" %}</span>
+      <textarea class="cp-input mt-1" name="notes" rows="3">{{ request.POST.notes|default:'' }}</textarea>
+    </label>
+    <h3 class="cp-section">{% translate "Sətirlər" %}</h3>
+    <table class="cp-table">
+      <thead><tr><th>SKU</th><th>{% translate "Təsvir" %}</th><th>{% translate "Miqdar" %}</th><th>{% translate "Vahid" %}</th></tr></thead>
+      <tbody>
+        {% for i in line_range %}
+        <tr>
+          <td>
+            <select class="cp-input" name="line_sku_{{ i }}">
+              <option value="">—</option>
+              {% for sku in skus %}
+              <option value="{{ sku.id }}">{{ sku.code }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td><input class="cp-input" name="line_description_{{ i }}" maxlength="255"></td>
+          <td><input class="cp-input" name="line_qty_{{ i }}" inputmode="decimal" placeholder="0"></td>
+          <td><input class="cp-input" name="line_unit_{{ i }}" value="pcs" maxlength="16"></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button class="cp-btn" type="submit">{% translate "Göndər" %}</button>
+  </form>
+</div>
+{% endblock %}

@@ -62,9 +62,33 @@ class DocumentSensitivityAclTests(TestCase):
         self.assertTrue(doc.versions.filter(is_current=True).exists())
 
     def test_visible_to_resident_forces_public_sensitivity(self):
+        other, _ = DocumentType.objects.get_or_create(
+            code=DOCUMENT_TYPE_OTHER,
+            defaults={"name": "Digər", "default_sensitivity": DocumentSensitivity.INTERNAL},
+        )
+        self.assertEqual(
+            sensitivity_for_new_document(document_type=other, visible_to_resident=True),
+            DocumentSensitivity.PUBLIC_RESIDENT,
+        )
+        # Commercial lease contract stays confidential even if portal checkbox set
         self.assertEqual(
             sensitivity_for_new_document(document_type=self.dtype, visible_to_resident=True),
-            DocumentSensitivity.PUBLIC_RESIDENT,
+            DocumentSensitivity.CONFIDENTIAL,
+        )
+
+    def test_signed_application_stays_confidential_despite_portal_flag(self):
+        from apps.documents.models import DOCUMENT_TYPE_LEASE_APPLICATION_SIGNED
+
+        signed, _ = DocumentType.objects.get_or_create(
+            code=DOCUMENT_TYPE_LEASE_APPLICATION_SIGNED,
+            defaults={
+                "name": "İmzalanmış müraciət",
+                "default_sensitivity": DocumentSensitivity.CONFIDENTIAL,
+            },
+        )
+        self.assertEqual(
+            sensitivity_for_new_document(document_type=signed, visible_to_resident=True),
+            DocumentSensitivity.CONFIDENTIAL,
         )
 
     def test_download_acl_by_sensitivity(self):

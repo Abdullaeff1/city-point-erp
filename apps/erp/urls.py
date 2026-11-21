@@ -5,22 +5,76 @@ from apps.erp import (
     announcement_views,
     building_procedure_views,
     crm_views,
+    dashboard_views,
     drawing_views,
+    it_views,
     management_views,
     resident_views,
     views,
 )
 from apps.erp.work_orders import (
+    WorkOrderCreateView,
     WorkOrderDetailView,
     WorkOrderImportView,
     WorkOrderListView,
     WorkOrderSheetTemplateView,
+)
+from apps.erp.maintenance_views import (
+    MaintenancePlanFormView,
+    MaintenancePlanListView,
+)
+from apps.erp.warehouse_views import (
+    WarehouseListView,
+    WarehouseSkuCreateView,
+    WarehouseSkuDetailView,
+)
+from apps.erp.stocktake_views import StocktakeDetailView, StocktakeListView
+from apps.erp.procurement_views import (
+    ProcurementListView,
+    ProcurementPODetailView,
+    ProcurementPRCreateView,
+    ProcurementPRDetailView,
+    ProcurementRFQDetailView,
+    ProcurementSupplierDetailView,
+    ProcurementSupplierFormView,
+    ProcurementSupplierListView,
 )
 
 app_name = "erp"
 
 urlpatterns = [
     path("", views.DashboardView.as_view(), name="dashboard"),
+    path(
+        "dashboards/facility/",
+        dashboard_views.FacilityDashboardView.as_view(),
+        name="facility_dashboard",
+    ),
+    path(
+        "dashboards/helpdesk/",
+        dashboard_views.HelpdeskDashboardView.as_view(),
+        name="helpdesk_dashboard",
+    ),
+    path(
+        "dashboards/hr/",
+        dashboard_views.HrDashboardView.as_view(),
+        name="hr_dashboard",
+    ),
+    path(
+        "dashboards/procurement/",
+        dashboard_views.ProcurementDashboardView.as_view(),
+        name="procurement_dashboard",
+    ),
+    path(
+        "dashboards/it/",
+        dashboard_views.ItDashboardView.as_view(),
+        name="it_dashboard",
+    ),
+    path("staff-users/", it_views.StaffUserListView.as_view(), name="staff_users"),
+    path(
+        "staff-users/<int:pk>/",
+        it_views.StaffUserDetailView.as_view(),
+        name="staff_user_detail",
+    ),
     path("people-inside/", views.PeopleInsideView.as_view(), name="people_inside"),
     path("people-inside/export.xlsx", views.PeopleInsideExportView.as_view(), name="people_inside_export"),
     path("people-inside/<int:pk>/", views.PeopleInsideDetailView.as_view(), name="people_inside_detail"),
@@ -238,6 +292,7 @@ urlpatterns = [
         name="crm_space_detail",
     ),
     path("work-orders/", WorkOrderListView.as_view(), name="work_orders"),
+    path("work-orders/new/", WorkOrderCreateView.as_view(), name="work_order_create"),
     path(
         "work-orders/<str:code>/sheet-template/",
         WorkOrderSheetTemplateView.as_view(),
@@ -249,11 +304,75 @@ urlpatterns = [
         name="work_order_import",
     ),
     path("work-orders/<str:code>/", WorkOrderDetailView.as_view(), name="work_order_detail"),
-    path("warehouse/", views.WarehouseListView.as_view(), name="warehouse"),
-    path("procurement/", views.ProcurementListView.as_view(), name="procurement"),
+    path("maintenance/plans/", MaintenancePlanListView.as_view(), name="maintenance_plans"),
+    path(
+        "maintenance/plans/new/",
+        MaintenancePlanFormView.as_view(),
+        name="maintenance_plan_create",
+    ),
+    path(
+        "maintenance/plans/<int:pk>/",
+        MaintenancePlanFormView.as_view(),
+        name="maintenance_plan_edit",
+    ),
+    path("warehouse/", WarehouseListView.as_view(), name="warehouse"),
+    path("warehouse/skus/new/", WarehouseSkuCreateView.as_view(), name="warehouse_sku_create"),
+    path(
+        "warehouse/skus/<str:code>/",
+        WarehouseSkuDetailView.as_view(),
+        name="warehouse_sku_detail",
+    ),
+    path("warehouse/stocktakes/", StocktakeListView.as_view(), name="stocktake_list"),
+    path(
+        "warehouse/stocktakes/<str:code>/",
+        StocktakeDetailView.as_view(),
+        name="stocktake_detail",
+    ),
+    path("procurement/", ProcurementListView.as_view(), name="procurement"),
+    path("procurement/prs/new/", ProcurementPRCreateView.as_view(), name="procurement_pr_create"),
+    path(
+        "procurement/prs/<str:code>/",
+        ProcurementPRDetailView.as_view(),
+        name="procurement_pr_detail",
+    ),
+    path(
+        "procurement/pos/<str:code>/",
+        ProcurementPODetailView.as_view(),
+        name="procurement_po_detail",
+    ),
+    path(
+        "procurement/suppliers/",
+        ProcurementSupplierListView.as_view(),
+        name="procurement_suppliers",
+    ),
+    path(
+        "procurement/suppliers/new/",
+        ProcurementSupplierFormView.as_view(),
+        name="procurement_supplier_create",
+    ),
+    path(
+        "procurement/suppliers/<int:pk>/edit/",
+        ProcurementSupplierFormView.as_view(),
+        name="procurement_supplier_edit",
+    ),
+    path(
+        "procurement/suppliers/<int:pk>/",
+        ProcurementSupplierDetailView.as_view(),
+        name="procurement_supplier_detail",
+    ),
+    path(
+        "procurement/rfqs/<str:code>/",
+        ProcurementRFQDetailView.as_view(),
+        name="procurement_rfq_detail",
+    ),
     path("billing/", views.BillingListView.as_view(), name="billing"),
     path("accounting/", views.AccountingListView.as_view(), name="accounting"),
     path("documents/", views.DocumentsView.as_view(), name="documents"),
+    path(
+        "documents/<int:pk>/download/",
+        views.DocumentDownloadView.as_view(),
+        name="document_download",
+    ),
     path(
         "announcements/",
         announcement_views.AnnouncementListView.as_view(),

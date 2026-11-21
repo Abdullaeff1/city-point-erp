@@ -74,7 +74,10 @@ def portal_document_qs_for_request(request):
     ids = list(ids or [])
     if not ids:
         return Document.objects.none()
+    from apps.documents.models import DocumentSensitivity
+
     return Document.objects.filter(
         company_id__in=ids,
         visible_to_resident=True,
+        sensitivity=DocumentSensitivity.PUBLIC_RESIDENT,
     ).select_related("document_type", "company")

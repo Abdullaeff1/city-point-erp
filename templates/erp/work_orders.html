@@ -3,6 +3,12 @@
 {% block page_title %}{% translate "İş sifarişləri" %}{% endblock %}
 {% block heading %}{% translate "İş sifarişləri" %}{% endblock %}
 {% block content %}
+<p class="mb-3 flex gap-2" style="flex-wrap:wrap">
+  {% if can_create_wo %}
+  <a class="cp-btn" href="{% url 'erp:work_order_create' %}"><i data-lucide="plus" width="16" height="16"></i> {% translate "Yeni iş tapşırığı" %}</a>
+  {% endif %}
+  <a class="cp-btn-ghost" href="{% url 'erp:maintenance_plans' %}"><i data-lucide="calendar-clock" width="16" height="16"></i> {% translate "Texniki xidmət planları" %}</a>
+</p>
 <div class="cp-card">
   <table class="cp-table">
     <thead>
@@ -10,6 +16,7 @@
         <th>{% translate "Kod" %}</th>
         <th>{% translate "Başlıq" %}</th>
         <th>{% translate "Status" %}</th>
+        <th>{% translate "Mənbə" %}</th>
         <th>{% translate "Podratçı" %}</th>
         <th>{% translate "Ticket" %}</th>
         <th>{% translate "Şirkət" %}</th>
@@ -21,12 +28,13 @@
         <td><a href="{% url 'erp:work_order_detail' wo.code %}">{{ wo.code }}</a></td>
         <td>{{ wo.title }}</td>
         <td>{{ wo.get_status_display }}</td>
+        <td>{% if wo.ticket_id %}{% translate "Ticket" %}{% else %}{% translate "Facility" %}{% endif %}</td>
         <td>{{ wo.contractor.name|default:"—" }}</td>
-        <td>{% if wo.ticket %}<a href="{% url 'erp:ticket_detail' wo.ticket.code %}">{{ wo.ticket.code }}</a>{% else %}—{% endif %}</td>
+        <td>{% if wo.can_view_ticket_link %}<a href="{% url 'erp:ticket_detail' wo.ticket.code %}">{{ wo.ticket.code }}</a>{% elif wo.ticket_id %}{{ wo.ticket.code }}{% else %}—{% endif %}</td>
         <td>{{ wo.ticket.company.name|default:"—" }}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="6">{% translate "İş sifarişi yoxdur. Ticketdən yaradın." %}</td></tr>
+      <tr><td colspan="7">{% if can_create_wo %}{% translate "İş sifarişi yoxdur. Yeni iş tapşırığı yaradın və ya ticketdən bağlayın." %}{% else %}{% translate "İş sifarişi yoxdur. Ticketdən yaradın." %}{% endif %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

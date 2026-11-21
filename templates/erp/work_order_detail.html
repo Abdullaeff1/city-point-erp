@@ -9,17 +9,62 @@
 <div class="wo-page">
   <div class="cp-card p-card wo-card">
     <h2 class="cp-section">{{ wo.title }}</h2>
+    <p class="cp-meta mb-2">
+      {% if wo.ticket_id %}{% translate "Mənbə: Ticket" %}{% else %}{% translate "Mənbə: Facility (müstəqil)" %}{% endif %}
+    </p>
     {% if wo.description %}<p class="cp-body-text">{{ wo.description }}</p>{% endif %}
+    {% if inspection %}
+    <div class="cp-card p-card mb-3">
+      <h3 class="cp-section">{% translate "Preventiv baxış" %}</h3>
+      <p class="cp-meta">
+        {% if inspection.plan %}{{ inspection.plan.name }} · {% endif %}
+        {{ inspection.result|default:"—" }}
+        {% if inspection.confirmed_at %}
+        · {% translate "təsdiqlənib" %} {{ inspection.confirmed_at }}
+        {% if inspection.confirmed_by %} ({{ inspection.confirmed_by.get_full_name|default:inspection.confirmed_by.username }}){% endif %}
+        {% endif %}
+      </p>
+      {% if can_mutate_wo and not inspection.confirmed_at %}
+      <form method="post" class="flex-col gap-2 mt-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="confirm_inspection">
+        <label class="cp-meta" for="insp-result">{% translate "Nəticə" %}</label>
+        <input class="cp-input" id="insp-result" name="result" value="ok" maxlength="64">
+        <label class="cp-meta" for="insp-notes">{% translate "Qeyd" %}</label>
+        <textarea class="cp-input" id="insp-notes" name="notes" rows="2"></textarea>
+        <button class="cp-btn" type="submit">{% translate "Baxışı təsdiqlə" %}</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
     <div class="wo-head">
       <div>
         <div class="cp-meta">{% translate "Ticket" %}</div>
         <div class="mt-1">
-          {% if wo.ticket %}
+          {% if wo.ticket and can_view_ticket_link %}
           <a href="{% url 'erp:ticket_detail' wo.ticket.code %}">{{ wo.ticket.code }}</a>
           · {{ wo.ticket.department|default:"—" }}
+          {% elif wo.ticket %}
+          {{ wo.ticket.code }}
+          · <span class="cp-meta">{% translate "məhdud" %}</span>
           {% else %}—{% endif %}
         </div>
       </div>
+      {% if can_mutate_wo %}
+      <form method="post" class="flex-col gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="assign">
+        <label class="cp-meta" for="assigned_to">{% translate "Təyinat (Facility)" %}</label>
+        <select class="cp-input" id="assigned_to" name="assigned_to">
+          <option value="">—</option>
+          {% for u in assignees %}
+          <option value="{{ u.id }}" {% if wo.assigned_to_id == u.id %}selected{% endif %}>
+            {{ u.get_full_name|default:u.username }}
+          </option>
+          {% endfor %}
+        </select>
+        <button class="cp-btn-ghost" type="submit">{% translate "Təyin et" %}</button>
+      </form>
       <form method="post" class="flex-col gap-2">
         {% csrf_token %}
         <input type="hidden" name="action" value="save">
@@ -41,11 +86,25 @@
           <option value="{{ value }}" {% if wo.status == value %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
+        <label class="cp-meta" for="completion_note">{% translate "Texniki nəticə (tamamlananda)" %}</label>
+        <textarea class="cp-input" id="completion_note" name="completion_note" rows="2" placeholder="{% translate 'Məs: filtr dəyişildi, soyutma bərpa olundu' %}"></textarea>
         <button class="cp-btn-ghost">{% translate "Statusu yenilə" %}</button>
       </form>
+      {% else %}
+      <div>
+        <div class="cp-meta">{% translate "Status" %}</div>
+        <div class="mt-1">{{ wo.get_status_display }}</div>
+        {% if wo.assigned_to_id %}
+        <div class="cp-meta mt-2">{% translate "Təyinat" %}</div>
+        <div class="mt-1">{{ wo.assigned_to.get_full_name|default:wo.assigned_to.username }}</div>
+        {% endif %}
+        <p class="cp-meta mt-2">{% translate "Baxış rejimi — dəyişiklik icazəsi yoxdur." %}</p>
+      </div>
+      {% endif %}
     </div>
   </div>
 
+  {% if can_mutate_wo %}
   <form method="post" enctype="multipart/form-data" class="cp-card p-card wo-card" id="cost-sheet">
     {% csrf_token %}
     <h2 class="cp-section">{% translate "Material" %}</h2>
@@ -153,6 +212,25 @@
     </div>
     {% endif %}
   </form>
+  {% else %}
+  <div class="cp-card p-card wo-card">
+    <h2 class="cp-section">{% translate "Material" %}</h2>
+    {% if material_lines %}
+    <ul class="cp-list">
+      {% for line in material_lines %}<li>{{ line.description }} · {{ line.qty }} {{ line.unit }} · {{ line.amount }}</li>{% endfor %}
+    </ul>
+    {% else %}<p class="cp-meta">{% translate "Material sətri yoxdur." %}</p>{% endif %}
+    <h2 class="cp-section mt-3">{% translate "İşçilik" %}</h2>
+    {% if labor_lines %}
+    <ul class="cp-list">
+      {% for line in labor_lines %}<li>{{ line.description }} · {{ line.qty }} {{ line.unit }} · {{ line.amount }}</li>{% endfor %}
+    </ul>
+    {% else %}<p class="cp-meta">{% translate "İşçilik sətri yoxdur." %}</p>{% endif %}
+    <div class="wo-totals mt-3">
+      <div><div class="cp-meta">{% translate "Formallaşan yekun" %}</div><div class="cp-metric">{{ formed_total }}</div></div>
+    </div>
+  </div>
+  {% endif %}
 
   <div class="wo-split">
     <div class="cp-card p-card wo-card">
@@ -176,7 +254,7 @@
         </table>
       </div>
       {% empty %}<p class="cp-meta mt-2">{% translate "Çıxış sənədi yoxdur." %}</p>{% endfor %}
-      {% if skus and warehouses %}
+      {% if can_mutate_wo and skus and warehouses %}
       <form method="post" class="flex-col gap-2 mt-3">
         {% csrf_token %}
         <input type="hidden" name="action" value="issue">
@@ -188,9 +266,10 @@
           {% for w in warehouses %}<option value="{{ w.id }}">{{ w.code }} — {{ w.name }}</option>{% endfor %}
         </select>
         <input class="cp-input" name="quantity" inputmode="decimal" placeholder="{% translate 'Tələb olunan miqdar' %}" required>
+        <label class="cp-meta"><input type="checkbox" name="create_pr_on_shortage" value="1" checked> {% translate "Stok çatışmasa satınalma sorğusu yarat" %}</label>
         <button class="cp-btn-ghost">{% translate "Açıq çıxış sənədi" %}</button>
       </form>
-      {% else %}
+      {% elif can_mutate_wo %}
       <p class="cp-meta mt-2">{% translate "Anbar və ya məhsul hələ yoxdur." %}</p>
       {% endif %}
     </div>
@@ -221,6 +300,7 @@
           {% empty %}<tr><td colspan="6">{% translate "Satınalma yoxdur." %}</td></tr>{% endfor %}
         </tbody>
       </table>
+      {% if can_mutate_wo %}
       <form method="post" class="flex-col gap-2 mt-3">
         {% csrf_token %}
         <input type="hidden" name="action" value="purchase">
@@ -228,6 +308,7 @@
         <input class="cp-input" name="qty" value="1" inputmode="decimal">
         <button class="cp-btn-ghost">{% translate "Satınalma tələbi" %}</button>
       </form>
+      {% endif %}
     </div>
   </div>
 </div>

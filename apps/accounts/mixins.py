@@ -7,6 +7,7 @@ from django.utils.translation import gettext as _
 from apps.accounts.models import Role, STAFF_ROLES
 from apps.accounts.portal_scope import eligible_companies_for, require_portal_scope
 from apps.accounts.routing import redirect_home
+from apps.rbac.services import require_any_permission, require_permission, user_has_permission
 
 
 def _portal_home_redirect(user):
@@ -76,6 +77,11 @@ class SecurityPortalMixin(LoginRequiredMixin):
             return self.handle_no_permission()
         if not request.user.can_access_security_portal():
             return redirect_home(request.user)
+        require_permission(
+            request.user,
+            "security.view",
+            message=_("Təhlükəsizlik portalına giriş icazəniz yoxdur."),
+        )
         return super().dispatch(request, *args, **kwargs)
 
 
@@ -85,6 +91,11 @@ class FinancePortalMixin(LoginRequiredMixin):
             return self.handle_no_permission()
         if not request.user.can_access_finance_portal():
             return redirect_home(request.user)
+        require_permission(
+            request.user,
+            "finance.view",
+            message=_("Maliyyə portalına giriş icazəniz yoxdur."),
+        )
         return super().dispatch(request, *args, **kwargs)
 
 
@@ -120,6 +131,8 @@ class RoleRequiredMixin(StaffRequiredMixin):
     allowed_roles: tuple[str, ...] = tuple(
         r for r in STAFF_ROLES if r not in (Role.SECURITY, Role.ACCOUNTANT)
     )
+    # Rəhbərlik ERP-də nəticə RO görür; əməliyyat mutate view-larda False edin.
+    allow_management: bool = True
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
@@ -129,6 +142,44 @@ class RoleRequiredMixin(StaffRequiredMixin):
             if dest is not None:
                 return dest
             return redirect_home(request.user)
-        if request.user.role not in {Role.ADMIN, Role.MANAGEMENT, *self.allowed_roles}:
+        allowed = {Role.ADMIN, *self.allowed_roles}
+        if self.allow_management:
+            allowed.add(Role.MANAGEMENT)
+        if request.user.role not in allowed:
             return redirect_home(request.user)
         return super(StaffRequiredMixin, self).dispatch(request, *args, **kwargs)
+
+
+class PermissionRequiredMixin(LoginRequiredMixin):
+    """Backend permission gate (dual-use with role mixins). Any-of when tuple/list."""
+
+    permission_required: str | tuple[str, ...] | list[str] = ()
+    permission_denied_message: str = ""
+
+    def get_permission_required(self) -> tuple[str, ...]:
+        req = self.permission_required
+        if not req:
+            return ()
+        if isinstance(req, str):
+            return (req,)
+        return tuple(req)
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+        codes = self.get_permission_required()
+        if codes:
+            msg = self.permission_denied_message or None
+            if len(codes) == 1:
+                require_permission(request.user, codes[0], message=msg)
+            else:
+                require_any_permission(request.user, *codes, message=msg)
+        return super().dispatch(request, *args, **kwargs)
+
+
+class HasPermissionMixin:
+    """Optional context helper for templates (does not enforce)."""
+
+    def has_perm(self, code: str) -> bool:
+        user = getattr(self, "request", None) and self.request.user
+        return user_has_permission(user, code)

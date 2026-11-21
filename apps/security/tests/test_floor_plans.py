@@ -109,12 +109,25 @@ class SecurityFloorPlanTests(TestCase):
             self.assertEqual(resp.status_code, 200, user.role)
 
     def test_reception_and_resident_denied(self):
+        from apps.accounts.routing import home_url_for
+        from apps.accounts.test_utils import assert_soft_denied
+
         for user in (self.reception, self.resident):
             self.client.force_login(user)
             resp = self.client.get(reverse("security:plans"))
-            self.assertIn(resp.status_code, (302, 403), user.role)
+            assert_soft_denied(
+                self,
+                self.client,
+                resp,
+                user,
+                expected_url=home_url_for(user),
+                protected_markers=("/security/plans/",),
+            )
 
     def test_management_cannot_upload(self):
+        from apps.accounts.routing import home_url_for
+        from apps.accounts.test_utils import assert_soft_denied
+
         self.client.force_login(self.management)
         resp = self.client.post(
             reverse("security:plan_upload"),
@@ -125,7 +138,13 @@ class SecurityFloorPlanTests(TestCase):
                 "source_file": SimpleUploadedFile("a.dxf", self.dxf_bytes),
             },
         )
-        self.assertEqual(resp.status_code, 403)
+        assert_soft_denied(
+            self,
+            self.client,
+            resp,
+            self.management,
+            expected_url=home_url_for(self.management),
+        )
         self.assertEqual(SecurityFloorPlan.objects.count(), 0)
 
     def test_dxf_upload_pending_then_convert_ready(self):
@@ -193,7 +212,9 @@ class SecurityFloorPlanTests(TestCase):
 
         self.client.logout()
         resp = self.client.get(svg_url)
-        self.assertIn(resp.status_code, (302, 403))
+        # Unauthenticated → login redirect (LoginRequiredMixin), not soft-deny home.
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("/login/", resp["Location"])
 
     def test_source_download_attachment(self):
         plan, rev = self._upload_dxf()
@@ -210,9 +231,18 @@ class SecurityFloorPlanTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("attachment", resp.get("Content-Disposition", ""))
 
+        from apps.accounts.routing import home_url_for
+        from apps.accounts.test_utils import assert_soft_denied
+
         self.client.force_login(self.reception)
         resp = self.client.get(url)
-        self.assertIn(resp.status_code, (302, 403))
+        assert_soft_denied(
+            self,
+            self.client,
+            resp,
+            self.reception,
+            expected_url=home_url_for(self.reception),
+        )
 
     def test_pin_rules_and_no_auto_copy(self):
         plan, rev = self._upload_dxf()

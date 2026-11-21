@@ -35,6 +35,7 @@ from apps.tickets.models import TicketCategory, TicketSubcategory, TicketType
 from apps.tickets.seed_taxonomy import seed_ticket_taxonomy
 from apps.tickets.services import create_ticket_from_portal, create_work_order_from_ticket
 from apps.warehouse.models import SKU, Stock, Warehouse
+from apps.workflows.services import ApprovalService
 
 User = get_user_model()
 
@@ -79,6 +80,20 @@ class M12FlowAcceptanceTests(TestCase):
             is_staff=True,
             ticket_department=desk_dept,
         )
+        self.accountant = User.objects.create_user(
+            username="m12-acc",
+            email="m12-acc@test.az",
+            password="Pass12345!",
+            role=Role.ACCOUNTANT,
+            is_staff=True,
+        )
+        self.manager = User.objects.create_user(
+            username="m12-mgmt",
+            email="m12-mgmt@test.az",
+            password="Pass12345!",
+            role=Role.MANAGEMENT,
+            is_staff=True,
+        )
 
     def test_flow_lease_billing_gl(self):
         lease = LeaseService.create_draft(
@@ -102,7 +117,26 @@ class M12FlowAcceptanceTests(TestCase):
         )
         inv = generate_invoice_from_charges(self.party, [charge.pk], apply_vat=False)
         confirm_invoice(inv)
-        record_payment(invoice=inv, amount=inv.total, method="bank", reference="M12")
+        req = ApprovalService.request(
+            workflow_code="finance.payment",
+            requested_by=self.accountant,
+            entity=inv,
+            payload={
+                "invoice_id": inv.pk,
+                "amount": str(inv.total),
+                "method": "bank",
+                "reference": "M12",
+            },
+        )
+        ApprovalService.decide(req, approved=True, decided_by=self.manager)
+        req.refresh_from_db()
+        record_payment(
+            invoice=inv,
+            amount=inv.total,
+            method="bank",
+            reference="M12",
+            approval_request=req,
+        )
         inv.refresh_from_db()
         self.assertEqual(inv.status, InvoiceStatus.PAID)
 

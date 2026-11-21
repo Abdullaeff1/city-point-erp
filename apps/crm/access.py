@@ -1,8 +1,12 @@
-"""CRM ACL — sales mutate; management approve; accountant applications; admin görmür (A.10 V2)."""
+"""CRM ACL — sales mutate; management approve; accountant applications; admin görmür (A.10 V2).
+
+Dual gate: role sets AND PermissionCode (crm.view / crm.edit / crm.approve).
+"""
 
 from __future__ import annotations
 
 from apps.accounts.models import Role
+from apps.rbac.services import user_has_permission
 
 CRM_VIEW_ROLES = {
     Role.SALES,
@@ -23,24 +27,33 @@ def _role(user) -> str | None:
 
 def can_view_crm(user) -> bool:
     role = _role(user)
-    return role in CRM_VIEW_ROLES
+    if role not in CRM_VIEW_ROLES:
+        return False
+    return user_has_permission(user, "crm.view")
 
 
 def can_mutate_crm(user) -> bool:
     """Create/edit leads, activities, opportunities, offer versions, submit applications."""
-    return _role(user) in CRM_MUTATE_ROLES
+    if _role(user) not in CRM_MUTATE_ROLES:
+        return False
+    return user_has_permission(user, "crm.edit")
 
 
 def can_approve_offer(user) -> bool:
-    return _role(user) in CRM_APPROVE_ROLES
+    if _role(user) not in CRM_APPROVE_ROLES:
+        return False
+    return user_has_permission(user, "crm.approve") or user_has_permission(user, "approval.decide")
 
 
 def can_review_lease_application(user) -> bool:
-    return _role(user) in CRM_ACCOUNTANT_ROLES
+    if _role(user) not in CRM_ACCOUNTANT_ROLES:
+        return False
+    # Accountant: finance/crm view; Management: crm.view
+    return user_has_permission(user, "crm.view") or user_has_permission(user, "finance.view")
 
 
 def can_export_crm(user) -> bool:
-    return can_view_crm(user) and _role(user) != Role.RECEPTION
+    return can_view_crm(user) and user_has_permission(user, "crm.export")
 
 
 def assert_can_view_crm(user) -> None:

@@ -62,11 +62,13 @@ class CrmAclTests(TestCase):
         self.assertFalse(can_mutate_crm(self.accountant))
 
     def test_admin_crm_denied_http(self):
+        from apps.accounts.routing import home_url_name_for
+
         c = Client()
         c.force_login(self.admin)
         resp = c.get(reverse("erp:crm_leads"))
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp.url, reverse("erp:dashboard"))
+        self.assertEqual(resp.url, reverse(home_url_name_for(self.admin)))
 
     def test_reception_denied_http(self):
         c = Client()
@@ -85,11 +87,19 @@ class CrmAclTests(TestCase):
 
 class CrmMappingTests(TestCase):
     def test_source_and_stage(self):
+        from apps.crm.mapping import try_resolve_space_from_text
+        from apps.property.models import Building, Floor, Space
+
         code, note = map_source("Sosial Şəbəkə")
         self.assertEqual(code, "social_media")
         self.assertEqual(map_pipeline_stage("Təklif göndərilib"), PipelineStage.OFFER_SENT)
         mapped = legacy_status_to_fields("disqualified")
         self.assertEqual(mapped["qualification"], Qualification.NON_POTENTIAL)
+        b = Building.objects.create(code="CPMAP", name="Map")
+        f = Floor.objects.create(building=b, code="F1", name="1")
+        Space.objects.create(code="CP-MAP-OFF-1", name="1", floor=f, area_m2=10)
+        self.assertEqual(try_resolve_space_from_text("Təklif: CP-MAP-OFF-1 · 33 AZN").code, "CP-MAP-OFF-1")
+        self.assertIsNone(try_resolve_space_from_text("175 kv 7-ci m"))
 
 
 class CrmLeadFlowTests(TestCase):
@@ -186,7 +196,13 @@ class CrmLeadFlowTests(TestCase):
         offer.status = OfferStatus.SENT
         offer.save()
         app = LeaseApplicationService.create_from_offer(
-            offer, actor=self.sales, data={"person_name": "Gamma MMC", "tax_id": "1234567890"}
+            offer,
+            actor=self.sales,
+            data={
+                "person_name": "Gamma MMC",
+                "tax_id": "1234567890",
+                "attachment_checklist": {"voen": True, "registry": True, "bank": True},
+            },
         )
         LeaseApplicationService.submit_to_accounting(app, actor=self.sales)
         LeaseApplicationService.accountant_accept(app, actor=self.accountant)

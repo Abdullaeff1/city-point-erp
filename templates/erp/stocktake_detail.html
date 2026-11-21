@@ -1,0 +1,243 @@
+{% extends "erp/base.html" %}
+{% load i18n l10n %}
+{% block page_title %}{{ stocktake.code }}{% endblock %}
+{% block heading %}{{ stocktake.code }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:warehouse' %}">{% translate "Anbar" %}</a>
+ · <a href="{% url 'erp:stocktake_list' %}">{% translate "Sayım" %}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card mb-4">
+  <p class="cp-meta">
+    {% translate "Anbar" %}: <strong>{{ stocktake.warehouse.code }}</strong> —
+    {{ stocktake.warehouse.name }} ·
+    {% translate "Status" %}: <strong>{{ stocktake.get_status_display }}</strong> ·
+    {% translate "Başlanğıc" %}: {{ stocktake.started_at|date:"Y-m-d H:i" }}
+    {% if stocktake.started_by %} ({{ stocktake.started_by.username }}){% endif %}
+    {% if stocktake.completed_at %}
+    · {% translate "Bitmə" %}: {{ stocktake.completed_at|date:"Y-m-d H:i" }}
+    {% if stocktake.completed_by %} ({{ stocktake.completed_by.username }}){% endif %}
+    {% endif %}
+    {% if stocktake.posted_at %}
+    · {% translate "Düzəliş" %}: {{ stocktake.posted_at|date:"Y-m-d H:i" }}
+    {% if stocktake.posted_by %} ({{ stocktake.posted_by.username }}){% endif %}
+    {% endif %}
+  </p>
+  <p class="cp-meta">
+    {% translate "Sətirlər" %}: {{ progress.total_lines }} ·
+    {% translate "Sayılmış" %}: {{ progress.counted_lines }} ·
+    {% translate "Qalan" %}: {{ progress.outstanding_lines }} ·
+    {% translate "Fərqli SKU sətirləri" %}: {{ progress.difference_lines }}
+    ({% translate "çatışmazlıq" %}: {{ progress.shortage_lines }},
+    {% translate "artıq" %}: {{ progress.surplus_lines }})
+  </p>
+  <p class="cp-meta">
+    {% translate "Gözlənilən miqdar = sayım saxlananda sistemdəki fiziki (on-hand) qalıq; rezerv rəfdə qaldığı üçün ona daxildir. Sayılmamış sətirlər çatışmazlıq yaratmır." %}
+  </p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+    <a class="cp-btn-ghost" href="?">{% translate "Hamısı" %}</a>
+    <a class="cp-btn-ghost" href="?filter=uncounted">{% translate "Sayılmamış" %}</a>
+    <a class="cp-btn-ghost" href="?filter=diff">{% translate "Fərqlər" %}</a>
+    <a class="cp-btn-ghost" href="?filter=recount">{% translate "Yenidən / hərəkət" %}</a>
+  </div>
+</div>
+
+{% if can_count %}
+<form method="post" class="cp-card p-card mb-4">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="save_counts">
+  <input type="hidden" name="submit_token" value="{{ submit_token }}-save">
+  <h3 class="cp-section">{% translate "Fiziki miqdarlar" %}</h3>
+  <p class="cp-meta">{% translate "Boş sahə sıfır deyil — sətir sayılmamış qalır. Açıq sıfır yazın ki, çatışmazlıq hesab edilsin." %}</p>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>{% translate "Vahid" %}</th>
+        <th>{% translate "Başlanğıc" %}</th>
+        <th>{% translate "Gözlənilən" %}</th>
+        <th>{% translate "Sayılan" %}</th>
+        <th>{% translate "Fərq" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.sku.code }}<br><span class="cp-meta">{{ line.sku.name }}</span></td>
+        <td>{{ line.unit }}</td>
+        <td>{{ line.baseline_qty|unlocalize }}</td>
+        <td>{% if line.expected_qty is not None %}{{ line.expected_qty|unlocalize }}{% else %}—{% endif %}</td>
+        <td>
+          <input type="hidden" name="snap_{{ line.id }}" value="{{ line.live_on_hand|unlocalize }}">
+          <input class="cp-input" style="max-width:7rem;"
+                 name="count_{{ line.id }}"
+                 value="{% if line.counted_qty is not None %}{{ line.counted_qty|unlocalize }}{% endif %}"
+                 inputmode="decimal"
+                 placeholder="">
+          <span class="cp-meta" style="display:block;font-size:11px;">{% translate "Sistem indi" %}: {{ line.live_on_hand|unlocalize }}</span>
+        </td>
+        <td>
+          {% if line.variance_qty is not None %}
+            {{ line.variance_qty|unlocalize }}
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if line.counted_qty is None %}
+            <span class="cp-meta">{% translate "Sayılmayıb" %}</span>
+          {% elif line.variance_qty == 0 %}
+            {% translate "Uyğun" %}
+          {% elif line.variance_qty > 0 %}
+            {% translate "Artıq" %}
+          {% else %}
+            {% translate "Çatışmazlıq" %}
+          {% endif %}
+          {% if line.recount_required %}<br><span class="badge badge-urgent">{% translate "Yenidən say" %}</span>{% endif %}
+          {% if line.activity_after_count %}<br><span class="cp-meta">{% translate "Sayından sonra hərəkət" %}</span>{% endif %}
+        </td>
+        <td>
+          {% if line.counted_qty is not None %}
+          <button class="cp-btn-ghost" type="submit" form="clear-{{ line.id }}" style="font-size:12px;">{% translate "Təmizlə" %}</button>
+          <button class="cp-btn-ghost" type="submit" form="recount-{{ line.id }}" style="font-size:12px;">{% translate "Yenidən say" %}</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="cp-meta">{% translate "Sətir yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
+    <button class="cp-btn" type="submit">{% translate "Saxla" %}</button>
+  </div>
+</form>
+{% for line in lines %}
+{% if line.counted_qty is not None %}
+<form id="clear-{{ line.id }}" method="post">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="clear_line">
+  <input type="hidden" name="line_id" value="{{ line.id }}">
+  <input type="hidden" name="submit_token" value="{{ submit_token }}-clr-{{ line.id }}">
+</form>
+<form id="recount-{{ line.id }}" method="post">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="mark_recount">
+  <input type="hidden" name="line_id" value="{{ line.id }}">
+  <input type="hidden" name="submit_token" value="{{ submit_token }}-rc-{{ line.id }}">
+</form>
+{% endif %}
+{% endfor %}
+
+{% if catalog_skus %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Tapılmış SKU (balans yox)" %}</h3>
+  <form method="post" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_sku">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}-add">
+    <label>
+      <span class="cp-meta">SKU</span>
+      <select class="cp-input" name="sku_id" required>
+        <option value="">{% translate "Seçin…" %}</option>
+        {% for sku in catalog_skus %}
+        <option value="{{ sku.id }}">{{ sku.code }} — {{ sku.name }} ({{ sku.unit }})</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Əlavə et" %}</button>
+  </form>
+</div>
+{% endif %}
+
+{% if can_complete %}
+<form method="post" class="mb-4">
+  {% csrf_token %}
+  <input type="hidden" name="action" value="complete">
+  <input type="hidden" name="submit_token" value="{{ submit_token }}-complete">
+  <button class="cp-btn" type="submit">{% translate "Sayımı bitir" %}</button>
+  <span class="cp-meta">{% translate "Sayılmamış sətirlər açıq qalır; onlar üçün çatışmazlıq yaradılmır." %}</span>
+</form>
+{% endif %}
+
+{% else %}
+{# Read-only / completed report table #}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Sayım hesabatı" %}</h3>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>{% translate "Vahid" %}</th>
+        <th>{% translate "Gözlənilən" %}</th>
+        <th>{% translate "Sayılan" %}</th>
+        <th>{% translate "Fərq" %}</th>
+        <th>{% translate "Yenidən" %}</th>
+        <th>{% translate "Düzəliş" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.sku.code }}</td>
+        <td>{{ line.unit }}</td>
+        <td>{% if line.expected_qty is not None %}{{ line.expected_qty|unlocalize }}{% else %}—{% endif %}</td>
+        <td>{% if line.counted_qty is not None %}{{ line.counted_qty|unlocalize }}{% else %}<span class="cp-meta">{% translate "Sayılmayıb" %}</span>{% endif %}</td>
+        <td>{% if line.variance_qty is not None %}{{ line.variance_qty|unlocalize }}{% else %}—{% endif %}</td>
+        <td>
+          {% if line.recount_required %}{% translate "Bəli" %}{% else %}—{% endif %}
+          {% if line.activity_after_count %}<span class="cp-meta"> / {% translate "sonra hərəkət" %}</span>{% endif %}
+          {% if can_edit_warehouse and stocktake.status == StocktakeStatus.COMPLETED %}
+          {% if not line.recount_required %}
+          <form method="post" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="mark_recount">
+            <input type="hidden" name="line_id" value="{{ line.id }}">
+            <input type="hidden" name="submit_token" value="{{ submit_token }}-rc-{{ line.id }}">
+            <button class="cp-btn-ghost" type="submit" style="font-size:11px;">{% translate "İşarələ" %}</button>
+          </form>
+          {% else %}
+          <form method="post" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="clear_recount">
+            <input type="hidden" name="line_id" value="{{ line.id }}">
+            <input type="hidden" name="submit_token" value="{{ submit_token }}-urc-{{ line.id }}">
+            <button class="cp-btn-ghost" type="submit" style="font-size:11px;">{% translate "Sil" %}</button>
+          </form>
+          {% endif %}
+          {% endif %}
+        </td>
+        <td>
+          {% if line.adjustment_movement_id %}
+            #{{ line.adjustment_movement_id }}
+            {% if line.adjustment_movement %}· {{ line.adjustment_movement.reference }}{% endif %}
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="7" class="cp-meta">{% translate "Sətir yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if can_post %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Fərqləri tətbiq et" %}</h3>
+  <p class="cp-meta">
+    {% translate "Uyğun sətirlər hərəkət yaratmır. Fərq cari on-hand üzərinə delta kimi tətbiq olunur (sayım sonrası qəbul itmir). Yenidən sayım işarəli sətirlər bloklanır." %}
+  </p>
+  <form method="post" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="post_variances">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}-post">
+    <label>
+      <span class="cp-meta">{% translate "Səbəb" %}</span>
+      <input class="cp-input" name="reason" value="Stocktake {{ stocktake.code }}" maxlength="200">
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Düzəlişləri tətbiq et" %}</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

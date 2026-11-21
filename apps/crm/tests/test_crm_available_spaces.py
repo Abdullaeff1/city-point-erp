@@ -121,11 +121,13 @@ class CrmAvailableSpacesTests(TestCase):
         self.assertEqual(resp.url, reverse("erp:reception"))
 
     def test_admin_denied_crm_spaces(self):
+        from apps.accounts.routing import home_url_name_for
+
         c = Client()
         c.force_login(self.admin)
         resp = c.get(reverse("erp:crm_available_spaces"))
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp.url, reverse("erp:dashboard"))
+        self.assertEqual(resp.url, reverse(home_url_name_for(self.admin)))
 
     def test_fm_spaces_still_blocked_for_sales(self):
         c = Client()

@@ -14,7 +14,7 @@ Scaffold UI alone ≠ Definition of Done.
 | **4 CRM + Website** | Thin-real | `CrmService` qualify/opportunity/offer→lease; ERP POST actions; public API optional `PUBLIC_API_KEY` + rates on spaces |
 | **5 Resident/Access** | Thin-real | `card_order_status` workflow field; portal guest history (`?days=`); AxTrax write still mock |
 | **6 Service Desk** | Evolve | `WaitingReasonCode` + `waiting_reason_code`; existing routing/SLA preserved |
-| **7 FM** | Thin-real | `WorkOrderService.set_status` + billable→Charge + `WORK_ORDER_CLOSED` event; ERP POST |
+| **7 FM** | Productizing | WO status + billable→Charge; ERP PM plans UI (`/erp/maintenance/plans/`) + generate due WOs + inspection confirm on WO detail (2026-11) |
 | **8 Warehouse** | Thin-real | Negative stock guard; low-stock → create PR from ERP |
 | **9 Procurement** | Thin-real | PR approve → PO → receive→stock; ApprovalService + events |
 | **10 DMS** | Thin-real | `DocumentService.upload_new` / `add_version` |

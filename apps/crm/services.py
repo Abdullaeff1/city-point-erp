@@ -640,29 +640,47 @@ class LeaseApplicationService(Service):
             app.bank_details = composed
 
     @classmethod
+    def _open_application_for_offer(cls, offer: Offer) -> LeaseApplication | None:
+        return (
+            LeaseApplication.objects.filter(offer_id=offer.pk)
+            .exclude(status=LeaseApplicationStatus.CANCELLED)
+            .order_by("pk")
+            .first()
+        )
+
+    @classmethod
     @transaction.atomic
     def create_from_offer(cls, offer: Offer, *, actor, data: dict | None = None) -> LeaseApplication:
         assert_can_mutate_crm(actor)
-        if offer.status != OfferStatus.ACCEPTED and offer.status != OfferStatus.SENT:
-            # Allow from sent (accepted by client verbally) or accepted
-            if offer.status not in (OfferStatus.SENT, OfferStatus.ACCEPTED, OfferStatus.APPROVED):
-                raise DomainError(_("Müraciət formu üçün təklif göndərilmiş/qəbul olunmuş olmalıdır."))
+        offer = Offer.objects.select_for_update().get(pk=offer.pk)
+        if offer.status not in (OfferStatus.SENT, OfferStatus.ACCEPTED, OfferStatus.APPROVED):
+            raise DomainError(_("Müraciət formu üçün təklif göndərilmiş/qəbul olunmuş olmalıdır."))
+
+        existing = cls._open_application_for_offer(offer)
+        if existing:
+            return existing
+
         ver = offer.current_version
         data = data or {}
         party_name = ""
         if offer.party_id:
             party_name = getattr(offer.party, "legal_name", None) or str(offer.party)
+        floor_label = (data.get("floor_label") or "")[:64]
+        if not floor_label and offer.space_id and getattr(offer.space, "floor_id", None):
+            floor = offer.space.floor
+            floor_label = (getattr(floor, "code", None) or getattr(floor, "name", "") or "")[:64]
         app = LeaseApplication(
             offer=offer,
             offer_version=ver,
             opportunity=offer.opportunity,
             space=offer.space,
+            lease_id=offer.lease_id,
             person_name=data.get("person_name") or (party_name or "")[:200],
             tax_id=(data.get("tax_id") or "")[:32],
             rent_rate_per_m2=data.get("rent_rate_per_m2") or (ver.rent_rate_per_m2 if ver else None),
             monthly_rent_net=data.get("monthly_rent_net") or (ver.monthly_rent_net if ver else None),
             space_label=(data.get("space_label") or (str(offer.space) if offer.space_id else ""))[:128],
-            floor_label=(data.get("floor_label") or "")[:64],
+            floor_label=floor_label,
             application_date=data.get("application_date") or timezone.localdate(),
             created_by=actor,
             status=LeaseApplicationStatus.DRAFT,
@@ -720,6 +738,21 @@ class LeaseApplicationService(Service):
         return app
 
     @classmethod
+    def assert_attachment_checklist(cls, app: LeaseApplication) -> None:
+        """Enforce Word-form attachment intent before accounting submit (checklist, not files)."""
+        chk = app.attachment_checklist if isinstance(app.attachment_checklist, dict) else {}
+        required = ["voen", "bank"]
+        if app.is_legal_entity:
+            required.append("registry")
+        missing = [k for k in required if not chk.get(k)]
+        if missing:
+            labels = {"voen": "VÖEN", "bank": "Bank rekvizitləri", "registry": "Reyestrdən çıxarış"}
+            raise DomainError(
+                _("Əlavə checklist tamamlanmayıb: %(docs)s.")
+                % {"docs": ", ".join(labels.get(m, m) for m in missing)}
+            )
+
+    @classmethod
     @transaction.atomic
     def submit_to_accounting(cls, app: LeaseApplication, *, actor) -> LeaseApplication:
         assert_can_mutate_crm(actor)
@@ -728,12 +761,25 @@ class LeaseApplicationService(Service):
             LeaseApplicationStatus.RETURNED_FOR_CORRECTION,
         ):
             raise DomainError(_("Müraciət göndərilə bilməz."))
+        cls.assert_attachment_checklist(app)
         app.form_snapshot = cls._snapshot(app)
         app.status = LeaseApplicationStatus.SUBMITTED_TO_ACCOUNTING
         app.submitted_by = actor
         app.submitted_at = timezone.now()
         app.save()
         log_action(actor=actor, action="crm.lease_app.submit", entity=app, message=str(app.pk))
+        from apps.accounts.models import Role
+        from apps.comms.services import notify_in_app
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+        label = getattr(app, "code", None) or str(app.pk)
+        for user in User.objects.filter(role=Role.ACCOUNTANT, is_active=True)[:20]:
+            notify_in_app(
+                user=user,
+                message=f"İcarə müraciəti mühasibatlığa göndərildi: {label}",
+                event_key=f"crm.lease_app.submit.{app.pk}.{user.pk}",
+            )
         return app
 
     @classmethod
@@ -766,68 +812,394 @@ class LeaseApplicationService(Service):
         return app
 
     @classmethod
-    @transaction.atomic
-    def create_lease_draft(cls, app: LeaseApplication, *, actor) -> LeaseApplication:
-        assert_can_review_lease_application(actor)
-        from apps.leases.lease_ops import refresh_lease_cached_amounts
-        from apps.leases.models import Lease, LeaseStatus
-        from apps.leases.services import ensure_primary_lease_line, next_lease_code
-
-        if app.lease_id:
-            return app
-        party = app.offer.party if app.offer_id else None
-        if party is None:
-            raise DomainError(_("Party yoxdur — lease yaradıla bilməz."))
-        rate = app.rent_rate_per_m2 or default_rent_rate()
-        rent = app.monthly_rent_net or 0
-        lease = Lease.objects.create(
-            code=next_lease_code(),
-            party=party,
-            space=app.space,
-            status=LeaseStatus.DRAFT,
-            rent=rent,
-            rent_rate_per_m2=rate,
-            service_rate_per_m2=Decimal("0"),
-            deposit_months=2,
-            parking_included_free=True,
-            start_date=app.lease_start,
-            end_date=app.lease_end,
-            notes=app.extra_notes or app.sales_notes or "",
-        )
-        ensure_primary_lease_line(lease)
-        # Bank / tax snapshot from application → lease notes (SoT remains LeaseApplication + Documents)
+    def _compose_lease_notes_from_app(cls, app: LeaseApplication, base: str = "") -> str:
+        parts = []
+        if (base or "").strip():
+            parts.append(base.strip())
+        if app.use_purpose:
+            parts.append(f"Təyinat: {app.use_purpose.strip()[:200]}")
+        if app.rent_free_note:
+            parts.append(f"Azadolma: {app.rent_free_note.strip()[:255]}")
+        if app.cleaning_included is True:
+            parts.append("Təmizlik: icarəyə daxil")
+        elif app.cleaning_included is False:
+            parts.append("Təmizlik: ayrıca ödənişli")
+        if app.tea_service_included is True:
+            parts.append("Çay xidməti: icarəyə daxil")
+        elif app.tea_service_included is False:
+            parts.append("Çay xidməti: ayrıca ödənişli")
         bank_bits = []
         if app.tax_id:
             bank_bits.append(f"VÖEN: {app.tax_id}")
         if app.bank_details:
             bank_bits.append(f"Bank: {app.bank_details.strip()[:500]}")
         req = app.bank_requisites if isinstance(app.bank_requisites, dict) else {}
-        for key in ("iban", "swift", "account", "bank_name"):
+        for key in ("currency", "bank_name", "branch_code", "voen", "swift", "current_account", "correspondent"):
             if req.get(key):
                 bank_bits.append(f"{key}: {req[key]}")
         if bank_bits:
-            bank_note = " | ".join(bank_bits)
-            lease.notes = (f"{lease.notes}\n" if lease.notes else "") + f"[LeaseApplication #{app.pk}] {bank_note}"
-            lease.save(update_fields=["notes", "updated_at"])
+            parts.append(f"[LeaseApplication #{app.pk}] " + " | ".join(bank_bits))
+        return "\n".join(parts)
+
+    @classmethod
+    def _ensure_separate_service_addons(cls, lease, app: LeaseApplication) -> None:
+        """When cleaning/tea are NOT included, create inactive Addon stubs (rate must be set later)."""
+        from apps.leases.models import LeaseAddon
+
+        specs = []
+        if app.cleaning_included is False:
+            specs.append(("cleaning", "Təmizlik xidməti"))
+        if app.tea_service_included is False:
+            specs.append(("tea", "Çay xidməti"))
+        for code, label in specs:
+            LeaseAddon.objects.get_or_create(
+                lease=lease,
+                code=code,
+                defaults={"label": label, "rate_per_m2": Decimal("0"), "is_active": False},
+            )
+
+    @classmethod
+    @transaction.atomic
+    def create_lease_draft(cls, app: LeaseApplication, *, actor) -> LeaseApplication:
+        assert_can_review_lease_application(actor)
+        from apps.core import events as bus
+        from apps.leases.lease_ops import refresh_lease_cached_amounts
+        from apps.leases.models import Lease, LeaseStatus
+        from apps.leases.services import (
+            ensure_primary_lease_line,
+            lock_space_for_reservation,
+            next_lease_code,
+            space_commercially_held,
+            sync_space_from_lease,
+        )
+
+        app = LeaseApplication.objects.select_for_update().get(pk=app.pk)
+        if app.status == LeaseApplicationStatus.CANCELLED:
+            raise DomainError(_("Ləğv olunmuş müraciət üçün icarə yaradıla bilməz."))
+
+        # Idempotent: app already linked
+        if app.lease_id:
+            return app
+
+        offer = Offer.objects.select_for_update().get(pk=app.offer_id) if app.offer_id else None
+
+        # Reuse offer.lease if another path already bound
+        if offer is not None and offer.lease_id:
+            app.lease_id = offer.lease_id
+            app.status = LeaseApplicationStatus.LEASE_DRAFT_CREATED
+            app.reviewed_by = actor
+            app.reviewed_at = timezone.now()
+            app.save(
+                update_fields=["lease", "status", "reviewed_by", "reviewed_at", "updated_at"]
+            )
+            return app
+
+        party = offer.party if offer is not None else None
+        if party is None:
+            raise DomainError(_("Party yoxdur — lease yaradıla bilməz."))
+
+        space_id = app.space_id or (offer.space_id if offer is not None else None)
+        if space_id:
+            lock_space_for_reservation(space_id)
+            if space_commercially_held(space_id):
+                raise DomainError(
+                    _("Bu sahə artıq kommersiya rezervindədir — təkrar rezerv mümkün deyil.")
+                )
+
+        rate = app.rent_rate_per_m2 or default_rent_rate()
+        rent = app.monthly_rent_net or 0
+        deposit = app.deposit_amount if app.deposit_amount is not None else Decimal("0")
+        notes = cls._compose_lease_notes_from_app(app, base=app.extra_notes or app.sales_notes or "")
+        lease = Lease.objects.create(
+            code=next_lease_code(),
+            party=party,
+            space_id=space_id,
+            status=LeaseStatus.NEGOTIATION,
+            rent=rent,
+            rent_rate_per_m2=rate,
+            service_rate_per_m2=Decimal("0"),
+            deposit=deposit if deposit and deposit > 0 else Decimal("0"),
+            deposit_months=2,
+            parking_included_free=True,
+            start_date=app.lease_start,
+            end_date=app.lease_end,
+            fit_out_notes=(app.fit_out_notes or "")[:255],
+            notes=notes,
+        )
+        ensure_primary_lease_line(lease)
         refresh_lease_cached_amounts(lease)
+        cls._ensure_separate_service_addons(lease, app)
+        sync_space_from_lease(lease)
+
         app.lease = lease
         app.status = LeaseApplicationStatus.LEASE_DRAFT_CREATED
         app.reviewed_by = actor
         app.reviewed_at = timezone.now()
         app.save()
-        if app.offer_id:
-            offer = app.offer
+        if offer is not None:
             offer.lease = lease
             offer.status = OfferStatus.ACCEPTED
             offer.save(update_fields=["lease", "status", "updated_at"])
             opp = offer.opportunity
             if opp:
-                opp.status = OpportunityStatus.WON
+                # Do not mark WON until signed/complete — keep lease_stage while open.
                 opp.pipeline_stage = PipelineStage.LEASE_STAGE
-                opp.outcome = Outcome.COOPERATION_SECURED
-                opp.save()
+                opp.save(update_fields=["pipeline_stage", "updated_at"])
+        bus.emit(
+            bus.LEASE_DRAFT_CREATED,
+            payload={
+                "lease_id": lease.pk,
+                "application_id": app.pk,
+                "space_id": space_id,
+                "code": lease.code,
+                "entity_model": "lease",
+            },
+            actor=actor,
+            event_key=f"lease.draft.{lease.pk}",
+        )
         log_action(actor=actor, action="crm.lease_app.lease_draft", entity=app, message=lease.code)
         return app
+
+    @classmethod
+    @transaction.atomic
+    def reject_offer(cls, offer: Offer, *, actor, reason: str = "") -> Offer:
+        """Client/commercial reject — release pre-active hold if this offer owns the lease."""
+        assert_can_mutate_crm(actor)
+        offer = Offer.objects.select_for_update().get(pk=offer.pk)
+        if offer.status == OfferStatus.REJECTED:
+            return offer
+        if offer.status == OfferStatus.ACCEPTED and offer.lease_id:
+            from apps.leases.models import LeaseStatus
+            from apps.leases.services import terminate_lease
+
+            lease = offer.lease
+            if lease and lease.status in (
+                LeaseStatus.DRAFT,
+                LeaseStatus.NEGOTIATION,
+                LeaseStatus.APPROVED,
+                LeaseStatus.SIGNED,
+            ):
+                terminate_lease(lease, actor=actor)
+        offer.status = OfferStatus.REJECTED
+        if reason:
+            offer.notes = ((offer.notes or "") + f"\nReject: {reason}").strip()[:5000]
+            offer.save(update_fields=["status", "notes", "updated_at"])
+        else:
+            offer.save(update_fields=["status", "updated_at"])
+        opp = offer.opportunity
+        if opp and opp.status == OpportunityStatus.OPEN:
+            opp.status = OpportunityStatus.LOST
+            opp.pipeline_stage = PipelineStage.LOST
+            opp.outcome = Outcome.OFFER_REJECTED
+            if reason:
+                opp.outcome_note = reason[:2000]
+            opp.save()
+        for app in LeaseApplication.objects.filter(offer=offer).exclude(
+            status__in=(LeaseApplicationStatus.COMPLETED, LeaseApplicationStatus.CANCELLED)
+        ):
+            app.status = LeaseApplicationStatus.CANCELLED
+            app.save(update_fields=["status", "updated_at"])
+        log_action(actor=actor, action="crm.offer.reject", entity=offer, message=reason[:200])
+        # Customer/commercial reject (not Management approval.decide) → opportunity owner.
+        owner = getattr(opp, "owner", None) if opp else None
+        if owner is None or not owner.is_active:
+            owner = getattr(opp, "created_by", None) if opp else None
+        if owner is not None and owner.is_active:
+            from apps.comms.services import notify_in_app
+
+            notify_in_app(
+                user=owner,
+                message=f"Ticarət təklifi rədd edildi (#{offer.pk})",
+                event_key=f"crm.offer.rejected.{offer.pk}",
+            )
+        return offer
+
+    @classmethod
+    @transaction.atomic
+    def create_fit_out_work_order(cls, app: LeaseApplication, *, actor, pay_note: str = "") -> object:
+        """Authorized handoff: LeaseApplication fit-out notes → Facility WorkOrder (idempotent)."""
+        from apps.core import events as bus
+        from apps.maintenance.models import WorkOrder, WorkOrderStatus
+        from apps.maintenance.services import next_wo_code
+
+        assert_can_review_lease_application(actor)
+        notes = (app.fit_out_notes or "").strip()
+        if not notes:
+            raise DomainError(_("Təmir / fit-out qeydi yoxdur — iş əmri yaradıla bilməz."))
+        if not app.lease_id:
+            raise DomainError(_("Əvvəlcə icarə qaralaması yaradılmalıdır."))
+
+        marker = f"[lease-fitout:{app.lease.code}]"
+        existing = (
+            WorkOrder.objects.filter(description__contains=marker)
+            .exclude(status=WorkOrderStatus.COMPLETED)
+            .first()
+        )
+        if existing:
+            return existing
+
+        desc = f"{marker}\n{notes}"
+        if pay_note:
+            desc += f"\nÖdəniş məsuliyyəti: {pay_note.strip()[:500]}"
+        wo = WorkOrder.objects.create(
+            code=next_wo_code(),
+            title=f"Fit-out · {app.lease.code}"[:200],
+            description=desc,
+            status=WorkOrderStatus.OPEN,
+            space=app.space or app.lease.space,
+            party=app.lease.party,
+            billable=False,
+        )
+        bus.emit(
+            bus.WORK_ORDER_CREATED,
+            payload={"work_order_id": wo.pk, "code": wo.code, "lease_id": app.lease_id},
+            actor=actor,
+            event_key=f"wo.created.{wo.pk}",
+        )
+        log_action(actor=actor, action="crm.lease_app.fitout_wo", entity=app, message=wo.code)
+        return wo
+
+    @classmethod
+    @transaction.atomic
+    def cancel_lease_application(cls, app: LeaseApplication, *, actor, reason: str = "") -> LeaseApplication:
+        assert_can_mutate_crm(actor)
+        app = LeaseApplication.objects.select_for_update().get(pk=app.pk)
+        if app.status == LeaseApplicationStatus.CANCELLED:
+            return app
+        if app.status == LeaseApplicationStatus.COMPLETED:
+            raise DomainError(_("Tamamlanmış müraciət ləğv edilə bilməz."))
+        if app.lease_id:
+            from apps.leases.models import LeaseStatus
+            from apps.leases.services import terminate_lease
+
+            lease = app.lease
+            if lease and lease.status in (
+                LeaseStatus.DRAFT,
+                LeaseStatus.NEGOTIATION,
+                LeaseStatus.APPROVED,
+                LeaseStatus.SIGNED,
+            ):
+                terminate_lease(lease, actor=actor)
+        app.status = LeaseApplicationStatus.CANCELLED
+        if reason:
+            app.sales_notes = ((app.sales_notes or "") + f"\nCancel: {reason}").strip()
+        app.save()
+        log_action(actor=actor, action="crm.lease_app.cancel", entity=app, message=reason[:200])
+        return app
+
+    @classmethod
+    def ensure_document_type_lease_application_signed(cls):
+        from apps.documents.models import (
+            DOCUMENT_TYPE_LEASE_APPLICATION_SIGNED,
+            DEFAULT_RETENTION_DAYS,
+            DocumentSensitivity,
+            DocumentType,
+        )
+
+        obj, _ = DocumentType.objects.get_or_create(
+            code=DOCUMENT_TYPE_LEASE_APPLICATION_SIGNED,
+            defaults={
+                "name": "İmzalanmış müraciət forması",
+                "retention_days": DEFAULT_RETENTION_DAYS.get(
+                    DOCUMENT_TYPE_LEASE_APPLICATION_SIGNED, 3650
+                ),
+                "default_sensitivity": DocumentSensitivity.CONFIDENTIAL,
+            },
+        )
+        return obj
+
+    @classmethod
+    def resolve_application_company(cls, app: LeaseApplication, *, create: bool = False):
+        """Find or optionally create ResidentCompany for application (copy-if-empty later)."""
+        from django.utils.text import slugify
+
+        from apps.residents.models import ResidentCompany
+
+        company = None
+        if app.tax_id:
+            company = ResidentCompany.objects.filter(voen=app.tax_id).first()
+        if company is None and app.person_name:
+            company = ResidentCompany.objects.filter(name__iexact=app.person_name.strip()).first()
+        if company is None and app.offer_id and app.offer.party_id:
+            cid = getattr(app.offer.party, "legacy_resident_company_id", None)
+            if cid:
+                company = ResidentCompany.objects.filter(pk=cid).first()
+        if company is None and create and (app.person_name or app.tax_id):
+            base = slugify(app.person_name or app.tax_id or "company")[:40] or "company"
+            slug = base
+            n = 1
+            while ResidentCompany.objects.filter(slug=slug).exists():
+                n += 1
+                slug = f"{base}-{n}"
+            from apps.residents.models import CompanyStatus
+
+            company = ResidentCompany.objects.create(
+                name=(app.person_name or app.tax_id or slug)[:160],
+                slug=slug,
+                voen=(app.tax_id or "")[:32],
+                legal_address=(app.legal_address or "")[:255],
+                actual_address=(app.actual_address or "")[:255],
+                status=CompanyStatus.ACTIVE,
+                portal_active=False,
+            )
+        return company
+
+    @classmethod
+    def application_has_signed_document(cls, app: LeaseApplication) -> bool:
+        """True when a real uploaded signed application PDF/scan exists for the company/lease."""
+        from apps.documents.models import DOCUMENT_TYPE_LEASE_APPLICATION_SIGNED, Document
+
+        cls.ensure_document_type_lease_application_signed()
+        company = cls.resolve_application_company(app, create=False)
+        qs = Document.objects.filter(
+            document_type__code=DOCUMENT_TYPE_LEASE_APPLICATION_SIGNED
+        ).exclude(file="")
+        if app.lease_id and qs.filter(lease_id=app.lease_id).exists():
+            return True
+        if company and qs.filter(company_id=company.pk).exists():
+            return True
+        return False
+
+    @classmethod
+    def assert_supporting_documents(cls, app: LeaseApplication) -> None:
+        """Require actual Document rows for VOEN/bank/(registry for legal entity)."""
+        from apps.documents.models import (
+            DOCUMENT_TYPE_BANK_CERTIFICATE,
+            DOCUMENT_TYPE_COMPANY_EXTRACT,
+            DOCUMENT_TYPE_VOEN,
+            Document,
+        )
+        from apps.residents.models import ResidentCompany
+
+        company = None
+        if app.tax_id:
+            company = ResidentCompany.objects.filter(voen=app.tax_id).first()
+        if company is None and app.offer_id and getattr(app.offer, "party", None):
+            company_id = getattr(app.offer.party, "legacy_resident_company_id", None)
+            if company_id:
+                company = ResidentCompany.objects.filter(pk=company_id).first()
+        if company is None:
+            # Soft: cannot validate files without company card yet — checklist alone insufficient
+            # for complete; allow draft/submit with warning only at complete stage.
+            return
+
+        def _has(code: str) -> bool:
+            return Document.objects.filter(
+                company=company, document_type__code=code
+            ).exclude(file="").exists()
+
+        missing = []
+        if not _has(DOCUMENT_TYPE_VOEN):
+            missing.append(_("VÖEN sənədi"))
+        if not _has(DOCUMENT_TYPE_BANK_CERTIFICATE):
+            missing.append(_("Bank rekvizitləri sənədi"))
+        if app.is_legal_entity and not _has(DOCUMENT_TYPE_COMPANY_EXTRACT):
+            missing.append(_("Reyestrdən çıxarış"))
+        if missing:
+            raise DomainError(
+                _("Tələb olunan sənədlər yoxdur: %(docs)s. Rezident kartından yükləyin.")
+                % {"docs": ", ".join(str(m) for m in missing)}
+            )
 
     @classmethod
     @transaction.atomic
@@ -835,10 +1207,51 @@ class LeaseApplicationService(Service):
         """İmza: Signed/Upcoming → start_date-də Active; resident+portal; opportunity Won."""
         assert_can_review_lease_application(actor)
         from apps.leases.models import LeaseStatus
-        from apps.leases.services import activate_lease
+        from apps.leases.services import activate_lease, sync_space_from_lease
         from apps.parties.models import PartyRole, PartyRoleCode, PartyStatus
         from apps.parties.resolvers import party_for_company
         from apps.residents.models import ResidentCompany
+
+        app = LeaseApplication.objects.select_for_update().get(pk=app.pk)
+        if app.status == LeaseApplicationStatus.COMPLETED:
+            return app
+        if app.status == LeaseApplicationStatus.CANCELLED:
+            raise DomainError(_("Ləğv olunmuş müraciət tamamlanmaz."))
+        if not app.lease_id:
+            raise DomainError(_("Əvvəlcə icarə qaralaması yaradılmalıdır."))
+
+        company = None
+        if upsert_party:
+            company = cls.resolve_application_company(app, create=True)
+            if company is not None:
+                updates = []
+                if app.legal_address and not company.legal_address:
+                    company.legal_address = app.legal_address[:255]
+                    updates.append("legal_address")
+                if app.actual_address and not company.actual_address:
+                    company.actual_address = app.actual_address[:255]
+                    updates.append("actual_address")
+                if app.tax_id and not company.voen:
+                    company.voen = app.tax_id[:32]
+                    updates.append("voen")
+                req = app.bank_requisites if isinstance(app.bank_requisites, dict) else {}
+                if req.get("bank_name") and not company.bank_name:
+                    company.bank_name = str(req["bank_name"])[:160]
+                    updates.append("bank_name")
+                if req.get("voen") and not company.bank_voen:
+                    company.bank_voen = str(req["voen"])[:32]
+                    updates.append("bank_voen")
+                if updates:
+                    company.save(update_fields=updates)
+
+        cls.assert_supporting_documents(app)
+        if not cls.application_has_signed_document(app):
+            raise DomainError(
+                _(
+                    "İmzalanmış müraciət forması (PDF/scan) yüklənməlidir. "
+                    "Rezident sənədlərinə «İmzalanmış müraciət forması» əlavə edin."
+                )
+            )
 
         app.status = LeaseApplicationStatus.SIGNED_DOCUMENTS_RECEIVED
         app.reviewed_by = actor
@@ -848,14 +1261,8 @@ class LeaseApplicationService(Service):
         party = None
         if app.offer_id and app.offer.party_id:
             party = app.offer.party
-        if upsert_party and app.person_name:
-            company = None
-            if app.tax_id:
-                company = ResidentCompany.objects.filter(voen=app.tax_id).first()
-            if company is None and app.person_name:
-                company = ResidentCompany.objects.filter(name__iexact=app.person_name).first()
-            if company is not None:
-                party = party_for_company(company, ensure=True) or party
+        if company is not None:
+            party = party_for_company(company, ensure=True) or party
 
         lease = app.lease
         if lease:
@@ -881,6 +1288,7 @@ class LeaseApplicationService(Service):
                         "updated_at",
                     ]
                 )
+                sync_space_from_lease(lease)
             party = party or lease.party
 
         # Resident aktivləşmə yalnız imzada; prospect erkən qala bilər
@@ -1020,15 +1428,26 @@ def scan_crm_reminders(*, limit: int = 200) -> dict[str, int]:
 
 # Back-compat for pipeline.convert_offer_to_lease_draft
 @transaction.atomic
-def convert_offer_to_lease_draft(offer: Offer):
+def convert_offer_to_lease_draft(offer: Offer, *, actor=None):
     """Deprecated path — prefer LeaseApplicationService.create_lease_draft."""
     from apps.leases.lease_ops import refresh_lease_cached_amounts
     from apps.leases.models import Lease, LeaseStatus
-    from apps.leases.services import ensure_primary_lease_line, next_lease_code
+    from apps.leases.services import (
+        ensure_primary_lease_line,
+        lock_space_for_reservation,
+        next_lease_code,
+        space_commercially_held,
+        sync_space_from_lease,
+    )
 
+    offer = Offer.objects.select_for_update().get(pk=offer.pk)
     if offer.lease_id:
         return offer.lease
     space = offer.space
+    if space is not None:
+        lock_space_for_reservation(space.pk)
+        if space_commercially_held(space.pk):
+            raise DomainError(_("Bu sahə artıq kommersiya rezervindədir — təkrar rezerv mümkün deyil."))
     rent_rate = default_rent_rate()
     if offer.current_version_id:
         rent_rate = offer.current_version.rent_rate_per_m2
@@ -1036,7 +1455,7 @@ def convert_offer_to_lease_draft(offer: Offer):
         code=next_lease_code(),
         party=offer.party,
         space=space,
-        status=LeaseStatus.DRAFT,
+        status=LeaseStatus.NEGOTIATION,
         rent=offer.rent_amount or 0,
         rent_rate_per_m2=rent_rate,
         service_rate_per_m2=Decimal("0"),
@@ -1046,11 +1465,12 @@ def convert_offer_to_lease_draft(offer: Offer):
     )
     ensure_primary_lease_line(lease)
     refresh_lease_cached_amounts(lease)
+    sync_space_from_lease(lease)
     offer.lease = lease
     offer.status = OfferStatus.ACCEPTED
     offer.save(update_fields=["lease", "status", "updated_at"])
     opportunity = offer.opportunity
     if opportunity and opportunity.status == OpportunityStatus.OPEN:
-        opportunity.status = OpportunityStatus.WON
-        opportunity.save(update_fields=["status", "updated_at"])
+        opportunity.pipeline_stage = PipelineStage.LEASE_STAGE
+        opportunity.save(update_fields=["pipeline_stage", "updated_at"])
     return lease

@@ -84,20 +84,52 @@ class SalesDashboardViewTests(TestCase):
     def test_admin_keeps_ops_panel(self):
         c = Client()
         c.force_login(self.admin)
-        resp = c.get(reverse("erp:dashboard"))
+        resp = c.get(reverse("erp:dashboard") + "?ops=1")
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(resp.context["is_sales_dashboard"])
         self.assertContains(resp, "İdarə paneli")
         self.assertContains(resp, "QONAQLAR")
         self.assertIn("guest_count", resp.context)
 
-    def test_management_keeps_ops_panel(self):
+    def test_management_uses_module_hub(self):
         c = Client()
         c.force_login(self.mgmt)
         resp = c.get(reverse("erp:dashboard"))
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(resp.context["is_sales_dashboard"])
-        self.assertIn("guest_count", resp.context)
+        self.assertTrue(resp.context["is_management_hub"])
+        self.assertIn("hub_modules", resp.context)
+        self.assertNotIn("guest_count", resp.context)
+
+    def test_sales_shell_uses_crm_theme(self):
+        c = Client()
+        c.force_login(self.sales)
+        resp = c.get(reverse("erp:dashboard"))
+        self.assertContains(resp, "cp-theme-crm")
+        self.assertContains(resp, "crm-kpi-card")
+        c.force_login(self.admin)
+        admin_resp = c.get(reverse("erp:dashboard") + "?ops=1")
+        self.assertEqual(admin_resp.status_code, 200)
+        self.assertNotContains(admin_resp, "cp-theme-crm")
+
+    def test_leads_list_has_kpi_and_tabs(self):
+        Lead.objects.create(
+            company_name="TabCo",
+            full_name="T",
+            qualification=Qualification.UNREVIEWED,
+            record_status=RecordStatus.OPEN,
+            created_by=self.sales,
+        )
+        c = Client()
+        c.force_login(self.sales)
+        resp = c.get(reverse("erp:crm_leads"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "cp-theme-crm")
+        self.assertIn("kpi_items", resp.context)
+        self.assertIn("filter_tabs", resp.context)
+        self.assertTrue(resp.context["filter_tabs"])
+        self.assertContains(resp, "crm-filter-tabs")
+        self.assertContains(resp, "crm-table-panel")
 
 
 class SalesDashboardHelperTests(TestCase):

@@ -74,8 +74,10 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "apps.accounts.middleware.MustSetPasswordMiddleware",
-    "apps.accounts.middleware.SoftPermissionDeniedMiddleware",
+    # SoftPermissionDenied must sit inside MessageMiddleware so flash messages
+    # set in permission_denied_view are persisted on the soft-403 redirect.
     "django.contrib.messages.middleware.MessageMiddleware",
+    "apps.accounts.middleware.SoftPermissionDeniedMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 

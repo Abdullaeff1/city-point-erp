@@ -124,8 +124,16 @@ class AdminAuditLogTests(TestCase):
         self.assertNotIn(VISITOR_CHECKED_IN, actions)
 
     def test_impersonated_admin_still_sees_one_timeline(self):
+        """Case C: Admin during Service Desk preview retains audit (impersonator gate)."""
+        from apps.accounts.impersonation import SESSION_IMPERSONATOR_ID, get_impersonator
+        from apps.erp.it_access import can_access_erp_audit
+
         self.client.force_login(self.admin)
         self.client.post(reverse("accounts:switch_role", args=[Role.SERVICE_DESK]))
+        session = self.client.session
+        self.assertEqual(session.get(SESSION_IMPERSONATOR_ID), self.admin.pk)
+        # Effective user is desk; gate still true via impersonator.
+        self.assertEqual(self.client.session.get("_auth_user_id"), str(self.desk.pk))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         rows = response.context["rows"]
@@ -134,10 +142,94 @@ class AdminAuditLogTests(TestCase):
         self.assertIn(Role.RECEPTION, {row["role"] for row in rows})
         self.assertIn(Role.SERVICE_DESK, {row["role"] for row in rows})
         self.assertContains(response, 'href="/erp/audit/"')
+        self.assertContains(response, 'id="audit-log"')
+        # Policy: Admin preview keeps audit.view authority on the controlling Admin.
+        request = response.wsgi_request
+        self.assertTrue(can_access_erp_audit(request.user, request))
+        self.assertEqual(get_impersonator(request).pk, self.admin.pk)
+
+    def test_ordinary_service_desk_cannot_open_audit(self):
+        """Case A: ordinary Service Desk opening /erp/audit/ is soft-denied."""
+        from apps.accounts.test_utils import assert_soft_denied
+        from apps.erp.it_access import can_access_erp_audit
+
+        self.assertFalse(can_access_erp_audit(self.desk))
+        self.client.force_login(self.desk)
+        resp = self.client.get(self.url)
+        assert_soft_denied(
+            self,
+            self.client,
+            resp,
+            self.desk,
+            expected_url=reverse("erp:helpdesk_dashboard"),
+            protected_markers=('id="audit-log"',),
+        )
+
+    def test_admin_audit_normal_then_preview_then_exit(self):
+        """Cases B+D: Admin normal access; exit preview restores Admin context."""
+        from apps.accounts.impersonation import SESSION_IMPERSONATOR_ID
+
+        # B — Admin normal mode
+        self.client.force_login(self.admin)
+        normal = self.client.get(self.url)
+        self.assertEqual(normal.status_code, 200)
+        self.assertContains(normal, 'id="audit-log"')
+        self.assertIsNone(self.client.session.get(SESSION_IMPERSONATOR_ID))
+
+        # Enter Service Desk preview (Case C covered above); then D — exit.
+        self.client.post(reverse("accounts:switch_role", args=[Role.SERVICE_DESK]))
+        self.assertEqual(self.client.session.get(SESSION_IMPERSONATOR_ID), self.admin.pk)
+        preview = self.client.get(self.url)
+        self.assertEqual(preview.status_code, 200)
+
+        stop = self.client.post(reverse("accounts:stop_role_preview"))
+        self.assertEqual(stop.status_code, 302)
+        self.assertIsNone(self.client.session.get(SESSION_IMPERSONATOR_ID))
+        restored = self.client.get("/erp/", follow=True)
+        self.assertEqual(restored.status_code, 200)
+        self.assertEqual(restored.request["PATH_INFO"], reverse("erp:it_dashboard"))
+        self.assertNotContains(restored, "Adminə qayıt")
+        again = self.client.get(self.url)
+        self.assertEqual(again.status_code, 200)
+        self.assertContains(again, 'id="audit-log"')
 
     def test_receptionist_cannot_open_audit(self):
+        from apps.accounts.test_utils import assert_soft_denied
+
         self.client.force_login(self.aygun)
-        # handler403 redirects staff home (302) instead of HTML 403
-        self.assertIn(self.client.get(self.url).status_code, (302, 403))
+        resp = self.client.get(self.url)
+        assert_soft_denied(
+            self,
+            self.client,
+            resp,
+            self.aygun,
+            expected_url=reverse("erp:reception"),
+            protected_markers=('id="audit-log"', 'href="/erp/audit/"'),
+        )
         home = self.client.get(reverse("erp:reception"))
         self.assertNotContains(home, 'href="/erp/audit/"')
+
+    def test_desk_cannot_acquire_preview_privilege(self):
+        """Ordinary desk cannot start role preview to gain audit."""
+        from apps.accounts.impersonation import SESSION_IMPERSONATOR_ID
+        from apps.accounts.test_utils import assert_soft_denied
+
+        self.client.force_login(self.desk)
+        start = self.client.post(reverse("accounts:switch_role", args=[Role.ADMIN]))
+        assert_soft_denied(
+            self,
+            self.client,
+            start,
+            self.desk,
+            expected_url=reverse("erp:helpdesk_dashboard"),
+        )
+        self.assertIsNone(self.client.session.get(SESSION_IMPERSONATOR_ID))
+        denied = self.client.get(self.url)
+        assert_soft_denied(
+            self,
+            self.client,
+            denied,
+            self.desk,
+            expected_url=reverse("erp:helpdesk_dashboard"),
+            protected_markers=('id="audit-log"',),
+        )

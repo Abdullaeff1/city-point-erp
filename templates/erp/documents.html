@@ -10,6 +10,7 @@
         <th>{% translate "Tip" %}</th>
         <th>{% translate "Rezident" %} / {% translate "Sahə" %}</th>
         <th>{% translate "Versiya" %}</th>
+        <th>{% translate "Təsdiq" %}</th>
         <th>{% translate "Tarix" %}</th>
         <th></th>
       </tr>
@@ -18,14 +19,41 @@
       {% for d in documents %}
       <tr>
         <td style="font-weight:600;">{{ d.title }}</td>
-        <td>{{ d.file_type }}</td>
+        <td>{{ d.document_type.name|default:d.file_type }}</td>
         <td class="cp-meta">{% if d.company %}{{ d.company.name }}{% else %}{% translate "Ümumi" %}{% endif %}{% if d.space %} · {{ d.space.code }}{% endif %}</td>
         <td>{{ d.version|default:"—" }}</td>
+        <td class="cp-meta">
+          {% if d.approval_info.status == "pending" %}
+            {% translate "Gözləyir" %} · v{{ d.approval_info.version_label|default:d.version }}
+          {% elif d.approval_info.status == "approved" %}
+            {% translate "Təsdiqlənib" %} · v{{ d.approval_info.version_label }}
+            {% if d.approval_info.decided_at %}<br>{{ d.approval_info.decided_at }}{% endif %}
+          {% elif d.approval_info.status == "rejected" %}
+            {% translate "Rədd" %} · v{{ d.approval_info.version_label }}
+            {% if d.approval_info.comment %}<br>{{ d.approval_info.comment }}{% endif %}
+            {% if d.approval_info.decided_at %}<br>{{ d.approval_info.decided_at }}{% endif %}
+          {% else %}
+            —
+          {% endif %}
+        </td>
         <td class="cp-meta">{{ d.published_at|date:"d.m.Y" }}</td>
-        <td>{% if d.file %}<a href="{{ d.file.url }}">{% translate "Aç" %}</a>{% endif %}</td>
+        <td>
+          {% if d.file %}
+          <a href="{% url 'erp:document_download' d.pk %}">{% translate "Aç" %}</a>
+          {% endif %}
+          {% if can_submit_approval and d.document_type.requires_approval %}
+            {% if d.approval_info.status != "pending" %}
+            <form method="post" style="display:inline;margin-left:0.5rem;">{% csrf_token %}
+              <input type="hidden" name="document_id" value="{{ d.pk }}">
+              <input type="hidden" name="action" value="submit_approval">
+              <button class="cp-btn" type="submit">{% translate "Təsdiqə göndər" %}</button>
+            </form>
+            {% endif %}
+          {% endif %}
+        </td>
       </tr>
       {% empty %}
-      <tr><td colspan="6" class="cp-meta empty-pad">{% translate "Sənəd yoxdur." %}</td></tr>
+      <tr><td colspan="7" class="cp-meta empty-pad">{% translate "Sənəd yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

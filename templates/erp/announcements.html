@@ -2,9 +2,11 @@
 {% load i18n %}
 {% block heading %}{% translate "Elanlar" %}{% endblock %}
 {% block content %}
+{% if can_publish_announcement %}
 <div class="mb-4">
   <a class="cp-btn" href="{% url 'erp:announcement_create' %}">{% translate "Elan əlavə et" %}</a>
 </div>
+{% endif %}
 
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
@@ -14,7 +16,7 @@
         <th>{% translate "Görünürlük" %}</th>
         <th>{% translate "Mənbə" %}</th>
         <th>{% translate "Tarix" %}</th>
-        <th></th>
+        {% if can_publish_announcement %}<th></th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -43,6 +45,7 @@
         </td>
         <td class="cp-meta">{{ a.get_source_display }}</td>
         <td class="cp-meta">{{ a.published_at|date:"d.m.Y" }}</td>
+        {% if can_publish_announcement %}
         <td>
           <div class="flex gap-2" style="flex-wrap:wrap;justify-content:flex-end;">
             <a class="cp-btn-ghost" href="{% url 'erp:announcement_edit' a.pk %}">{% translate "Redaktə" %}</a>
@@ -51,9 +54,10 @@
             </form>
           </div>
         </td>
+        {% endif %}
       </tr>
       {% empty %}
-      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Elan yoxdur." %}</td></tr>
+      <tr><td colspan="{% if can_publish_announcement %}5{% else %}4{% endif %}" class="cp-meta empty-pad">{% translate "Elan yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

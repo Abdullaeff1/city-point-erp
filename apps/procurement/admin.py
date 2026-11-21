@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from apps.procurement.models import (
+    GoodsReceiptOperation,
     POLine,
     PRLine,
     PurchaseApprovalLimit,
@@ -69,3 +70,22 @@ class RFQQuoteAdmin(admin.ModelAdmin):
 class PurchaseApprovalLimitAdmin(admin.ModelAdmin):
     list_display = ("role", "max_amount", "is_active")
     list_filter = ("is_active",)
+    list_display_links = ("role",)
+    fields = ("role", "max_amount", "is_active")
+
+
+@admin.register(GoodsReceiptOperation)
+class GoodsReceiptOperationAdmin(admin.ModelAdmin):
+    list_display = ("operation_key", "po", "warehouse", "mode", "actor", "created_at")
+    list_filter = ("mode",)
+    search_fields = ("operation_key", "po__code")
+    readonly_fields = (
+        "operation_key",
+        "po",
+        "warehouse",
+        "actor",
+        "mode",
+        "payload_fingerprint",
+        "lines_json",
+        "created_at",
+    )

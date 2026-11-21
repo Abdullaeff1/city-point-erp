@@ -71,7 +71,8 @@ class RoleSwitchTests(TestCase):
         r = self.client.post(reverse("accounts:stop_role_preview"))
         self.assertEqual(r.status_code, 302)
         self.assertIsNone(self.client.session.get(SESSION_IMPERSONATOR_ID))
-        r2 = self.client.get("/erp/")
+        # Admin landing is IT dashboard (/erp/ → /erp/dashboards/it/).
+        r2 = self.client.get("/erp/", follow=True)
         self.assertEqual(r2.status_code, 200)
         self.assertNotContains(r2, "Adminə qayıt")
         self.assertNotContains(r2, "cp-nav-summary")
@@ -81,16 +82,30 @@ class RoleSwitchTests(TestCase):
         self.client.force_login(self.desk)
         res = self.client.get("/erp/", follow=True)
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.request["PATH_INFO"], "/erp/tickets/")
-        self.assertContains(res, "ticket-tab")
-        self.assertContains(res, "SLA risk")
+        # Helpdesk preferred landing is department dashboard (tickets remain reachable).
+        self.assertEqual(res.request["PATH_INFO"], "/erp/dashboards/helpdesk/")
         self.assertNotContains(res, "Kart sifarişləri")
-        self.assertNotContains(res, "İdarə paneli")
 
     def test_reception_cannot_start_switch(self):
+        from apps.accounts.test_utils import assert_soft_denied
+
         self.client.force_login(self.reception)
+        before = dict(self.client.session.items())
         r = self.client.post(reverse("accounts:switch_role", args=[Role.SECURITY]))
-        self.assertEqual(r.status_code, 403)
+        # Denied POST: soft-deny to reception home; preview session never starts.
+        assert_soft_denied(
+            self,
+            self.client,
+            r,
+            self.reception,
+            expected_url=reverse("erp:reception"),
+            protected_markers=("ROLLAR", "Adminə qayıt"),
+        )
+        self.assertIsNone(self.client.session.get(SESSION_IMPERSONATOR_ID))
+        self.assertEqual(
+            self.client.session.get(SESSION_IMPERSONATOR_ID),
+            before.get(SESSION_IMPERSONATOR_ID),
+        )
 
     def test_hop_between_roles_keeps_impersonator(self):
         self.client.force_login(self.admin)

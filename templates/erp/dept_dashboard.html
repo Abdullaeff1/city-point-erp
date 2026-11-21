@@ -1,0 +1,22 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{{ dashboard_title }}{% endblock %}
+{% block content %}
+{% include "partials/dept_kpi_strip.html" with kpis=kpis %}
+{% if stats %}
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  {% for s in stats %}
+  <div class="cp-card p-card" style="min-width:120px;flex:1 1 120px;">
+    <div class="cp-meta">{{ s.label }}</div>
+    <div class="cp-metric mt-2">{{ s.value }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+<div class="grid gap-4" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
+  {% include "partials/dept_pending_list.html" %}
+  {% include "partials/dept_recent_list.html" %}
+  {% include "partials/dept_notifications.html" %}
+  {% include "partials/dept_quick_actions.html" %}
+</div>
+{% endblock %}

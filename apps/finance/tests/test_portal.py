@@ -69,7 +69,7 @@ class FinancePortalAclTests(TestCase):
         self.client.force_login(self.admin)
         resp = self.client.get(reverse("finance:home"))
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp.url, reverse("erp:dashboard"))
+        self.assertEqual(resp.url, reverse("erp:it_dashboard"))
 
     def test_accountant_erp_redirects_to_finance(self):
         self.assertFalse(self.accountant.can_access_erp())
@@ -202,7 +202,14 @@ class FinanceArGlTests(TestCase):
             },
         )
         ApprovalService.decide(req, approved=True, decided_by=self.manager)
-        record_payment(invoice=inv, amount=inv.total, method="bank", reference="T1")
+        req.refresh_from_db()
+        record_payment(
+            invoice=inv,
+            amount=inv.total,
+            method="bank",
+            reference="T1",
+            approval_request=req,
+        )
         inv.refresh_from_db()
         self.assertEqual(inv.status, InvoiceStatus.PAID)
         pay_je = JournalEntry.objects.filter(source="billing.payment").latest("id")

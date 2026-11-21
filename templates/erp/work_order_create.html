@@ -1,0 +1,65 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{% translate "Yeni iş tapşırığı" %}{% endblock %}
+{% block heading %}{% translate "Yeni iş tapşırığı" %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:work_orders' %}">{% translate "İş sifarişləri" %}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card" style="max-width:760px;">
+  <p class="cp-meta mb-3">{% translate "Facility mənşəli iş sifarişi — Helpdesk ticket yaradılmır." %}</p>
+  <form method="post" class="flex-col gap-3">
+    {% csrf_token %}
+    <input type="hidden" name="submit_token" value="{{ submit_token }}">
+    <label>
+      <span class="cp-meta">{% translate "Başlıq" %} *</span>
+      <div class="mt-1"><input class="cp-input" type="text" name="title" required maxlength="200" value="{{ request.POST.title|default:'' }}"></div>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Təsvir" %}</span>
+      <div class="mt-1"><textarea class="cp-input" name="description" rows="4">{{ request.POST.description|default:'' }}</textarea></div>
+    </label>
+    <div class="grid-2">
+      <label>
+        <span class="cp-meta">{% translate "Prioritet" %}</span>
+        <div class="mt-1">
+          <select class="cp-input" name="priority">
+            {% for value, label in priorities %}
+            <option value="{{ value }}" {% if request.POST.priority == value or not request.POST.priority and value == 'normal' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Plan tarixi" %}</span>
+        <div class="mt-1"><input class="cp-input" type="date" name="scheduled_for" value="{{ request.POST.scheduled_for|default:'' }}"></div>
+      </label>
+    </div>
+    <div class="grid-2">
+      <label>
+        <span class="cp-meta">{% translate "Sahə" %}</span>
+        <div class="mt-1">
+          <select class="cp-input" name="space">
+            <option value="">—</option>
+            {% for space in spaces %}
+            <option value="{{ space.pk }}" {% if request.POST.space == space.pk|stringformat:'s' %}selected{% endif %}>{{ space.code }} · {{ space.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Podratçı" %}</span>
+        <div class="mt-1">
+          <select class="cp-input" name="contractor">
+            <option value="">—</option>
+            {% for c in contractors %}
+            <option value="{{ c.pk }}" {% if request.POST.contractor == c.pk|stringformat:'s' %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </label>
+    </div>
+    <button class="cp-btn" type="submit">{% translate "Yarat" %}</button>
+  </form>
+</div>
+{% endblock %}

@@ -247,13 +247,17 @@ class InvoiceDetailView(FinancePortalMixin, TemplateView):
                     workflow_code=WF_PAYMENT,
                     status=ApprovalStatus.PENDING,
                 )
-                ApprovalService.decide(req, approved=True, decided_by=request.user)
                 payload = req.payload or {}
+                if int(payload.get("invoice_id") or 0) != inv.pk:
+                    raise DomainError(_("Approval bu fakturaya aid deyil."))
+                ApprovalService.decide(req, approved=True, decided_by=request.user)
+                req.refresh_from_db()
                 record_payment(
                     invoice=inv,
                     amount=Decimal(payload.get("amount") or 0),
                     method=payload.get("method") or "bank",
                     reference=payload.get("reference") or "",
+                    approval_request=req,
                 )
                 messages.success(request, _("Ödəniş təsdiqləndi və qeydə alındı."))
             elif action == "reject_pay":
@@ -317,6 +321,7 @@ class PaymentsView(FinancePortalMixin, TemplateView):
         try:
             if action == "approve_pay":
                 ApprovalService.decide(req, approved=True, decided_by=request.user)
+                req.refresh_from_db()
                 payload = req.payload or {}
                 inv = get_object_or_404(Invoice, pk=payload.get("invoice_id"))
                 record_payment(
@@ -324,6 +329,7 @@ class PaymentsView(FinancePortalMixin, TemplateView):
                     amount=Decimal(payload.get("amount") or 0),
                     method=payload.get("method") or "bank",
                     reference=payload.get("reference") or "",
+                    approval_request=req,
                 )
                 messages.success(request, _("Ödəniş təsdiqləndi."))
             elif action == "reject_pay":

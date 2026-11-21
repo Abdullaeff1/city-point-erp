@@ -1,0 +1,16 @@
+{% comment %}Expects: kpis — list of {label, value, meta?, url?}{% endcomment %}
+{% if kpis %}
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;" role="list">
+  {% for item in kpis %}
+    {% if item.url %}
+    <a class="cp-card p-card cp-card-link" href="{{ item.url }}" style="min-width:120px;flex:1 1 120px;" role="listitem">
+    {% else %}
+    <div class="cp-card p-card" style="min-width:120px;flex:1 1 120px;" role="listitem">
+    {% endif %}
+      <div class="cp-meta">{{ item.label }}</div>
+      <div class="cp-metric mt-2">{{ item.value }}</div>
+      {% if item.meta %}<div class="cp-meta mt-2">{{ item.meta }}</div>{% endif %}
+    {% if item.url %}</a>{% else %}</div>{% endif %}
+  {% endfor %}
+</div>
+{% endif %}

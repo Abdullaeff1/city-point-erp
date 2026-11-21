@@ -1,0 +1,53 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{% if mode == "edit" %}{% translate "Təchizatçı redaktə" %}{% else %}{% translate "Yeni təchizatçı" %}{% endif %}{% endblock %}
+{% block heading %}{% if mode == "edit" %}{% translate "Təchizatçı redaktə" %}{% else %}{% translate "Yeni təchizatçı" %}{% endif %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:procurement_suppliers' %}">{% translate "Təchizatçılar" %}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card" style="max-width:720px;">
+  <p class="cp-meta mb-3">{% translate "Təchizatçı Party qeydidir — avtomatik ResidentCompany yaradılmır." %}</p>
+  <form method="post" class="flex-col gap-3">
+    {% csrf_token %}
+    <input type="hidden" name="submit_token" value="{{ submit_token }}">
+    <label>
+      <span class="cp-meta">{% translate "Hüquqi ad" %} *</span>
+      <input class="cp-input mt-1" name="legal_name" required maxlength="200" value="{% firstof request.POST.legal_name party.legal_name '' %}">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Brend adı" %}</span>
+      <input class="cp-input mt-1" name="brand_name" maxlength="200" value="{% firstof request.POST.brand_name party.brand_name '' %}">
+    </label>
+    <div class="grid-2">
+      <label>
+        <span class="cp-meta">VÖEN</span>
+        <input class="cp-input mt-1" name="tax_id" maxlength="64" value="{% firstof request.POST.tax_id party.tax_id '' %}">
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Status" %}</span>
+        <select class="cp-input mt-1" name="status">
+          {% for value, label in statuses %}
+          <option value="{{ value }}" {% if party and party.status == value %}selected{% elif not party and value == "active" %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="grid-2">
+      <label>
+        <span class="cp-meta">Email</span>
+        <input class="cp-input mt-1" type="email" name="contact_email" value="{% firstof request.POST.contact_email party.contact_email '' %}">
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Telefon" %}</span>
+        <input class="cp-input mt-1" name="contact_phone" maxlength="64" value="{% firstof request.POST.contact_phone party.contact_phone '' %}">
+      </label>
+    </div>
+    <label>
+      <span class="cp-meta">{% translate "Qeyd" %}</span>
+      <textarea class="cp-input mt-1" name="notes" rows="3">{% firstof request.POST.notes party.notes '' %}</textarea>
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Saxla" %}</button>
+  </form>
+</div>
+{% endblock %}

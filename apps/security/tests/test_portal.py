@@ -151,14 +151,34 @@ class SecurityPortalTests(TestCase):
         self.assertFalse(resp.context["is_today"])
 
     def test_resident_blocked_from_security(self):
+        from apps.accounts.test_utils import assert_soft_denied
+
         self.client.force_login(self.resident)
         resp = self.client.get(reverse("security:home"))
-        self.assertEqual(resp.status_code, 403)
+        # SecurityPortalMixin → role home (portal); security nav absent.
+        assert_soft_denied(
+            self,
+            self.client,
+            resp,
+            self.resident,
+            expected_url=reverse("portal:home"),
+            protected_markers=("Bugünkü jurnal", "/security/guests/"),
+        )
 
     def test_security_blocked_from_erp(self):
+        from apps.accounts.test_utils import assert_soft_denied
+
         self.client.force_login(self.security)
         resp = self.client.get(reverse("erp:dashboard"))
-        self.assertEqual(resp.status_code, 403)
+        # StaffRequiredMixin portal redirect → security home; ERP audit absent.
+        assert_soft_denied(
+            self,
+            self.client,
+            resp,
+            self.security,
+            expected_url=reverse("security:home"),
+            protected_markers=('id="audit-log"', "/erp/audit/"),
+        )
 
     def test_sees_internal_and_tenant_companies(self):
         ResidentEmployee.objects.create(
@@ -269,5 +289,15 @@ class SecurityPortalTests(TestCase):
         self.assertEqual(company_guests.status_code, 200)
         self.assertContains(company_guests, "Sec Guest")
         self.assertContains(company_guests, "Qonaqlar")
+        from apps.accounts.test_utils import assert_soft_denied
+
         self.client.force_login(self.resident)
-        self.assertEqual(self.client.get(reverse("security:guests")).status_code, 403)
+        denied = self.client.get(reverse("security:guests"))
+        assert_soft_denied(
+            self,
+            self.client,
+            denied,
+            self.resident,
+            expected_url=reverse("portal:home"),
+            protected_markers=("Bugünkü jurnal", "journal-panel"),
+        )

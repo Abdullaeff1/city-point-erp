@@ -1,0 +1,4 @@
+{% comment %}
+Expects: pill_label, pill_kind (optional slug for modifier class)
+{% endcomment %}
+<span class="crm-status-pill{% if pill_kind %} crm-status-pill--{{ pill_kind }}{% endif %}">{{ pill_label }}</span>

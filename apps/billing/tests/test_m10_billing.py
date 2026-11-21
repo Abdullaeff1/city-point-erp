@@ -18,6 +18,7 @@ from apps.billing.services import (
 from apps.parties.models import Party, PartyStatus, PartyType
 from apps.parties.resolvers import party_for_company
 from apps.residents.models import ResidentCompany
+from apps.workflows.services import ApprovalService
 
 User = get_user_model()
 
@@ -36,6 +37,13 @@ class M10BillingAccountingTests(TestCase):
             role=Role.ACCOUNTANT,
             is_staff=True,
         )
+        self.manager = User.objects.create_user(
+            username="m10-mgmt",
+            email="m10-mgmt@test.az",
+            password="Pass12345!",
+            role=Role.MANAGEMENT,
+            is_staff=True,
+        )
 
     def _draft_confirmed(self, amount="100.00"):
         charge = Charge.objects.create(
@@ -48,6 +56,23 @@ class M10BillingAccountingTests(TestCase):
         inv = generate_invoice_from_charges(self.party, [charge.pk], apply_vat=False)
         confirm_invoice(inv)
         return inv
+
+    def _approved_req(self, inv, amount, reference=""):
+        req = ApprovalService.request(
+            workflow_code="finance.payment",
+            requested_by=self.accountant,
+            entity=inv,
+            payload={
+                "invoice_id": inv.pk,
+                "invoice_code": inv.code,
+                "amount": str(amount),
+                "method": "bank",
+                "reference": reference,
+            },
+        )
+        ApprovalService.decide(req, approved=True, decided_by=self.manager)
+        req.refresh_from_db()
+        return req
 
     def test_journal_from_invoice_idempotent(self):
         inv = self._draft_confirmed()
@@ -90,11 +115,25 @@ class M10BillingAccountingTests(TestCase):
 
     def test_partial_then_full_payment_matches_party(self):
         inv = self._draft_confirmed("100.00")
-        p1 = record_payment(invoice=inv, amount=Decimal("40.00"), method="bank", reference="REF-1")
+        r1 = self._approved_req(inv, Decimal("40.00"), reference="REF-1")
+        p1 = record_payment(
+            invoice=inv,
+            amount=Decimal("40.00"),
+            method="bank",
+            reference="REF-1",
+            approval_request=r1,
+        )
         self.assertEqual(p1.party_id, self.party.pk)
         inv.refresh_from_db()
         self.assertEqual(inv.status, InvoiceStatus.ISSUED)
-        p2 = record_payment(invoice=inv, amount=Decimal("60.00"), method="bank", reference="REF-2")
+        r2 = self._approved_req(inv, Decimal("60.00"), reference="REF-2")
+        p2 = record_payment(
+            invoice=inv,
+            amount=Decimal("60.00"),
+            method="bank",
+            reference="REF-2",
+            approval_request=r2,
+        )
         inv.refresh_from_db()
         self.assertEqual(inv.status, InvoiceStatus.PAID)
         self.assertEqual(Payment.objects.filter(invoice=inv).count(), 2)

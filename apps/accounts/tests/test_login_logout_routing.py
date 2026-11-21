@@ -134,11 +134,19 @@ class SoftPermissionDeniedTests(TestCase):
         )
 
     def test_forbidden_page_redirects_home_not_403_body(self):
+        from django.contrib.messages import get_messages
+
         c = Client()
         c.force_login(self.sales)
         resp = c.get(reverse("erp:audit"))
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp.url, reverse("erp:dashboard"))
+        # Soft deny flash must persist across redirect (MessageMiddleware).
         page = c.get(resp.url)
         self.assertEqual(page.status_code, 200)
         self.assertNotContains(page, "giriş icazəniz yoxdur")
+        msgs = [str(m) for m in get_messages(page.wsgi_request)]
+        self.assertTrue(
+            any("icazə" in m.lower() for m in msgs),
+            f"expected soft-deny flash on home after redirect, got {msgs!r}",
+        )

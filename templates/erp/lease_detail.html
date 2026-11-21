@@ -17,6 +17,9 @@
           {% if lease.space and lease.space.area_m2 %}
           · {{ lease.space.area_m2 }} m²
           {% endif %}
+          {% if lease.space and lease.space.commercial_status %}
+          · {% translate "Kommersiya" %}: {{ lease.space.get_commercial_status_display }}
+          {% endif %}
         </p>
         <p class="cp-meta mt-1">
           {{ lease.start_date|date:"d.m.Y"|default:"—" }}
@@ -254,6 +257,38 @@
           <dd>{{ lease.fit_out_notes }}</dd>
         </div>
         {% endif %}
+        {% if lease_addons %}
+        <div>
+          <dt class="cp-meta">{% translate "Əlavə xidmətlər" %}</dt>
+          <dd>
+            <ul>
+              {% for a in lease_addons %}
+              <li>{{ a.label }}{% if a.code %} ({{ a.code }}){% endif %}
+                — {{ a.rate_per_m2 }} {{ lease.currency }}/m²
+                · {% if a.is_active %}{% translate "aktiv" %}{% else %}{% translate "gözləyir (tarif tələb olunur)" %}{% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+          </dd>
+        </div>
+        {% endif %}
+        {% if deposit_charges %}
+        <div>
+          <dt class="cp-meta">{% translate "Depozit öhdəliyi" %}</dt>
+          <dd>
+            {% for c in deposit_charges %}
+            {{ c.amount }} {{ c.currency }}{% if c.invoice_id %} · {{ c.invoice.code }}{% else %} · {% translate "fakturasız" %}{% endif %}{% if not forloop.last %}; {% endif %}
+            {% endfor %}
+          </dd>
+        </div>
+        {% endif %}
+        {% if can_view_finance %}
+        <div>
+          <dt class="cp-meta">{% translate "Maliyyə" %}</dt>
+          <dd><a href="{% url 'finance:invoices' %}">{% translate "Fakturalar" %}</a>
+            · <a href="{% url 'finance:home' %}">{% translate "Maliyyə paneli" %}</a></dd>
+        </div>
+        {% endif %}
         {% if lease.parent_lease_id %}
         <div>
           <dt class="cp-meta">{% translate "Əsas müqavilə" %}</dt>
@@ -262,8 +297,8 @@
         {% endif %}
         {% if lease.notes %}
         <div class="lease-detail-notes">
-          <dt class="cp-meta">{% translate "Qeyd" %}</dt>
-          <dd>{{ lease.notes }}</dd>
+          <dt class="cp-meta">{% translate "Qeyd (azadolma / bank / şərtlər)" %}</dt>
+          <dd>{{ lease.notes|linebreaksbr }}</dd>
         </div>
         {% else %}
         <div class="lease-detail-notes">

@@ -1,0 +1,20 @@
+{% load i18n %}
+{% comment %}
+Optional blocks / context:
+  search_name, search_value, search_placeholder — GET search field
+  primary_cta_url / primary_cta_label — orange button (or use primary_cta_html)
+  Extra filters go in {% block crm_toolbar_filters %} via include with with, or caller wraps form.
+{% endcomment %}
+<div class="crm-table-toolbar">
+  <div class="crm-table-toolbar__search">
+    {% if search_name %}
+    <span class="crm-table-toolbar__search-icon" aria-hidden="true"><i data-lucide="search" width="16" height="16"></i></span>
+    <input class="cp-input" type="search" name="{{ search_name }}" value="{{ search_value|default:'' }}" placeholder="{{ search_placeholder }}">
+    {% endif %}
+  </div>
+  <div class="crm-table-toolbar__actions">
+    {% if primary_cta_url and primary_cta_label %}
+    <a class="cp-btn" href="{{ primary_cta_url }}"><i data-lucide="plus" width="16" height="16"></i> {{ primary_cta_label }}</a>
+    {% endif %}
+  </div>
+</div>

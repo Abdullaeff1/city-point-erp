@@ -57,7 +57,16 @@ APP_ACCOUNTANT_QUEUE = (
     LeaseApplicationStatus.UNDER_REVIEW,
 )
 
-ACTIVE_LEASE_HOLD = (LeaseStatus.ACTIVE, LeaseStatus.EXPIRING)
+# Commercial availability hold: reserved/contracted/active (not plain DRAFT).
+ACTIVE_LEASE_HOLD = (
+    LeaseStatus.NEGOTIATION,
+    LeaseStatus.APPROVED,
+    LeaseStatus.SIGNED,
+    LeaseStatus.ACTIVE,
+    LeaseStatus.EXPIRING,
+    LeaseStatus.RENEWED,
+    LeaseStatus.AMENDED,
+)
 
 OFFER_EXPIRING_DAYS = 7
 CONTACT_STALE_DAYS = 1

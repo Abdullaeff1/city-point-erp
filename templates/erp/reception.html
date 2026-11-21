@@ -355,8 +355,12 @@
         <td class="cp-cell-clip" title="{{ v.host.full_name|default:'—' }}">{{ v.host.full_name|default:"—" }}</td>
         <td class="cp-cell-clip" title="{{ v.visit_type.name|default:'—' }}">{{ v.visit_type.name|default:"—" }}</td>
         <td class="cp-cell-clip" title="{{ v.check_in_at|date:'H:i'|default:'—' }}">{{ v.check_in_at|date:"H:i"|default:"—" }}</td>
-        <td class="cp-cell-clip" title="{{ v.check_out_at|date:'H:i'|default:'—' }}">{{ v.check_out_at|date:"H:i"|default:"—" }}</td>
-        <td class="cp-cell-clip" title="{{ v.id_document_label }}">{{ v.id_document_label }}</td>
+        <td class="cp-cell-clip" title="{% if v.status == 'return_pending' and v.check_out_at %}{% translate 'Elektron çıxış' %}: {{ v.check_out_at|date:'H:i' }}{% else %}{{ v.check_out_at|date:'H:i'|default:'—' }}{% endif %}">
+          {% if v.check_out_at %}{{ v.check_out_at|date:"H:i" }}{% else %}<span class="cp-meta">{% translate "Naməlum" %}</span>{% endif %}
+        </td>
+        <td class="cp-cell-clip" title="{% if v.status == 'return_pending' %}{% translate 'Çıxış var; vəsiqə hələ Reception-dadır' %}{% else %}{{ v.id_document_label }}{% endif %}">
+          {% if v.status == "return_pending" %}{% translate "Çıxış · vəsiqə gözləyir" %}{% else %}{{ v.id_document_label }}{% endif %}
+        </td>
         <td class="cp-cell-clip" title="{% if v.visitor_access %}{% if v.visitor_access.credential %}{{ v.visitor_access.credential }} · {% endif %}{{ v.visitor_access.get_status_display }}{% else %}—{% endif %}">{% if v.visitor_access %}{% if v.visitor_access.credential %}<span class="cp-code">{{ v.visitor_access.credential }}</span> · {% endif %}{{ v.visitor_access.get_status_display }}{% else %}—{% endif %}</td>
         <td class="cp-meta cp-note-cell cp-cell-clip"{% if v.notes %} title="{{ v.notes }}"{% else %} title="—"{% endif %}>{% if v.notes %}<span class="cp-note-text">{{ v.notes }}</span>{% else %}—{% endif %}</td>
         <td class="cp-cell-clip" title="{{ v.get_status_display }}">{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
@@ -400,12 +404,22 @@
             {% endif %}
             <button class="cp-btn-ghost" name="action" value="checkout" style="padding:6px 10px;font-size:12px;">{% translate "Çıxış" %}</button>
           </form>
+            {% elif v.status == "return_pending" and can_check_out %}
+          <form method="post" action="{% url 'erp:reception_status' v.pk %}">
+            {% csrf_token %}
+            <button class="cp-btn" name="action" value="return_id" style="padding:6px 10px;font-size:12px;">{% translate "Vəsiqəni qaytar" %}</button>
+          </form>
             {% endif %}
+          {% elif v.status == "return_pending" and can_check_out %}
+          <form method="post" action="{% url 'erp:reception_status' v.pk %}">
+            {% csrf_token %}
+            <button class="cp-btn" name="action" value="return_id" style="padding:6px 10px;font-size:12px;">{% translate "Vəsiqəni qaytar" %}</button>
+          </form>
           {% endif %}
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="{% if show_visit_date %}13{% else %}12{% endif %}" class="cp-meta empty-pad">{% if filter_status == "inside_overdue" %}{% translate "24+ saat içəridə qonaq yoxdur." %}{% elif filter_status == "inside" %}{% translate "İçəridə qonaq yoxdur." %}{% elif is_today %}{% translate "Bu gün qonaq yoxdur." %}{% elif journal_single_day %}{% translate "Bu tarix üçün qonaq yoxdur." %}{% else %}{% translate "Bu aralıqda qonaq yoxdur." %}{% endif %}</td></tr>
+      <tr><td colspan="{% if show_visit_date %}13{% else %}12{% endif %}" class="cp-meta empty-pad">{% if filter_status == "inside_overdue" %}{% translate "24+ saat içəridə qonaq yoxdur." %}{% elif filter_status == "inside" %}{% translate "İçəridə qonaq yoxdur." %}{% elif filter_status == "id_pending" %}{% translate "Vəsiqə gözləyən qonaq yoxdur." %}{% elif is_today %}{% translate "Bu gün qonaq yoxdur." %}{% elif journal_single_day %}{% translate "Bu tarix üçün qonaq yoxdur." %}{% else %}{% translate "Bu aralıqda qonaq yoxdur." %}{% endif %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

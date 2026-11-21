@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from apps.warehouse.models import SKU, Bin, Stock, StockMovement, Warehouse
+from apps.warehouse.models import (
+    SKU,
+    Bin,
+    Stock,
+    StockMovement,
+    Stocktake,
+    StocktakeLine,
+    Warehouse,
+)
 
 
 @admin.register(Warehouse)
@@ -31,3 +39,28 @@ class StockAdmin(admin.ModelAdmin):
 class StockMovementAdmin(admin.ModelAdmin):
     list_display = ("sku", "warehouse", "movement_type", "quantity", "reference", "work_order", "created_at")
     list_filter = ("movement_type", "warehouse")
+
+
+class StocktakeLineInline(admin.TabularInline):
+    model = StocktakeLine
+    extra = 0
+    readonly_fields = (
+        "sku",
+        "bin",
+        "unit",
+        "baseline_qty",
+        "expected_qty",
+        "counted_qty",
+        "variance_qty",
+        "recount_required",
+        "activity_after_count",
+        "adjustment_movement",
+    )
+
+
+@admin.register(Stocktake)
+class StocktakeAdmin(admin.ModelAdmin):
+    list_display = ("code", "warehouse", "status", "started_at", "completed_at", "posted_at")
+    list_filter = ("status", "warehouse")
+    search_fields = ("code",)
+    inlines = [StocktakeLineInline]

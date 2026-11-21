@@ -263,6 +263,23 @@ def route_ticket(
         note=note if rule else f"{note}:category-fallback",
     )
     apply_sla(ticket, force_policy=rule.sla_policy if rule else None)
+    try:
+        from apps.audit.services import log_action
+
+        log_action(
+            action="ticket.route",
+            actor=actor,
+            entity=ticket,
+            old_values={"department_id": prev_dept, "queue_id": prev_queue},
+            new_values={
+                "department_id": department.pk,
+                "queue_id": queue.pk if queue else None,
+                "routing_event_id": event.pk,
+            },
+            source="tickets",
+        )
+    except Exception:
+        pass
     notify_department_users(
         ticket,
         _("%(code)s şöbəyə yönləndirildi") % {"code": ticket.code},
@@ -314,6 +331,23 @@ def handoff_ticket(ticket, *, actor, department_id, queue_id=None, note=""):
         actor=actor,
         note=note or "handoff",
     )
+    try:
+        from apps.audit.services import log_action
+
+        log_action(
+            action="ticket.handoff",
+            actor=actor,
+            entity=ticket,
+            old_values={"department_id": prev_dept, "queue_id": prev_queue},
+            new_values={
+                "department_id": department.pk,
+                "queue_id": queue.pk if queue else None,
+                "routing_event_id": event.pk,
+            },
+            source="tickets",
+        )
+    except Exception:
+        pass
     notify_department_users(
         ticket,
         _("%(code)s şöbənizə ötürüldü") % {"code": ticket.code},
@@ -434,6 +468,37 @@ def set_ticket_status(
         exclude_user_ids=[actor.pk] if actor else None,
     )
     _audit_status(ticket, actor, previous)
+    if new_status == TicketStatus.REOPENED:
+        try:
+            from apps.audit.services import log_action
+
+            log_action(
+                action="ticket.reopened",
+                actor=actor,
+                entity=ticket,
+                old_values={"status": previous},
+                new_values={"status": ticket.status, "status_event_id": event.pk},
+                source="tickets",
+            )
+        except Exception:
+            pass
+    if new_status == TicketStatus.RESOLVED:
+        from apps.core import events as bus
+
+        bus.emit(
+            bus.TICKET_RESOLVED,
+            payload={
+                "ticket_id": ticket.pk,
+                "code": ticket.code,
+                "entity_model": "ticket",
+                "from_status": previous,
+                "status_event_id": event.pk,
+                "note": (note or "")[:500],
+            },
+            actor=actor,
+            # Occurrence-scoped key: reopen → resolve again must not be suppressed.
+            event_key=f"ticket.resolved.{ticket.pk}.{event.pk}",
+        )
     return ticket
 
 
@@ -472,6 +537,21 @@ def assign_ticket_employee(ticket, *, actor, employee_id=None):
         ticket.save(update_fields=["assigned_employee", "updated_at"])
     if employee and ticket.status == TicketStatus.SENT:
         set_ticket_status(ticket, TicketStatus.ASSIGNED, actor=actor, note="assigned")
+    if employee:
+        from apps.core import events as bus
+
+        bus.emit(
+            bus.TICKET_ASSIGNED,
+            payload={
+                "ticket_id": ticket.pk,
+                "code": ticket.code,
+                "assignee_id": None,
+                "assigned_employee_id": employee.pk,
+                "entity_model": "ticket",
+            },
+            actor=actor,
+            event_key=f"ticket.assigned.emp.{ticket.pk}.{employee.pk}",
+        )
     return ticket
 
 
@@ -499,6 +579,20 @@ def assign_ticket(ticket, *, actor, assignee_id=None):
             % {"code": ticket.code, "name": assignee.display_name},
             event_key=f"ticket.assign.{ticket.pk}.{assignee.pk}",
             exclude_user_ids=[actor.pk],
+        )
+    if assignee:
+        from apps.core import events as bus
+
+        bus.emit(
+            bus.TICKET_ASSIGNED,
+            payload={
+                "ticket_id": ticket.pk,
+                "code": ticket.code,
+                "assignee_id": assignee.pk,
+                "entity_model": "ticket",
+            },
+            actor=actor,
+            event_key=f"ticket.assigned.{ticket.pk}.{assignee.pk}",
         )
     return ticket
 
@@ -559,6 +653,8 @@ def create_ticket_from_portal(
     author_label="Siz",
 ):
     """Thin intake: route via subcategory rule, apply SLA, record created event."""
+    if space is not None and company is not None and space.resident_id != company.id:
+        raise DomainError(_("Sahə seçilmiş şirkətə aid deyil."))
     with transaction.atomic():
         ticket = Ticket(
             code=next_ticket_code(),
@@ -655,15 +751,24 @@ def create_ticket_from_staff(
 
 
 def create_work_order_from_ticket(ticket, *, actor, contractor_id=None):
-    """Open a job for a contractor without moving the ticket to another department."""
+    """Open a job for Facility without moving the ticket department.
+
+    Does not copy ticket.assignee onto the WO — Facility assigns via its own routing.
+    At most one active (open/assigned/in_progress) WO per ticket.
+    """
     if not can_mutate_ticket(actor, ticket):
         raise DomainError(_("İş sifarişi yaratmaq icazəsi yoxdur."))
     if not ticket.wo_eligible:
         raise DomainError(_("Bu müraciət kateqoriyası üçün iş sifarişi yaradıla bilməz."))
-    from apps.maintenance.services import create_wo_from_ticket
+    from apps.core import events as bus
+    from apps.maintenance.services import create_wo_from_ticket, ticket_has_active_work_order
     from apps.property.models import Contractor
 
     with transaction.atomic():
+        # Lock ticket row so concurrent handoffs cannot create a second active WO.
+        ticket = type(ticket).objects.select_for_update().get(pk=ticket.pk)
+        if ticket_has_active_work_order(ticket):
+            raise DomainError(_("Bu ticket üçün artıq aktiv iş sifarişi var."))
         wo = create_wo_from_ticket(ticket)
         title = ticket.code
         if ticket.subcategory_id:
@@ -677,6 +782,17 @@ def create_work_order_from_ticket(ticket, *, actor, contractor_id=None):
             wo.contractor = contractor
             update.append("contractor")
         wo.save(update_fields=update)
+        bus.emit(
+            bus.WORK_ORDER_CREATED,
+            payload={
+                "work_order_id": wo.pk,
+                "code": wo.code,
+                "ticket_id": ticket.pk,
+                "entity_model": "work_order",
+            },
+            actor=actor,
+            event_key=f"wo.created.{wo.pk}",
+        )
     return wo
 
 

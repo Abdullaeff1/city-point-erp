@@ -122,7 +122,8 @@ class EscalationAndCrmTests(TestCase):
         again = create_opportunity_from_ticket(ticket, actor=self.admin)
         self.assertEqual(again.pk, opp.pk)
 
-    def test_wo_complete_resolves_ticket(self):
+    def test_wo_complete_does_not_auto_resolve_ticket(self):
+        """Phase 4.1: WO completion must not close the ticket — Helpdesk confirms."""
         ticket = self._ticket(
             code="TK-WO-1",
             status=TicketStatus.IN_PROGRESS,
@@ -131,7 +132,8 @@ class EscalationAndCrmTests(TestCase):
         wo = create_wo_from_ticket(ticket)
         WorkOrderService.set_status(wo, WorkOrderStatus.COMPLETED, actor=self.admin)
         ticket.refresh_from_db()
-        self.assertEqual(ticket.status, TicketStatus.RESOLVED)
+        self.assertEqual(ticket.status, TicketStatus.IN_PROGRESS)
+        self.assertNotEqual(ticket.status, TicketStatus.RESOLVED)
 
     def test_create_work_order_requires_wo_eligible(self):
         from apps.core.services import DomainError

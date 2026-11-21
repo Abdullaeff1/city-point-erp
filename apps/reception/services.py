@@ -136,7 +136,7 @@ class ReceptionService(Service):
     ) -> GuestVisit:
         cls.require(company is not None, "Şirkət seçilməlidir.")
         held = bool(id_document_held)
-        card = (guest_card_number or "").strip()
+        card = normalize_guest_card(guest_card_number)
         fin = normalize_fin(fin_code)
         reason = (id_override_reason or "").strip()
         # ID held → seriya; qonaq kartı ayrıca (məcburi deyil).
@@ -189,6 +189,14 @@ class ReceptionService(Service):
             entity=visit,
             new={"status": visit.status, "id_held": visit.id_document_held, "card": bool(card)},
         )
+        from apps.core import events as bus
+
+        bus.emit(
+            bus.VISITOR_CHECKED_IN,
+            payload={"visit_id": visit.pk, "company_id": visit.company_id, "entity_model": "visit"},
+            actor=actor,
+            event_key=f"visitor.checked_in.{visit.pk}",
+        )
         return visit
 
     @classmethod
@@ -212,7 +220,7 @@ class ReceptionService(Service):
         visit = GuestVisit.objects.select_for_update().select_related("guest").get(pk=visit.pk)
         cls.require(visit.status != VisitStatus.CANCELLED, "Ləğv olunmuş ziyarət dəyişdirilə bilməz.")
         held = bool(id_document_held)
-        card = (guest_card_number or "").strip()
+        card = normalize_guest_card(guest_card_number)
         fin = normalize_fin(fin_code)
         first = (first_name or "").strip()
         last = (last_name or "").strip()
@@ -289,7 +297,7 @@ class ReceptionService(Service):
             "Bu ziyarət check-in üçün uyğun deyil.",
         )
         held = bool(id_document_held)
-        card = (guest_card_number or "").strip()
+        card = normalize_guest_card(guest_card_number)
         reason = (id_override_reason or "").strip()
         guest = visit.guest
         if fin_code:
@@ -373,24 +381,54 @@ class ReceptionService(Service):
         actor=None,
         id_returned: bool = True,
         allow_return_pending: bool = False,
+        departed_at=None,
+        checkout_source: str = "",
+        access_event_id=None,
     ) -> GuestVisit:
         visit = GuestVisit.objects.select_for_update().get(pk=visit.pk)
         cls.require(visit.status == VisitStatus.INSIDE, "Yalnız içəridə olan qonaq çıxış edə bilər.")
         now = timezone.now()
-        if visit.check_in_at and now < visit.check_in_at:
+        stamp = departed_at or now
+        if visit.check_in_at and stamp < visit.check_in_at:
             raise DomainError("Çıxış vaxtı girişdən əvvəl ola bilməz.")
+        source = (checkout_source or ("axtrax_out" if access_event_id else "manual")).strip()
+        audit_extra = {
+            "checkout_source": source,
+            "access_event_id": access_event_id,
+            "departed_at": stamp.isoformat() if stamp else None,
+            "processed_at": now.isoformat(),
+        }
 
         if visit.id_document_held and not id_returned:
             cls.require(allow_return_pending, "Vəsiqə qaytarılmalıdır.")
             visit.status = VisitStatus.RETURN_PENDING
-            visit.check_out_at = now
+            visit.check_out_at = stamp
             visit.save(update_fields=["status", "check_out_at", "updated_at"])
-            revoke_visitor_access(visit)
-            _audit("visit.return_pending", actor=actor, entity=visit)
+            revoke_visitor_access(visit, until=stamp)
+            _audit("visit.return_pending", actor=actor, entity=visit, new=audit_extra)
+            from apps.core import events as bus
+
+            bus.emit(
+                bus.VISITOR_RETURN_PENDING,
+                payload={
+                    "visit_id": visit.pk,
+                    "company_id": visit.company_id,
+                    "entity_model": "visit",
+                    "reason": "id_held",
+                    "checkout_source": source,
+                    "access_event_id": access_event_id,
+                    "departed_at": stamp.isoformat() if stamp else None,
+                    "processed_at": now.isoformat(),
+                    # Never put ID document numbers in event/notify payloads.
+                    "id_document_held": True,
+                },
+                actor=actor,
+                event_key=f"visitor.return_pending.{visit.pk}",
+            )
             return visit
 
         visit.status = VisitStatus.LEFT
-        visit.check_out_at = now
+        visit.check_out_at = stamp
         if visit.id_document_held or id_returned:
             visit.id_document_held = False
             visit.id_document_returned_at = now
@@ -403,14 +441,65 @@ class ReceptionService(Service):
                 "updated_at",
             ]
         )
-        revoke_visitor_access(visit)
-        _audit("visit.check_out", actor=actor, entity=visit)
+        revoke_visitor_access(visit, until=stamp)
+        _audit("visit.check_out", actor=actor, entity=visit, new=audit_extra)
         from apps.core import events as bus
 
         bus.emit(
             bus.VISITOR_CHECKED_OUT,
-            payload={"visit_id": visit.pk, "company_id": visit.company_id, "entity_model": "visit"},
+            payload={
+                "visit_id": visit.pk,
+                "company_id": visit.company_id,
+                "entity_model": "visit",
+                "id_returned": bool(id_returned or not visit.id_document_held),
+                "checkout_source": source,
+                "access_event_id": access_event_id,
+                "departed_at": stamp.isoformat() if stamp else None,
+                "processed_at": now.isoformat(),
+            },
             actor=actor,
+            event_key=f"visitor.checked_out.{visit.pk}",
+        )
+        return visit
+
+    @classmethod
+    @transaction.atomic
+    def complete_id_return(cls, visit: GuestVisit, *, actor=None) -> GuestVisit:
+        """Reception completes document return after AxTrax/manual RETURN_PENDING."""
+        visit = GuestVisit.objects.select_for_update().get(pk=visit.pk)
+        cls.require(
+            visit.status == VisitStatus.RETURN_PENDING,
+            "Yalnız vəsiqə gözləyən ziyarət tamamlana bilər.",
+        )
+        now = timezone.now()
+        visit.status = VisitStatus.LEFT
+        visit.id_document_held = False
+        visit.id_document_returned_at = now
+        if not visit.check_out_at:
+            visit.check_out_at = now
+        visit.save(
+            update_fields=[
+                "status",
+                "id_document_held",
+                "id_document_returned_at",
+                "check_out_at",
+                "updated_at",
+            ]
+        )
+        _audit("visit.id_returned", actor=actor, entity=visit)
+        from apps.core import events as bus
+
+        bus.emit(
+            bus.VISITOR_CHECKED_OUT,
+            payload={
+                "visit_id": visit.pk,
+                "company_id": visit.company_id,
+                "entity_model": "visit",
+                "id_returned": True,
+                "completion": "id_return",
+            },
+            actor=actor,
+            event_key=f"visitor.id_returned.{visit.pk}",
         )
         return visit
 
@@ -512,6 +601,26 @@ def check_out_visit(visit: GuestVisit, **kwargs) -> GuestVisit:
     return ReceptionService.check_out_visit(visit, **kwargs)
 
 
+def complete_id_return(visit: GuestVisit, **kwargs) -> GuestVisit:
+    return ReceptionService.complete_id_return(visit, **kwargs)
+
+
+def normalize_guest_card(value: str) -> str:
+    """Store/match guest card as a string — preserve leading zeros (no int cast)."""
+    return (value or "").strip()
+
+
+def guest_card_match_keys(value: str) -> set[str]:
+    """Exact form plus zero-stripped form so AxTrax ``7`` matches stored ``007``."""
+    code = normalize_guest_card(value)
+    if not code:
+        return set()
+    keys = {code}
+    stripped = code.lstrip("0") or "0"
+    keys.add(stripped)
+    return keys
+
+
 def visit_has_active_guest_card(visit: GuestVisit) -> bool:
     try:
         access = visit.visitor_access
@@ -543,60 +652,175 @@ def portal_check_out_visit(visit: GuestVisit, *, actor, company) -> GuestVisit:
     return ReceptionService.check_out_visit(visit, actor=actor, id_returned=True)
 
 
+def _credentials_match(stored: str, incoming: str) -> bool:
+    return bool(guest_card_match_keys(stored) & guest_card_match_keys(incoming))
+
+
 def active_guest_credential_exists(card: str) -> bool:
-    """True when an INSIDE visit has this guest card still ACTIVE."""
-    code = (card or "").strip()
-    if not code:
+    """True when an INSIDE visit has this guest card still ACTIVE (zero-safe match)."""
+    if not normalize_guest_card(card):
         return False
-    return VisitorAccess.objects.filter(
-        credential=code,
+    for access in VisitorAccess.objects.filter(
         status=VisitorAccessStatus.ACTIVE,
         visit__status=VisitStatus.INSIDE,
-    ).exists()
+    ).only("credential"):
+        if _credentials_match(access.credential, card):
+            return True
+    return False
+
+
+GUEST_CHECKOUT_AMBIGUOUS_OP = "guest_checkout_ambiguous"
+AXTRAX_SYNC_SYSTEM = "axtraxng"
+
+
+def list_guest_access_matches(*, card: str, occurred_at) -> list[VisitorAccess]:
+    """Return all VisitorAccess rows whose credential interval covers ``occurred_at``."""
+    if not normalize_guest_card(card) or occurred_at is None:
+        return []
+    matches: list[VisitorAccess] = []
+    qs = (
+        VisitorAccess.objects.select_related("visit")
+        .exclude(credential="")
+        .filter(
+            status__in=(
+                VisitorAccessStatus.ACTIVE,
+                VisitorAccessStatus.REVOKED,
+                VisitorAccessStatus.EXPIRED,
+            )
+        )
+        .order_by("visit_id")
+    )
+    for access in qs:
+        if not _credentials_match(access.credential, card):
+            continue
+        start = access.valid_from or access.created_at
+        end = access.valid_until
+        if start and occurred_at < start:
+            continue
+        if end is not None and occurred_at > end:
+            continue
+        # Revoked without closed interval cannot claim historical ownership.
+        if access.status == VisitorAccessStatus.REVOKED and end is None:
+            continue
+        matches.append(access)
+    return matches
+
+
+def find_guest_access_for_event(*, card: str, occurred_at) -> VisitorAccess | None:
+    """Resolve historical card ownership for an OUT event.
+
+    Uses assignment interval (``valid_from`` … ``valid_until``). Ambiguous matches
+    (more than one row) return ``None`` so the open visit is preserved.
+    """
+    matches = list_guest_access_matches(card=card, occurred_at=occurred_at)
+    if len(matches) != 1:
+        return None
+    return matches[0]
+
+
+def _access_event_dedupe_key(event, *, card: str, occurred_at) -> str:
+    """Prefer AccessEvent PK (maps to AxTrax IdAutoEvents via ExternalIdentity)."""
+    pk = getattr(event, "pk", None)
+    if pk:
+        return f"access_event:{pk}"
+    return f"card_time:{card}|{occurred_at.isoformat()}"
+
+
+def _is_mapped_employee_event(event) -> bool:
+    """True when AxTrax attribution resolved to a ResidentEmployee (not guest traffic)."""
+    return bool(getattr(event, "employee_id", None) or getattr(event, "employee", None))
+
+
+def record_ambiguous_guest_checkout(event, matches: list[VisitorAccess]) -> bool:
+    """Write one SyncLog per AccessEvent for operator diagnosis. Returns True if created."""
+    from apps.integrations.models import SyncLog, SyncStatus
+
+    card = normalize_guest_card(getattr(event, "card_number", None) or "")
+    occurred_at = getattr(event, "occurred_at", None)
+    corr = _access_event_dedupe_key(event, card=card, occurred_at=occurred_at or timezone.now())
+    if SyncLog.objects.filter(
+        system=AXTRAX_SYNC_SYSTEM,
+        operation=GUEST_CHECKOUT_AMBIGUOUS_OP,
+        correlation_id=corr,
+    ).exists():
+        return False
+    visit_ids = sorted({m.visit_id for m in matches if m.visit_id})
+    access_ids = sorted({m.pk for m in matches if m.pk})
+    SyncLog.objects.create(
+        system=AXTRAX_SYNC_SYSTEM,
+        operation=GUEST_CHECKOUT_AMBIGUOUS_OP,
+        status=SyncStatus.ERROR,
+        correlation_id=corr[:64],
+        error_message="Ambiguous guest card match; visits left open",
+        request_payload={
+            "access_event_id": getattr(event, "pk", None),
+            "occurred_at": occurred_at.isoformat() if occurred_at else None,
+            "card": card,
+            "reader_id": getattr(event, "reader_id", None),
+            "reader_name": (getattr(event, "reader_name", None) or "")[:80] or None,
+        },
+        response_payload={
+            "reason": "ambiguous_guest_match",
+            "match_count": len(matches),
+            "visit_ids": visit_ids,
+            "visitor_access_ids": access_ids,
+        },
+    )
+    return True
 
 
 def checkout_guests_from_access_events(events) -> int:
-    """Close INSIDE visits whose active guest card matches an OUT AccessEvent.
+    """Close INSIDE visits whose guest-card assignment matches an OUT AccessEvent.
 
-    ID-held visits go to RETURN_PENDING (card left / ID still at reception).
-    Reception can still check out manually; this covers turnstile-driven exit.
+    Uses the event occurrence time (not poll time). ID-held visits go to
+    RETURN_PENDING (electronic exit known; physical ID still at reception).
+    Already-closed visits are left unchanged (Reception/manual precedence).
+
+    Mapped employee events are never used for guest checkout (even when the
+    printed badge string collides with a guest credential). Ambiguous multi-visit
+    matches leave visits open and record a SyncLog for diagnosis.
     """
     from apps.residents.models import AccessEventType, AccessResult
 
-    cards: list[str] = []
-    seen: set[str] = set()
+    count = 0
+    seen_event_keys: set[str] = set()
     for event in events or []:
         if getattr(event, "result", None) != AccessResult.GRANTED:
             continue
         if getattr(event, "event_type", None) != AccessEventType.OUT:
             continue
-        card = (getattr(event, "card_number", None) or "").strip()
-        if not card or card in seen:
+        # Employee-attributed punches are not guest departures.
+        if _is_mapped_employee_event(event):
             continue
-        seen.add(card)
-        cards.append(card)
-    if not cards:
-        return 0
+        card = normalize_guest_card(getattr(event, "card_number", None) or "")
+        occurred_at = getattr(event, "occurred_at", None)
+        if not card or occurred_at is None:
+            continue
+        dedupe = _access_event_dedupe_key(event, card=card, occurred_at=occurred_at)
+        if dedupe in seen_event_keys:
+            continue
+        seen_event_keys.add(dedupe)
 
-    accesses = list(
-        VisitorAccess.objects.select_related("visit")
-        .filter(
-            credential__in=cards,
-            status=VisitorAccessStatus.ACTIVE,
-            visit__status=VisitStatus.INSIDE,
-        )
-        .order_by("visit_id")
-    )
-    count = 0
-    for access in accesses:
+        matches = list_guest_access_matches(card=card, occurred_at=occurred_at)
+        if len(matches) == 0:
+            continue
+        if len(matches) > 1:
+            record_ambiguous_guest_checkout(event, matches)
+            continue
+        access = matches[0]
         visit = access.visit
+        if visit.status != VisitStatus.INSIDE:
+            # Precedence: Reception (or prior sync) already closed — keep timestamp.
+            continue
         try:
-            # Card swipe = guest left; ID return still pending if reception holds ID.
             ReceptionService.check_out_visit(
                 visit,
                 actor=None,
                 id_returned=not visit.id_document_held,
                 allow_return_pending=True,
+                departed_at=occurred_at,
+                checkout_source="axtrax_out",
+                access_event_id=getattr(event, "pk", None),
             )
             count += 1
         except DomainError:
@@ -605,19 +829,24 @@ def checkout_guests_from_access_events(events) -> int:
 
 
 def create_visitor_access(visit: GuestVisit, *, credential: str = "") -> VisitorAccess:
-    card = (credential or "").strip()
+    card = normalize_guest_card(credential)
+    now = timezone.now()
+    start = visit.check_in_at or now
     access, _ = VisitorAccess.objects.get_or_create(
         visit=visit,
         defaults={
             "provider": "mock",
             "status": VisitorAccessStatus.PENDING,
             "sync_status": SyncStatus.PENDING,
-            "valid_from": visit.check_in_at or timezone.now(),
+            "valid_from": start,
+            "valid_until": None,
             "credential": card,
         },
     )
     if card and access.credential != card:
         access.credential = card
+    if not access.valid_from:
+        access.valid_from = start
     try:
         from apps.integrations.adapters import MockAccessControlAdapter
 
@@ -631,34 +860,41 @@ def create_visitor_access(visit: GuestVisit, *, credential: str = "") -> Visitor
         access.status = VisitorAccessStatus.ACTIVE if result.ok else VisitorAccessStatus.FAILED
         access.sync_status = SyncStatus.SUCCESS if result.ok else SyncStatus.ERROR
         access.last_error = result.error or ""
-        access.last_sync_at = timezone.now()
+        access.last_sync_at = now
         access.save()
     except Exception as exc:
         access.status = VisitorAccessStatus.FAILED
         access.sync_status = SyncStatus.ERROR
         access.last_error = str(exc)
-        access.last_sync_at = timezone.now()
+        access.last_sync_at = now
         access.save()
     return access
 
 
-def revoke_visitor_access(visit: GuestVisit) -> None:
+def revoke_visitor_access(visit: GuestVisit, *, until=None) -> None:
+    """Revoke guest-card assignment; ``until`` closes the ownership interval (event time)."""
     access = getattr(visit, "visitor_access", None)
     if not access:
         return
+    now = timezone.now()
+    end = until or now
     try:
         from apps.integrations.adapters import MockAccessControlAdapter
 
         MockAccessControlAdapter().revoke_credential({"code": access.external_id or access.credential})
         access.status = VisitorAccessStatus.REVOKED
         access.sync_status = SyncStatus.SUCCESS
-        access.last_sync_at = timezone.now()
+        access.last_sync_at = now
         access.last_error = ""
+        if access.valid_until is None:
+            access.valid_until = end
         access.save()
     except Exception as exc:
         access.sync_status = SyncStatus.ERROR
         access.last_error = str(exc)
-        access.last_sync_at = timezone.now()
+        access.last_sync_at = now
+        if access.valid_until is None:
+            access.valid_until = end
         access.save()
 
 

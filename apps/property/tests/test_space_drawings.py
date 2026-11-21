@@ -164,10 +164,21 @@ class SpaceDrawingAccessWorkflowTests(TestCase):
         resp = self.client.get(reverse("portal:drawing_download", args=[self.drawing.pk]))
         self.assertEqual(resp.status_code, 200)
 
+        from apps.accounts.test_utils import assert_soft_denied
+
         req.expires_at = timezone.now() - timedelta(hours=1)
         req.save(update_fields=["expires_at"])
         resp2 = self.client.get(reverse("portal:drawing_download", args=[self.drawing.pk]))
-        self.assertEqual(resp2.status_code, 403)
+        # Expired grant → PermissionDenied soft-deny to portal home (not file bytes).
+        assert_soft_denied(
+            self,
+            self.client,
+            resp2,
+            self.resident,
+            expected_url=reverse("portal:home"),
+        )
+        req.refresh_from_db()
+        self.assertFalse(req.is_download_allowed)
 
     def test_portal_request_post_and_download_ui(self):
         self.client.force_login(self.resident)
@@ -215,7 +226,7 @@ class ImportSpaceDrawingsTests(TestCase):
             map_path = root / "space_drawing_map.csv"
             map_path.write_text("package_id,space_code\nF01_Ofis_01,CP-IMP-1\n", encoding="utf-8")
             mapping = load_mapping(map_path)
-            self.assertEqual(mapping["F01_Ofis_01"], "CP-IMP-1")
+            self.assertEqual(mapping["F01_Ofis_01"], ["CP-IMP-1"])
             call_command("import_space_drawings", root=str(root), map_path=str(map_path))
             self.assertEqual(SpaceDrawing.objects.filter(space=space).count(), 2)
 

@@ -1,0 +1,16 @@
+{% load i18n %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Bildirişlər" %}</div>
+  {% if notifications %}
+  <ul class="mt-3" style="list-style:none;padding:0;margin:0;">
+    {% for n in notifications %}
+    <li style="padding:8px 0;border-bottom:1px solid var(--cp-border, #e5e7eb);{% if n.unread %}font-weight:600;{% endif %}">
+      {% if n.url %}<a href="{{ n.url }}">{{ n.title }}</a>{% else %}{{ n.title }}{% endif %}
+      {% if n.at %}<span class="cp-meta" style="float:right;">{{ n.at|date:"d.m H:i" }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="cp-meta mt-3">{% translate "Yeni bildiriş yoxdur." %}</p>
+  {% endif %}
+</div>

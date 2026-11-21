@@ -1,0 +1,30 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{{ target_user.display_name }}{% endblock %}
+{% block heading %}{{ target_user.display_name }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:staff_users' %}">{% translate "İstifadəçilər" %}</a>
+ · <a href="{% url 'erp:it_dashboard' %}">{% translate "IT / Admin" %}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card mb-4">
+  <p class="cp-meta mb-2">{% translate "Oxu rejimində kart. Şifrə və RBAC dəyişikliyi Admin paneldədir." %}</p>
+  <table class="cp-table">
+    <tbody>
+      <tr><th>{% translate "İstifadəçi adı" %}</th><td>{{ target_user.username }}</td></tr>
+      <tr><th>{% translate "E-poçt" %}</th><td>{{ target_user.email }}</td></tr>
+      <tr><th>{% translate "Rol" %}</th><td>{{ target_user.get_role_display }}</td></tr>
+      <tr><th>{% translate "Ticket şöbəsi" %}</th><td>{% if target_user.ticket_department_id %}{{ target_user.ticket_department.name }}{% else %}—{% endif %}</td></tr>
+      <tr><th>{% translate "Staff" %}</th><td>{% if target_user.is_staff %}{% translate "Bəli" %}{% else %}{% translate "Xeyr" %}{% endif %}</td></tr>
+      <tr><th>{% translate "Aktiv" %}</th><td>{% if target_user.is_active %}{% translate "Bəli" %}{% else %}{% translate "Xeyr" %}{% endif %}</td></tr>
+      <tr><th>{% translate "Son giriş" %}</th><td>{{ target_user.last_login|default:"—" }}</td></tr>
+      <tr><th>{% translate "Yaradılıb" %}</th><td>{{ target_user.date_joined }}</td></tr>
+    </tbody>
+  </table>
+  {% if can_admin_users %}
+  <p class="mt-3">
+    <a class="cp-btn" href="{{ admin_change_url }}">{% translate "Django Admin-də aç" %}</a>
+  </p>
+  {% endif %}
+</div>
+{% endblock %}

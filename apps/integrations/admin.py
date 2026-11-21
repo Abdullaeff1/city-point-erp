@@ -11,5 +11,17 @@ class ExternalIdentityAdmin(admin.ModelAdmin):
 
 @admin.register(SyncLog)
 class SyncLogAdmin(admin.ModelAdmin):
-    list_display = ("created_at", "system", "operation", "status", "correlation_id")
-    list_filter = ("system", "status")
+    list_display = ("created_at", "system", "operation", "status", "correlation_id", "error_message")
+    list_filter = ("system", "status", "operation")
+    search_fields = ("correlation_id", "error_message", "operation")
+    readonly_fields = (
+        "system",
+        "operation",
+        "status",
+        "request_payload",
+        "response_payload",
+        "error_message",
+        "correlation_id",
+        "created_at",
+        "updated_at",
+    )

@@ -916,6 +916,7 @@ dialog.announcement-dialog[open] {
   min-width: 88px;
   border-radius: 12px;
   background: var(--cp-primary-soft);
+  border: 1px solid transparent;
   box-shadow: none;
   display: block;
   text-decoration: none;
@@ -923,6 +924,33 @@ dialog.announcement-dialog[open] {
 }
 .cp-soft-tile:hover { text-decoration: none; filter: brightness(0.98); }
 .cp-soft-tile strong { display: block; font-weight: 700; }
+.cp-soft-tile--vacant {
+  background: #eef8f2;
+  border-color: #b7e0c8;
+  color: #14532d;
+}
+.cp-soft-tile--vacant .cp-meta { color: #3d7a55; }
+.cp-soft-tile--occupied {
+  background: #fff4ec;
+  border-color: #ffc9a3;
+  color: #9a3412;
+}
+.cp-soft-tile--occupied .cp-meta { color: #c2410c; }
+.space-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  display: inline-block;
+}
+.space-legend-swatch--vacant {
+  background: #eef8f2;
+  border-color: #b7e0c8;
+}
+.space-legend-swatch--occupied {
+  background: #fff4ec;
+  border-color: #ffc9a3;
+}
 
 .cp-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px; }
 .cp-tab {
@@ -982,12 +1010,13 @@ dialog.announcement-dialog[open] {
 }
 .resident-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 7.5rem minmax(7rem, auto);
-  column-gap: 12px;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  column-gap: 16px;
   justify-content: initial;
+  align-items: center;
 }
-.resident-row--guests {
-  grid-template-columns: minmax(0, 1fr) 7.5rem minmax(0, 1fr) minmax(7rem, auto);
+.resident-row--tickets {
+  grid-template-columns: minmax(0, 1fr) max-content max-content;
 }
 .resident-name {
   min-width: 0;
@@ -996,7 +1025,19 @@ dialog.announcement-dialog[open] {
   white-space: nowrap;
 }
 .resident-status { text-align: center; }
-.resident-guests { text-align: right; }
+.resident-guests,
+.resident-employees {
+  text-align: right;
+  white-space: nowrap;
+  overflow: visible;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.resident-employees__n {
+  font-weight: 700;
+  color: var(--cp-text, #0f172a);
+  font-variant-numeric: tabular-nums;
+}
 .resident-tickets { text-align: right; white-space: nowrap; }
 
 .login-split { min-height: 100vh; display: grid; grid-template-columns: 1.05fr 0.95fr; }

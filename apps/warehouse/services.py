@@ -1,14 +1,17 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 from django.utils import timezone
 
+from apps.audit.services import log_action
 from apps.core.services import DomainError
 from apps.warehouse.models import (
     IssueStatus,
+    SKU,
     Stock,
     StockMovement,
     StockMovementType,
+    Warehouse,
     WarehouseIssue,
     WarehouseIssueLine,
 )
@@ -70,6 +73,9 @@ def apply_movement(
 
     sign = SIGNED_DELTAS.get(movement_type, Decimal("1"))
     if movement_type == StockMovementType.ADJUSTMENT:
+        reserved = stock.reserved_quantity or Decimal("0")
+        if qty < reserved:
+            raise ValueError("Adjustment cannot set quantity below reserved stock")
         stock.quantity = qty
         stock.save(update_fields=["quantity"])
         return movement
@@ -88,9 +94,129 @@ def apply_movement(
 
 
 def can_confirm_warehouse_issue(user) -> bool:
-    from apps.accounts.models import Role
+    """Phase 4.2: permission-based; Management remains RO (no warehouse.edit)."""
+    from apps.warehouse.access import can_mutate_warehouse
 
-    return getattr(user, "role", None) in {Role.ADMIN, Role.MANAGEMENT}
+    return can_mutate_warehouse(user)
+
+
+def _as_decimal(raw, *, field_label="Miqdar") -> Decimal:
+    text = str(raw if raw is not None else "").strip().replace(" ", "").replace(",", ".")
+    if text == "":
+        raise DomainError(f"{field_label} tələb olunur.")
+    try:
+        value = Decimal(text)
+    except (InvalidOperation, TypeError) as exc:
+        raise DomainError(f"{field_label} rəqəm olmalıdır.") from exc
+    return value
+
+
+@transaction.atomic
+def create_sku(*, code: str, name: str, unit: str = "pcs", reorder_level=0, actor=None) -> SKU:
+    from apps.warehouse.access import can_mutate_warehouse
+
+    if not can_mutate_warehouse(actor):
+        raise DomainError("SKU yaratmaq icazəniz yoxdur.")
+    code = (code or "").strip().upper()
+    name = (name or "").strip()
+    unit = ((unit or "pcs").strip() or "pcs")[:16]
+    if not code:
+        raise DomainError("SKU kodu tələb olunur.")
+    if not name:
+        raise DomainError("SKU adı tələb olunur.")
+    reorder = _as_decimal(reorder_level, field_label="Minimum stok")
+    if reorder < 0:
+        raise DomainError("Minimum stok mənfi ola bilməz.")
+    if SKU.objects.filter(code__iexact=code).exists():
+        raise DomainError("Bu SKU kodu artıq mövcuddur.")
+    sku = SKU.objects.create(code=code, name=name[:200], unit=unit, reorder_level=reorder)
+    log_action(
+        action="warehouse.sku.create",
+        actor=actor,
+        entity=sku,
+        new_values={"code": sku.code, "name": sku.name, "reorder_level": str(sku.reorder_level)},
+    )
+    return sku
+
+
+@transaction.atomic
+def update_sku(sku: SKU, *, name: str, unit: str = "pcs", reorder_level=0, actor=None) -> SKU:
+    from apps.warehouse.access import can_mutate_warehouse
+
+    if not can_mutate_warehouse(actor):
+        raise DomainError("SKU redaktə icazəniz yoxdur.")
+    locked = SKU.objects.select_for_update().get(pk=sku.pk)
+    name = (name or "").strip()
+    unit = ((unit or locked.unit or "pcs").strip() or "pcs")[:16]
+    if not name:
+        raise DomainError("SKU adı tələb olunur.")
+    reorder = _as_decimal(reorder_level, field_label="Minimum stok")
+    if reorder < 0:
+        raise DomainError("Minimum stok mənfi ola bilməz.")
+    old = {"name": locked.name, "unit": locked.unit, "reorder_level": str(locked.reorder_level)}
+    locked.name = name[:200]
+    locked.unit = unit
+    locked.reorder_level = reorder
+    locked.save(update_fields=["name", "unit", "reorder_level"])
+    log_action(
+        action="warehouse.sku.update",
+        actor=actor,
+        entity=locked,
+        old_values=old,
+        new_values={"name": locked.name, "unit": locked.unit, "reorder_level": str(locked.reorder_level)},
+    )
+    return locked
+
+
+@transaction.atomic
+def adjust_stock(
+    *,
+    sku,
+    warehouse,
+    new_quantity,
+    reason: str,
+    actor=None,
+    bin=None,
+) -> StockMovement:
+    """Set absolute on-hand quantity via ADJUSTMENT movement. Reason is mandatory."""
+    from apps.warehouse.access import can_mutate_warehouse
+
+    if not can_mutate_warehouse(actor):
+        raise DomainError("Stok düzəlişi icazəniz yoxdur.")
+    reason = (reason or "").strip()
+    if not reason:
+        raise DomainError("Düzəliş səbəbi tələb olunur.")
+    qty = _as_decimal(new_quantity, field_label="Yeni miqdar")
+    if qty < 0:
+        raise DomainError("Stok miqdarı mənfi ola bilməz.")
+    if not isinstance(sku, SKU):
+        sku = SKU.objects.get(pk=sku)
+    if not isinstance(warehouse, Warehouse):
+        warehouse = Warehouse.objects.get(pk=warehouse)
+    try:
+        movement = apply_movement(
+            sku=sku,
+            warehouse=warehouse,
+            movement_type=StockMovementType.ADJUSTMENT,
+            quantity=qty,
+            bin=bin,
+            reference=f"ADJ:{actor.pk if actor else 'system'}",
+            notes=f"Adjustment by {getattr(actor, 'username', '?')}: {reason}"[:500],
+        )
+    except ValueError as exc:
+        raise DomainError(str(exc)) from exc
+    log_action(
+        action="warehouse.stock.adjust",
+        actor=actor,
+        entity=sku,
+        new_values={
+            "warehouse": warehouse.code,
+            "quantity": str(qty),
+            "reason": reason[:255],
+            "movement_id": movement.pk,
+        },
+    )
+    return movement
 
 
 def _next_issue_code() -> str:
@@ -107,14 +233,19 @@ def _next_issue_code() -> str:
 
 @transaction.atomic
 def request_issue_line(*, work_order, warehouse, sku, quantity, actor) -> WarehouseIssue:
+    from apps.maintenance.models import WorkOrderStatus
+
     qty = Decimal(quantity)
     if qty <= 0:
         raise DomainError("Miqdar sıfırdan böyük olmalıdır.")
+    if work_order.status in {WorkOrderStatus.COMPLETED, WorkOrderStatus.CANCELLED}:
+        raise DomainError("Tamamlanmış və ya ləğv edilmiş iş sifarişinə material çıxarıla bilməz.")
     issue = (
         WarehouseIssue.objects.select_for_update()
         .filter(work_order=work_order, warehouse=warehouse, status=IssueStatus.OPEN)
         .first()
     )
+    created = issue is None
     if issue is None:
         issue = WarehouseIssue.objects.create(
             code=_next_issue_code(),
@@ -137,6 +268,19 @@ def request_issue_line(*, work_order, warehouse, sku, quantity, actor) -> Wareho
         reference=issue.code,
         work_order=work_order,
         notes="WO material reserve",
+    )
+    log_action(
+        action="warehouse.issue.request",
+        actor=actor,
+        entity=issue,
+        new_values={
+            "code": issue.code,
+            "work_order_id": work_order.pk,
+            "sku_id": sku.pk,
+            "qty": str(qty),
+            "created": created,
+        },
+        source="warehouse",
     )
     return issue
 
@@ -202,4 +346,32 @@ def confirm_issue(issue, *, actor, lines) -> WarehouseIssue:
     locked.issued_at = timezone.now()
     locked.save(update_fields=["status", "issued_by", "issued_at"])
     refresh_cost_totals(locked.work_order)
+    log_action(
+        action="warehouse.issue.confirm",
+        actor=actor,
+        entity=locked,
+        new_values={
+            "code": locked.code,
+            "work_order_id": locked.work_order_id,
+            "warehouse_id": locked.warehouse_id,
+            "status": locked.status,
+        },
+        source="warehouse",
+    )
+    # Notify WO assignee (or requester) — material left the shelf for this WO.
+    from apps.comms.services import notify_in_app
+
+    recipient = None
+    wo = locked.work_order
+    if wo is not None and getattr(wo, "assigned_to_id", None):
+        recipient = wo.assigned_to
+    elif locked.requested_by_id:
+        recipient = locked.requested_by
+    if recipient is not None and getattr(recipient, "is_active", False):
+        notify_in_app(
+            user=recipient,
+            message=f"Material WO-ya verildi: {locked.code}",
+            ticket=getattr(wo, "ticket", None) if wo is not None else None,
+            event_key=f"warehouse.issue.confirm.{locked.pk}",
+        )
     return locked

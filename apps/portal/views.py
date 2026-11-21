@@ -817,6 +817,37 @@ class AnnouncementsView(ResidentPortalMixin, ListView):
         ).prefetch_related("attachments")
 
 
+class AnnouncementAttachmentDownloadView(ResidentPortalMixin, View):
+    """Authenticated download for private announcement attachments (no public .url)."""
+
+    def get(self, request, pk):
+        import mimetypes
+
+        from django.http import FileResponse, Http404
+
+        from apps.comms.models import AnnouncementAttachment
+
+        att = get_object_or_404(
+            AnnouncementAttachment.objects.select_related("announcement"),
+            pk=pk,
+        )
+        visible = announcements_for_user(
+            request.user, company_ids=_scope_ids(request)
+        ).filter(pk=att.announcement_id)
+        if not visible.exists():
+            raise PermissionDenied(_("Bu elan faylına giriş icazəniz yoxdur."))
+        if not att.file:
+            raise Http404()
+        filename = att.display_name or att.file.name.rsplit("/", 1)[-1]
+        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        return FileResponse(
+            att.file.open("rb"),
+            as_attachment=True,
+            filename=filename,
+            content_type=content_type,
+        )
+
+
 class DocumentsView(ResidentPortalMixin, ListView):
     template_name = "portal/documents.html"
     context_object_name = "documents"
@@ -873,9 +904,9 @@ class DocumentDownloadView(ResidentPortalMixin, View):
         document = get_object_or_404(Document, pk=pk)
         if not user_can_access_portal_document_in_scope(request.user, document, ids):
             raise PermissionDenied(_("Bu sənədə giriş icazəniz yoxdur."))
-        # Portal: yalnız portala açıq / görünən sənədlər (məxfi/məhdud yox).
+        # Portal: require BOTH public_resident sensitivity AND visible flag (no confidential bypass).
         sens = document.sensitivity or DocumentSensitivity.CONFIDENTIAL
-        if sens != DocumentSensitivity.PUBLIC_RESIDENT and not document.visible_to_resident:
+        if sens != DocumentSensitivity.PUBLIC_RESIDENT or not document.visible_to_resident:
             raise PermissionDenied(_("Bu sənədin məxfilik səviyyəsinə görə endirmə icazəniz yoxdur."))
         if not document.file:
             raise Http404()

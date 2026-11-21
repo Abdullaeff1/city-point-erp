@@ -1,0 +1,32 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{{ party.display_name }}{% endblock %}
+{% block heading %}{{ party.display_name }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:procurement_suppliers' %}">{% translate "Təchizatçılar" %}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card mb-4">
+  <p class="cp-meta">{{ party.get_status_display }} · VÖEN: {{ party.tax_id|default:"—" }}</p>
+  <p>{{ party.contact_email|default:"" }} {% if party.contact_phone %}· {{ party.contact_phone }}{% endif %}</p>
+  {% if party.notes %}<p class="cp-body-text">{{ party.notes }}</p>{% endif %}
+  {% if can_edit_procurement %}
+  <p class="mt-2"><a class="cp-btn" href="{% url 'erp:procurement_supplier_edit' party.pk %}">{% translate "Redaktə" %}</a></p>
+  {% endif %}
+</div>
+<div class="cp-card p-card">
+  <h3 class="cp-section">{% translate "Satınalma tarixçəsi" %}</h3>
+  <table class="cp-table">
+    <thead><tr><th>PO</th><th>PR</th><th>{% translate "Status" %}</th></tr></thead>
+    <tbody>
+      {% for po in purchase_orders %}
+      <tr>
+        <td><a href="{% url 'erp:procurement_po_detail' po.code %}">{{ po.code }}</a></td>
+        <td>{% if po.pr_id %}<a href="{% url 'erp:procurement_pr_detail' po.pr.code %}">{{ po.pr.code }}</a>{% else %}—{% endif %}</td>
+        <td>{{ po.get_status_display }}</td>
+      </tr>
+      {% empty %}<tr><td colspan="3" class="cp-meta">{% translate "PO yoxdur." %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

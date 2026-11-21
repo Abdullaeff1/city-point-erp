@@ -91,7 +91,8 @@ class ManagementErpAclTests(TestCase):
         self.client.force_login(self.sales)
         resp = self.client.get(reverse("erp:approvals"))
         self.assertEqual(resp.status_code, 302)
-        self.assertEqual(resp.url, reverse("erp:crm_leads"))
+        # Sales has approval.view catalog grant but not MANAGEMENT role → role home.
+        self.assertEqual(resp.url, reverse("erp:dashboard"))
         self.client.force_login(self.accountant)
         resp = self.client.get(reverse("erp:approvals"))
         self.assertEqual(resp.status_code, 302)

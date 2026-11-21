@@ -15,26 +15,36 @@
     · <a href="{% static 'docs/muqavile-muraciet-formasi-cp.docx' %}">{% translate "Blank forma" %}</a>
   </p>
 
-  <section class="crm-opp-detail-hero cp-card p-card mb-4">
-    <div class="crm-opp-detail-hero-top">
-      <div>
-        <p class="crm-lead-create-label">{% translate "Müqavilə ilə bağlı müraciət forması" %}</p>
-        <h2 class="cp-section mt-1">{{ application.person_name|default:"—" }}</h2>
-        <p class="cp-meta mt-2">
-          {% if application.application_date %}{% translate "Tarix" %}: <strong>{{ application.application_date|date:"d.m.Y" }}</strong>{% endif %}
-          {% if application.space_label %} · {% translate "Sahə" %}: <strong>{{ application.space_label }}</strong>{% endif %}
-          {% if application.monthly_rent_net %} · {{ application.monthly_rent_net }} AZN{% endif %}
-        </p>
-      </div>
-      <div class="crm-opp-detail-chips">
-        <span class="crm-opp-chip crm-opp-chip--accent">{{ application.get_status_display }}</span>
-        <span class="crm-opp-chip">{% if application.is_legal_entity %}{% translate "Hüquqi şəxs" %}{% else %}{% translate "Fərdi sahibkar" %}{% endif %}</span>
+  <section class="crm-profile-header">
+    <div class="crm-profile-header__top">
+      <div class="crm-profile-header__identity">
+        <div class="crm-profile-avatar" aria-hidden="true">M</div>
+        <div class="min-0">
+          <h2 class="crm-profile-header__title">{{ application.person_name|default:"—" }}</h2>
+          <p class="crm-profile-header__sub">
+            {% translate "Müraciət" %} #{{ application.pk }}
+            {% if application.application_date %} · {{ application.application_date|date:"d.m.Y" }}{% endif %}
+            {% if application.space_label %} · {% translate "Sahə" %}: {{ application.space_label }}{% endif %}
+            {% if application.monthly_rent_net %} · {{ application.monthly_rent_net }} AZN{% endif %}
+          </p>
+          <div class="flex gap-2 mt-2" style="flex-wrap:wrap;">
+            {% include "partials/crm_status_pill.html" with pill_label=application.get_status_display pill_kind="pending" %}
+            {% if application.is_legal_entity %}
+            <span class="crm-status-pill crm-status-pill--info">{% translate "Hüquqi şəxs" %}</span>
+            {% else %}
+            <span class="crm-status-pill crm-status-pill--open">{% translate "Fərdi sahibkar" %}</span>
+            {% endif %}
+          </div>
+        </div>
       </div>
     </div>
+    <nav class="crm-profile-tabs" aria-label="{% translate 'Bölmələr' %}">
+      <a href="#form" class="is-active">{% translate "Forma" %}</a>
+    </nav>
   </section>
 
   {% if can_mutate %}
-  <section class="crm-opp-panel cp-card p-card mb-4">
+  <section id="form" class="crm-opp-panel cp-card p-card mb-4">
     <div class="crm-opp-panel-head">
       <div>
         <h3 class="cp-section">{% translate "Satış — müraciət formu" %}</h3>
@@ -240,11 +250,32 @@
       <div class="crm-lead-create-actions" style="flex-wrap:wrap">
         <button name="action" value="accept" class="cp-btn soft">{% translate "Baxışa al" %}</button>
         <button name="action" value="return" class="cp-btn soft">{% translate "Düzəlişə qaytar" %}</button>
-        <button name="action" value="lease_draft" class="cp-btn">{% translate "İcarə qaralaması" %}</button>
+        <button name="action" value="lease_draft" class="cp-btn">{% translate "İcarə qaralaması / rezerv" %}</button>
         <button name="action" value="complete" class="cp-btn">{% translate "İmzalandı / tamamla" %}</button>
       </div>
+      <p class="cp-meta mt-2">{% translate "Tamamlama üçün imzalanmış müraciət forması (PDF/scan) və VÖEN/bank/(reyestr) sənədləri Rezident kartında yüklənməlidir. Checklist kifayət deyil." %}</p>
     </form>
+    {% if application.lease_id and application.fit_out_notes %}
+    <form method="post" class="crm-lead-create-actions mt-3">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="fitout_wo">
+      <label class="w-full">
+        <span class="cp-meta">{% translate "Ödəniş məsuliyyəti (fit-out)" %}</span>
+        <input class="cp-input mt-1 w-full" name="pay_note" placeholder="{% translate 'İcarəçi / icarəyə verən — açıq yazın' %}">
+      </label>
+      <button class="cp-btn soft mt-2">{% translate "Fit-out iş əmri yarat" %}</button>
+    </form>
+    {% endif %}
   </section>
+  {% endif %}
+
+  {% if can_mutate and application.status != 'completed' and application.status != 'cancelled' %}
+  <form method="post" class="crm-lead-create-actions mt-3">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="cancel">
+    <input class="cp-input" name="reason" placeholder="{% translate 'Ləğv səbəbi' %}">
+    <button class="cp-btn soft">{% translate "Müraciəti ləğv et" %}</button>
+  </form>
   {% endif %}
 </div>
 {% endblock %}
