@@ -49,7 +49,7 @@
 
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
-    <thead><tr><th>{% translate "Qonaq" %}</th>{% if show_company_column %}<th>{% translate "Şirkət" %}</th>{% endif %}<th>{% translate "Host" %}</th><th>{% translate "Tip" %}</th><th>{% translate "Mərtəbə" %}</th><th>{% translate "Status" %}</th><th></th></tr></thead>
+    <thead><tr><th>{% translate "Qonaq" %}</th>{% if show_company_column %}<th>{% translate "Şirkət" %}</th>{% endif %}<th>{% translate "Host" %}</th><th>{% translate "Tip" %}</th><th>{% translate "Mərtəbə" %}</th><th>{% translate "Giriş" %}</th><th>{% translate "Çıxış" %}</th><th>{% translate "Status" %}</th><th></th></tr></thead>
     <tbody>
       {% for v in visits %}
       <tr>
@@ -58,10 +58,17 @@
         <td>{{ v.host.full_name|default:"—" }}</td>
         <td>{{ v.visit_type.name|default:"—" }}</td>
         <td>{% if v.space %}{{ v.floor.code }} / {{ v.space.short_label }}{% elif v.location_note %}{{ v.location_note }}{% else %}{{ v.floor.code|default:"—" }}{% endif %}</td>
-        <td>{% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}</td>
+        <td>{{ v.check_in_at|date:"SHORT_DATETIME_FORMAT"|default:"—" }}</td>
+        <td>{{ v.check_out_at|date:"SHORT_DATETIME_FORMAT"|default:"—" }}</td>
+        <td>
+          {% include "partials/status_badge.html" with value=v.status label=v.get_status_display %}
+          {% if v.portal_checkout_overdue %}
+          <span class="badge badge-urgent" style="margin-left:6px;">{% translate "24s+ çıxış gecikir" %}</span>
+          {% endif %}
+        </td>
         <td>
           {% if v.portal_can_checkout %}
-          <form method="post" action="{% url 'portal:guest_checkout' v.pk %}" style="display:inline;">
+          <form method="post" action="{% url 'portal:guest_checkout' v.pk %}?from={{ guest_from|date:'Y-m-d' }}&amp;to={{ guest_to|date:'Y-m-d' }}{% if show_overdue_only %}&amp;overdue=1{% endif %}" style="display:inline;">
             {% csrf_token %}
             <button class="cp-btn" type="submit" style="padding:4px 10px;font-size:13px;">{% translate "Çıxış ver" %}</button>
           </form>
@@ -69,9 +76,16 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="{% if show_company_column %}7{% else %}6{% endif %}" class="cp-meta empty-pad">{% translate "Seçilmiş tarix aralığında qonaq yoxdur." %}</td></tr>
+      <tr><td colspan="{% if show_company_column %}9{% else %}8{% endif %}" class="cp-meta empty-pad">{% translate "Seçilmiş tarix aralığında qonaq yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+{% if page_obj.has_other_pages %}
+<nav class="flex gap-3 mt-3">
+  {% if page_obj.has_previous %}<a href="?from={{ guest_from|date:'Y-m-d' }}&amp;to={{ guest_to|date:'Y-m-d' }}&amp;page={{ page_obj.previous_page_number }}">{% translate "Əvvəlki" %}</a>{% endif %}
+  <span>{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a href="?from={{ guest_from|date:'Y-m-d' }}&amp;to={{ guest_to|date:'Y-m-d' }}&amp;page={{ page_obj.next_page_number }}">{% translate "Növbəti" %}</a>{% endif %}
+</nav>
+{% endif %}
 {% endblock %}

@@ -61,7 +61,7 @@ class Phase42WorkOrderVisibilityTests(TestCase):
             username="p42-fm",
             email="p42-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
             ticket_department=self.fm_dept,
         )

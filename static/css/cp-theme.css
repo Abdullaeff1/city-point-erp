@@ -1,0 +1,526 @@
+/* City Point app shell — EstatePro-inspired structure, CP brand (not a copy).
+   Noto Sans (OFL): full AZ alphabet + ₼ locally — no latin-only subset fallback. */
+
+@font-face {
+  font-family: "Noto Sans";
+  src: url("../fonts/noto-sans-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Noto Sans";
+  src: url("../fonts/noto-sans-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Noto Sans";
+  src: url("../fonts/noto-sans-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Noto Sans";
+  src: url("../fonts/noto-sans-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --cp-font: "Noto Sans", "Segoe UI", system-ui, sans-serif;
+  --cp-primary: #0f5c8c;
+  --cp-primary-dark: #0a3d5c;
+  --cp-primary-soft: #e7f2f9;
+  --cp-soft: #e7f2f9;
+  --cp-accent: #c9a227;
+  --cp-bg: #f3f6fa;
+  --cp-background: #f3f6fa;
+  --cp-surface: #ffffff;
+  --cp-text: #1e293b;
+  --cp-text-muted: #64748b;
+  --cp-muted: #64748b;
+  --cp-border: #e2e8f0;
+  --cp-success: #159a6a;
+  --cp-warning: #d97706;
+  --cp-danger: #dc4a4a;
+  --cp-info: #3b82c4;
+  --cp-accepted: #6366f1;
+  --cp-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.05);
+  --cp-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --cp-radius: 14px;
+  --cp-radius-sm: 10px;
+  --cp-sidebar: 260px;
+  --cp-sidebar-bg: #ffffff;
+  --cp-sidebar-border: #e8eef4;
+  --cp-sidebar-text: #475569;
+  --cp-sidebar-muted: #94a3b8;
+  --cp-sidebar-hover: #f1f5f9;
+  --cp-sidebar-active-bg: #e7f2f9;
+  --cp-sidebar-active: #0f5c8c;
+  --cp-header-bg: #ffffff;
+  --cp-topbar-h: 64px;
+  --cp-input-bg: #ffffff;
+  --cp-table-head: #f8fafc;
+}
+
+html[data-theme="dark"] {
+  --cp-primary: #5ba3d0;
+  --cp-primary-dark: #e2e8f0;
+  --cp-primary-soft: #1e3a4f;
+  --cp-soft: #1e3a4f;
+  --cp-accent: #e0b84a;
+  --cp-bg: #0b1220;
+  --cp-background: #0b1220;
+  --cp-surface: #151d2e;
+  --cp-text: #e2e8f0;
+  --cp-text-muted: #94a3b8;
+  --cp-muted: #94a3b8;
+  --cp-border: #243044;
+  --cp-success: #34d399;
+  --cp-warning: #fbbf24;
+  --cp-danger: #f87171;
+  --cp-info: #60a5fa;
+  --cp-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
+  --cp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --cp-sidebar-bg: #0f172a;
+  --cp-sidebar-border: #1e293b;
+  --cp-sidebar-text: #cbd5e1;
+  --cp-sidebar-muted: #64748b;
+  --cp-sidebar-hover: #1e293b;
+  --cp-sidebar-active-bg: #1e3a4f;
+  --cp-sidebar-active: #7dd3fc;
+  --cp-header-bg: #151d2e;
+  --cp-input-bg: #1e293b;
+  --cp-table-head: #1a2336;
+  color-scheme: dark;
+}
+
+html {
+  font-family: var(--cp-font);
+}
+
+body.cp-body {
+  font-family: var(--cp-font);
+  background: var(--cp-bg);
+  color: var(--cp-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Keep UI chrome on the same face (AZ Ə/ə must not fall back mid-word). */
+button,
+input,
+select,
+textarea,
+.cp-btn,
+.cp-input,
+.cp-nav,
+.cp-nav a,
+.cp-nav-text,
+.cp-nav-summary,
+.cp-nav-direct,
+.cp-title,
+.cp-meta,
+.cp-section,
+.badge,
+.mgmt-account,
+.mgmt-building-card,
+table,
+th,
+td {
+  font-family: inherit;
+}
+
+/* AZ: avoid clipping of Ə/Ş/İ in compact labels; lang-aware uppercase (i→İ). */
+html[lang="az"] {
+  line-height: 1.45;
+}
+html[lang="az"] .cp-btn,
+html[lang="az"] .badge,
+html[lang="az"] .cp-nav-text,
+html[lang="az"] .mgmt-shortcut,
+html[lang="az"] .cp-filter-chips a {
+  line-height: 1.35;
+  overflow: visible;
+}
+html[lang="az"] .cp-brand-kicker,
+html[lang="az"] .cp-nav-label {
+  text-transform: uppercase;
+}
+
+/* —— Light/dark shell (EstatePro-like layout) —— */
+.cp-shell {
+  background: var(--cp-bg);
+}
+
+.cp-sidebar {
+  width: var(--cp-sidebar);
+  background: var(--cp-sidebar-bg) !important;
+  color: var(--cp-sidebar-text) !important;
+  border-inline-end: 1px solid var(--cp-sidebar-border);
+  box-shadow: none;
+}
+
+.cp-brand-kicker {
+  color: var(--cp-accent) !important;
+  letter-spacing: 0.18em;
+}
+
+.cp-brand-sub {
+  color: var(--cp-primary-dark) !important;
+  font-weight: 700;
+}
+
+html[data-theme="dark"] .cp-brand-sub {
+  color: var(--cp-text) !important;
+}
+
+.cp-nav a,
+.cp-nav-menu > .cp-nav-summary,
+.cp-nav-role-btn {
+  color: var(--cp-sidebar-text) !important;
+  border-radius: var(--cp-radius-sm);
+  border-left-color: transparent !important;
+  margin-left: 0;
+}
+
+.cp-nav a:hover,
+.cp-nav-summary:hover,
+.cp-nav-role-btn:hover:not(:disabled) {
+  background: var(--cp-sidebar-hover) !important;
+  color: var(--cp-sidebar-active) !important;
+}
+
+.cp-nav a.is-active,
+.cp-nav-menu > .cp-nav-summary.is-active,
+.cp-nav-role-btn.is-active,
+.cp-nav-role-btn:disabled {
+  background: var(--cp-sidebar-active-bg) !important;
+  color: var(--cp-sidebar-active) !important;
+  font-weight: 650;
+  box-shadow: inset 3px 0 0 var(--cp-accent);
+}
+
+.cp-nav-label,
+.cp-nav-summary-label {
+  color: var(--cp-sidebar-muted) !important;
+}
+
+.cp-nav-group[open] > .cp-nav-group-body {
+  border-left-color: var(--cp-border) !important;
+}
+
+.cp-nav-soon {
+  color: var(--cp-sidebar-muted) !important;
+}
+
+.cp-user-bar {
+  border-top: 1px solid var(--cp-sidebar-border) !important;
+  background: var(--cp-sidebar-bg);
+}
+
+.cp-user-name { color: var(--cp-primary-dark) !important; }
+html[data-theme="dark"] .cp-user-name { color: var(--cp-text) !important; }
+.cp-user-role { color: var(--cp-sidebar-muted) !important; }
+
+.cp-avatar {
+  background: var(--cp-primary-soft) !important;
+  color: var(--cp-primary) !important;
+  font-weight: 700;
+  border: 1px solid var(--cp-border);
+}
+
+.cp-main {
+  background: var(--cp-bg);
+  min-width: 0;
+}
+
+.cp-header {
+  background: var(--cp-header-bg) !important;
+  border-bottom: 1px solid var(--cp-border);
+  padding: 14px clamp(16px, 2.5vw, 28px) !important;
+  gap: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: var(--cp-topbar-h);
+}
+
+.cp-header .cp-title {
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  letter-spacing: -0.03em;
+  color: var(--cp-primary-dark);
+}
+
+.cp-header .cp-meta {
+  color: var(--cp-text-muted);
+}
+
+.cp-content {
+  padding: 20px clamp(16px, 2.5vw, 28px) 40px;
+}
+
+.cp-card {
+  background: var(--cp-surface);
+  border: 1px solid var(--cp-border);
+  border-radius: var(--cp-radius);
+  box-shadow: var(--cp-shadow-sm);
+}
+
+.cp-input,
+select.cp-input,
+textarea.cp-input {
+  background: var(--cp-input-bg);
+  border: 1px solid var(--cp-border);
+  border-radius: var(--cp-radius-sm);
+  color: var(--cp-text);
+}
+
+.cp-input:focus {
+  outline: none;
+  border-color: var(--cp-primary);
+  box-shadow: 0 0 0 3px var(--cp-primary-soft);
+}
+
+.cp-btn {
+  border-radius: var(--cp-radius-sm);
+  background: var(--cp-primary);
+  box-shadow: var(--cp-shadow-sm);
+  font-weight: 650;
+}
+
+.cp-btn.soft,
+.cp-btn-ghost {
+  background: var(--cp-surface);
+  color: var(--cp-primary);
+  border: 1px solid var(--cp-border);
+  box-shadow: none;
+}
+
+.cp-btn.soft:hover,
+.cp-btn-ghost:hover {
+  background: var(--cp-primary-soft);
+  color: var(--cp-primary-dark);
+}
+
+.cp-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.cp-table th {
+  background: var(--cp-table-head);
+  color: var(--cp-text-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.cp-table td {
+  border-bottom: 1px solid var(--cp-border);
+  color: var(--cp-text);
+}
+
+.badge {
+  border-radius: 999px;
+  font-weight: 650;
+  font-size: 11px;
+  padding: 3px 9px;
+}
+
+/* Topbar actions */
+.cp-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cp-icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-surface);
+  color: var(--cp-text-muted);
+  cursor: pointer;
+}
+
+.cp-icon-btn:hover {
+  color: var(--cp-primary);
+  background: var(--cp-primary-soft);
+}
+
+.cp-search-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: min(280px, 42vw);
+  padding: 0 12px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-bg);
+  color: var(--cp-text-muted);
+}
+
+.cp-search-pill input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--cp-text);
+  font: inherit;
+  min-width: 0;
+}
+
+.cp-search-pill input:focus { outline: none; }
+.cp-search-pill kbd {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--cp-border);
+  color: var(--cp-muted);
+}
+
+.cp-lang select {
+  border: 1px solid var(--cp-border);
+  border-radius: 10px;
+  background: var(--cp-surface);
+  color: var(--cp-text);
+  padding: 8px 10px;
+  font: inherit;
+}
+
+/* KPI / metric cards (EstatePro-like) */
+.erp-metrics,
+.crm-kpi-strip,
+.grid-kpi {
+  gap: 14px;
+}
+
+.erp-metric,
+.crm-kpi-card,
+a.cp-card-link.erp-metric {
+  border: 1px solid var(--cp-border);
+  border-radius: var(--cp-radius);
+  background: var(--cp-surface);
+  box-shadow: var(--cp-shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+a.erp-metric,
+a.crm-kpi-card {
+  text-decoration: none;
+  color: inherit;
+}
+
+a.erp-metric:hover,
+a.crm-kpi-card:hover,
+.erp-metric-link:hover {
+  border-color: #9ec0d8;
+  box-shadow: var(--cp-shadow);
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.erp-icon {
+  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+}
+
+.erp-quick-link {
+  border: 1px solid var(--cp-border);
+  border-radius: var(--cp-radius-sm);
+  background: var(--cp-surface);
+}
+
+.erp-space-tile {
+  background: var(--cp-surface);
+  border-radius: 12px;
+}
+
+.erp-mobile-bar {
+  background: var(--cp-primary-dark) !important;
+}
+
+html[data-theme="dark"] .erp-mobile-bar {
+  background: #020617 !important;
+}
+
+.cp-empty {
+  padding: 36px 20px;
+  text-align: center;
+  color: var(--cp-text-muted);
+  border: 1px dashed var(--cp-border);
+  border-radius: var(--cp-radius);
+  background: var(--cp-surface);
+}
+
+.cp-dialog,
+dialog.cp-dialog {
+  border: 1px solid var(--cp-border);
+  border-radius: var(--cp-radius);
+  background: var(--cp-surface);
+  color: var(--cp-text);
+  box-shadow: var(--cp-shadow);
+  padding: 20px;
+  max-width: min(480px, 92vw);
+}
+
+.mgmt-module-card {
+  border: 1px solid var(--cp-border);
+  border-radius: var(--cp-radius);
+  background: var(--cp-surface);
+  box-shadow: var(--cp-shadow-sm);
+  color: inherit;
+  text-decoration: none;
+}
+.mgmt-module-card:hover {
+  border-color: #9ec0d8;
+  box-shadow: var(--cp-shadow);
+  text-decoration: none;
+}
+.mgmt-module-card__icon {
+  background: var(--cp-primary-soft);
+  color: var(--cp-primary);
+  border-radius: 12px;
+}
+
+/* CRM shell keeps its accent; dark mode still applies via html[data-theme]. */
+html[data-theme="dark"] .cp-theme-crm {
+  --cp-background: var(--cp-bg);
+  --cp-bg: #0b1220;
+  --cp-surface: #151d2e;
+  --cp-text: #e2e8f0;
+  --cp-border: #243044;
+  --cp-soft: #1e293b;
+}
+html[data-theme="dark"] .cp-theme-crm .cp-sidebar {
+  background: var(--cp-sidebar-bg) !important;
+  color: var(--cp-sidebar-text) !important;
+  border-right-color: var(--cp-sidebar-border);
+}
+
+/* Portal CTA */
+.cp-sidebar-cta .cp-btn-accent {
+  border-radius: var(--cp-radius-sm);
+  width: 100%;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .cp-search-pill { display: none; }
+  .cp-header { position: sticky; }
+}

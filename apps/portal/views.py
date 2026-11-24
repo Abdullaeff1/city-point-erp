@@ -3,6 +3,7 @@ import json
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -119,7 +120,8 @@ class HomeView(ResidentPortalMixin, TemplateView):
         spaces = list(
             Space.objects.filter(resident_id__in=ids).select_related("floor", "resident")
         ) if ids else []
-        latest = tickets.first()
+        active = tickets.filter(status__in=OPEN_STATUSES)
+        latest = active.select_related("category").order_by("-updated_at", "-pk").first()
         company = _primary_display_company(self.request)
         ctx.update(
             {
@@ -128,7 +130,7 @@ class HomeView(ResidentPortalMixin, TemplateView):
                 "portal_company_count": len(ids),
                 "spaces": spaces,
                 "featured_space": spaces[0] if spaces else None,
-                "open_tickets": tickets.filter(status__in=OPEN_STATUSES),
+                "open_tickets": active,
                 "recent_tickets": tickets.select_related("company", "category")[:6],
                 "latest_ticket": latest,
                 "announcements": announcements_for_user(
@@ -136,6 +138,17 @@ class HomeView(ResidentPortalMixin, TemplateView):
                 )[:4],
             }
         )
+        return ctx
+
+
+class CompanyProfileView(ResidentPortalMixin, TemplateView):
+    template_name = "portal/company_profile.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["companies"] = ResidentCompany.objects.filter(
+            pk__in=_scope_ids(self.request), is_internal=False
+        ).order_by("name")
         return ctx
 
 
@@ -505,9 +518,6 @@ class RequestDetailView(ResidentPortalMixin, TemplateView):
 class AlertsView(ResidentPortalMixin, TemplateView):
     template_name = "portal/alerts.html"
 
-    def get(self, request, *args, **kwargs):
-        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
-        return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -515,7 +525,8 @@ class AlertsView(ResidentPortalMixin, TemplateView):
         from apps.comms.links import user_notifications
 
         ids = _scope_ids(self.request)
-        ctx["notifications"] = user_notifications(user, namespace="portal")
+        ctx["notifications"] = user_notifications(user, namespace="portal", company_ids=ids, limit=None)
+        Notification.objects.filter(user=user, is_read=False, pk__in=[n.pk for n in ctx["notifications"]]).update(is_read=True)
         ctx["history"] = Ticket.objects.filter(company_id__in=ids, status__in=CLOSED_STATUSES)
         ctx["unread_alerts"] = 0
         return ctx
@@ -736,21 +747,27 @@ class GuestsView(ResidentPortalMixin, FormView):
         ctx["guest_from"] = date_from
         ctx["guest_to"] = date_to
         ctx["show_company_column"] = _scope_mode(self.request) == MODE_ALL
-        visits = (
-            list(
-                GuestVisit.objects.filter(
-                    company_id__in=ids,
-                    scheduled_for__gte=date_from,
-                    scheduled_for__lte=date_to,
-                )
-                .select_related("guest", "host", "floor", "space", "visit_type", "visitor_access", "company")
-                .order_by("-scheduled_for", "-id")[:100]
-            )
-            if ids
-            else []
+        ctx["show_overdue_only"] = (self.request.GET.get("overdue") or "") == "1"
+        from apps.reception.services import (
+            is_portal_checkout_overdue,
+            portal_cardless_overdue_queryset,
         )
+
+        visits_qs = GuestVisit.objects.filter(
+            company_id__in=ids, scheduled_for__range=(date_from, date_to)
+        ).select_related(
+            "guest", "host", "floor", "space", "visit_type", "visitor_access", "company"
+        )
+        if ctx["show_overdue_only"]:
+            overdue_ids = portal_cardless_overdue_queryset().filter(company_id__in=ids).values("pk")
+            visits_qs = visits_qs.filter(pk__in=overdue_ids)
+        visits_qs = visits_qs.order_by("-scheduled_for", "-id")
+        page = Paginator(visits_qs, 50).get_page(self.request.GET.get("page"))
+        ctx["page_obj"] = page
+        visits = list(page.object_list)
         for v in visits:
             v.portal_can_checkout = can_portal_checkout(v, company=v.company)
+            v.portal_checkout_overdue = is_portal_checkout_overdue(v)
         ctx["visits"] = visits
         return ctx
 
@@ -799,11 +816,32 @@ class GuestCheckoutView(ResidentPortalMixin, View):
             pk=pk,
             company_id__in=ids,
         )
+        raw_departed = (request.POST.get("departed_at") or "").strip()
+        departed_at = None
+        if raw_departed:
+            from django.utils.dateparse import parse_datetime
+
+            departed_at = parse_datetime(raw_departed)
+            if departed_at is None:
+                messages.error(request, _("Çıxış vaxtı düzgün deyil."))
+                qs = request.GET.urlencode()
+                if qs:
+                    return redirect(f"{reverse('portal:guests')}?{qs}")
+                return redirect("portal:guests")
         try:
-            portal_check_out_visit(visit, actor=request.user, company=visit.company)
+            portal_check_out_visit(
+                visit,
+                actor=request.user,
+                company=visit.company,
+                departed_at=departed_at,
+            )
             messages.success(request, _("Çıxış qeydə alındı."))
         except DomainError as exc:
             messages.error(request, str(exc))
+        # Preserve date filters / pagination context across checkout
+        qs = request.GET.urlencode()
+        if qs:
+            return redirect(f"{reverse('portal:guests')}?{qs}")
         return redirect("portal:guests")
 
 
@@ -858,6 +896,38 @@ class DocumentsView(ResidentPortalMixin, ListView):
         return portal_document_qs_for_request(self.request)
 
 
+def _portal_invoice_qs(request):
+    """Issued/paid invoices for companies in the current portal scope."""
+    from apps.billing.models import Invoice, InvoiceStatus
+    from apps.parties.models import Party
+
+    ids = _scope_ids(request)
+    parties = Party.objects.filter(legacy_resident_company_id__in=ids)
+    mark_statuses = (InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE, InvoiceStatus.PAID)
+    return Invoice.objects.filter(party__in=parties, status__in=mark_statuses)
+
+
+def _official_invoice_document(invoice, company_ids: list[int]):
+    """Portal-visible document attached to an issued invoice (Finance-uploaded PDF)."""
+    from apps.documents.models import Document, DocumentSensitivity
+
+    inv_company = getattr(
+        getattr(invoice, "party", None), "legacy_resident_company_id", None
+    )
+    if inv_company not in company_ids:
+        return None
+    return (
+        Document.objects.filter(
+            invoice=invoice,
+            visible_to_resident=True,
+            sensitivity=DocumentSensitivity.PUBLIC_RESIDENT,
+        )
+        .exclude(file="")
+        .order_by("-published_at", "-id")
+        .first()
+    )
+
+
 class InvoicesView(ResidentPortalMixin, TemplateView):
     """Resident AR / debt (issued invoices for scoped companies)."""
 
@@ -866,29 +936,117 @@ class InvoicesView(ResidentPortalMixin, TemplateView):
     def get_context_data(self, **kwargs):
         from decimal import Decimal
 
-        from apps.billing.models import Invoice, InvoiceStatus
+        from apps.billing.models import InvoiceStatus
         from apps.billing.services import invoice_balance
-        from apps.parties.models import Party
 
         ctx = super().get_context_data(**kwargs)
-        ids = _scope_ids(self.request)
-        parties = Party.objects.filter(legacy_resident_company_id__in=ids)
-        mark_statuses = (InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE, InvoiceStatus.PAID)
         invoices = (
-            Invoice.objects.filter(party__in=parties, status__in=mark_statuses)
+            _portal_invoice_qs(self.request)
             .select_related("party", "lease")
-            .order_by("-issue_date", "-id")[:100]
+            .prefetch_related("payments", "charges")
+            .order_by("-issue_date", "-id")
         )
+        today = timezone.localdate()
         rows = []
-        open_total = Decimal("0")
-        for inv in invoices:
+        totals = {}
+        for inv in invoices.iterator(chunk_size=200):
+            currency = inv.currency or "AZN"
+            amounts = totals.setdefault(currency, {"open": Decimal("0"), "overdue": Decimal("0")})
             bal = invoice_balance(inv)
-            rows.append({"invoice": inv, "balance": bal})
+            paid = (inv.total or Decimal("0")) - bal
+            period_starts = [
+                c.period_start for c in inv.charges.all() if c.period_start
+            ]
+            period_label = ""
+            if period_starts:
+                earliest = min(period_starts)
+                period_label = earliest.strftime("%Y-%m")
+            is_overdue = inv.status == InvoiceStatus.OVERDUE or (
+                inv.status == InvoiceStatus.ISSUED
+                and inv.due_date
+                and inv.due_date < today
+                and bal > 0
+            )
+            rows.append(
+                {
+                    "invoice": inv,
+                    "balance": bal,
+                    "paid": paid,
+                    "period_label": period_label,
+                    "is_overdue": is_overdue,
+                    "company_name": inv.party.display_name if inv.party_id else "",
+                    "currency": inv.currency or "AZN",
+                }
+            )
             if inv.status in (InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE) and bal > 0:
-                open_total += bal
-        ctx["invoice_rows"] = rows
-        ctx["open_total"] = open_total
+                amounts["open"] += bal
+                if is_overdue:
+                    amounts["overdue"] += bal
+        totals.setdefault("AZN", {"open": Decimal("0"), "overdue": Decimal("0")})
+        page = Paginator(rows, 50).get_page(self.request.GET.get("page"))
+        ctx["invoice_rows"] = page.object_list
+        ctx["page_obj"] = page
+        ctx["currency_totals"] = totals
+        ctx["open_total"] = totals["AZN"]["open"]
+        ctx["overdue_total"] = totals["AZN"]["overdue"]
         return ctx
+
+
+class InvoiceDetailView(ResidentPortalMixin, TemplateView):
+    """Read-only invoice detail: lines + confirmed payments (not official PDF)."""
+
+    template_name = "portal/invoice_detail.html"
+
+    def get_invoice(self):
+        return get_object_or_404(
+            _portal_invoice_qs(self.request)
+            .select_related("party", "lease")
+            .prefetch_related("lines", "payments", "charges"),
+            code=self.kwargs["code"],
+        )
+
+    def get_context_data(self, **kwargs):
+        from apps.billing.services import invoice_balance, invoice_vat_summary
+
+        ctx = super().get_context_data(**kwargs)
+        inv = self.get_invoice()
+        official = _official_invoice_document(inv, _scope_ids(self.request))
+        ctx.update(
+            {
+                "invoice": inv,
+                "balance": invoice_balance(inv),
+                "vat_summary": invoice_vat_summary(inv),
+                "official_document": official,
+                "has_official_pdf": official is not None,
+            }
+        )
+        return ctx
+
+
+class InvoiceOfficialDownloadView(ResidentPortalMixin, View):
+    """Serve Finance-attached official invoice PDF only — no generated layout."""
+
+    def get(self, request, code):
+        import mimetypes
+
+        from django.http import FileResponse, Http404
+
+        inv = get_object_or_404(_portal_invoice_qs(request), code=code)
+        doc = _official_invoice_document(inv, _scope_ids(request))
+        if doc is None or not doc.file:
+            raise Http404(_("Rəsmi faktura PDF əlavə olunmayıb."))
+        filename = doc.file.name.rsplit("/", 1)[-1]
+        content_type = (
+            doc.content_type
+            or mimetypes.guess_type(filename)[0]
+            or "application/pdf"
+        )
+        return FileResponse(
+            doc.file.open("rb"),
+            as_attachment=True,
+            filename=filename,
+            content_type=content_type,
+        )
 
 
 class DocumentDownloadView(ResidentPortalMixin, View):

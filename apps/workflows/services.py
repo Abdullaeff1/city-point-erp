@@ -6,7 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.core import events as bus
-from apps.core.services import Service
+from apps.core.services import DomainError, Service
 from apps.workflows.models import ApprovalRequest, ApprovalStatus
 
 
@@ -56,6 +56,12 @@ class ApprovalService(Service):
             locked.status == ApprovalStatus.PENDING,
             "Yalnız gözləyən sorğu qərar verilə bilər.",
         )
+        if (
+            decided_by is not None
+            and locked.requested_by_id
+            and getattr(decided_by, "pk", None) == locked.requested_by_id
+        ):
+            raise DomainError("Öz sorğunuzu təsdiq edə bilməzsiniz.")
         locked.status = ApprovalStatus.APPROVED if approved else ApprovalStatus.REJECTED
         locked.decided_by = decided_by
         locked.decided_at = timezone.now()

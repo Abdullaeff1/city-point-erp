@@ -90,7 +90,7 @@ class ObjectScopeTests(TestCase):
             username="fm-scope",
             email="fm-scope@test.az",
             password="Pass12345!",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
         )
         self.assertTrue(user_can_access_portal_document_in_scope(fm, doc, [self.co_b.pk]))
         self.assertFalse(user_can_access_portal_document_in_scope(fm, doc, [self.co_a.pk]))
@@ -161,7 +161,7 @@ class ObjectScopeTests(TestCase):
             username="fm-m2",
             email="fm-m2@test.az",
             password="Pass12345!",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
         )
         client.force_login(fm)
         resp = client.get(reverse("erp:lease_detail", kwargs={"code": lease.code}))

@@ -22,7 +22,7 @@ class SpaceCrudTests(TestCase):
             username="fm-space",
             email="fm-space@test.az",
             password="Pass12345!",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.reception = User.objects.create_user(

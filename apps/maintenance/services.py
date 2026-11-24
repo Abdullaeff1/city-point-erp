@@ -161,14 +161,21 @@ def create_standalone_work_order(
 
 
 def facility_work_order_assignees():
-    """Active Facility operators eligible for WO assignment."""
+    """Təchizat operators eligible for WO assignment (service_desk + supply.head)."""
     from django.contrib.auth import get_user_model
+    from django.db.models import Q
 
     from apps.accounts.models import Role
 
     User = get_user_model()
-    return User.objects.filter(role=Role.PROPERTY_FM, is_active=True).order_by(
-        "first_name", "last_name", "username"
+    return (
+        User.objects.filter(is_active=True)
+        .filter(
+            Q(role__in=(Role.SERVICE_DESK,))
+            | Q(user_permissions_rbac__permission__code="supply.head")
+        )
+        .distinct()
+        .order_by("first_name", "last_name", "username")
     )
 
 
@@ -192,7 +199,7 @@ def assign_work_order(wo: WorkOrder, *, actor, assignee_id=None) -> WorkOrder:
     if assignee_id:
         assignee = facility_work_order_assignees().filter(pk=assignee_id).first()
         if assignee is None:
-            raise DomainError("Təyinat yalnız Facility operatoruna mümkündür.")
+            raise DomainError("Təyinat yalnız Təchizat şöbəsi operatoruna mümkündür.")
 
     previous_id = wo.assigned_to_id
     if previous_id == (assignee.pk if assignee else None):

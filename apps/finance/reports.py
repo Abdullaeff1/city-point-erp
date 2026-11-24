@@ -56,16 +56,19 @@ def trial_balance_xlsx_response(rows: list[dict]) -> HttpResponse:
     wb = Workbook()
     ws = wb.active
     ws.title = "Trial balance"
-    ws.append(["Code", "Name", "Type", "Debit", "Credit", "Balance"])
+    ws.append(
+        ["Code", "Name", "Type", "Opening", "Debit", "Credit", "Closing"]
+    )
     for row in rows:
         ws.append(
             [
                 row["code"],
                 row["name"],
                 row["account_type"],
+                float(row.get("opening_balance") or 0),
                 float(row["debit"]),
                 float(row["credit"]),
-                float(row["balance"]),
+                float(row.get("closing_balance") or row["balance"]),
             ]
         )
     return _workbook_response(wb, f"trial-balance-{timezone.localdate().isoformat()}.xlsx")

@@ -18,7 +18,7 @@ class BuildingAssetPageTests(TestCase):
             username="fm-assets",
             email="fm-assets@test.az",
             password="Pass12345!",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.desk = User.objects.create_user(

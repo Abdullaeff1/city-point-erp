@@ -16,13 +16,14 @@ from apps.accounts.models import Role
 from apps.rbac.services import require_permission
 from apps.accounting.models import AccountingPeriod
 from apps.accounting.services import AccountingService
-from apps.billing.models import Invoice, Payment
+from apps.billing.models import Invoice, Payment, SupplierPayment
 from apps.billing.services import ar_aging_buckets, record_payment
 from apps.core.services import DomainError
 from apps.crm.models import OfferVersion
 from apps.crm.services import CrmOfferService
 from apps.documents.services import WF_DOCUMENT_APPROVE, DocumentService
 from apps.finance.access import can_approve_payment
+from apps.finance.ap_services import WF_SUPPLIER_PAYMENT
 from apps.management.access import can_decide_approvals
 from apps.procurement.services import WF_PROCUREMENT_COMMITMENT
 from apps.workflows.models import ApprovalRequest, ApprovalStatus
@@ -36,6 +37,7 @@ WF_DOCUMENT = WF_DOCUMENT_APPROVE
 MGMT_WORKFLOWS = (
     WF_OFFER,
     WF_PAYMENT,
+    WF_SUPPLIER_PAYMENT,
     WF_PROCUREMENT_PR,
     WF_PROCUREMENT_COMMIT,
     WF_DOCUMENT,
@@ -62,13 +64,28 @@ class ApprovalsView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        workflow = (self.request.GET.get("workflow") or "").strip()
+        wf_filter = MGMT_WORKFLOWS
+        if workflow == "crm.offer.send":
+            wf_filter = (WF_OFFER,)
+        elif workflow == "document.approve":
+            wf_filter = (WF_DOCUMENT,)
+        elif workflow == "procurement":
+            wf_filter = (WF_PROCUREMENT_PR, WF_PROCUREMENT_COMMIT)
+        elif workflow == "finance.payment":
+            wf_filter = (WF_PAYMENT,)
+        elif workflow == WF_SUPPLIER_PAYMENT:
+            wf_filter = (WF_SUPPLIER_PAYMENT,)
+        elif workflow and workflow in MGMT_WORKFLOWS:
+            wf_filter = (workflow,)
         pending = list(
             ApprovalRequest.objects.filter(
-                workflow_code__in=MGMT_WORKFLOWS, status=ApprovalStatus.PENDING
+                workflow_code__in=wf_filter, status=ApprovalStatus.PENDING
             )
             .select_related("requested_by", "entity_type")
             .order_by("created_at")[:100]
         )
+        ctx["workflow_filter"] = workflow
         for req in pending:
             req.view_url = None
             req.view_label = ""
@@ -257,10 +274,38 @@ class PaymentApprovalsView(RoleRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["pending"] = ApprovalRequest.objects.filter(
-            workflow_code=WF_PAYMENT, status=ApprovalStatus.PENDING
-        ).select_related("requested_by")[:50]
-        ctx["payments"] = Payment.objects.select_related("invoice", "invoice__party")[:100]
+        queue = (self.request.GET.get("queue") or "").strip().lower()
+        if queue not in {"ar", "ap", ""}:
+            queue = ""
+        show_ar = queue in {"", "ar"}
+        show_ap = queue in {"", "ap"}
+        ctx["queue"] = queue or "all"
+        ctx["show_ar"] = show_ar
+        ctx["show_ap"] = show_ap
+        ctx["pending"] = (
+            ApprovalRequest.objects.filter(
+                workflow_code=WF_PAYMENT, status=ApprovalStatus.PENDING
+            ).select_related("requested_by")[:50]
+            if show_ar
+            else []
+        )
+        ctx["pending_supplier"] = (
+            ApprovalRequest.objects.filter(
+                workflow_code=WF_SUPPLIER_PAYMENT, status=ApprovalStatus.PENDING
+            ).select_related("requested_by")[:50]
+            if show_ap
+            else []
+        )
+        ctx["payments"] = (
+            Payment.objects.select_related("invoice", "invoice__party")[:100] if show_ar else []
+        )
+        ctx["supplier_payments"] = (
+            SupplierPayment.objects.select_related(
+                "supplier_invoice", "supplier_invoice__supplier_party"
+            )[:100]
+            if show_ap
+            else []
+        )
         ctx["can_approve"] = can_approve_payment(self.request.user)
         return ctx
 
@@ -268,38 +313,68 @@ class PaymentApprovalsView(RoleRequiredMixin, TemplateView):
         if not can_approve_payment(request.user):
             messages.error(request, _("Yalnız rəhbərlik təsdiq edə bilər."))
             return redirect("erp:payment_approvals")
+        queue = (request.GET.get("queue") or request.POST.get("queue") or "").strip().lower()
+        redirect_url = reverse("erp:payment_approvals")
+        if queue in {"ar", "ap"}:
+            redirect_url = f"{redirect_url}?queue={queue}"
         action = request.POST.get("action")
-        req = get_object_or_404(
-            ApprovalRequest,
-            pk=request.POST.get("approval_id"),
-            workflow_code=WF_PAYMENT,
-            status=ApprovalStatus.PENDING,
-        )
         try:
-            if action == "approve_pay":
-                ApprovalService.decide(req, approved=True, decided_by=request.user)
-                req.refresh_from_db()
-                payload = req.payload or {}
-                inv = get_object_or_404(Invoice, pk=payload.get("invoice_id"))
-                record_payment(
-                    invoice=inv,
-                    amount=Decimal(payload.get("amount") or 0),
-                    method=payload.get("method") or "bank",
-                    reference=payload.get("reference") or "",
-                    approval_request=req,
+            if action in ("approve_pay", "reject_pay"):
+                req = get_object_or_404(
+                    ApprovalRequest,
+                    pk=request.POST.get("approval_id"),
+                    workflow_code=WF_PAYMENT,
+                    status=ApprovalStatus.PENDING,
                 )
-                messages.success(request, _("Ödəniş təsdiqləndi."))
-            elif action == "reject_pay":
-                ApprovalService.decide(
-                    req,
-                    approved=False,
-                    decided_by=request.user,
-                    comment=request.POST.get("comment") or "",
+                if action == "approve_pay":
+                    ApprovalService.decide(req, approved=True, decided_by=request.user)
+                    req.refresh_from_db()
+                    payload = req.payload or {}
+                    inv = get_object_or_404(Invoice, pk=payload.get("invoice_id"))
+                    record_payment(
+                        invoice=inv,
+                        amount=Decimal(payload.get("amount") or 0),
+                        method=payload.get("method") or "bank",
+                        reference=payload.get("reference") or "",
+                        approval_request=req,
+                    )
+                    messages.success(request, _("Kiracı ödənişi təsdiqləndi."))
+                else:
+                    ApprovalService.decide(
+                        req,
+                        approved=False,
+                        decided_by=request.user,
+                        comment=request.POST.get("comment") or "",
+                    )
+                    messages.info(request, _("Kiracı ödənişi rədd edildi."))
+            elif action in ("approve_supplier_pay", "reject_supplier_pay"):
+                req = get_object_or_404(
+                    ApprovalRequest,
+                    pk=request.POST.get("approval_id"),
+                    workflow_code=WF_SUPPLIER_PAYMENT,
+                    status=ApprovalStatus.PENDING,
                 )
-                messages.info(request, _("Ödəniş rədd edildi."))
+                if action == "approve_supplier_pay":
+                    # Authorization only — SupplierPayment / ops payable drop on separate settle.
+                    ApprovalService.decide(req, approved=True, decided_by=request.user)
+                    messages.success(
+                        request,
+                        _(
+                            "Podratçı ödənişi təsdiqləndi. Settlement sübutu "
+                            "mühasib tərəfindən AP faktura səhifəsində qeydə alınır."
+                        ),
+                    )
+                else:
+                    ApprovalService.decide(
+                        req,
+                        approved=False,
+                        decided_by=request.user,
+                        comment=request.POST.get("comment") or "",
+                    )
+                    messages.info(request, _("Podratçı ödənişi rədd edildi."))
         except (DomainError, InvalidOperation, ValueError) as exc:
             messages.error(request, str(exc))
-        return redirect("erp:payment_approvals")
+        return redirect(redirect_url)
 
 
 class ArAgingView(RoleRequiredMixin, TemplateView):

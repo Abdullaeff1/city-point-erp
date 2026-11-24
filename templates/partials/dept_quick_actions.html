@@ -1,22 +1,12 @@
 {% load i18n %}
-{% comment %}Expects: quick_actions — list of {label, url, icon?} ; reports optional{% endcomment %}
-<div class="cp-card p-card mb-4">
-  <div class="cp-section">{% translate "Tez keçidlər" %}</div>
-  {% if quick_actions %}
-  <div class="flex gap-2" style="flex-wrap:wrap;margin-top:12px;">
-    {% for a in quick_actions %}
-    <a class="cp-btn" href="{{ a.url }}">{{ a.label }}</a>
-    {% endfor %}
-  </div>
-  {% else %}
-  <p class="cp-meta mt-3">{% translate "Keçid yoxdur." %}</p>
-  {% endif %}
-  {% if reports %}
-  <div class="cp-section mt-4">{% translate "Hesabatlar" %}</div>
-  <div class="flex gap-2" style="flex-wrap:wrap;margin-top:8px;">
-    {% for r in reports %}
-    <a class="cp-btn-ghost" href="{{ r.url }}">{{ r.label }}</a>
-    {% endfor %}
-  </div>
-  {% endif %}
-</div>
+{% if quick_actions %}
+<nav class="erp-quick-links mb-5" aria-label="{% translate 'Tez keçidlər' %}">
+  {% for action in quick_actions %}
+  <a class="cp-card erp-quick-link" href="{{ action.url }}">
+    <span class="erp-icon"><i data-lucide="{{ action.icon|default:'arrow-up-right' }}" aria-hidden="true"></i></span>
+    <span>{{ action.label }}</span>
+    <i data-lucide="chevron-right" width="15" height="15" aria-hidden="true"></i>
+  </a>
+  {% endfor %}
+</nav>
+{% endif %}

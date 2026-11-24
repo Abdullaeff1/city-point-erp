@@ -139,15 +139,11 @@ class ReceptionService(Service):
         card = normalize_guest_card(guest_card_number)
         fin = normalize_fin(fin_code)
         reason = (id_override_reason or "").strip()
-        # ID held → seriya; qonaq kartı ayrıca (məcburi deyil).
+        # Vəsiqə məcburi deyil; qonaq kartı veriləndə vəsiqə + seriya lazımdır.
+        if card and not held:
+            cls.require(False, "Qonaq kartı üçün vəsiqə qəbul olunmalıdır.")
         if held:
             cls.require(bool(fin), "Seriya nömrəsi tələb olunur.")
-        elif not id_policy_skips_document(visit_type=visit_type):
-            cls.require(
-                allow_id_override,
-                "Vəsiqəsiz giriş üçün override icazəsi (reception.override_id) lazımdır.",
-            )
-            cls.require(bool(reason), "Override səbəbi tələb olunur.")
         if host is not None:
             cls.require(host.company_id == company.id, "Host seçilmiş şirkətə aid deyil.")
             cls.require(host.is_active, "Host aktiv deyil.")
@@ -177,7 +173,7 @@ class ReceptionService(Service):
             check_in_at=now,
             created_by=actor if getattr(actor, "is_authenticated", False) else None,
             id_document_held=held,
-            id_override_reason=(reason if not held else ""),
+            id_override_reason=(reason if (not held and reason) else ""),
             notes=notes or "",
             pre_registered=False,
         )
@@ -311,16 +307,10 @@ class ReceptionService(Service):
             guest.save()
 
         fin = normalize_fin(guest.fin_code)
+        if card and not held:
+            cls.require(False, "Qonaq kartı üçün vəsiqə qəbul olunmalıdır.")
         if held:
             cls.require(bool(fin), "Seriya nömrəsi tələb olunur.")
-        elif not id_policy_skips_document(
-            visit_type=visit.visit_type, list_import_id=visit.list_import_id
-        ):
-            cls.require(
-                allow_id_override,
-                "Vəsiqəsiz check-in üçün override icazəsi (reception.override_id) lazımdır.",
-            )
-            cls.require(bool(reason), "Override səbəbi tələb olunur.")
 
         other = (
             GuestVisit.objects.select_for_update()
@@ -333,7 +323,7 @@ class ReceptionService(Service):
         visit.status = VisitStatus.INSIDE
         visit.check_in_at = timezone.now()
         visit.id_document_held = held
-        visit.id_override_reason = reason if not held else ""
+        visit.id_override_reason = reason if (not held and reason) else ""
         visit.save(
             update_fields=[
                 "status",
@@ -373,6 +363,25 @@ class ReceptionService(Service):
         return len(visits)
 
     @classmethod
+    def _resolve_departure_stamps(cls, visit: GuestVisit, *, departed_at, now):
+        """Validate optional known departure; always stamp administrative close time.
+
+        ``actual_departure_at`` is null when the operator does not know exit time.
+        ``check_out_recorded_at`` is always the close action time.
+        ``check_out_at`` remains the display/export exit stamp (known departure or close).
+        """
+        if departed_at is not None:
+            stamp = departed_at
+            if timezone.is_naive(stamp):
+                stamp = timezone.make_aware(stamp, timezone.get_current_timezone())
+            if visit.check_in_at and stamp < visit.check_in_at:
+                raise DomainError("Çıxış vaxtı girişdən əvvəl ola bilməz.")
+            if stamp > now:
+                raise DomainError("Çıxış vaxtı gələcək ola bilməz.")
+            return stamp, stamp, now
+        return None, now, now
+
+    @classmethod
     @transaction.atomic
     def check_out_visit(
         cls,
@@ -388,23 +397,35 @@ class ReceptionService(Service):
         visit = GuestVisit.objects.select_for_update().get(pk=visit.pk)
         cls.require(visit.status == VisitStatus.INSIDE, "Yalnız içəridə olan qonaq çıxış edə bilər.")
         now = timezone.now()
-        stamp = departed_at or now
-        if visit.check_in_at and stamp < visit.check_in_at:
-            raise DomainError("Çıxış vaxtı girişdən əvvəl ola bilməz.")
+        actual_departure, display_stamp, recorded_at = cls._resolve_departure_stamps(
+            visit, departed_at=departed_at, now=now
+        )
         source = (checkout_source or ("axtrax_out" if access_event_id else "manual")).strip()
         audit_extra = {
             "checkout_source": source,
             "access_event_id": access_event_id,
-            "departed_at": stamp.isoformat() if stamp else None,
-            "processed_at": now.isoformat(),
+            "departed_at": actual_departure.isoformat() if actual_departure else None,
+            "departure_known": actual_departure is not None,
+            "processed_at": recorded_at.isoformat(),
+            "actor_id": getattr(actor, "pk", None),
         }
 
         if visit.id_document_held and not id_returned:
             cls.require(allow_return_pending, "Vəsiqə qaytarılmalıdır.")
             visit.status = VisitStatus.RETURN_PENDING
-            visit.check_out_at = stamp
-            visit.save(update_fields=["status", "check_out_at", "updated_at"])
-            revoke_visitor_access(visit, until=stamp)
+            visit.check_out_at = display_stamp
+            visit.actual_departure_at = actual_departure
+            visit.check_out_recorded_at = recorded_at
+            visit.save(
+                update_fields=[
+                    "status",
+                    "check_out_at",
+                    "actual_departure_at",
+                    "check_out_recorded_at",
+                    "updated_at",
+                ]
+            )
+            revoke_visitor_access(visit, until=display_stamp)
             _audit("visit.return_pending", actor=actor, entity=visit, new=audit_extra)
             from apps.core import events as bus
 
@@ -417,8 +438,8 @@ class ReceptionService(Service):
                     "reason": "id_held",
                     "checkout_source": source,
                     "access_event_id": access_event_id,
-                    "departed_at": stamp.isoformat() if stamp else None,
-                    "processed_at": now.isoformat(),
+                    "departed_at": actual_departure.isoformat() if actual_departure else None,
+                    "processed_at": recorded_at.isoformat(),
                     # Never put ID document numbers in event/notify payloads.
                     "id_document_held": True,
                 },
@@ -428,20 +449,24 @@ class ReceptionService(Service):
             return visit
 
         visit.status = VisitStatus.LEFT
-        visit.check_out_at = stamp
+        visit.check_out_at = display_stamp
+        visit.actual_departure_at = actual_departure
+        visit.check_out_recorded_at = recorded_at
         if visit.id_document_held or id_returned:
             visit.id_document_held = False
-            visit.id_document_returned_at = now
+            visit.id_document_returned_at = recorded_at
         visit.save(
             update_fields=[
                 "status",
                 "check_out_at",
+                "actual_departure_at",
+                "check_out_recorded_at",
                 "id_document_held",
                 "id_document_returned_at",
                 "updated_at",
             ]
         )
-        revoke_visitor_access(visit, until=stamp)
+        revoke_visitor_access(visit, until=display_stamp)
         _audit("visit.check_out", actor=actor, entity=visit, new=audit_extra)
         from apps.core import events as bus
 
@@ -454,8 +479,8 @@ class ReceptionService(Service):
                 "id_returned": bool(id_returned or not visit.id_document_held),
                 "checkout_source": source,
                 "access_event_id": access_event_id,
-                "departed_at": stamp.isoformat() if stamp else None,
-                "processed_at": now.isoformat(),
+                "departed_at": actual_departure.isoformat() if actual_departure else None,
+                "processed_at": recorded_at.isoformat(),
             },
             actor=actor,
             event_key=f"visitor.checked_out.{visit.pk}",
@@ -477,12 +502,15 @@ class ReceptionService(Service):
         visit.id_document_returned_at = now
         if not visit.check_out_at:
             visit.check_out_at = now
+        if not visit.check_out_recorded_at:
+            visit.check_out_recorded_at = now
         visit.save(
             update_fields=[
                 "status",
                 "id_document_held",
                 "id_document_returned_at",
                 "check_out_at",
+                "check_out_recorded_at",
                 "updated_at",
             ]
         )
@@ -630,7 +658,10 @@ def visit_has_active_guest_card(visit: GuestVisit) -> bool:
 
 
 def can_portal_checkout(visit: GuestVisit, *, company) -> bool:
-    """Resident may close visits reception is not fully tracking (no ID / no guest card)."""
+    """Resident may close admitted cardless visits when Reception holds no ID document.
+
+    Includes Reception walk-ins without ID/card. Card-issued visits stay Reception-owned.
+    """
     if company is None or visit.company_id != company.id:
         return False
     if visit.status != VisitStatus.INSIDE:
@@ -642,14 +673,121 @@ def can_portal_checkout(visit: GuestVisit, *, company) -> bool:
     return True
 
 
+def is_portal_checkout_overdue(visit: GuestVisit, *, now=None) -> bool:
+    """True when an eligible cardless INSIDE visit passed check-in + 24h."""
+    if visit.status != VisitStatus.INSIDE:
+        return False
+    if visit.id_document_held or visit_has_active_guest_card(visit):
+        return False
+    now = now or timezone.now()
+    start = visit.check_in_at or visit.created_at
+    if start is None:
+        return False
+    return start <= now - timedelta(hours=24)
+
+
+def portal_cardless_overdue_queryset(*, now=None):
+    """Open cardless visits past the 24h check-in boundary (portal alert candidates)."""
+    cutoff = (now or timezone.now()) - timedelta(hours=24)
+    return (
+        GuestVisit.objects.filter(status=VisitStatus.INSIDE, id_document_held=False)
+        .filter(
+            Q(check_in_at__lte=cutoff)
+            | Q(check_in_at__isnull=True, created_at__lte=cutoff)
+        )
+        .exclude(visitor_access__status=VisitorAccessStatus.ACTIVE)
+        .select_related("guest", "company")
+        .order_by("check_in_at", "id")
+    )
+
+
+def portal_guest_alert_recipients(company):
+    """In-app overdue recipients for a company.
+
+    Policy (no finer guest-mgmt PermissionCode in catalog): every active
+    ``PortalCompanyMembership`` for a ``RESIDENT_USER`` on that company — the
+    same population that can open the portal guest list / cardless checkout.
+    """
+    from django.contrib.auth import get_user_model
+
+    from apps.accounts.models import PortalCompanyMembership, Role
+
+    User = get_user_model()
+    if company is None:
+        return User.objects.none()
+    user_ids = PortalCompanyMembership.objects.filter(
+        company_id=company.pk if hasattr(company, "pk") else company,
+        is_active=True,
+        user__role=Role.RESIDENT_USER,
+        user__is_active=True,
+    ).values_list("user_id", flat=True)
+    return User.objects.filter(pk__in=user_ids).order_by("pk")
+
+
+OVERDUE_CHECKOUT_EVENT_PREFIX = "visitor.checkout_overdue."
+
+
+def overdue_checkout_event_key(visit_id: int, user_id: int) -> str:
+    return f"{OVERDUE_CHECKOUT_EVENT_PREFIX}{visit_id}.u.{user_id}"
+
+
+def notify_portal_checkout_overdue(visit: GuestVisit) -> int:
+    """One in-app alert per authorized recipient × visit (idempotent via event_key)."""
+    from apps.comms.models import Notification
+    from apps.comms.services import notify_in_app
+
+    if not is_portal_checkout_overdue(visit):
+        return 0
+    label = visit.guest.display_name if visit.guest_id else str(visit.pk)
+    created = 0
+    for user in portal_guest_alert_recipients(visit.company):
+        key = overdue_checkout_event_key(visit.pk, user.pk)
+        existed = Notification.objects.filter(user=user, event_key=key).exists()
+        note = notify_in_app(
+            user=user,
+            message=f"Qonaq çıxışı gecikir (24 saat+): {label}",
+            event_key=key,
+        )
+        if note is not None and not existed:
+            created += 1
+    return created
+
+
+def process_portal_checkout_overdue_alerts(*, now=None) -> dict:
+    """Scheduler body: notify for each overdue cardless visit; safe to re-run."""
+    now = now or timezone.now()
+    visits = list(portal_cardless_overdue_queryset(now=now))
+    created = 0
+    for visit in visits:
+        created += notify_portal_checkout_overdue(visit)
+    return {"visits": len(visits), "notifications_created": created, "as_of": now.isoformat()}
+
+
 @transaction.atomic
-def portal_check_out_visit(visit: GuestVisit, *, actor, company) -> GuestVisit:
+def portal_check_out_visit(
+    visit: GuestVisit, *, actor, company, departed_at=None
+) -> GuestVisit:
     visit = GuestVisit.objects.select_for_update().select_related("company").get(pk=visit.pk)
+    if company is None or visit.company_id != company.id:
+        raise DomainError(_("Bu qonaq seçilmiş şirkətə aid deyil."))
+    # Idempotent: already closed under portal-eligible rules stays closed.
+    if visit.status == VisitStatus.LEFT:
+        if visit.id_document_held or visit_has_active_guest_card(visit):
+            raise DomainError(
+                _("Bu qonağın çıxışını yalnız reception bağlaya bilər (vəsiqə və ya qonaq kartı).")
+            )
+        return visit
     if not can_portal_checkout(visit, company=company):
         raise DomainError(
             _("Bu qonağın çıxışını yalnız reception bağlaya bilər (vəsiqə və ya qonaq kartı).")
         )
-    return ReceptionService.check_out_visit(visit, actor=actor, id_returned=True)
+    return ReceptionService.check_out_visit(
+        visit,
+        actor=actor,
+        id_returned=True,
+        departed_at=departed_at,
+        checkout_source="portal",
+    )
 
 
 def _credentials_match(stored: str, incoming: str) -> bool:
@@ -770,26 +908,23 @@ def record_ambiguous_guest_checkout(event, matches: list[VisitorAccess]) -> bool
 
 
 def checkout_guests_from_access_events(events) -> int:
-    """Close INSIDE visits whose guest-card assignment matches an OUT AccessEvent.
+    """AxTrax OUT is passage evidence only for QONAQ guest-card custody.
 
-    Uses the event occurrence time (not poll time). ID-held visits go to
-    RETURN_PENDING (electronic exit known; physical ID still at reception).
-    Already-closed visits are left unchanged (Reception/manual precedence).
+    Reception owns physical card return and ID document custody. Matching OUT
+    events are still recorded as AccessEvents by the sync layer; this hook must
+    not set LEFT / RETURN_PENDING or mark physical items returned.
 
-    Mapped employee events are never used for guest checkout (even when the
-    printed badge string collides with a guest credential). Ambiguous multi-visit
-    matches leave visits open and record a SyncLog for diagnosis.
+    Ambiguous multi-visit matches continue to write a SyncLog for diagnosis.
+    Returns 0 guest checkouts finalized (always) for this City Point workflow.
     """
     from apps.residents.models import AccessEventType, AccessResult
 
-    count = 0
     seen_event_keys: set[str] = set()
     for event in events or []:
         if getattr(event, "result", None) != AccessResult.GRANTED:
             continue
         if getattr(event, "event_type", None) != AccessEventType.OUT:
             continue
-        # Employee-attributed punches are not guest departures.
         if _is_mapped_employee_event(event):
             continue
         card = normalize_guest_card(getattr(event, "card_number", None) or "")
@@ -802,30 +937,11 @@ def checkout_guests_from_access_events(events) -> int:
         seen_event_keys.add(dedupe)
 
         matches = list_guest_access_matches(card=card, occurred_at=occurred_at)
-        if len(matches) == 0:
-            continue
         if len(matches) > 1:
             record_ambiguous_guest_checkout(event, matches)
             continue
-        access = matches[0]
-        visit = access.visit
-        if visit.status != VisitStatus.INSIDE:
-            # Precedence: Reception (or prior sync) already closed — keep timestamp.
-            continue
-        try:
-            ReceptionService.check_out_visit(
-                visit,
-                actor=None,
-                id_returned=not visit.id_document_held,
-                allow_return_pending=True,
-                departed_at=occurred_at,
-                checkout_source="axtrax_out",
-                access_event_id=getattr(event, "pk", None),
-            )
-            count += 1
-        except DomainError:
-            continue
-    return count
+        # Single or zero match: leave visit status unchanged (Reception/portal close).
+    return 0
 
 
 def create_visitor_access(visit: GuestVisit, *, credential: str = "") -> VisitorAccess:

@@ -46,6 +46,7 @@ VERIFIED_MONETARY_BASES = frozenset(
     {
         "rfq_quote_unit_price_x_pr_qty",
         "priced_po_unit_price_x_pr_qty",
+        "rfq_quote_lines_gross",
     }
 )
 
@@ -306,7 +307,7 @@ class ProcurementService(Service):
 
         cls.assert_can_edit_procurement(actor)
         legal_name = (legal_name or "").strip()
-        cls.require(legal_name, "Təchizatçı adı tələb olunur.")
+        cls.require(legal_name, "Podratçı adı tələb olunur.")
         tax_id = (tax_id or "").strip()[:64]
         brand_name = (brand_name or "").strip()[:200]
         contact_email = (contact_email or "").strip()
@@ -320,9 +321,9 @@ class ProcurementService(Service):
         if party is not None:
             qs = qs.exclude(pk=party.pk)
         if tax_id and qs.filter(tax_id__iexact=tax_id).exists():
-            raise DomainError("Bu VÖEN ilə təchizatçı artıq mövcuddur.")
+            raise DomainError("Bu VÖEN ilə podratçı artıq mövcuddur.")
         if qs.filter(legal_name__iexact=legal_name).exists():
-            raise DomainError("Bu adla təchizatçı artıq mövcuddur.")
+            raise DomainError("Bu adla podratçı artıq mövcuddur.")
 
         created = False
         if party is None:
@@ -490,7 +491,57 @@ class ProcurementService(Service):
 
     @classmethod
     def assess_quote_amount(cls, quote: RFQQuote, pr: PurchaseRequest) -> AmountAssessment:
-        """Comparable total: single quote unit_price × remaining PR qtys (RFQ model limit)."""
+        """Legacy header quote: unit_price × remaining PR qtys.
+
+        Line-priced quotes use quote_lines gross via LineSourcingService.
+        """
+        from apps.procurement.line_sourcing import quote_line_amounts
+        from apps.procurement.models import QuoteLineResponseStatus
+
+        line_prices = list(quote.lines.all()) if hasattr(quote, "lines") else []
+        if line_prices:
+            total = Decimal("0")
+            any_quoted = False
+            for ql in line_prices:
+                if ql.response_status != QuoteLineResponseStatus.QUOTED:
+                    continue
+                any_quoted = True
+                amounts = quote_line_amounts(ql)
+                if amounts["tax_basis"] == "unknown" or amounts["gross"] is None:
+                    return AmountAssessment(
+                        None, "", "amount_unknown", "quote_line_tax_unknown"
+                    )
+                currency = (ql.currency or _SUPPORTED_CURRENCY).strip().upper()
+                if currency != _SUPPORTED_CURRENCY:
+                    return AmountAssessment(
+                        None, currency, "currency_unsupported", "rfq_quote_line_currency"
+                    )
+                # Comparable total uses remaining PR qty × unit (not under-quoted qty)
+                rem = cls.pr_line_remaining_qty(ql.pr_line)
+                if rem <= 0:
+                    continue
+                unit = _quantize_money(Decimal(str(ql.unit_price or 0)))
+                # Rebuild gross for remaining qty with same tax basis
+                if ql.vat_rate is None:
+                    return AmountAssessment(
+                        None, "", "amount_unknown", "quote_line_tax_unknown"
+                    )
+                rate = Decimal(str(ql.vat_rate))
+                raw = _quantize_money(rem * unit)
+                if ql.price_includes_vat:
+                    gross = raw
+                else:
+                    gross = _quantize_money(raw + raw * rate)
+                total += gross
+            if not any_quoted:
+                return AmountAssessment(None, "", "empty_request", "no_quoted_lines")
+            return AmountAssessment(
+                _quantize_money(total),
+                _SUPPORTED_CURRENCY,
+                "ok",
+                "rfq_quote_lines_gross",
+            )
+
         lines = list(pr.lines.all())
         if not lines:
             return AmountAssessment(None, "", "empty_request", "no_lines")
@@ -521,6 +572,38 @@ class ProcurementService(Service):
             "ok",
             "rfq_quote_unit_price_x_pr_qty",
         )
+
+    # --- Line-level sourcing facades ---
+
+    @classmethod
+    def invite_supplier_to_rfq(cls, *args, **kwargs):
+        from apps.procurement.line_sourcing import LineSourcingService
+
+        return LineSourcingService.invite_supplier_to_rfq(*args, **kwargs)
+
+    @classmethod
+    def add_rfq_quote_lines(cls, *args, **kwargs):
+        from apps.procurement.line_sourcing import LineSourcingService
+
+        return LineSourcingService.add_rfq_quote_lines(*args, **kwargs)
+
+    @classmethod
+    def build_line_comparison(cls, *args, **kwargs):
+        from apps.procurement.line_sourcing import LineSourcingService
+
+        return LineSourcingService.build_line_comparison(*args, **kwargs)
+
+    @classmethod
+    def award_pr_lines(cls, *args, **kwargs):
+        from apps.procurement.line_sourcing import LineSourcingService
+
+        return LineSourcingService.award_pr_lines(*args, **kwargs)
+
+    @classmethod
+    def create_pos_from_awards(cls, *args, **kwargs):
+        from apps.procurement.line_sourcing import LineSourcingService
+
+        return LineSourcingService.create_pos_from_awards(*args, **kwargs)
 
     @classmethod
     def assess_po_amount(cls, po: PurchaseOrder) -> AmountAssessment:
@@ -659,24 +742,12 @@ class ProcurementService(Service):
 
     @classmethod
     def actor_within_approval_limit(cls, actor, amount: Decimal | None) -> bool:
-        from apps.accounts.models import Role
+        """Legacy helper — amount-based self-authorization is retired.
 
-        role = getattr(actor, "role", None) if actor else None
-        if role == Role.ADMIN:
-            # Admin may grant process authorization even when amount is unknown.
-            return True
-        if role == Role.MANAGEMENT:
-            # Management decides via the approval hub, not the local PR path.
-            return amount is not None
-        if not role:
-            return False
-        if amount is None:
-            return False
-        limit = PurchaseApprovalLimit.objects.filter(role=role, is_active=True).first()
-        if limit is None:
-            return False
-        # Inclusive threshold: amount <= max_amount stays local; amount > max_amount escalates.
-        return Decimal(str(amount)) <= Decimal(str(limit.max_amount))
+        Always False for spending authority. Kept for call-site compatibility /
+        reporting only; PO issue requires a matching Management commitment.
+        """
+        return False
 
     @classmethod
     def approval_limit_for(cls, actor) -> PurchaseApprovalLimit | None:
@@ -687,22 +758,21 @@ class ProcurementService(Service):
 
     @classmethod
     def assert_can_approve_pr(cls, actor, pr: PurchaseRequest) -> None:
-        """Least-privilege: PROPERTY_FM may only approve operational WO/low-stock PRs."""
+        """Process-path submit/escalate only — no local spending authority."""
         from apps.accounts.models import Role
         from apps.procurement.models import PRSource
 
         role = getattr(actor, "role", None) if actor else None
-        if role in {Role.ADMIN}:
+        if role == Role.MANAGEMENT:
+            raise DomainError("Rəhbərlik satınalmanı təsdiq hub ilə idarə edir.")
+        if role == Role.ADMIN:
             return
-        if role == Role.PROPERTY_FM:
+        if role == Role.SERVICE_DESK:
             if pr.source not in {PRSource.WO, PRSource.LOW_STOCK}:
                 raise DomainError(
-                    "Facility yalnız iş əmri / ehtiyat çatışmazlığı satınalmalarını təsdiq edə bilər."
+                    "Təchizat yalnız iş əmri / ehtiyat çatışmazlığı satınalmalarını irəli apara bilər."
                 )
             return
-        if role in {Role.SERVICE_DESK}:
-            return
-        # Management uses approval.decide hub, not procurement.approve UI path.
         raise DomainError("Satınalma təsdiqi üçün icazəniz yoxdur.")
 
     @classmethod
@@ -717,29 +787,17 @@ class ProcurementService(Service):
 
     @classmethod
     def approve_pr(cls, pr: PurchaseRequest, *, actor=None) -> PurchaseRequest:
-        """Approve within monetary role limit, or escalate to Management.
+        """Escalate every PR to Management — no amount-based self-authorization.
 
-        Escalation commits the ApprovalRequest in its own atomic block before raising,
-        so the pending queue survives the DomainError.
+        Process-only PR approval (via Management hub) grants no spending authority;
+        priced PO issue still requires a matching ``procurement.commitment``.
+        Escalation commits the ApprovalRequest before raising so the queue survives.
         """
-        from apps.accounts.models import Role
-
         cls.require(pr.status in {PRStatus.DRAFT, PRStatus.SUBMITTED}, "PR təsdiq üçün uyğun deyil.")
         cls.assert_can_approve_pr(actor, pr)
         assessed = cls.assess_pr_approval_amount(pr)
-        role = getattr(actor, "role", None) if actor else None
-
-        if assessed.is_known and cls.actor_within_approval_limit(actor, assessed.amount):
-            return cls._approve_pr_immediate(pr, actor=actor, assessed=assessed)
-
-        # Admin may still authorize process start when the monetary total is unknown.
-        if role == Role.ADMIN and not assessed.is_known:
-            return cls._approve_pr_immediate(pr, actor=actor, assessed=assessed)
-
         if not assessed.is_known:
             reason = assessed.reason or "amount_unknown"
-        elif cls.approval_limit_for(actor) is None:
-            reason = "limit_missing"
         else:
             reason = "over_limit"
         cls._escalate_pr_for_management(pr, actor=actor, assessed=assessed, reason=reason)
@@ -972,16 +1030,16 @@ class ProcurementService(Service):
         Over-limit priced attempts escalate to procurement.commitment when escalate=True.
         Returns the matching approved commitment when one authorizes this issue.
         """
-        from apps.accounts.models import Role
         from apps.audit.services import log_action
-
-        role = getattr(actor, "role", None) if actor else None
 
         if additional.reason == "currency_unsupported":
             raise DomainError(cls._escalation_message("currency_unsupported"))
         if not additional.is_known:
-            # Unpriced PO create after process_only PR approval: no spending ceiling yet.
-            return None
+            # Unpriced issue blocked — draft-only path uses create_po_from_pr(status=DRAFT).
+            raise DomainError(
+                "Qiymətsiz satınalma buraxıla bilməz — yalnız qaralama; "
+                "podratçı + qiymətli sətirlər və Management təsdiqi tələb olunur."
+            )
 
         committed = cls.pr_committed_amount(pr)
         if not committed.is_known:
@@ -993,58 +1051,67 @@ class ProcurementService(Service):
         )
         supplier_id = supplier_id or (quote.supplier_party_id if quote else None)
         quote_id = quote.pk if quote else None
-        fingerprint = None
-        if price is not None:
-            fingerprint = cls.commitment_fingerprint(
-                pr,
-                unit_price=price,
-                currency=additional.currency,
-                supplier_id=supplier_id,
-                quote_id=quote_id,
+        if price is None:
+            raise DomainError(
+                "Qiymətsiz satınalma buraxıla bilməz — yalnız qaralama; "
+                "podratçı + qiymətli sətirlər və Management təsdiqi tələb olunur."
             )
-            matched = cls.find_matching_commitment(
-                pr, fingerprint=fingerprint, status=ApprovalStatus.APPROVED
-            )
-            if matched is not None:
-                ceiling = cls.verified_spending_ceiling(matched.payload)
-                if ceiling is not None and projected <= ceiling:
-                    return matched
-                if ceiling is not None and projected > ceiling:
-                    raise DomainError(
-                        f"Təsdiq olunmuş öhdəlik limiti aşılır ({projected} > {ceiling} AZN)."
-                    )
 
-        prior_ceiling = cls.verified_spending_ceiling(cls.latest_pr_approval_payload(pr))
-        if prior_ceiling is not None:
-            if projected > prior_ceiling:
+        fingerprint = cls.commitment_fingerprint(
+            pr,
+            unit_price=price,
+            currency=additional.currency,
+            supplier_id=supplier_id,
+            quote_id=quote_id,
+        )
+        matched = cls.find_matching_commitment(
+            pr, fingerprint=fingerprint, status=ApprovalStatus.APPROVED
+        )
+        if matched is not None:
+            payload = matched.payload or {}
+            # Revalidate terms — changed supplier/price after approval must not issue.
+            if supplier_id is not None and payload.get("supplier_id") not in (
+                None,
+                supplier_id,
+            ):
                 raise DomainError(
-                    f"Təsdiq olunmuş məbləğ limiti aşılır ({projected} > {prior_ceiling} AZN)."
+                    "Təsdiqlənmiş podratçı dəyişib — yeni Management təsdiqi tələb olunur."
                 )
-            return None
+            if format(_quantize_money(Decimal(str(price))), "f") != str(
+                payload.get("unit_price") or ""
+            ):
+                # Fingerprint already encodes price; mismatch means stale payload.
+                if payload.get("fingerprint") and payload.get("fingerprint") != fingerprint:
+                    raise DomainError(
+                        "Təsdiqlənmiş təklif şərtləri dəyişib — yeni Management təsdiqi tələb olunur."
+                    )
+            ceiling = cls.verified_spending_ceiling(matched.payload)
+            if ceiling is not None and projected <= ceiling:
+                return matched
+            if ceiling is not None and projected > ceiling:
+                raise DomainError(
+                    f"Təsdiq olunmuş öhdəlik limiti aşılır ({projected} > {ceiling} AZN)."
+                )
+            # Commitment without verified ceiling still authorizes exact fingerprint match.
+            if (matched.payload or {}).get("fingerprint") == fingerprint:
+                return matched
 
-        if role == Role.ADMIN:
-            limit = cls.approval_limit_for(actor)
-            # Admin has no role limit row usually — still audit when exceeding a configured FM-style check
-            # or when projected would fail a typical gate. Log every priced Admin commit for audit.
-            log_action(
-                action="procurement.commitment.admin_override",
-                actor=actor,
-                entity=pr,
-                new_values={
-                    "projected": str(projected),
-                    "additional": str(additional.amount),
-                    "currency": additional.currency,
-                    "fingerprint": fingerprint or "",
-                    "quote_id": quote_id,
-                },
-            )
-            return None
+        # process_only PR approval never grants spending authority (prior_ceiling ignored).
+        log_action(
+            action="procurement.commitment.required",
+            actor=actor,
+            entity=pr,
+            new_values={
+                "projected": str(projected),
+                "additional": str(additional.amount),
+                "currency": additional.currency,
+                "fingerprint": fingerprint,
+                "quote_id": quote_id,
+            },
+        )
 
-        if cls.actor_within_approval_limit(actor, projected):
-            return None
-
-        reason = "limit_missing" if cls.approval_limit_for(actor) is None else "over_limit"
-        if escalate and price is not None and fingerprint:
+        reason = "over_limit"
+        if escalate and fingerprint:
             pending = cls.find_matching_commitment(
                 pr, fingerprint=fingerprint, status=ApprovalStatus.PENDING
             )
@@ -1062,10 +1129,8 @@ class ProcurementService(Service):
                 f"{cls._escalation_message(reason)} "
                 f"(öhdəlik sorğusu #{pending.pk}: {additional.amount} {additional.currency})."
             )
-        if reason == "limit_missing":
-            raise DomainError(cls._escalation_message("limit_missing"))
         raise DomainError(
-            f"Satınalma öhdəliyi limiti aşılır ({projected} AZN) — Management təsdiqi tələb olunur."
+            f"Satınalma öhdəliyi üçün Management təsdiqi tələb olunur ({projected} AZN)."
         )
 
     @classmethod
@@ -1152,9 +1217,9 @@ class ProcurementService(Service):
 
         if actor is not None:
             cls.assert_can_edit_procurement(actor)
-        cls.require(supplier_party is not None, "Təchizatçı seçilməlidir.")
+        cls.require(supplier_party is not None, "Podratçı seçilməlidir.")
         if not supplier_party.roles.filter(role=PartyRoleCode.SUPPLIER).exists():
-            raise DomainError("Seçilmiş party təchizatçı deyil.")
+            raise DomainError("Seçilmiş party podratçı deyil.")
         if unit_price is None or str(unit_price).strip() == "":
             raise DomainError("Qiymət tələb olunur — boş qiymət sıfır təklif sayılmır.")
         price = Decimal(str(unit_price))
@@ -1230,7 +1295,7 @@ class ProcurementService(Service):
             cls.assert_can_edit_procurement(actor)
         rfq = quote.rfq
         cls.require(rfq.pr_id, "RFQ Purchase Request-ə bağlı deyil.")
-        cls.require(quote.supplier_party_id, "Təchizatçı seçilməlidir.")
+        cls.require(quote.supplier_party_id, "Podratçı seçilməlidir.")
 
         try:
             with transaction.atomic():
@@ -1260,11 +1325,17 @@ class ProcurementService(Service):
                         )
                     if quote.supplier_party_id != payload.get("supplier_id"):
                         raise DomainError(
-                            "Təsdiqlənmiş təchizatçı dəyişib — yeni Management təsdiqi tələb olunur."
+                            "Təsdiqlənmiş podratçı dəyişib — yeni Management təsdiqi tələb olunur."
                         )
                 RFQQuote.objects.filter(rfq=rfq, is_selected=True).update(is_selected=False)
                 quote.is_selected = True
                 quote.save(update_fields=["is_selected"])
+                # Legacy header path: block if active line awards exist for this PR
+                if pr.line_awards.filter(is_active=True, po_line__isnull=True).exists():
+                    raise DomainError(
+                        "PR-də sətir mükafatları var — header təklifdən PO əvəzinə "
+                        "mükafatlardan PO yaradın."
+                    )
                 return cls.create_po_from_pr(
                     pr,
                     supplier_party=quote.supplier_party,
@@ -1307,9 +1378,9 @@ class ProcurementService(Service):
 
         if actor is not None:
             cls.assert_can_edit_procurement(actor)
-        cls.require(supplier_party is not None, "Təchizatçı seçilməlidir.")
+        cls.require(supplier_party is not None, "Podratçı seçilməlidir.")
         if not supplier_party.roles.filter(role=PartyRoleCode.SUPPLIER).exists():
-            raise DomainError("Seçilmiş party təchizatçı deyil.")
+            raise DomainError("Seçilmiş party podratçı deyil.")
 
         priced = unit_price is not None
         matched = commitment
@@ -1323,6 +1394,12 @@ class ProcurementService(Service):
                     "Yalnız təsdiqlənmiş PR-dən PO.",
                 )
                 resolved_qtys = cls.resolve_po_line_qtys(locked, line_qtys)
+                # Direct PO must not bypass active line awards awaiting issuance
+                if locked.line_awards.filter(is_active=True, po_line__isnull=True).exists():
+                    raise DomainError(
+                        "PR-də sətir mükafatları var — birbaşa PO əvəzinə "
+                        "mükafatlardan PO yaradın."
+                    )
                 if priced and not skip_commitment_check:
                     assessed = cls._priced_assessment(locked, unit_price, line_qtys=line_qtys)
                     matched = cls.assert_commitment_allowed(
@@ -1333,22 +1410,26 @@ class ProcurementService(Service):
                         supplier_id=getattr(supplier_party, "pk", None),
                         escalate=False,
                     )
-                elif not priced and not skip_commitment_check:
-                    cls.assert_commitment_allowed(
-                        locked,
-                        additional=AmountAssessment(
-                            None, "", "amount_unknown", "po_create_unpriced"
-                        ),
-                        actor=actor,
-                        escalate=False,
-                    )
+                    if matched is None:
+                        raise DomainError(
+                            "Qiymətli PO üçün Management öhdəlik təsdiqi tələb olunur."
+                        )
+                elif priced and skip_commitment_check:
+                    if matched is None:
+                        raise DomainError(
+                            "Qiymətli PO üçün Management öhdəlik təsdiqi tələb olunur."
+                        )
+                elif not priced:
+                    # Unpriced record may exist only as draft — no issue / goods receipt.
+                    matched = None
 
+                po_status = POStatus.SENT if priced else POStatus.DRAFT
                 po = PurchaseOrder.objects.create(
                     code=_next_code("PO", PurchaseOrder),
                     supplier_party=supplier_party,
-                    status=POStatus.SENT,
+                    status=po_status,
                     pr=locked,
-                    ordered_at=timezone.localdate(),
+                    ordered_at=timezone.localdate() if priced else None,
                 )
                 price_value = (
                     _quantize_money(Decimal(str(unit_price))) if priced else None
@@ -1363,10 +1444,11 @@ class ProcurementService(Service):
                         qty=qty,
                         unit_price=price_value if price_value is not None else Decimal("0"),
                     )
-                if locked.status == PRStatus.APPROVED:
+                if priced and locked.status == PRStatus.APPROVED:
                     locked.status = PRStatus.ORDERED
                     locked.save(update_fields=["status"])
-                cls._mark_commitment_consumed(matched, po)
+                if priced:
+                    cls._mark_commitment_consumed(matched, po)
                 log_action(
                     action="procurement.po.create",
                     actor=actor,
@@ -1407,6 +1489,48 @@ class ProcurementService(Service):
                         supplier_id=getattr(supplier_party, "pk", None),
                     )
             raise
+
+    @classmethod
+    @transaction.atomic
+    def set_po_line_unit_price(cls, line: POLine, *, unit_price, actor=None) -> POLine:
+        """Set PO line price. Issued POs cannot change terms without new Management approval.
+
+        Draft PO: price may be set; goods receipt remains blocked until priced issue
+        with a matching commitment.
+        """
+        from apps.audit.services import log_action
+
+        if actor is not None:
+            cls.assert_can_edit_procurement(actor)
+        if unit_price is None or str(unit_price).strip() == "":
+            raise DomainError("Qiymət tələb olunur.")
+        price = _quantize_money(Decimal(str(unit_price)))
+        cls.require(price >= 0, "Qiymət mənfi ola bilməz.")
+
+        # Do not select_related nullable po.pr — Postgres rejects FOR UPDATE on outer joins.
+        locked_line = POLine.objects.select_for_update().select_related("po").get(pk=line.pk)
+        po = locked_line.po
+        if po.status != POStatus.DRAFT:
+            raise DomainError(
+                "Buraxılmış PO şərtləri dəyişdirilə bilməz — yeni Management təsdiqi "
+                "və yeni öhdəlik tələb olunur."
+            )
+
+        old = locked_line.unit_price
+        locked_line.unit_price = price
+        locked_line.save(update_fields=["unit_price"])
+        log_action(
+            action="procurement.po.line_price",
+            actor=actor,
+            entity=po,
+            new_values={
+                "line_id": locked_line.pk,
+                "unit_price": str(price),
+                "previous": str(old) if old is not None else "",
+                "po_status": po.status,
+            },
+        )
+        return locked_line
 
     @classmethod
     def _resolve_receive_mode(cls, *, receive_mode, line_qtys) -> str:
@@ -1454,6 +1578,12 @@ class ProcurementService(Service):
         """
         if warehouse is None or not getattr(warehouse, "pk", None):
             raise DomainError("Anbar seçilməlidir.")
+        if actor is not None:
+            cls.assert_can_edit_procurement(actor)
+        if getattr(po, "status", None) == POStatus.DRAFT:
+            raise DomainError(
+                "Qaralama PO üzrə qəbul edilə bilməz — əvvəlcə qiymətli buraxılış və Management təsdiqi."
+            )
 
         mode = cls._resolve_receive_mode(receive_mode=receive_mode, line_qtys=line_qtys)
         raw_key = (operation_key or "").strip()

@@ -1,7 +1,14 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
 {% block heading %}{% translate "Təsdiq növbəsi" %}{% endblock %}
+{% block breadcrumb_current %}{% translate "Təsdiq növbəsi" %}{% endblock %}
 {% block content %}
+<nav class="cp-filter-chips" aria-label="{% translate 'Axın' %}">
+  <a href="{% url 'erp:approvals' %}" class="{% if not workflow_filter %}is-active{% endif %}">{% translate "Hamısı" %}</a>
+  <a href="{% url 'erp:approvals' %}?workflow=crm.offer.send" class="{% if workflow_filter == 'crm.offer.send' %}is-active{% endif %}">{% translate "CRM təklif" %}</a>
+  <a href="{% url 'erp:approvals' %}?workflow=document.approve" class="{% if workflow_filter == 'document.approve' %}is-active{% endif %}">{% translate "Sənəd" %}</a>
+  <a href="{% url 'erp:approvals' %}?workflow=procurement" class="{% if workflow_filter == 'procurement' %}is-active{% endif %}">{% translate "Satınalma" %}</a>
+</nav>
 <div class="cp-card p-card">
   <p class="cp-meta mb-3">{% translate "CRM təklif, ödəniş, sənəd və satınalma eskalasiyaları." %}</p>
   <table class="cp-table">

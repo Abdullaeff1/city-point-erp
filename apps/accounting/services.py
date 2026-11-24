@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from calendar import monthrange
+from datetime import date
 from decimal import Decimal
 from io import BytesIO
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.accounting.coa import DEFAULT_COA_ROWS, code_for
@@ -132,39 +134,96 @@ def ensure_period(year: int, month: int) -> AccountingPeriod:
 
 
 def assert_period_open(entry_date) -> AccountingPeriod:
+    """Reject posting into a closed month; preserve original entry_date (no silent shift)."""
     period = ensure_period(entry_date.year, entry_date.month)
+    period = AccountingPeriod.objects.select_for_update().get(pk=period.pk)
     if period.is_closed:
-        raise DomainError(f"Dövr bağlıdır: {period}")
+        raise DomainError(
+            f"Dövr bağlıdır: {period}. Orijinal tarix saxlanılır — dövrü açın və ya Finance ilə razılaşdırın."
+        )
     return period
 
 
-def trial_balance(*, year: int | None = None, month: int | None = None) -> list[dict]:
-    """Sum posted journal lines only."""
+def _period_bounds(year: int, month: int | None) -> tuple[date | None, date | None]:
+    """Inclusive [start, end] for movement window; start is exclusive bound for opening."""
+    if not year:
+        return None, None
+    if month:
+        start = date(year, month, 1)
+        end = date(year, month, monthrange(year, month)[1])
+        return start, end
+    return date(year, 1, 1), date(year, 12, 31)
+
+
+def trial_balance(
+    *,
+    year: int | None = None,
+    month: int | None = None,
+    as_of: date | None = None,
+) -> list[dict]:
+    """Posted lines only. With year/month: opening + period movement + closing.
+
+    as_of: exclude entries after this date (inclusive cutoff).
+    """
     seed_minimal_coa()
     qs = JournalLine.objects.filter(entry__posted=True).select_related("account", "entry")
-    if year and month:
-        qs = qs.filter(entry__entry_date__year=year, entry__entry_date__month=month)
-    elif year:
-        qs = qs.filter(entry__entry_date__year=year)
+    if as_of is not None:
+        qs = qs.filter(entry__entry_date__lte=as_of)
+
+    period_start, period_end = _period_bounds(year or 0, month)
+    if period_start and period_end and not as_of:
+        # Movement window; opening uses lines strictly before period_start.
+        pass
+    elif year and not month and not as_of:
+        period_start, period_end = _period_bounds(year, None)
+
     totals: dict[str, dict] = {}
-    for line in qs:
-        key = line.account.code
-        bucket = totals.setdefault(
+
+    def bucket_for(account) -> dict:
+        key = account.code
+        return totals.setdefault(
             key,
             {
-                "code": line.account.code,
-                "name": line.account.name,
-                "account_type": line.account.account_type,
+                "code": account.code,
+                "name": account.name,
+                "account_type": account.account_type,
+                "opening_debit": Decimal("0"),
+                "opening_credit": Decimal("0"),
                 "debit": Decimal("0"),
                 "credit": Decimal("0"),
             },
         )
-        bucket["debit"] += line.debit or Decimal("0")
-        bucket["credit"] += line.credit or Decimal("0")
+
+    if period_start and period_end:
+        for line in qs.filter(entry__entry_date__lt=period_start):
+            b = bucket_for(line.account)
+            b["opening_debit"] += line.debit or Decimal("0")
+            b["opening_credit"] += line.credit or Decimal("0")
+        movement = qs.filter(
+            entry__entry_date__gte=period_start,
+            entry__entry_date__lte=period_end,
+        )
+        for line in movement:
+            b = bucket_for(line.account)
+            b["debit"] += line.debit or Decimal("0")
+            b["credit"] += line.credit or Decimal("0")
+    else:
+        for line in qs:
+            b = bucket_for(line.account)
+            b["debit"] += line.debit or Decimal("0")
+            b["credit"] += line.credit or Decimal("0")
+
     rows = []
     for code in sorted(totals.keys()):
         row = totals[code]
-        row["balance"] = row["debit"] - row["credit"]
+        opening_balance = row["opening_debit"] - row["opening_credit"]
+        period_net = row["debit"] - row["credit"]
+        closing_balance = opening_balance + period_net
+        row["opening_balance"] = opening_balance
+        row["period_debit"] = row["debit"]
+        row["period_credit"] = row["credit"]
+        row["closing_balance"] = closing_balance
+        row["balance"] = closing_balance
         rows.append(row)
     return rows
 
@@ -187,7 +246,11 @@ class AccountingService(Service):
         ref = (source_ref or "").strip()
         src = (source or "").strip()
         if ref and src:
-            existing = JournalEntry.objects.filter(source=src, source_ref=ref).first()
+            existing = (
+                JournalEntry.objects.select_for_update()
+                .filter(source=src, source_ref=ref)
+                .first()
+            )
             if existing:
                 return existing
         cls.require(len(lines) >= 2, "Ən azı 2 sətir lazımdır.")
@@ -195,17 +258,10 @@ class AccountingService(Service):
         assert_period_open(entry_date)
         total_d = sum(Decimal(str(x.get("debit") or 0)) for x in lines)
         total_c = sum(Decimal(str(x.get("credit") or 0)) for x in lines)
-        if total_d != total_c:
+        if total_d.quantize(Decimal("0.01")) != total_c.quantize(Decimal("0.01")):
             raise DomainError("Debit və credit bərabər olmalıdır.")
         seed_minimal_coa()
-        entry = JournalEntry.objects.create(
-            code=_next_je_code(),
-            entry_date=entry_date,
-            memo=memo or "",
-            source=src,
-            source_ref=ref,
-            posted=bool(posted),
-        )
+        resolved_lines = []
         for row in lines:
             try:
                 acct = Account.objects.get(code=row["account_code"])
@@ -213,22 +269,57 @@ class AccountingService(Service):
                 raise DomainError(f"Hesab tapılmadı: {row['account_code']}") from exc
             if not acct.is_active:
                 raise DomainError(f"Hesab aktiv deyil: {acct.code}")
-            JournalLine.objects.create(
-                entry=entry,
-                account=acct,
-                debit=Decimal(str(row.get("debit") or 0)),
-                credit=Decimal(str(row.get("credit") or 0)),
-                memo=row.get("memo") or "",
+            resolved_lines.append(
+                (
+                    acct,
+                    Decimal(str(row.get("debit") or 0)).quantize(Decimal("0.01")),
+                    Decimal(str(row.get("credit") or 0)).quantize(Decimal("0.01")),
+                    row.get("memo") or "",
+                )
             )
+        # Lock JE code allocation slice before insert (concurrency).
+        JournalEntry.objects.select_for_update().filter(code__startswith="JE-").order_by("-pk")[:1]
+        try:
+            entry = JournalEntry.objects.create(
+                code=_next_je_code(),
+                entry_date=entry_date,
+                memo=memo or "",
+                source=src,
+                source_ref=ref,
+                posted=bool(posted),
+            )
+        except IntegrityError:
+            if ref and src:
+                existing = JournalEntry.objects.filter(source=src, source_ref=ref).first()
+                if existing:
+                    return existing
+            raise
+        JournalLine.objects.bulk_create(
+            [
+                JournalLine(entry=entry, account=acct, debit=d, credit=c, memo=m)
+                for acct, d, c, m in resolved_lines
+            ]
+        )
         return entry
 
     @classmethod
     @transaction.atomic
     def post_to_gl(cls, entry: JournalEntry, *, actor=None) -> JournalEntry:
-        """Baş kitaba yaz — mühasib."""
+        """Baş kitaba yaz — mühasib (A.6). Idempotent under row lock."""
+        entry = JournalEntry.objects.select_for_update().get(pk=entry.pk)
         if entry.posted:
             return entry
         assert_period_open(entry.entry_date)
+        inactive = [
+            ln.account.code
+            for ln in entry.lines.select_related("account")
+            if not ln.account.is_active
+        ]
+        if inactive:
+            raise DomainError(
+                f"Post mümkün deyil — hesab aktiv deyil: {', '.join(inactive)}. "
+                "Mənbə gözləmədə qalır; CoA düzəldin."
+            )
         entry.posted = True
         entry.save(update_fields=["posted"])
         from apps.audit.services import log_action
@@ -379,6 +470,7 @@ class AccountingService(Service):
     @transaction.atomic
     def close_period(cls, *, year: int, month: int, actor=None) -> AccountingPeriod:
         period = ensure_period(year, month)
+        period = AccountingPeriod.objects.select_for_update().get(pk=period.pk)
         if period.is_closed:
             return period
         period.is_closed = True
@@ -400,6 +492,7 @@ class AccountingService(Service):
     @transaction.atomic
     def reopen_period(cls, *, year: int, month: int, actor=None) -> AccountingPeriod:
         period = ensure_period(year, month)
+        period = AccountingPeriod.objects.select_for_update().get(pk=period.pk)
         period.is_closed = False
         period.closed_at = None
         period.closed_by = None

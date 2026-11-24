@@ -58,18 +58,23 @@ class PermissionCatalogTests(TestCase):
         self.assertTrue(can_view_crm(acct))
         self.assertFalse(can_mutate_crm(acct))
 
-    def test_fm_procurement_approve_mgmt_excluded(self):
-        """Phase 4.2/4.3.6: FM keeps within-limit approve; Management uses approval.decide hub."""
+    def test_supply_mutations_not_on_service_desk_role(self):
+        """Təchizat role alone cannot mutate warehouse/procurement (needs supply.head)."""
         fm = User.objects.create_user(
-            username="mx_fm", email="mx_fm@test.az", password="x", role=Role.PROPERTY_FM, is_staff=True
+            username="mx_fm", email="mx_fm@test.az", password="x", role=Role.SERVICE_DESK, is_staff=True
         )
         mgmt = User.objects.create_user(
             username="mx_mgmt_pr", email="mx_mgmt_pr@test.az", password="x", role=Role.MANAGEMENT, is_staff=True
         )
-        self.assertTrue(user_has_permission(fm, "procurement.approve"))
+        self.assertFalse(user_has_permission(fm, "procurement.approve"))
+        self.assertFalse(user_has_permission(fm, "procurement.edit"))
+        self.assertFalse(user_has_permission(fm, "warehouse.edit"))
+        self.assertTrue(user_has_permission(fm, "procurement.view"))
         self.assertFalse(user_has_permission(mgmt, "procurement.approve"))
         self.assertTrue(user_has_permission(mgmt, "approval.decide"))
-        self.assertIn("procurement.approve", ROLE_MATRIX[Role.PROPERTY_FM])
+        self.assertNotIn("procurement.approve", ROLE_MATRIX[Role.SERVICE_DESK])
+        self.assertNotIn("procurement.edit", ROLE_MATRIX[Role.SERVICE_DESK])
+        self.assertNotIn("warehouse.edit", ROLE_MATRIX[Role.SERVICE_DESK])
         self.assertNotIn("procurement.approve", ROLE_MATRIX[Role.MANAGEMENT])
 
     def test_crm_dual_gate(self):

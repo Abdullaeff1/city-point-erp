@@ -1,0 +1,157 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Hesabat detalları" %} — {{ section }}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3">
+  <a href="{% url 'erp:reports' %}?tab={{ section }}&{{ filter_qs }}">← {% translate "Panel" %}</a>
+  · as-of {{ params.date_to|date:"d.m.Y" }}
+  · <a href="{% url 'erp:reports_export' %}?{{ filter_qs }}">{% translate "Excel" %}</a>
+</p>
+
+{% if data.rule %}<p class="cp-meta mb-3">{{ data.rule }}</p>{% endif %}
+{% if data.rule_operational %}<p class="cp-meta mb-1">{{ data.rule_operational }}</p>{% endif %}
+{% if data.rule_posted %}<p class="cp-meta mb-3">{{ data.rule_posted }}</p>{% endif %}
+
+{% if section == "property" %}
+<div class="grid-3 mb-4">
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Dolu m²" %}</div><div class="cp-metric">{{ data.occupied_m2 }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Rezerv m²" %}</div><div class="cp-metric">{{ data.reserved_m2 }}</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Boş m²" %}</div><div class="cp-metric">{{ data.available_m2 }}</div></div>
+</div>
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Dolu" %}</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Sahə" %}</th><th>{% translate "İcarə" %}</th><th>{% translate "Tərəf" %}</th><th>m²</th><th>{% translate "Start" %}</th></tr></thead>
+    <tbody>
+      {% for r in data.occupied_rows %}
+      <tr><td>{{ r.space_code }}</td><td>{{ r.lease_code }}</td><td>{{ r.party }}</td><td>{{ r.m2 }}</td><td>{{ r.start_date }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="cp-meta">{% translate "Boş" %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Rezerv (gələcək start)" %}</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Sahə" %}</th><th>{% translate "İcarə" %}</th><th>{% translate "Tərəf" %}</th><th>m²</th><th>{% translate "Start" %}</th></tr></thead>
+    <tbody>
+      {% for r in data.reserved_rows %}
+      <tr><td>{{ r.space_code }}</td><td>{{ r.lease_code }}</td><td>{{ r.party }}</td><td>{{ r.m2 }}</td><td>{{ r.start_date }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="cp-meta">{% translate "Boş" %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Boş" %}</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Sahə" %}</th><th>m²</th></tr></thead>
+    <tbody>
+      {% for r in data.available_rows %}
+      <tr><td>{{ r.space_code }}</td><td>{{ r.m2 }}</td></tr>
+      {% empty %}<tr><td colspan="2" class="cp-meta">{% translate "Boş" %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if section == "finance" %}
+<div class="grid-3 mb-4">
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Əməliyyat AR" %}</div><div class="cp-metric">{{ data.operational_ar }} AZN</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Posted AR" %}</div><div class="cp-metric">{{ data.posted_ar }} AZN</div></div>
+  <div class="cp-card p-card"><div class="cp-meta">{% translate "Unposted ödəniş" %}</div><div class="cp-metric">{{ data.reconciling_unposted_total }} AZN</div></div>
+</div>
+{% if data.coverage_notes %}<p class="cp-meta mb-3">{{ data.coverage_notes }}</p>{% endif %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Açıq fakturalar (as-of)" %}</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Kod" %}</th><th>{% translate "Şirkət" %}</th><th>{% translate "Due" %}</th><th>{% translate "Qalıq" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for r in data.open_rows %}
+      <tr>
+        <td>{{ r.code }}</td>
+        <td>{{ r.party }}</td>
+        <td>{{ r.due_date }}</td>
+        <td>{{ r.balance }} {{ r.currency }}</td>
+        <td>{% if r.overdue %}{% translate "Gecikmiş" %}{% endif %}</td>
+      </tr>
+      {% empty %}<tr><td colspan="5" class="cp-meta">{% translate "Boş" %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if data.reconciling_unposted_payments %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Uzlaşdırma — unposted ödəniş JE" %}</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>JE</th><th>Ref</th><th>{% translate "Tarix" %}</th><th>{% translate "Məbləğ" %}</th></tr></thead>
+    <tbody>
+      {% for r in data.reconciling_unposted_payments %}
+      <tr><td>{{ r.je_code }}</td><td>{{ r.source_ref }}</td><td>{{ r.entry_date }}</td><td>{{ r.amount }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="cp-meta mt-2">{% translate "Jurnal detalları mühasib /finance/ ekranındadır — bu xülasə rəhbərlik üçün." %}</p>
+</div>
+{% endif %}
+{% endif %}
+
+{% if section == "fm" %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Açıq iş sifarişləri (as-of)" %}</div>
+  <p class="cp-meta mb-2">
+    {% translate "Say" %}: {{ data.open_wo }}
+    · as-of {{ data.as_of|date:"d.m.Y" }}
+    · {% translate "səhifə" %} {{ data.open_wo_page }}
+    {% if data.aging_sample_note %}· {{ data.aging_sample_note }}{% endif %}
+  </p>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Kod" %}</th><th>{% translate "Başlıq" %}</th><th>{% translate "Status" %}</th><th>{% translate "Yaş" %}</th><th>{% translate "Completed" %}</th></tr></thead>
+    <tbody>
+      {% for r in data.open_wo_rows %}
+      <tr>
+        <td><a href="{% url 'erp:work_order_detail' r.code %}">{{ r.code }}</a></td>
+        <td>{{ r.title }}</td>
+        <td>{{ r.status }}</td>
+        <td>{{ r.age_days }}</td>
+        <td>{{ r.completed_at|default:"—" }}</td>
+      </tr>
+      {% empty %}<tr><td colspan="5" class="cp-meta">{% translate "Boş" %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <div class="flex gap-2 mt-3">
+    {% if prev_page_url %}<a class="cp-btn soft" href="{{ prev_page_url }}">{% translate "Əvvəlki" %}</a>{% endif %}
+    {% if next_page_url %}<a class="cp-btn soft" href="{{ next_page_url }}">{% translate "Növbəti" %}</a>{% endif %}
+  </div>
+</div>
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "WO aging (as-of)" %}</div>
+  {% for bucket, rows in data.aging_rows.items %}
+  <h3 class="cp-meta mt-3">{{ bucket }} ({{ rows|length }})</h3>
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Kod" %}</th><th>{% translate "Başlıq" %}</th><th>{% translate "Status" %}</th><th>{% translate "Yaş" %}</th><th>{% translate "Completed" %}</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr><td>{{ r.code }}</td><td>{{ r.title }}</td><td>{{ r.status }}</td><td>{{ r.age_days }}</td><td>{{ r.completed_at|default:"—" }}</td></tr>
+      {% empty %}<tr><td colspan="5" class="cp-meta">—</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if section == "warehouse" %}
+{% if not data.historical_stock %}<p class="cp-meta mb-3">{{ data.history_note }}</p>{% endif %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Stok (anbar×SKU)" %}</div>
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Anbar" %}</th><th>SKU</th><th>{% translate "Vahid" %}</th><th>{% translate "On-hand" %}</th><th>{% translate "Rezerv" %}</th><th>{% translate "Əlçatan" %}</th><th>{% translate "Reorder" %}</th></tr></thead>
+    <tbody>
+      {% for r in data.stock_lines %}
+      <tr{% if r.is_low %} style="color:var(--cp-danger,#b42318);"{% endif %}>
+        <td>{{ r.warehouse }}</td><td>{{ r.sku }}</td><td>{{ r.unit }}</td>
+        <td>{{ r.on_hand }}</td><td>{{ r.reserved }}</td><td>{{ r.available }}</td><td>{{ r.reorder_level }}</td>
+      </tr>
+      {% empty %}<tr><td colspan="7" class="cp-meta">{% translate "Boş" %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

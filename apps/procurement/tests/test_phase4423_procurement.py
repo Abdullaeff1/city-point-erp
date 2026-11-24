@@ -27,7 +27,7 @@ class Phase4423ManualPRTests(TestCase):
     def setUp(self):
         self.client = Client()
         self.fm = User.objects.create_user(
-            username="p4423-fm", email="p4423-fm@test.az", password="x", role=Role.PROPERTY_FM, is_staff=True
+            username="p4423-fm", email="p4423-fm@test.az", password="x", role=Role.SERVICE_DESK, is_staff=True
         )
         self.admin = User.objects.create_user(
             username="p4423-adm",
@@ -45,7 +45,7 @@ class Phase4423ManualPRTests(TestCase):
         )
         self.sku = SKU.objects.create(code="P4423-A", name="Item A", unit="pcs", reorder_level=1)
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM, defaults={"max_amount": Decimal("100"), "is_active": True}
+            role=Role.SERVICE_DESK, defaults={"max_amount": Decimal("100"), "is_active": True}
         )
 
     def test_manual_pr_create_via_ui(self):
@@ -137,7 +137,7 @@ class Phase4423SupplierTests(TestCase):
             username="p4423-sup-fm",
             email="p4423-sup-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.residents_before = ResidentCompany.objects.count()
@@ -194,7 +194,7 @@ class Phase4423POAndRFQTests(TestCase):
             username="p4423-po-fm",
             email="p4423-po-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.admin = User.objects.create_user(

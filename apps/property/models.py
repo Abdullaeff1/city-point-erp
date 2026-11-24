@@ -166,6 +166,20 @@ class Space(models.Model):
         return self.area_code
 
     @property
+    def register_status(self):
+        if self.occupancy == Occupancy.ACTIVE_LEASE or self.commercial_status in {
+            CommercialStatus.ACTIVE, CommercialStatus.NOTICE,
+        }:
+            return "occupied"
+        if self.operational_status == OperationalStatus.BLOCKED:
+            return "blocked"
+        if self.occupancy == Occupancy.MAINTENANCE or self.operational_status == OperationalStatus.MAINTENANCE:
+            return "maintenance"
+        if self.commercial_status in {CommercialStatus.RESERVED, CommercialStatus.CONTRACTED}:
+            return self.commercial_status
+        return "vacant"
+
+    @property
     def area_code(self):
         """Company-facing space label: CP/F10/232."""
         raw = (self.floor.code or "").upper()

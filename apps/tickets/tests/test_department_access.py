@@ -128,7 +128,7 @@ class TicketDepartmentAccessTests(TestCase):
             username="fm1",
             email="fm@test.az",
             password="Pass12345!",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             ticket_department=self.fm_dept,
         )
         self.desk_user = User.objects.create_user(

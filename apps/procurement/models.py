@@ -111,6 +111,20 @@ class POLine(models.Model):
     qty = models.DecimalField(max_digits=14, decimal_places=3, default=1)
     unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     received_qty = models.DecimalField(max_digits=14, decimal_places=3, default=0)
+    pr_line = models.ForeignKey(
+        "PRLine",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="po_lines",
+    )
+    quote_line = models.ForeignKey(
+        "RFQQuoteLine",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="po_lines",
+    )
 
     def __str__(self):
         return f"{self.po_id}:{self.description}"
@@ -137,10 +151,105 @@ class RFQ(models.Model):
         return self.code
 
 
+class RFQDispatchChannel(models.TextChoices):
+    DRAFT = "draft", _("Draft")
+    MANUAL = "manual", _("Manual handoff")
+    EMAIL = "email", _("Email")
+    OUTBOX = "outbox", _("Outbox")
+
+
+class QuoteLineResponseStatus(models.TextChoices):
+    QUOTED = "quoted", _("Quoted")
+    UNANSWERED = "unanswered", _("Unanswered")
+
+
+class ComparisonCoverage(models.TextChoices):
+    """Per PR-line × supplier coverage for comparison UI (not a DB field)."""
+
+    NOT_INVITED = "NOT_INVITED", _("Not invited")
+    INVITED_UNANSWERED = "INVITED_UNANSWERED", _("Invited unanswered")
+    QUOTED = "QUOTED", _("Quoted")
+
+
+class RFQInvitation(models.Model):
+    """Supplier-specific invitation with persisted line scope."""
+
+    rfq = models.ForeignKey(RFQ, on_delete=models.CASCADE, related_name="invitations")
+    supplier_party = models.ForeignKey(
+        "parties.Party",
+        on_delete=models.PROTECT,
+        related_name="rfq_invitations",
+    )
+    request_text = models.TextField(blank=True)
+    dispatch_channel = models.CharField(
+        max_length=16,
+        choices=RFQDispatchChannel.choices,
+        default=RFQDispatchChannel.DRAFT,
+    )
+    dispatch_ref = models.CharField(max_length=255, blank=True)
+    dispatched_at = models.DateTimeField(null=True, blank=True)
+    supersedes = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="superseded_by",
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="rfq_invitations_created",
+    )
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["rfq", "supplier_party"],
+                condition=models.Q(is_active=True),
+                name="uniq_active_rfq_invitation_supplier",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.rfq_id}:{self.supplier_party_id}"
+
+    @property
+    def is_dispatched(self) -> bool:
+        return self.dispatched_at is not None
+
+
+class RFQInvitationLine(models.Model):
+    invitation = models.ForeignKey(
+        RFQInvitation, on_delete=models.CASCADE, related_name="lines"
+    )
+    pr_line = models.ForeignKey(
+        PRLine, on_delete=models.CASCADE, related_name="rfq_invitation_lines"
+    )
+    qty = models.DecimalField(max_digits=14, decimal_places=3, default=1)
+
+    class Meta:
+        unique_together = [("invitation", "pr_line")]
+
+    def __str__(self):
+        return f"{self.invitation_id}:{self.pr_line_id}"
+
+
 class RFQQuote(models.Model):
-    """Supplier quote against an RFQ — compare before creating PO."""
+    """Supplier quote against an RFQ — header unit_price kept for legacy quotes."""
 
     rfq = models.ForeignKey(RFQ, on_delete=models.CASCADE, related_name="quotes")
+    invitation = models.ForeignKey(
+        RFQInvitation,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="quotes",
+    )
     supplier_party = models.ForeignKey(
         "parties.Party",
         null=True,
@@ -152,6 +261,8 @@ class RFQQuote(models.Model):
     currency = models.CharField(max_length=8, default="AZN")
     lead_time_days = models.PositiveIntegerField(default=0)
     notes = models.TextField(blank=True)
+    supplier_reference = models.CharField(max_length=120, blank=True)
+    valid_until = models.DateField(null=True, blank=True)
     is_selected = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 
@@ -160,6 +271,94 @@ class RFQQuote(models.Model):
 
     def __str__(self):
         return f"{self.rfq_id}:{self.unit_price}"
+
+    @property
+    def has_line_pricing(self) -> bool:
+        return self.lines.exists()
+
+
+class RFQQuoteLine(models.Model):
+    quote = models.ForeignKey(RFQQuote, on_delete=models.CASCADE, related_name="lines")
+    pr_line = models.ForeignKey(
+        PRLine, on_delete=models.CASCADE, related_name="rfq_quote_lines"
+    )
+    qty = models.DecimalField(max_digits=14, decimal_places=3, default=1)
+    unit = models.CharField(max_length=16, default="pcs")
+    currency = models.CharField(max_length=8, default="AZN")
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    vat_rate = models.DecimalField(
+        max_digits=6, decimal_places=4, null=True, blank=True
+    )
+    price_includes_vat = models.BooleanField(default=False)
+    response_status = models.CharField(
+        max_length=16,
+        choices=QuoteLineResponseStatus.choices,
+        default=QuoteLineResponseStatus.QUOTED,
+    )
+
+    class Meta:
+        unique_together = [("quote", "pr_line")]
+
+    def __str__(self):
+        return f"{self.quote_id}:{self.pr_line_id}"
+
+
+class PRLineAward(models.Model):
+    """Whole-line award of remaining PR qty to one supplier (no line split)."""
+
+    pr = models.ForeignKey(
+        PurchaseRequest, on_delete=models.CASCADE, related_name="line_awards"
+    )
+    pr_line = models.ForeignKey(
+        PRLine, on_delete=models.CASCADE, related_name="awards"
+    )
+    quote_line = models.ForeignKey(
+        RFQQuoteLine,
+        on_delete=models.PROTECT,
+        related_name="awards",
+    )
+    supplier_party = models.ForeignKey(
+        "parties.Party",
+        on_delete=models.PROTECT,
+        related_name="pr_line_awards",
+    )
+    qty = models.DecimalField(max_digits=14, decimal_places=3)
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=8, default="AZN")
+    vat_rate = models.DecimalField(
+        max_digits=6, decimal_places=4, null=True, blank=True
+    )
+    price_includes_vat = models.BooleanField(default=False)
+    reason = models.CharField(max_length=255, blank=True)
+    is_active = models.BooleanField(default=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="pr_line_awards",
+    )
+    created_at = models.DateTimeField(default=timezone.now, editable=False)
+    po_line = models.ForeignKey(
+        "POLine",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="source_awards",
+    )
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["pr_line"],
+                condition=models.Q(is_active=True),
+                name="uniq_active_pr_line_award",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.pr_line_id}->{self.supplier_party_id}"
 
 
 class PurchaseApprovalLimit(models.Model):

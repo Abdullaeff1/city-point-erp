@@ -153,6 +153,10 @@ class GuestVisit(models.Model):
     scheduled_for = models.DateField(default=timezone.localdate)
     check_in_at = models.DateTimeField(null=True, blank=True)
     check_out_at = models.DateTimeField(null=True, blank=True)
+    # Known physical/electronic departure when recorded; null = unknown actual exit time.
+    actual_departure_at = models.DateTimeField(null=True, blank=True)
+    # When the visit was administratively closed (actor action), distinct from departure.
+    check_out_recorded_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     pre_registered = models.BooleanField(default=False)

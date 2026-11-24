@@ -234,7 +234,10 @@ def _next_issue_code() -> str:
 @transaction.atomic
 def request_issue_line(*, work_order, warehouse, sku, quantity, actor) -> WarehouseIssue:
     from apps.maintenance.models import WorkOrderStatus
+    from apps.warehouse.access import can_mutate_warehouse
 
+    if not can_mutate_warehouse(actor):
+        raise DomainError("Anbar material çıxarışı icazəniz yoxdur.")
     qty = Decimal(quantity)
     if qty <= 0:
         raise DomainError("Miqdar sıfırdan böyük olmalıdır.")
@@ -289,7 +292,10 @@ def request_issue_line(*, work_order, warehouse, sku, quantity, actor) -> Wareho
 def confirm_issue(issue, *, actor, lines) -> WarehouseIssue:
     from apps.maintenance.costs import line_amount, refresh_cost_totals
     from apps.maintenance.models import CostLineKind, CostLineSource, WorkOrderCostLine
+    from apps.warehouse.access import can_mutate_warehouse
 
+    if not can_mutate_warehouse(actor):
+        raise DomainError("Anbar material təsdiqi icazəniz yoxdur.")
     locked = WarehouseIssue.objects.select_for_update().get(pk=issue.pk)
     if locked.status != IssueStatus.OPEN:
         raise DomainError("Sənəd artıq təsdiqlənib.")

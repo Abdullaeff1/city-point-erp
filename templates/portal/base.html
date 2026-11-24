@@ -2,14 +2,22 @@
 {% load i18n cp_ui %}
 {% block title %}{% block page_title %}{% translate "Rezident" %}{% endblock %} · City Point{% endblock %}
 {% block body %}
-<div class="cp-shell">
-  <aside class="cp-sidebar">
+<div class="cp-shell cp-erp">
+  <div class="erp-mobile-bar">
+    <button class="erp-menu-toggle" type="button" aria-controls="erp-sidebar" aria-expanded="true" hidden>
+      <i data-lucide="menu" width="19" height="19" aria-hidden="true"></i>
+      {% translate "Menyu" %}
+    </button>
+    <span>City Point · {% translate "Rezident" %}</span>
+  </div>
+  <aside class="cp-sidebar" id="erp-sidebar">
     <div class="cp-brand">
       <div class="cp-brand-kicker">CITY POINT</div>
       <div class="cp-brand-sub">{% translate "Rezident" %}</div>
     </div>
     <nav class="cp-nav">
       <a class="{% nav_active 'home' %}" href="{% url 'portal:home' %}"><i data-lucide="layout-dashboard" width="18" height="18"></i><span class="cp-nav-text">{% translate "Əsas səhifə" %}</span></a>
+      <a class="{% nav_active 'company_profile' %}" href="{% url 'portal:company_profile' %}"><i data-lucide="building" width="18" height="18"></i><span class="cp-nav-text">{% translate "Şirkət profili" %}</span></a>
       <a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'portal:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələrim" %}</span></a>
       <a class="{% nav_active 'requests_active' 'request_detail' %}" href="{% url 'portal:requests_active' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Aktiv müraciətlər" %}</span></a>
       <a class="{% nav_active 'requests_history' %}" href="{% url 'portal:requests_history' %}"><i data-lucide="history" width="18" height="18"></i><span class="cp-nav-text">{% translate "Tarixçə" %}</span></a>
@@ -19,7 +27,7 @@
       <a class="{% nav_active 'guests' %}" href="{% url 'portal:guests' %}"><i data-lucide="door-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Qonaqlar" %}</span></a>
       <a class="{% nav_active 'announcements' %}" href="{% url 'portal:announcements' %}"><i data-lucide="megaphone" width="18" height="18"></i><span class="cp-nav-text">{% translate "Elanlar" %}</span></a>
       <a class="{% nav_active 'documents' %}" href="{% url 'portal:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sənədlər" %}</span></a>
-      <a class="{% nav_active 'invoices' %}" href="{% url 'portal:invoices' %}"><i data-lucide="wallet" width="18" height="18"></i><span class="cp-nav-text">{% translate "Fakturalar" %}</span></a>
+      <a class="{% nav_active 'invoices' 'invoice_detail' 'invoice_official_download' %}" href="{% url 'portal:invoices' %}"><i data-lucide="wallet" width="18" height="18"></i><span class="cp-nav-text">{% translate "Fakturalar" %}</span></a>
       <a class="{% nav_active 'building_procedures' 'building_procedure_download' %}" href="{% url 'portal:building_procedures' %}"><i data-lucide="book-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Daxili prosedurlar" %}</span></a>
       <div class="cp-nav-label">{% translate "KÖMƏK" %}</div>
       <a class="{% nav_active 'user_guide' %}" href="{% url 'portal:user_guide' %}"><i data-lucide="circle-help" width="18" height="18"></i><span class="cp-nav-text">{% translate "İstifadəçi təlimatı" %}</span></a>
@@ -39,11 +47,11 @@
         <div class="cp-user-role">{{ user.get_role_display }}</div>
         {% endif %}
         {% if portal_can_switch_company %}
-        <a href="{% url 'portal:choose_companies' %}" class="cp-meta" style="display:inline-block;margin-top:4px;color:rgba(255,255,255,0.75);font-size:12px;">{% translate "Şirkət dəyiş" %}</a>
+        <a href="{% url 'portal:choose_companies' %}" class="cp-meta" style="display:inline-block;margin-top:4px;font-size:12px;">{% translate "Şirkət dəyiş" %}</a>
         {% endif %}
       </div>
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}
-        <button type="submit" class="cp-btn-ghost" title="{% translate 'Çıxış' %}" style="color:rgba(255,255,255,0.7);"><i data-lucide="log-out" width="16" height="16"></i></button>
+        <button type="submit" class="cp-btn-ghost" title="{% translate 'Çıxış' %}"><i data-lucide="log-out" width="16" height="16"></i></button>
       </form>
     </div>
   </aside>
@@ -53,17 +61,7 @@
         <p class="cp-meta">{% block eyebrow %}CITY POINT · {% translate "Rezident" %}{% endblock %}</p>
         <h1 class="cp-title">{% block heading %}{% endblock %}</h1>
       </div>
-      <form action="{% url 'set_language' %}" method="post" class="cp-lang">
-        {% csrf_token %}
-        <input name="next" type="hidden" value="{{ request.get_full_path }}">
-        <select name="language" onchange="this.form.submit()" style="border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;">
-          {% get_current_language as LANGUAGE_CODE %}
-          {% get_available_languages as LANGUAGES %}
-          {% for lang_code, lang_name in LANGUAGES %}
-            <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>{{ lang_code|upper }}</option>
-          {% endfor %}
-        </select>
-      </form>
+      {% include "partials/cp_topbar_actions_local.html" %}
     </header>
     <div class="cp-content">
       {% if request.resolver_match.url_name != 'home' %}

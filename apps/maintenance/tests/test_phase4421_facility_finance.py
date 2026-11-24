@@ -101,7 +101,7 @@ class Phase4421StandaloneWorkOrderTests(TestCase):
             username="p4421-fm",
             email="p4421-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
             ticket_department=self.fm_dept,
         )
@@ -291,7 +291,7 @@ class Phase4421ReceptionNavTests(TestCase):
             username="p4421-fm-nav",
             email="p4421-fm-nav@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         # Intentional RO API grant remains; desk nav must stay hidden.

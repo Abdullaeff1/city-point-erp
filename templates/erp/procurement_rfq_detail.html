@@ -11,7 +11,7 @@
   <h2 class="cp-section">{{ rfq.title }}</h2>
   <p class="cp-meta">{% if rfq.pr_id %}PR: {{ rfq.pr.code }} · {{ rfq.pr.get_status_display }}{% endif %}</p>
   <p class="cp-meta">
-    {% translate "Müqayisə modeli: hər təklif bir vahid qiymət daşıyır və PR-in bütün qalan sətir miqdarlarına tətbiq olunur. Sətir üzrə ayrı qiymət / qismən təklif bu RFQ modelində yoxdur — ona görə qismən təklif «ən ucuz» kimi seçilə bilməz. Vergi bazası (net/gross) və AZN-dən kənar valyuta Finance qərarını gözləyir." %}
+    {% translate "Sətir səviyyəsi: dəvət əhatəsi, cavab statusları (NOT_INVITED / INVITED_UNANSWERED / QUOTED — sıfır qiymət də QUOTED), bütöv sətir mükafatı. Bir PR sətrinin podratçılar arasında bölünməsi City Point təsdiqini gözləyir. 18% yalnız test/sintetik; canlı maliyyə bazası Finance qaydasıdır." %}
   </p>
   {% if pending_commitments %}
   <div class="badge badge-urgent" style="display:block;padding:10px 12px;border-radius:10px;margin-top:12px;">
@@ -20,6 +20,20 @@
       · #{{ c.pk }}{% if c.payload.amount %} ({{ c.payload.amount }} {{ c.payload.currency|default:"AZN" }}){% endif %}
     {% endfor %}
     — <a href="{% url 'erp:approvals' %}">{% translate "Təsdiqlər" %}</a>
+  </div>
+  {% endif %}
+  {% if po_outcomes %}
+  <div style="margin-top:12px;">
+    {% for o in po_outcomes %}
+    <div class="badge {% if o.status == 'issued' %}badge-success{% elif o.status == 'awaiting_financial_approval' %}badge-urgent{% else %}badge-muted{% endif %}" style="display:block;padding:8px 12px;border-radius:8px;margin-bottom:6px;">
+      <strong>{{ o.supplier_name|default:"—" }}</strong>
+      · {% if o.status == 'issued' %}{% translate "issued" %} — {{ o.po_code }}
+      {% elif o.status == 'awaiting_financial_approval' %}{% translate "awaiting_financial_approval" %}
+      {% elif o.status == 'failed' %}{% translate "failed" %}
+      {% else %}{{ o.status }}{% endif %}
+      {% if o.message %} — {{ o.message }}{% endif %}
+    </div>
+    {% endfor %}
   </div>
   {% endif %}
 </div>
@@ -54,13 +68,278 @@
 </div>
 {% endif %}
 
+{% if can_edit_procurement and pr_lines %}
 <div class="cp-card p-card mb-4">
-  <h3 class="cp-section">{% translate "Təkliflər" %}</h3>
-  <p class="cp-meta">{% translate "Müqayisə olunan cəm = vahid qiymət × qalan PR miqdarları. Boş qiymət sıfır deyil. Yalnız AZN və tam əhatəli təkliflər «ən ucuz» üçün uyğundur." %}</p>
+  <h3 class="cp-section">{% translate "Podratçı dəvəti (sətir əhatəsi)" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="invite_supplier">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}">
+    <div class="grid-2 gap-2 mb-2">
+      <label>
+        <span class="cp-meta">{% translate "Podratçı" %}</span>
+        <select class="cp-input" name="supplier_party_id" required>
+          <option value="">—</option>
+          {% for s in suppliers %}<option value="{{ s.id }}">{{ s.display_name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Dispatch kanalı" %}</span>
+        <select class="cp-input" name="dispatch_channel">
+          {% for val, label in dispatch_channels %}
+          <option value="{{ val }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Dispatch ref (sübut)" %}</span>
+        <input class="cp-input" name="dispatch_ref" placeholder="email-id / əl ilə təhvil #">
+      </label>
+      <label style="display:flex;align-items:flex-end;gap:8px;">
+        <input type="checkbox" name="mark_dispatched" value="1">
+        <span class="cp-meta">{% translate "Göndərilmiş kimi işarələ (sübut tələb olunur)" %}</span>
+      </label>
+    </div>
+    <table class="cp-table mb-2">
+      <thead>
+        <tr>
+          <th></th>
+          <th>SKU</th>
+          <th>{% translate "Təsvir" %}</th>
+          <th>{% translate "Miqdar" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in qty_progress %}
+        {% if row.outstanding_order > 0 %}
+        <tr>
+          <td><input type="checkbox" name="invite_line_id" value="{{ row.line.id }}" checked></td>
+          <td>{% if row.line.sku_id %}{{ row.line.sku.code }}{% else %}—{% endif %}</td>
+          <td>{{ row.line.description }}</td>
+          <td>
+            <input class="cp-input" name="invite_qty_{{ row.line.id }}" value="{{ row.outstanding_order|unlocalize }}" inputmode="decimal" style="max-width:7rem;">
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    <button class="cp-btn" type="submit">{% translate "Dəvət et" %}</button>
+  </form>
+</div>
+{% endif %}
+
+{% if invitations %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Dəvətlər" %}</h3>
   <table class="cp-table">
     <thead>
       <tr>
-        <th>{% translate "Təchizatçı" %}</th>
+        <th>{% translate "Podratçı" %}</th>
+        <th>{% translate "Status" %}</th>
+        <th>{% translate "Kanal" %}</th>
+        <th>{% translate "Sətirlər" %}</th>
+        <th>{% translate "Request" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invitations %}
+      <tr{% if not inv.is_active %} style="opacity:.55"{% endif %}>
+        <td>{{ inv.supplier_party.display_name }}{% if inv.is_active %} · <strong>{% translate "aktiv" %}</strong>{% else %} · {% translate "köhnə" %}{% endif %}</td>
+        <td>{% if inv.is_dispatched %}{% translate "göndərilib" %}{% else %}{% translate "draft" %}{% endif %}</td>
+        <td>{{ inv.get_dispatch_channel_display }}{% if inv.dispatch_ref %} · {{ inv.dispatch_ref }}{% endif %}</td>
+        <td>
+          {% for il in inv.lines.all %}
+            #{{ il.pr_line_id }}×{{ il.qty|unlocalize }}{% if not forloop.last %}, {% endif %}
+          {% endfor %}
+        </td>
+        <td><pre class="cp-meta" style="white-space:pre-wrap;max-width:28rem;margin:0;">{{ inv.request_text|truncatechars:240 }}</pre></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if can_edit_procurement and line_comparison.suppliers %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Sətir təklifi" %}</h3>
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_line_quote">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}">
+    <div class="grid-2 gap-2 mb-2">
+      <label>
+        <span class="cp-meta">{% translate "Podratçı (aktiv dəvət)" %}</span>
+        <select class="cp-input" name="supplier_party_id" required id="line-quote-supplier">
+          <option value="">—</option>
+          {% for s in line_comparison.suppliers %}
+          <option value="{{ s.id }}">{{ s.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span class="cp-meta">{% translate "Podratçı ref" %}</span>
+        <input class="cp-input" name="supplier_reference">
+      </label>
+    </div>
+    <table class="cp-table mb-2">
+      <thead>
+        <tr>
+          <th></th>
+          <th>{% translate "Sətir" %}</th>
+          <th>{% translate "Cavab" %}</th>
+          <th>{% translate "Miqdar" %}</th>
+          <th>{% translate "Vahid qiymət" %}</th>
+          <th>{% translate "ƏDV" %}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in qty_progress %}
+        {% if row.outstanding_order > 0 %}
+        <tr>
+          <td><input type="checkbox" name="quote_line_id" value="{{ row.line.id }}"></td>
+          <td>#{{ row.line.id }} {{ row.line.description }}</td>
+          <td>
+            <select class="cp-input" name="response_status_{{ row.line.id }}">
+              <option value="quoted">{% translate "quoted (o cümlədən 0)" %}</option>
+              <option value="unanswered">{% translate "unanswered" %}</option>
+            </select>
+          </td>
+          <td>
+            <input class="cp-input" name="qty_{{ row.line.id }}" value="{{ row.outstanding_order|unlocalize }}" inputmode="decimal" style="max-width:7rem;">
+          </td>
+          <td>
+            <input class="cp-input" name="unit_price_{{ row.line.id }}" inputmode="decimal" style="max-width:7rem;" placeholder="0 = quoted">
+          </td>
+          <td>
+            <input class="cp-input" name="vat_rate_{{ row.line.id }}" inputmode="decimal" style="max-width:5rem;" placeholder="0.18">
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="cp-meta">{% translate "Yalnız dəvət əhatəsindəki sətirlər qəbul olunur. Boş qiymət cavabsız deyil — unanswered seçin və ya 0 yazın." %}</p>
+    <button class="cp-btn" type="submit">{% translate "Sətir təklifi yaz" %}</button>
+  </form>
+</div>
+{% endif %}
+
+{% if line_comparison.suppliers %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Sətir müqayisəsi" %}</h3>
+  <p class="cp-meta">{% translate "«Ən ucuz» yalnız eyni qalan miqdar / vahid / valyuta / vergi bazası olan təkliflər arasında. Qismən miqdar bütöv sətri qazana bilməz. Vergi bazası naməlum → müqayisə / mükafat bloklanır." %}</p>
+  {% if can_award_lines %}
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="award_lines">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}">
+  {% endif %}
+  <div style="overflow-x:auto;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "PR sətri" %}</th>
+        <th>{% translate "Qalan" %}</th>
+        {% for s in line_comparison.suppliers %}
+        <th>{{ s.name }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in line_comparison.rows %}
+      <tr>
+        <td>#{{ row.pr_line.id }} {% if row.pr_line.sku_id %}{{ row.pr_line.sku.code }} · {% endif %}{{ row.pr_line.description }}</td>
+        <td>{{ row.remaining_qty|unlocalize }} {{ row.pr_line.unit }}</td>
+        {% for entry in row.cells_ordered %}
+        {% with cell=entry.cell %}
+        <td>
+          {% if not cell or cell.coverage == "NOT_INVITED" %}
+            <span class="cp-meta">{{ coverage_labels.NOT_INVITED }}</span>
+          {% elif cell.coverage == "INVITED_UNANSWERED" %}
+            <span class="cp-meta">{{ coverage_labels.INVITED_UNANSWERED }}</span>
+          {% else %}
+            {% if cell.tax_basis == "unknown" %}
+              <span class="cp-meta">{% translate "vergi bazası naməlum" %}</span><br>
+            {% endif %}
+            {% if cell.gross is not None %}
+              net {{ cell.net|unlocalize }} · ƏDV {{ cell.vat|unlocalize }} · <strong>{{ cell.gross|unlocalize }}</strong>
+            {% elif cell.net is not None %}
+              net {{ cell.net|unlocalize }}
+            {% endif %}
+            <div class="cp-meta">qty {{ cell.quoted_qty|unlocalize }}{% if cell.is_lowest %} · {% translate "ən ucuz" %}{% endif %}</div>
+            {% if can_award_lines and cell.award_eligible and cell.quote_line %}
+            <label style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+              <input type="checkbox" name="award_pair" value="{{ row.pr_line.id }}:{{ cell.quote_line.id }}">
+              <span class="cp-meta">{% translate "bütöv sətir mükafatı" %}</span>
+            </label>
+            {% elif cell.coverage == "QUOTED" and not cell.award_eligible %}
+            <div class="cp-meta">{% translate "mükafata uyğun deyil" %}</div>
+            {% endif %}
+          {% endif %}
+        </td>
+        {% endwith %}
+        {% endfor %}
+      </tr>
+      {% empty %}
+      <tr><td colspan="{{ line_comparison.suppliers|length|add:2 }}" class="cp-meta">{% translate "Müqayisə yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if can_award_lines %}
+    <p class="cp-meta" style="margin-top:8px;">{% translate "Bölünmüş miqdar sahəsi yoxdur — yalnız tam qalan miqdar." %}</p>
+    <input class="cp-input mb-2" name="award_reason" placeholder="{% translate 'Səbəb (ixtiyari)' %}" style="max-width:24rem;">
+    <button class="cp-btn" type="submit">{% translate "Seçilmiş sətirləri mükafatlandır" %}</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if active_awards %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Aktiv mükafatlar" %}</h3>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Sətir" %}</th>
+        <th>{% translate "Podratçı" %}</th>
+        <th>{% translate "Miqdar" %}</th>
+        <th>{% translate "Qiymət" %}</th>
+        <th>PO</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in active_awards %}
+      <tr>
+        <td>#{{ a.pr_line_id }} {{ a.pr_line.description }}</td>
+        <td>{{ a.supplier_party.display_name }}</td>
+        <td>{{ a.qty|unlocalize }}</td>
+        <td>{{ a.unit_price|unlocalize }} {{ a.currency }}</td>
+        <td>{% if a.po_line_id %}{{ a.po_line.po.code }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if can_edit_procurement and has_unissued_awards %}
+  <form method="post" style="margin-top:12px;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="create_pos_from_awards">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}">
+    <button class="cp-btn" type="submit">{% translate "Mükafatlardan PO yarat (podratçı üzrə)" %}</button>
+  </form>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Header təkliflər (köhnə model)" %}</h3>
+  <p class="cp-meta">{% translate "Müqayisə olunan cəm = vahid qiymət × qalan PR miqdarları. Aktiv sətir mükafatı olduqda header-dən PO bloklanır." %}</p>
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Podratçı" %}</th>
         <th>{% translate "Vahid qiymət" %}</th>
         <th>{% translate "Valyuta" %}</th>
         <th>{% translate "Müqayisə cəmi" %}</th>
@@ -99,19 +378,19 @@
           {% endif %}
         </td>
       </tr>
-      {% empty %}<tr><td colspan="6" class="cp-meta">{% translate "Təklif yoxdur." %}</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="6" class="cp-meta">{% translate "Header təklif yoxdur." %}</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>
 {% if can_edit_procurement %}
 <div class="cp-card p-card">
-  <h3 class="cp-section">{% translate "Təklif əlavə et" %}</h3>
+  <h3 class="cp-section">{% translate "Header təklif əlavə et" %}</h3>
   <form method="post" class="grid-2 gap-2">
     {% csrf_token %}
     <input type="hidden" name="action" value="add_quote">
     <input type="hidden" name="submit_token" value="{{ submit_token }}">
     <label>
-      <span class="cp-meta">{% translate "Təchizatçı" %}</span>
+      <span class="cp-meta">{% translate "Podratçı" %}</span>
       <select class="cp-input" name="supplier_party_id" required>
         <option value="">—</option>
         {% for s in suppliers %}<option value="{{ s.id }}">{{ s.display_name }}</option>{% endfor %}

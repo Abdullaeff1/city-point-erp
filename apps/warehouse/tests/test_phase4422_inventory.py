@@ -40,7 +40,7 @@ class Phase4422SkuMasterTests(TestCase):
             username="w4422-fm",
             email="w4422-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.desk = User.objects.create_user(
@@ -150,7 +150,7 @@ class Phase4422StockAdjustTests(TestCase):
             username="w4422-adj-fm",
             email="w4422-adj-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.sku = create_sku(code="ADJ1", name="Adjustable", reorder_level=2, actor=self.fm)
@@ -210,7 +210,7 @@ class Phase4422IssueReceiptTests(TestCase):
             username="w4422-iss-fm",
             email="w4422-iss-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.admin = User.objects.create_user(
@@ -308,7 +308,7 @@ class Phase4422ConcurrentIssueTests(TransactionTestCase):
             username="w4422-conc-fm",
             email="w4422-conc-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.sku = SKU.objects.create(code="CONC1", name="Concurrent", unit="pcs", reorder_level=0)

@@ -376,6 +376,15 @@ class DocumentService(Service):
             locked, approved=approved, decided_by=actor, comment=comment
         )
         document = version.document
+        # Keep correspondence registry status in sync when present.
+        if getattr(document, "direction", None):
+            from apps.documents.models import CorrespondenceStatus
+
+            if approved:
+                document.correspondence_status = CorrespondenceStatus.APPROVED
+            else:
+                document.correspondence_status = CorrespondenceStatus.IN_PROGRESS
+            document.save(update_fields=["correspondence_status", "updated_at"])
         log_action(
             action="document.approval_decided",
             actor=actor,

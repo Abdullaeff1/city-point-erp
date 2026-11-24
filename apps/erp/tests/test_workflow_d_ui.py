@@ -38,7 +38,7 @@ class WorkflowDUICloseoutTests(TestCase):
             username="wfd-ui-fm",
             email="wfd-ui-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.wh = Warehouse.objects.create(code="WFDUI-WH", name="WFD UI WH")

@@ -22,7 +22,7 @@
     {% endif %}
     <div class="cp-card p-card mt-4">
       <div class="cp-meta">{% translate "Müraciət edən" %}</div>
-      <p class="mt-1" style="font-weight:600;">{{ ticket.company.name }}{% if ticket.requester %} · {{ ticket.requester.display_name }}{% endif %}</p>
+      <p class="mt-1" style="font-weight:600;">{% if nav_resident_directory and ticket.company.slug %}<a href="{% url 'erp:resident_directory_detail' ticket.company.slug %}">{{ ticket.company.name }}</a>{% else %}{{ ticket.company.name }}{% endif %}{% if ticket.requester %} · {{ ticket.requester.display_name }}{% endif %}</p>
       <div class="cp-meta mt-3">{% translate "Təsvir" %}</div>
       <p class="cp-body-text mt-2">{{ ticket.description }}</p>
       {% if ticket.related_employee %}

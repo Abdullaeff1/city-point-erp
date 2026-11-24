@@ -2,10 +2,19 @@
 {% load i18n %}
 {% block heading %}{% translate "Jurnal yazıları" %}{% endblock %}
 {% block content %}
-<p class="cp-meta mb-2">{% translate "Bu gün unposted" %}: {{ unposted_today }}</p>
-{% if can_mutate %}
-<p class="mb-3"><a class="cp-btn" href="{% url 'finance:journal_create' %}">{% translate "Manual jurnal" %}</a></p>
-{% endif %}
+<p class="cp-meta mb-2">
+  {% translate "Unposted" %}: {{ unposted_count }}
+  · {% translate "Bu gün unposted" %}: {{ unposted_today }}
+</p>
+<div class="flex gap-2 mb-3" style="flex-wrap:wrap;align-items:center;">
+  {% if can_mutate %}
+  <a class="cp-btn" href="{% url 'finance:journal_create' %}">{% translate "Manual jurnal" %}</a>
+  {% endif %}
+  <a class="cp-btn" href="{% url 'finance:journals' %}">{% translate "Hamısı" %}</a>
+  <a class="cp-btn" href="{% url 'finance:journals' %}?posted=0">{% translate "Gözləyən (unposted)" %}</a>
+  <a class="cp-btn" href="{% url 'finance:journals' %}?posted=1">{% translate "Posted" %}</a>
+  <a class="cp-btn" href="{% url 'finance:journals' %}?posted=0&source=billing.supplier_payment">{% translate "AP ödəniş unposted" %}</a>
+</div>
 <div class="cp-card p-card">
   <table class="cp-table">
     <thead>
@@ -22,10 +31,10 @@
     <tbody>
       {% for e in entries %}
       <tr>
-        <td>{{ e.code }}</td>
+        <td><a href="{% url 'finance:journal_detail' code=e.code %}">{{ e.code }}</a></td>
         <td>{{ e.entry_date }}</td>
         <td>{{ e.memo|default:"—" }}</td>
-        <td>{{ e.source|default:"—" }}</td>
+        <td>{{ e.source|default:"—" }}{% if e.source_ref %}<br><span class="cp-meta">{{ e.source_ref }}</span>{% endif %}</td>
         <td>{% if e.posted %}{% translate "Posted" %}{% else %}{% translate "Draft" %}{% endif %}</td>
         <td>
           <ul style="margin:0;padding-left:16px;">
@@ -41,6 +50,8 @@
             <input type="hidden" name="entry_id" value="{{ e.pk }}">
             <button class="cp-btn" type="submit">{% translate "Baş kitaba yaz" %}</button>
           </form>
+          {% else %}
+          <a href="{% url 'finance:journal_detail' code=e.code %}">{% translate "Aç" %}</a>
           {% endif %}
         </td>
       </tr>

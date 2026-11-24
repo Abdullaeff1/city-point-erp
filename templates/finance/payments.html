@@ -1,10 +1,17 @@
 {% extends "finance/base.html" %}
 {% load i18n %}
-{% block heading %}{% translate "Ödənişlər" %}{% endblock %}
+{% block heading %}{% if pending_only %}{% translate "Ödəniş təsdiqi gözləyənlər" %}{% else %}{% translate "Ödənişlər" %}{% endif %}{% endblock %}
 {% block content %}
-{% if pending %}
-<div class="cp-card p-card mb-4">
-  <div class="cp-section">{% translate "Gözləyən təsdiqlər (A.7)" %}</div>
+<div class="flex gap-2 mb-3" style="flex-wrap:wrap;">
+  <a class="cp-btn" href="{% url 'finance:payments' %}">{% translate "Təsdiqlənmiş ödənişlər" %}</a>
+  <a class="cp-btn" href="{% url 'finance:payments' %}?pending=1">{% translate "Gözləyən sorğular" %}</a>
+</div>
+
+{% if pending_only %}
+<div class="cp-card p-card">
+  <div class="cp-section">{% translate "Gözləyən təsdiqlər (baxış)" %}</div>
+  <p class="cp-meta mt-2">{% translate "Mühasib sorğunu görə bilər; təsdiq yalnız rəhbərlikdədir (ERP)." %}</p>
+  <div style="overflow-x:auto;">
   <table class="cp-table mt-2">
     <thead>
       <tr>
@@ -36,16 +43,20 @@
             <input type="hidden" name="approval_id" value="{{ req.pk }}">
             <button class="cp-btn" type="submit">{% translate "Rədd" %}</button>
           </form>
+          {% else %}
+          <span class="cp-meta">{% translate "Yalnız baxış" %}</span>
           {% endif %}
         </td>
       </tr>
+      {% empty %}
+      <tr><td colspan="4" class="cp-meta">{% translate "Gözləyən sorğu yoxdur" %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
-{% endif %}
-
-<div class="cp-card p-card">
+{% else %}
+<div class="cp-card p-card" style="overflow-x:auto;">
   <div class="cp-section">{% translate "Qeydə alınmış ödənişlər" %}</div>
   <table class="cp-table mt-2">
     <thead>
@@ -74,4 +85,5 @@
     </tbody>
   </table>
 </div>
+{% endif %}
 {% endblock %}

@@ -50,7 +50,7 @@ class SpaceDrawingPermissionTests(TestCase):
             username="adm-d", email="adm-d@test.az", password="Pass12345!", role=Role.ADMIN
         )
         self.fm = User.objects.create_user(
-            username="fm-d", email="fm-d@test.az", password="Pass12345!", role=Role.PROPERTY_FM
+            username="fm-d", email="fm-d@test.az", password="Pass12345!", role=Role.SERVICE_DESK
         )
         self.mgmt = User.objects.create_user(
             username="mgmt-d", email="mgmt-d@test.az", password="Pass12345!", role=Role.MANAGEMENT

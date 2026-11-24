@@ -677,3 +677,57 @@ msgstr "Техобслуживание"
 
 msgid "Xəbərdarlıq"
 msgstr "Уведомление"
+
+msgid "Menyu"
+msgstr "Меню"
+
+msgid "Mərtəbələr və sahələr"
+msgstr "Этажи и помещения"
+
+msgid "Mərtəbələr üzrə sahələr"
+msgstr "Помещения по этажам"
+
+msgid "Dolu"
+msgstr "Занято"
+
+msgid "Sahə əlavə et"
+msgstr "Добавить помещение"
+
+msgid "Süzgəclər"
+msgstr "Фильтры"
+
+msgid "Axtarış"
+msgstr "Поиск"
+
+msgid "Sahə kodu, adı və ya rezident"
+msgstr "Код или название помещения, арендатор"
+
+msgid "Bütün mərtəbələr"
+msgstr "Все этажи"
+
+msgid "Bütün statuslar"
+msgstr "Все статусы"
+
+msgid "Sıfırla"
+msgstr "Сбросить"
+
+msgid "Bu mərtəbədə sahə yoxdur."
+msgstr "На этом этаже нет помещений."
+
+msgid "Süzgəclərə uyğun sahə tapılmadı."
+msgstr "Нет помещений, соответствующих фильтрам."
+
+msgid "Mərtəbə yoxdur. Əvvəlcə mərtəbə əlavə edin."
+msgstr "Этажей пока нет. Сначала добавьте этаж."
+
+msgid "Mərtəbə əlavə et"
+msgstr "Добавить этаж"
+
+msgid "Əlavə et"
+msgstr "Добавить"
+
+msgid "Tez keçidlər"
+msgstr "Быстрые ссылки"
+
+msgid "Müqavilə bitir"
+msgstr "Окончание аренды"

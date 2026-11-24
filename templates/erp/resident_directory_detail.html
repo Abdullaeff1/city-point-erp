@@ -1,0 +1,51 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block back_trail %} · <a href="{% url 'erp:resident_directory' %}">{% translate "Rezident şirkətlər" %}</a>{% endblock %}
+{% block heading %}{{ company.name }}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3">{% translate "Kataloq kartı — hüquqi / bank / şəxsiyyət / davamiyyət gizlidir." %}</p>
+<section class="cp-card p-card mb-4">
+  <h2 class="cp-section">{% translate "Biznes əlaqə" %}</h2>
+  <div class="grid gap-3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+    <div><div class="cp-meta">{% translate "Əlaqəli şəxs" %}</div><div>{{ contact_name|default:"—" }}</div></div>
+    <div><div class="cp-meta">{% translate "Vəzifə" %}</div><div>{{ contact_position|default:"—" }}</div></div>
+    <div><div class="cp-meta">{% translate "Telefon" %}</div><div>{{ contact_phone|default:"—" }}</div></div>
+    <div><div class="cp-meta">{% translate "Email" %}</div><div>{{ contact_email|default:"—" }}</div></div>
+  </div>
+</section>
+<section class="cp-card p-card mb-4">
+  <h2 class="cp-section">{% translate "Cari ofislər" %}</h2>
+  {% if offices %}
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Ofis" %}</th><th>{% translate "Mərtəbə" %}</th><th>{% translate "Status" %}</th></tr></thead>
+    <tbody>
+      {% for o in offices %}
+      <tr><td>{{ o.label }}</td><td>{{ o.floor }}</td><td>{{ o.status }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="cp-meta">{% translate "Bağlı ofis yoxdur." %}</p>
+  {% endif %}
+</section>
+<section class="cp-card p-card mb-4">
+  <h2 class="cp-section">{% translate "Bağlı ticketlər" %}</h2>
+  <ul style="margin:0;padding-left:1.1rem;">
+    {% for t in tickets %}
+    <li><a href="{% url 'erp:ticket_detail' t.code %}">{{ t.code }}</a> · {{ t.get_status_display }}</li>
+    {% empty %}
+    <li class="cp-meta">{% translate "İcazəniz daxilində ticket yoxdur." %}</li>
+    {% endfor %}
+  </ul>
+</section>
+<section class="cp-card p-card mb-4">
+  <h2 class="cp-section">{% translate "Bağlı iş sifarişləri" %}</h2>
+  <ul style="margin:0;padding-left:1.1rem;">
+    {% for wo in work_orders %}
+    <li><a href="{% url 'erp:work_order_detail' wo.code %}">{{ wo.code }}</a></li>
+    {% empty %}
+    <li class="cp-meta">{% translate "İcazəniz daxilində iş sifarişi yoxdur." %}</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

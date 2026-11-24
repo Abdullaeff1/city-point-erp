@@ -20,6 +20,8 @@ node_modules/
 
 # Təhlükəsizlik / PII / turniket — paylaşılmır
 var/private_media/
+var/acceptance_pg_dump_rehearsal.sql
+var/acceptance_*_restore/
 var/axtrax_*.json
 var/axtrax_*.log
 var/binada-olanlar*.xlsx

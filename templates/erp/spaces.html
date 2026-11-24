@@ -1,85 +1,126 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
-{% block heading %}{% translate "Əmlak" %}{% endblock %}
+{% block page_title %}{% translate "Mərtəbələr və sahələr" %}{% endblock %}
+{% block heading %}{% translate "Mərtəbələr və sahələr" %}{% endblock %}
+{% block breadcrumb_current %}{% if status_filter == 'vacant' %}{% translate "Boş sahələr" %}{% elif status_filter == 'occupied' %}{% translate "Dolu sahələr" %}{% else %}{% translate "Sahələr" %}{% endif %}{% endblock %}
 {% block content %}
-{% if messages %}
-<div class="mb-3">
-  {% for message in messages %}
-  <p class="cp-meta" style="{% if message.tags == 'error' %}color:#b42318;{% endif %}">{{ message }}</p>
-  {% endfor %}
-</div>
-{% endif %}
-<div class="cp-card p-card-lg mb-5">
-  <div class="flex justify-between items-center" style="flex-wrap:wrap;gap:12px;">
-    <div class="cp-meta">CITY POINT · {% translate "Building overview" %}</div>
-    <div class="flex gap-2" style="flex-wrap:wrap;">
-      <a class="cp-btn" href="{% url 'erp:space_create' %}">{% translate "Sahə əlavə et" %}</a>
-    </div>
-  </div>
-  <div class="grid-4 mt-4">
-    <div><div class="cp-metric">{{ floor_count }}</div><div class="cp-meta">{% translate "mərtəbə" %}</div></div>
-    <div><div class="cp-metric">{{ space_count }}</div><div class="cp-meta">{% translate "sahə" %}</div></div>
-    <div><div class="cp-metric">{{ active_residents }}</div><div class="cp-meta">{% translate "aktiv rezident" %}</div></div>
-    <div><div class="cp-metric">{{ guest_today }}</div><div class="cp-meta">{% translate "bugünkü qonaq" %}</div></div>
-  </div>
+<div class="erp-metrics mb-5">
+  <a class="cp-card erp-metric" href="{% url 'erp:spaces' %}">
+    <span class="erp-icon"><i data-lucide="layers" aria-hidden="true"></i></span>
+    <span class="cp-meta">{% translate "Mərtəbələr" %}</span>
+    <strong class="cp-metric">{{ floor_count }}</strong>
+  </a>
+  <a class="cp-card erp-metric" href="{% url 'erp:spaces' %}">
+    <span class="erp-icon"><i data-lucide="building-2" aria-hidden="true"></i></span>
+    <span class="cp-meta">{% translate "Sahələr" %}</span>
+    <strong class="cp-metric">{{ space_count }}</strong>
+  </a>
+  <a class="cp-card erp-metric" href="{% url 'erp:spaces' %}?status=occupied"{% if status_filter == 'occupied' %} aria-current="page"{% endif %}>
+    <span class="erp-icon erp-icon--green"><i data-lucide="key-round" aria-hidden="true"></i></span>
+    <span class="cp-meta">{% translate "Dolu" %}</span>
+    <strong class="cp-metric">{{ occupied_count }} <small>· {{ occupancy_pct }}%</small></strong>
+  </a>
+  <a class="cp-card erp-metric" href="{% url 'erp:spaces' %}?status=vacant"{% if status_filter == 'vacant' %} aria-current="page"{% endif %}>
+    <span class="erp-icon erp-icon--amber"><i data-lucide="door-open" aria-hidden="true"></i></span>
+    <span class="cp-meta">{% translate "Boş" %}</span>
+    <strong class="cp-metric">{{ vacant_count }}</strong>
+  </a>
 </div>
 
-<div class="cp-card p-card mb-5">
-  <div class="cp-section">{% translate "Mərtəbə əlavə et" %}</div>
-  <form method="post" action="{% url 'erp:floor_create' %}" class="grid-2 mt-3" style="align-items:end;">
-    {% csrf_token %}
-    {% for field in floor_form %}
-    <label {% if field.name == 'building' %}style="display:none;"{% endif %}>
-      <span class="cp-meta">{{ field.label }}</span>
-      {{ field }}
+<section class="cp-card erp-space-register" aria-labelledby="space-register-heading">
+  <div class="erp-section-heading">
+    <h2 id="space-register-heading" class="cp-section">{% translate "Mərtəbələr üzrə sahələr" %}</h2>
+    {% if can_manage_spaces %}
+    <a class="cp-btn" href="{% url 'erp:space_create' %}">
+      <i data-lucide="plus" width="17" height="17" aria-hidden="true"></i>{% translate "Sahə əlavə et" %}
+    </a>
+    {% endif %}
+  </div>
+
+  <form method="get" class="erp-space-filters" aria-label="{% translate 'Süzgəclər' %}">
+    <label>
+      <span class="cp-meta">{% translate "Axtarış" %}</span>
+      <input class="cp-input" type="search" name="q" value="{{ query }}" placeholder="{% translate 'Sahə kodu, adı və ya rezident' %}">
     </label>
-    {% endfor %}
-    <div>
-      <button class="cp-btn" type="submit">{% translate "Əlavə et" %}</button>
-    </div>
+    <label>
+      <span class="cp-meta">{% translate "Mərtəbə" %}</span>
+      <select class="cp-input" name="floor">
+        <option value="">{% translate "Bütün mərtəbələr" %}</option>
+        {% for floor in floors %}
+        <option value="{{ floor.pk }}"{% if floor.pk|stringformat:"s" == floor_filter %} selected{% endif %}>{{ floor.building.code }} · {{ floor }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Status" %}</span>
+      <select class="cp-input" name="status">
+        <option value="">{% translate "Bütün statuslar" %}</option>
+        {% for value, label in space_statuses %}
+        <option value="{{ value }}"{% if status_filter == value %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit" class="cp-btn soft">{% translate "Tətbiq et" %}</button>
+    {% if filtering %}<a class="cp-btn-ghost" href="{% url 'erp:spaces' %}">{% translate "Sıfırla" %}</a>{% endif %}
   </form>
-</div>
 
-<div class="flex gap-3 mb-3" style="flex-wrap:wrap;align-items:center;justify-content:space-between;">
-  <div class="cp-section" style="margin:0;">{% translate "Mərtəbələr" %}</div>
-  <div class="flex gap-3" style="align-items:center;">
-    <span class="cp-meta" style="display:inline-flex;align-items:center;gap:6px;">
-      <span class="space-legend-swatch space-legend-swatch--vacant" aria-hidden="true"></span>{% translate "Boş" %}
-    </span>
-    <span class="cp-meta" style="display:inline-flex;align-items:center;gap:6px;">
-      <span class="space-legend-swatch space-legend-swatch--occupied" aria-hidden="true"></span>{% translate "Dolu" %}
-    </span>
-  </div>
-</div>
-{% for row in floor_rows %}
-  <div class="cp-card p-card-sm mb-3">
-    <div class="flex justify-between items-center">
-      <strong>{{ row.floor.code }} · {{ row.floor.name }}</strong>
-      <span class="cp-meta">{{ row.occupied }}/{{ row.total }} · {{ row.pct }}%</span>
+  {% for row in floor_rows %}
+  <div class="erp-floor">
+    <div class="erp-floor-heading">
+      <div class="flex items-center gap-3 min-0">
+        <span class="erp-floor-code">{{ row.floor.code }}</span>
+        <div class="min-0">
+          <h3>{{ row.floor.name|default:row.floor.code }}</h3>
+          <div class="cp-meta">{{ row.floor.building.name }}</div>
+        </div>
+      </div>
+      <div class="erp-floor-occupancy">
+        <span class="cp-meta">{% translate "Dolu" %} {{ row.occupied }}/{{ row.total }}</span>
+        <progress max="100" value="{{ row.pct }}" aria-label="{% translate 'Doluluq' %}">{{ row.pct }}%</progress>
+        <strong>{{ row.pct }}%</strong>
+      </div>
     </div>
-    <div class="cp-progress mt-2"><span style="width:{{ row.pct }}%;"></span></div>
-    <div class="space-chips">
-      {% for s in row.spaces %}
-        {% if s.occupancy == "active_lease" or s.commercial_status == "active" or s.commercial_status == "notice" %}
-        <a href="{% url 'erp:space_detail' s.code %}" class="cp-soft-tile cp-soft-tile--occupied" title="{% translate 'Dolu' %}">
-          <strong>{{ s.short_label }}</strong>
-          <span class="cp-meta">{% if s.resident %}{{ s.resident.name }}{% else %}{% translate "Dolu" %}{% endif %}</span>
-        </a>
-        {% else %}
-        <a href="{% url 'erp:space_detail' s.code %}" class="cp-soft-tile cp-soft-tile--vacant" title="{% translate 'Boş' %}">
-          <strong>{{ s.short_label }}</strong>
-          <span class="cp-meta">{% translate "Boş" %}</span>
-        </a>
+    <div class="erp-space-grid">
+      {% for item in row.spaces %}
+      <a href="{% url 'erp:space_detail' item.space.code %}" class="erp-space-tile erp-space-tile--{{ item.status }}">
+        <span class="erp-space-tile-heading">
+          <strong>{{ item.space.short_label }}</strong>
+          <span class="erp-space-status">{{ item.label }}</span>
+        </span>
+        <span class="cp-meta">
+          {% if item.tenant %}{{ item.tenant }} · {% endif %}{{ item.space.area_m2|floatformat:"-1" }} m²
+        </span>
+        {% if item.lease_end %}
+        <span class="cp-meta">{% translate "Müqavilə bitir" %} · {{ item.lease_end|date:"d.m.Y" }}</span>
         {% endif %}
+      </a>
       {% empty %}
-      <span class="cp-meta">{% translate "Bu mərtəbədə sahə yoxdur." %}</span>
+      <p class="cp-meta">{% translate "Bu mərtəbədə sahə yoxdur." %}</p>
       {% endfor %}
     </div>
-    <div class="mt-2">
-      <a class="cp-btn-ghost" href="{% url 'erp:space_create' %}?floor={{ row.floor.pk }}" style="padding:4px 10px;font-size:13px;">{% translate "+ Sahə" %}</a>
-    </div>
+    {% if can_manage_spaces %}
+    <a class="cp-btn-ghost erp-floor-add" href="{% url 'erp:space_create' %}?floor={{ row.floor.pk }}">
+      <i data-lucide="plus" width="15" height="15" aria-hidden="true"></i>{% translate "Sahə əlavə et" %}
+    </a>
+    {% endif %}
   </div>
-{% empty %}
-  <p class="cp-meta">{% translate "Mərtəbə yoxdur. Əvvəlcə mərtəbə əlavə edin." %}</p>
-{% endfor %}
+  {% empty %}
+  <p class="cp-meta erp-space-empty">
+    {% if filtering %}{% translate "Süzgəclərə uyğun sahə tapılmadı." %}{% else %}{% translate "Mərtəbə yoxdur. Əvvəlcə mərtəbə əlavə edin." %}{% endif %}
+  </p>
+  {% endfor %}
+</section>
+
+{% if can_manage_spaces %}
+<details class="cp-card erp-add-floor mt-4">
+  <summary>{% translate "Mərtəbə əlavə et" %}</summary>
+  <form method="post" action="{% url 'erp:floor_create' %}" class="erp-space-filters mt-3">
+    {% csrf_token %}
+    {% for field in floor_form %}
+      <label><span class="cp-meta">{{ field.label }}</span>{{ field }}</label>
+    {% endfor %}
+    <button class="cp-btn" type="submit">{% translate "Əlavə et" %}</button>
+  </form>
+</details>
+{% endif %}
 {% endblock %}

@@ -1,8 +1,11 @@
 """Phase 3 — department dashboards with real aggregates."""
 
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.accounts.models import Role
 from apps.erp.department_dashboards import (
@@ -10,7 +13,9 @@ from apps.erp.department_dashboards import (
     build_helpdesk_dashboard,
     build_hr_dashboard,
 )
-from apps.property.models import Building, CommercialStatus, Floor, Space
+from apps.leases.models import Lease, LeaseLine, LeaseStatus
+from apps.parties.models import Party
+from apps.property.models import Building, CommercialStatus, Floor, Occupancy, OperationalStatus, Space
 from apps.rbac.services import seed_rbac_catalog
 
 User = get_user_model()
@@ -21,7 +26,7 @@ class DepartmentDashboardViewTests(TestCase):
         seed_rbac_catalog()
         self.client = Client()
         self.fm = User.objects.create_user(
-            username="fm_d", email="fm_d@test.az", password="x", role=Role.PROPERTY_FM, is_staff=True
+            username="fm_d", email="fm_d@test.az", password="x", role=Role.SERVICE_DESK, is_staff=True
         )
         self.desk = User.objects.create_user(
             username="sd_d", email="sd_d@test.az", password="x", role=Role.SERVICE_DESK, is_staff=True
@@ -84,15 +89,15 @@ class FacilityAggregationTests(TestCase):
     def setUp(self):
         seed_rbac_catalog()
         self.fm = User.objects.create_user(
-            username="fm_a", email="fm_a@test.az", password="x", role=Role.PROPERTY_FM, is_staff=True
+            username="fm_a", email="fm_a@test.az", password="x", role=Role.SERVICE_DESK, is_staff=True
         )
         building = Building.objects.create(code="TB-P3", name="Test B P3")
-        floor = Floor.objects.create(building=building, code="F1", name="F1")
+        self.floor = Floor.objects.create(building=building, code="F1", name="F1")
         Space.objects.create(
-            code="T-VAC", name="Vacant", floor=floor, commercial_status=CommercialStatus.VACANT
+            code="T-VAC", name="Vacant", floor=self.floor, occupancy=Occupancy.VACANT,
         )
         Space.objects.create(
-            code="T-ACT", name="Active", floor=floor, commercial_status=CommercialStatus.ACTIVE
+            code="T-ACT", name="Active", floor=self.floor, commercial_status=CommercialStatus.ACTIVE,
         )
 
     def test_facility_kpi_counts_spaces(self):
@@ -103,6 +108,42 @@ class FacilityAggregationTests(TestCase):
         self.assertGreaterEqual(occupied, 1)
         open_wo = next(k["value"] for k in board["kpis"] if "Açıq WO" in str(k["label"]))
         self.assertGreaterEqual(open_wo, 0)
+
+    def test_vacant_kpi_matches_filtered_floor_register(self):
+        Space.objects.create(
+            code="T-BLOCKED", floor=self.floor, occupancy=Occupancy.VACANT,
+            operational_status=OperationalStatus.BLOCKED,
+        )
+        self.client.force_login(self.fm)
+        board = build_facility_dashboard(self.fm)
+        vacant = next(kpi for kpi in board["kpis"] if kpi.get("url", "").endswith("?status=vacant"))
+        response = self.client.get(vacant["url"])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(vacant["value"], response.context["vacant_count"])
+        visible_codes = [item["space"].code for row in response.context["floor_rows"] for item in row["spaces"]]
+        self.assertEqual(visible_codes, ["T-VAC"])
+        self.assertContains(response, reverse("erp:space_detail", kwargs={"code": "T-VAC"}))
+
+        response = self.client.get(reverse("erp:spaces"), {"floor": self.floor.pk, "q": "t-blocked"})
+        self.assertContains(response, "erp-space-tile--blocked")
+        self.assertNotContains(response, "erp-space-tile--vacant")
+
+    def test_floor_register_finds_active_lease_on_secondary_space(self):
+        today = timezone.localdate()
+        party = Party.objects.create(legal_name="Test Office Tenant")
+        primary = Space.objects.get(code="T-ACT")
+        secondary = Space.objects.create(
+            code="T-SECONDARY", floor=self.floor, commercial_status=CommercialStatus.ACTIVE, area_m2=35,
+        )
+        lease = Lease.objects.create(
+            code="TEST-LEASE-SPACES", party=party, space=primary, status=LeaseStatus.ACTIVE,
+            start_date=today - timedelta(days=30), end_date=today + timedelta(days=60),
+        )
+        LeaseLine.objects.create(lease=lease, space=secondary)
+        self.client.force_login(self.fm)
+        response = self.client.get(reverse("erp:spaces"), {"q": "test office tenant", "status": "occupied"})
+        self.assertContains(response, reverse("erp:space_detail", kwargs={"code": secondary.code}))
+        self.assertContains(response, lease.end_date.strftime("%d.%m.%Y"))
 
     def test_helpdesk_board_shape(self):
         board = build_helpdesk_dashboard(self.fm)

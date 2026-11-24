@@ -6,9 +6,11 @@ from apps.accounts.models import Role
 from apps.documents.models import (
     DOCUMENT_TYPE_BANK_CERTIFICATE,
     DOCUMENT_TYPE_COMPANY_EXTRACT,
+    DOCUMENT_TYPE_INCOMING_LETTER,
     DOCUMENT_TYPE_LEASE_APPLICATION_SIGNED,
     DOCUMENT_TYPE_LEASE_CONTRACT,
     DOCUMENT_TYPE_LEASE_AMENDMENT,
+    DOCUMENT_TYPE_OUTGOING_LETTER,
     DOCUMENT_TYPE_VOEN,
     Document,
     DocumentSensitivity,
@@ -23,6 +25,8 @@ PORTAL_LOCKED_DOCUMENT_TYPES = frozenset(
         DOCUMENT_TYPE_VOEN,
         DOCUMENT_TYPE_BANK_CERTIFICATE,
         DOCUMENT_TYPE_COMPANY_EXTRACT,
+        DOCUMENT_TYPE_INCOMING_LETTER,
+        DOCUMENT_TYPE_OUTGOING_LETTER,
     }
 )
 
@@ -69,24 +73,22 @@ def user_can_download_document(user, document: Document) -> bool:
         return role in {
             Role.ADMIN,
             Role.MANAGEMENT,
-            Role.PROPERTY_FM,
-            Role.ACCOUNTANT,
             Role.SERVICE_DESK,
+            Role.ACCOUNTANT,
         }
 
     if sens == DocumentSensitivity.INTERNAL:
         return role in {
             Role.ADMIN,
             Role.MANAGEMENT,
-            Role.PROPERTY_FM,
-            Role.ACCOUNTANT,
             Role.SERVICE_DESK,
+            Role.ACCOUNTANT,
             Role.SECURITY,
             Role.RECEPTION,
         }
 
     if sens == DocumentSensitivity.CONFIDENTIAL:
-        return role in {Role.ADMIN, Role.MANAGEMENT, Role.PROPERTY_FM, Role.ACCOUNTANT}
+        return role in {Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK, Role.ACCOUNTANT}
 
     # RESTRICTED — şəxsiyyət / həssas
     return role in {Role.ADMIN, Role.MANAGEMENT, Role.ACCOUNTANT}

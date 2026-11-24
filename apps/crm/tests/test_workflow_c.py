@@ -86,7 +86,7 @@ class WorkflowCAcceptanceTests(TestCase):
             username="wc-acc", email="wc-acc@test.az", password="x", role=Role.ACCOUNTANT, is_staff=True
         )
         self.fm = User.objects.create_user(
-            username="wc-fm", email="wc-fm@test.az", password="x", role=Role.PROPERTY_FM, is_staff=True
+            username="wc-fm", email="wc-fm@test.az", password="x", role=Role.SERVICE_DESK, is_staff=True
         )
         self.resident = User.objects.create_user(
             username="wc-res", email="wc-res@test.az", password="x", role=Role.RESIDENT_USER

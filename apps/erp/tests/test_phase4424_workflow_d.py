@@ -37,7 +37,7 @@ class WorkflowDProcurementChainTests(TestCase):
             username="wfd-fm",
             email="wfd-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.wh = Warehouse.objects.create(code="WFD-WH", name="WFD WH")

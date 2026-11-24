@@ -36,7 +36,7 @@ class Phase42ProcurementWarehouseTests(TestCase):
             username="p42w-fm",
             email="p42w-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.mgmt = User.objects.create_user(
@@ -58,7 +58,7 @@ class Phase42ProcurementWarehouseTests(TestCase):
             priority=WorkOrderPriority.NORMAL,
         )
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             defaults={"max_amount": Decimal("1000"), "is_active": True},
         )
 
@@ -117,7 +117,7 @@ class Phase42ProcurementWarehouseTests(TestCase):
         self.assertEqual(pr_small.status, PRStatus.APPROVED)
 
     def test_missing_limit_still_escalates_unpriced(self):
-        PurchaseApprovalLimit.objects.filter(role=Role.PROPERTY_FM).delete()
+        PurchaseApprovalLimit.objects.filter(role=Role.SERVICE_DESK).delete()
         pr = ProcurementService.create_pr_for_work_order(
             self.wo, actor=self.fm, description="no-limit", qty="1", sku=self.sku
         )

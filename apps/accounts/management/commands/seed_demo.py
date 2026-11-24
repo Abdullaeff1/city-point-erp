@@ -216,8 +216,7 @@ class Command(BaseCommand):
             # uname: email, first_name, role, password, ticket_department_code|None
             "admin": ("admin@citypoint.az", "Admin", Role.ADMIN, "admin123", None),
             "reception": ("reception@citypoint.az", "Reception", Role.RECEPTION, "reception123", None),
-            "desk": ("desk@citypoint.az", "Service Desk", Role.SERVICE_DESK, "desk123", "servicedesk"),
-            "fm": ("fm@citypoint.az", "Property FM", Role.PROPERTY_FM, "fm123", "webservis"),
+            "desk": ("desk@citypoint.az", "Təchizat", Role.SERVICE_DESK, "desk123", "webservis"),
             "manager": ("manager@citypoint.az", "Rəhbərlik", Role.MANAGEMENT, "manager123", None),
             "security": ("security@citypoint.az", "Təhlükəsizlik", Role.SECURITY, "security123", "security"),
             "accountant": ("accountant@citypoint.az", "Mühasib", Role.ACCOUNTANT, "accountant123", None),
@@ -263,19 +262,26 @@ class Command(BaseCommand):
         )
 
         desk = created_users["desk"]
-        fm = created_users["fm"]
         security_user = created_users["security"]
+        # Designated Head of Supply (explicit UserPermission).
+        from apps.rbac.services import grant_user_permission
+
+        grant_user_permission(desk, "supply.head")
+        # Retire legacy Property FM demo account → inactive (role already remapped if present).
+        legacy_fm = User.objects.filter(email="fm@citypoint.az").first()
+        if legacy_fm:
+            legacy_fm.role = Role.SERVICE_DESK
+            legacy_fm.is_active = False
+            legacy_fm.save(update_fields=["role", "is_active"])
         now = timezone.now()
 
         def _seed_assignee_for(ticket):
-            """Assignee must be from the routed department (not always Service Desk)."""
+            """Assignee must be from the routed department."""
             code = getattr(ticket.department, "code", None)
-            if code in {"webservis", "teserrufat", "property"}:
-                return fm
+            if code in {"webservis", "teserrufat", "property", "servicedesk"}:
+                return desk
             if code == "security":
                 return security_user
-            if code == "servicedesk":
-                return desk
             return None
 
         def upsert_ticket(code, cat_key, company, space, prio, status, desc, sla_hours, ticket_type=None):
@@ -701,7 +707,7 @@ class Command(BaseCommand):
         self.stdout.write("Portal: office@asbc.az / asbc123")
         self.stdout.write("ERP admin: admin@citypoint.az / admin123")
         self.stdout.write("Reception: reception@citypoint.az / reception123")
-        self.stdout.write("Service Desk: desk@citypoint.az / desk123")
+        self.stdout.write("Təchizat rəhbəri (Service Desk): desk@citypoint.az / desk123")
         self.stdout.write("Security: security@citypoint.az / security123 → /security/")
         self.stdout.write("Accountant: accountant@citypoint.az / accountant123 → /finance/")
         self.stdout.write("Sales: sales@citypoint.az / sales123 → /erp/crm/leads/")

@@ -1,0 +1,86 @@
+{% extends "finance/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Podratçı fakturaları" %}{% endblock %}
+{% block content %}
+<div class="flex gap-2 mb-3" style="flex-wrap:wrap;align-items:center;">
+  <a class="{% if not queue_filter %}cp-btn{% else %}cp-btn-ghost{% endif %}" href="{% url 'finance:payables' %}">{% translate "Hamısı" %}</a>
+  <a class="{% if queue_filter == 'pending_approval' %}cp-btn{% else %}cp-btn-ghost{% endif %}" href="{% url 'finance:payables' %}?queue=pending_approval">{% translate "Təsdiq gözləyən" %} ({{ queue_counts.pending_approval }})</a>
+  <a class="{% if queue_filter == 'awaiting_settle' %}cp-btn{% else %}cp-btn-ghost{% endif %}" href="{% url 'finance:payables' %}?queue=awaiting_settle">{% translate "Settlement gözləyən" %} ({{ queue_counts.awaiting_settle }})</a>
+  <a class="{% if queue_filter == 'unposted_settle' %}cp-btn{% else %}cp-btn-ghost{% endif %}" href="{% url 'finance:payables' %}?queue=unposted_settle">{% translate "Qeyd / unposted JE" %} ({{ queue_counts.unposted_settle }})</a>
+  <a class="{% if queue_filter == 'posted_settle' %}cp-btn{% else %}cp-btn-ghost{% endif %}" href="{% url 'finance:payables' %}?queue=posted_settle">{% translate "Posted ödəniş" %} ({{ queue_counts.posted_settle }})</a>
+  <form method="get" class="flex gap-2" style="flex-wrap:wrap;">
+    {% if queue_filter %}<input type="hidden" name="queue" value="{{ queue_filter }}">{% endif %}
+    <select class="cp-input" name="status" onchange="this.form.submit()">
+      <option value="">{% translate "Bütün statuslar" %}</option>
+      {% for val, label in statuses %}
+      <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  {% if can_mutate %}
+  <a class="cp-btn" href="{% url 'finance:payable_create' %}">{% translate "Yeni" %}</a>
+  {% endif %}
+</div>
+
+{% if payment_rows is not None %}
+<div class="cp-card p-card" style="overflow-x:auto;">
+  <div class="cp-section">{% if queue_filter == 'unposted_settle' %}{% translate "Settlement — unposted JE" %}{% else %}{% translate "Settlement — posted JE" %}{% endif %}</div>
+  <table class="cp-table mt-2">
+    <thead>
+      <tr>
+        <th>{% translate "Tarix" %}</th>
+        <th>{% translate "AP faktura" %}</th>
+        <th>{% translate "Podratçı" %}</th>
+        <th>{% translate "Məbləğ" %}</th>
+        <th>{% translate "Ref" %}</th>
+        <th>{% translate "JE" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in payment_rows %}
+      <tr>
+        <td>{{ p.paid_at }}</td>
+        <td><a href="{% url 'finance:payable_detail' code=p.supplier_invoice.code %}">{{ p.supplier_invoice.code }}</a></td>
+        <td>{{ p.supplier_invoice.supplier_party.display_name }}</td>
+        <td>{{ p.amount }} {{ p.currency }}</td>
+        <td>{{ p.reference|default:"—" }}</td>
+        <td>{% if p.journal_entry_id %}<a href="{% url 'finance:journal_detail' code=p.journal_entry.code %}">{{ p.journal_entry.code }}</a>{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="cp-meta">{% translate "Boş" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if queue_filter == 'unposted_settle' %}
+  <p class="cp-meta mt-2"><a href="{% url 'finance:journals' %}?posted=0&source=billing.supplier_payment">{% translate "Jurnal: AP ödəniş unposted" %}</a></p>
+  {% endif %}
+</div>
+{% else %}
+<div class="cp-card p-card" style="overflow-x:auto;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Kod" %}</th>
+        <th>{% translate "Podratçı" %}</th>
+        <th>{% translate "Faktura №" %}</th>
+        <th>{% translate "Tarix" %}</th>
+        <th>{% translate "Status" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr>
+        <td><a href="{% url 'finance:payable_detail' code=inv.code %}">{{ inv.code }}</a></td>
+        <td>{{ inv.supplier_party.display_name }}</td>
+        <td>{{ inv.supplier_invoice_no }}</td>
+        <td>{{ inv.invoice_date }}</td>
+        <td>{{ inv.get_status_display }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta">{% translate "Boş — podratçı fakturası yoxdur" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

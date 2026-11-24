@@ -14,7 +14,6 @@ ROLE_SWITCH_TARGETS: list[tuple[str, str]] = [
     (Role.MANAGEMENT, "manager@citypoint.az"),
     (Role.RECEPTION, "reception@citypoint.az"),
     (Role.SERVICE_DESK, "desk@citypoint.az"),
-    (Role.PROPERTY_FM, "fm@citypoint.az"),
     (Role.SECURITY, "security@citypoint.az"),
     (Role.ACCOUNTANT, "accountant@citypoint.az"),
     (Role.SALES, "sales@citypoint.az"),

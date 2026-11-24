@@ -7,6 +7,7 @@ app_name = "portal"
 urlpatterns = [
     path("choose/", views.ChooseCompaniesView.as_view(), name="choose_companies"),
     path("", views.HomeView.as_view(), name="home"),
+    path("company/", views.CompanyProfileView.as_view(), name="company_profile"),
     path("spaces/", views.SpacesView.as_view(), name="spaces"),
     path("spaces/<str:code>/", views.SpaceDetailView.as_view(), name="space_detail"),
     path(
@@ -48,6 +49,12 @@ urlpatterns = [
     path("documents/", views.DocumentsView.as_view(), name="documents"),
     path("documents/<int:pk>/download/", views.DocumentDownloadView.as_view(), name="document_download"),
     path("invoices/", views.InvoicesView.as_view(), name="invoices"),
+    path("invoices/<str:code>/", views.InvoiceDetailView.as_view(), name="invoice_detail"),
+    path(
+        "invoices/<str:code>/official/",
+        views.InvoiceOfficialDownloadView.as_view(),
+        name="invoice_official_download",
+    ),
     path("procedures/", views.BuildingProceduresView.as_view(), name="building_procedures"),
     path(
         "procedures/<int:pk>/download/",

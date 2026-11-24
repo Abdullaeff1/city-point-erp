@@ -143,3 +143,25 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"PAY-{self.pk}:{self.amount}"
+
+
+# Supplier AP invoices (finance-owned; matched to procurement PO lines).
+from apps.billing.supplier_models import (  # noqa: E402
+    SupplierInvoice,
+    SupplierInvoiceLine,
+    SupplierInvoiceStatus,
+    SupplierPayment,
+)
+
+__all__ = [
+    "ChargeSource",
+    "InvoiceStatus",
+    "Charge",
+    "Invoice",
+    "InvoiceLine",
+    "Payment",
+    "SupplierInvoice",
+    "SupplierInvoiceLine",
+    "SupplierInvoiceStatus",
+    "SupplierPayment",
+]

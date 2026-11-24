@@ -44,7 +44,7 @@ class HistoricalApprovalEvidenceTests(TestCase):
             username="hist-fm",
             email="hist-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.sku = SKU.objects.create(code="HIST-SKU", name="H", unit="ədəd", reorder_level=1)
@@ -55,7 +55,7 @@ class HistoricalApprovalEvidenceTests(TestCase):
             priority=WorkOrderPriority.NORMAL,
         )
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             defaults={"max_amount": Decimal("1000"), "is_active": True},
         )
         self.supplier = Party.objects.create(legal_name="HIST Supplier")
@@ -132,7 +132,7 @@ class PricedEscalationPathTests(TestCase):
             username="esc-fm",
             email="esc-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.mgmt = User.objects.create_user(
@@ -158,7 +158,7 @@ class PricedEscalationPathTests(TestCase):
             priority=WorkOrderPriority.NORMAL,
         )
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             defaults={"max_amount": Decimal("1000"), "is_active": True},
         )
         self.supplier = Party.objects.create(legal_name="ESC Supplier")
@@ -249,7 +249,7 @@ class CommitmentConcurrencyTests(TransactionTestCase):
             username="conc-fm",
             email="conc-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.admin = User.objects.create_user(
@@ -268,7 +268,7 @@ class CommitmentConcurrencyTests(TransactionTestCase):
             priority=WorkOrderPriority.NORMAL,
         )
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             defaults={"max_amount": Decimal("1000"), "is_active": True},
         )
         self.supplier = Party.objects.create(legal_name="CONC Supplier")

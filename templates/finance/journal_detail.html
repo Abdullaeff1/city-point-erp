@@ -1,0 +1,111 @@
+{% extends "finance/base.html" %}
+{% load i18n %}
+{% block heading %}{{ entry.code }}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3" style="margin-top:-8px;">
+  <a href="{% url 'finance:journals' %}">← {% translate "Jurnal" %}</a>
+</p>
+
+<div class="cp-card p-card mb-4">
+  <div class="flex gap-3" style="flex-wrap:wrap;">
+    <div style="flex:1 1 140px;">
+      <div class="cp-meta">{% translate "Tarix" %}</div>
+      <div>{{ entry.entry_date }}</div>
+    </div>
+    <div style="flex:1 1 140px;">
+      <div class="cp-meta">{% translate "Dövr" %}</div>
+      <div>{{ period }}{% if period.is_closed %} · {% translate "Bağlı" %}{% endif %}</div>
+    </div>
+    <div style="flex:1 1 140px;">
+      <div class="cp-meta">{% translate "GL" %}</div>
+      <div>{% if entry.posted %}{% translate "Posted" %}{% else %}{% translate "Draft (gözləyir)" %}{% endif %}</div>
+    </div>
+    <div style="flex:1 1 180px;">
+      <div class="cp-meta">{% translate "Mənbə" %}</div>
+      <div>{{ entry.source|default:"—" }} · {{ entry.source_ref|default:"—" }}</div>
+    </div>
+    <div style="flex:1 1 200px;">
+      <div class="cp-meta">{% translate "Memo" %}</div>
+      <div>{{ entry.memo|default:"—" }}</div>
+    </div>
+  </div>
+</div>
+
+{% if source_invoice %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Billing mənbə — faktura" %}</div>
+  <p class="mt-2">
+    <a href="{% url 'finance:invoice_detail' code=source_invoice.code %}">{{ source_invoice.code }}</a>
+    · {{ source_invoice.party.display_name }}
+    · {{ source_invoice.total }} {{ source_invoice.currency }}
+    · {{ source_invoice.get_status_display }}
+  </p>
+</div>
+{% endif %}
+
+{% if source_payment %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Billing mənbə — ödəniş" %}</div>
+  <p class="mt-2">
+    PAY-{{ source_payment.pk }} · {{ source_payment.amount }} {{ source_payment.currency }}
+    · {{ source_payment.paid_at }}
+    {% if source_payment.invoice_id %}
+      · <a href="{% url 'finance:invoice_detail' code=source_payment.invoice.code %}">{{ source_payment.invoice.code }}</a>
+    {% endif %}
+  </p>
+</div>
+{% endif %}
+
+{% if source_supplier_invoice %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "AP mənbə — podratçı fakturası" %}</div>
+  <p class="mt-2">
+    <a href="{% url 'finance:payable_detail' code=source_supplier_invoice.code %}">{{ source_supplier_invoice.code }}</a>
+    · {{ source_supplier_invoice.supplier_party.display_name }}
+    · {{ source_supplier_invoice.supplier_invoice_no }}
+  </p>
+</div>
+{% endif %}
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Sətirlər" %}</div>
+  <table class="cp-table mt-2">
+    <thead>
+      <tr>
+        <th>{% translate "Hesab" %}</th>
+        <th>{% translate "Debit" %}</th>
+        <th>{% translate "Credit" %}</th>
+        <th>{% translate "Memo" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in entry.lines.all %}
+      <tr>
+        <td>{{ line.account.code }} {{ line.account.name }}</td>
+        <td>{{ line.debit }}</td>
+        <td>{{ line.credit }}</td>
+        <td>{{ line.memo|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th>{% translate "Cəm" %}</th>
+        <th>{{ total_debit }}</th>
+        <th>{{ total_credit }}</th>
+        <th></th>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+{% if can_mutate and not entry.posted %}
+<div class="cp-card p-card mb-4">
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="post_gl">
+    <button class="cp-btn" type="submit">{% translate "Baş kitaba yaz" %}</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

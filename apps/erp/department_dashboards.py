@@ -57,96 +57,10 @@ def _user_notifications(user, limit=8) -> list[dict]:
     ]
 
 
-def build_facility_dashboard(user) -> dict:
+def build_supply_dashboard(user) -> dict:
+    """Unified Təchizat şöbəsi operator board (Service Desk + Facility)."""
     from apps.maintenance.access import work_orders_queryset_for
     from apps.maintenance.models import WorkOrderStatus
-    from apps.property.models import CommercialStatus, Space
-    from apps.tickets.access import tickets_visible_to
-    from apps.tickets.models import OPEN_STATUSES
-
-    board = _empty_board()
-    spaces = Space.objects.all()
-    vacant = spaces.filter(commercial_status=CommercialStatus.VACANT).count()
-    occupied = spaces.filter(
-        commercial_status__in=(
-            CommercialStatus.ACTIVE,
-            CommercialStatus.CONTRACTED,
-            CommercialStatus.NOTICE,
-        )
-    ).count()
-    reserved = spaces.filter(commercial_status=CommercialStatus.RESERVED).count()
-    total = spaces.count()
-
-    visible = tickets_visible_to(user)
-    open_list = list(visible.filter(status__in=OPEN_STATUSES).select_related("company", "category")[:50])
-    open_count = visible.filter(status__in=OPEN_STATUSES).count()
-    sla_risk = sum(1 for t in open_list if getattr(t, "sla_risk", False))
-    sla_breach = sum(1 for t in open_list if getattr(t, "sla_breached", False))
-    unassigned = visible.filter(status__in=OPEN_STATUSES, assignee__isnull=True).count()
-
-    open_wo_qs = work_orders_queryset_for(user).filter(
-        status__in=(WorkOrderStatus.OPEN, WorkOrderStatus.ASSIGNED, WorkOrderStatus.IN_PROGRESS)
-    )
-    open_wo_count = open_wo_qs.count()
-    open_wo_list = list(open_wo_qs.select_related("ticket")[:8])
-
-    board["kpis"] = [
-        _kpi(_("Sahələr"), total, url=reverse("erp:spaces")),
-        _kpi(_("Boş"), vacant, url=reverse("erp:spaces") + "?status=vacant"),
-        _kpi(_("Məşğul"), occupied),
-        _kpi(_("Açıq ticket"), open_count, url=reverse("erp:tickets")),
-        _kpi(_("Açıq WO"), open_wo_count, url=reverse("erp:work_orders")),
-        _kpi(_("SLA risk"), sla_risk + sla_breach, meta=_("pozuntu: %(n)s") % {"n": sla_breach}),
-    ]
-    board["stats"] = [
-        {"label": _("Rezerv"), "value": reserved},
-        {"label": _("Təyinatsız ticket"), "value": unassigned},
-    ]
-    board["pending"] = [
-        {
-            "title": wo.code,
-            "meta": wo.ticket.code if wo.ticket_id else "",
-            "url": reverse("erp:work_order_detail", kwargs={"code": wo.code}),
-        }
-        for wo in open_wo_list
-    ] or [
-        {
-            "title": t.code,
-            "meta": t.company.name if t.company_id else "",
-            "url": reverse("erp:ticket_detail", kwargs={"code": t.code}),
-        }
-        for t in open_list[:8]
-    ]
-    board["recent"] = [
-        {
-            "title": f"{t.code} · {t.get_status_display()}",
-            "at": t.updated_at,
-            "url": reverse("erp:ticket_detail", kwargs={"code": t.code}),
-        }
-        for t in visible.order_by("-updated_at")[:8]
-    ]
-    board["notifications"] = _user_notifications(user)
-    actions = [
-        _link(_("Sahələr"), "erp:spaces", icon="building-2"),
-        _link(_("Ticketlər"), "erp:tickets", icon="ticket"),
-        _link(_("İş sifarişləri"), "erp:work_orders", icon="wrench"),
-        _link(
-            _("Yeni iş tapşırığı"),
-            "erp:work_order_create",
-            icon="plus",
-            mutate_perm="work_order.create",
-            user=user,
-        ),
-        _link(_("Avadanlıqlar"), "erp:building_equipment", icon="cpu"),
-    ]
-    board["quick_actions"] = [a for a in actions if a]
-    board["reports"] = [
-        {"label": _("SLA hesabat"), "url": reverse("erp:sla_report")},
-    ]
-    return board
-
-
-def build_helpdesk_dashboard(user) -> dict:
     from apps.tickets.access import tickets_visible_to
     from apps.tickets.models import OPEN_STATUSES
 
@@ -159,19 +73,37 @@ def build_helpdesk_dashboard(user) -> dict:
     sla_risk = sum(1 for t in open_list if getattr(t, "sla_risk", False))
     sla_breach = sum(1 for t in open_list if getattr(t, "sla_breached", False))
 
+    open_wo_qs = work_orders_queryset_for(user).filter(
+        status__in=(WorkOrderStatus.OPEN, WorkOrderStatus.ASSIGNED, WorkOrderStatus.IN_PROGRESS)
+    )
+    open_wo_count = open_wo_qs.count()
+    open_wo_list = list(open_wo_qs.select_related("ticket", "ticket__company")[:10])
+
     by_dept: dict[str, int] = {}
     for t in open_list:
         name = t.department.name if t.department_id else _("Şöbəsiz")
         by_dept[name] = by_dept.get(name, 0) + 1
 
     board["kpis"] = [
-        _kpi(_("Açıq"), open_count, url=reverse("erp:tickets")),
+        _kpi(_("Açıq ticket"), open_count, url=reverse("erp:tickets")),
         _kpi(_("Təyinatsız"), unassigned, url=reverse("erp:tickets")),
-        _kpi(_("SLA risk"), sla_risk),
-        _kpi(_("SLA pozuntu"), sla_breach),
+        _kpi(_("Açıq WO"), open_wo_count, url=reverse("erp:work_orders")),
+        _kpi(_("SLA risk"), sla_risk + sla_breach, meta=_("pozuntu: %(n)s") % {"n": sla_breach}),
     ]
-    board["stats"] = [{"label": k, "value": v} for k, v in sorted(by_dept.items(), key=lambda x: -x[1])[:6]]
+    board["stats"] = [
+        {"label": k, "value": v} for k, v in sorted(by_dept.items(), key=lambda x: -x[1])[:6]
+    ]
     board["pending"] = [
+        {
+            "title": wo.code,
+            "meta": (
+                (wo.ticket.company.name if wo.ticket_id and wo.ticket.company_id else "")
+                or (wo.ticket.code if wo.ticket_id else "")
+            ),
+            "url": reverse("erp:work_order_detail", kwargs={"code": wo.code}),
+        }
+        for wo in open_wo_list
+    ] or [
         {
             "title": t.code,
             "meta": t.get_status_display(),
@@ -188,16 +120,37 @@ def build_helpdesk_dashboard(user) -> dict:
         for t in visible.order_by("-updated_at")[:10]
     ]
     board["notifications"] = _user_notifications(user)
-    create = _link(_("Yeni ticket"), "erp:ticket_create", icon="plus", mutate_perm="ticket.create", user=user)
     actions = [
-        create,
+        _link(_("Yeni ticket"), "erp:ticket_create", icon="plus", mutate_perm="ticket.create", user=user),
         _link(_("Ticketlər"), "erp:tickets", icon="ticket"),
         _link(_("İş sifarişləri"), "erp:work_orders", icon="wrench"),
-        _link(_("SLA"), "erp:sla_report", icon="timer"),
+        _link(
+            _("Yeni iş tapşırığı"),
+            "erp:work_order_create",
+            icon="plus",
+            mutate_perm="work_order.create",
+            user=user,
+        ),
+        _link(_("Anbar"), "erp:warehouse", icon="warehouse"),
+        _link(_("Satınalma"), "erp:procurement", icon="shopping-cart"),
+        _link(_("Rezident şirkətlər"), "erp:resident_directory", icon="building"),
     ]
+    if user_has_permission(user, "space.edit"):
+        actions.append(_link(_("Sahələr"), "erp:spaces", icon="building-2"))
+        actions.append(_link(_("Avadanlıqlar"), "erp:building_equipment", icon="cpu"))
     board["quick_actions"] = [a for a in actions if a]
     board["reports"] = [{"label": _("SLA hesabat"), "url": reverse("erp:sla_report")}]
     return board
+
+
+def build_facility_dashboard(user) -> dict:
+    """Retired landing — same board as supply (redirects preserve authorized links)."""
+    return build_supply_dashboard(user)
+
+
+def build_helpdesk_dashboard(user) -> dict:
+    """Alias — Helpdesk landing consolidated into Təchizat şöbəsi."""
+    return build_supply_dashboard(user)
 
 
 def build_hr_dashboard(user) -> dict:
@@ -321,7 +274,7 @@ def build_procurement_dashboard(user) -> dict:
             mutate_perm="procurement.edit",
             user=user,
         ),
-        _link(_("Təchizatçılar"), "erp:procurement_suppliers", icon="building"),
+        _link(_("Podratçılar"), "erp:procurement_suppliers", icon="building"),
         _link(_("Anbar"), "erp:warehouse", icon="warehouse"),
     ]
     board["quick_actions"] = [a for a in actions if a]

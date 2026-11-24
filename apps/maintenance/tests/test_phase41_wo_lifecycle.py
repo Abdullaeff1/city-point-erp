@@ -67,7 +67,7 @@ class Phase41WorkOrderLifecycleTests(TestCase):
             username="p41-fm",
             email="p41-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
             ticket_department=self.fm_dept,
         )
@@ -122,7 +122,7 @@ class Phase41WorkOrderLifecycleTests(TestCase):
         with self.assertRaises(DomainError):
             create_work_order_from_ticket(ticket, actor=self.desk)
 
-    def test_wo_created_notifies_property_fm(self):
+    def test_wo_created_notifies_supply_operators(self):
         ticket = self._ticket(code="TK-P41-EVT")
         wo = create_work_order_from_ticket(ticket, actor=self.desk)
         notes = Notification.objects.filter(user=self.fm, event_key=f"wo.created.{wo.pk}.{self.fm.pk}")
@@ -179,12 +179,22 @@ class Phase41WorkOrderLifecycleTests(TestCase):
         wo.refresh_from_db()
         self.assertEqual(wo.status, WorkOrderStatus.OPEN)
 
-    def test_fm_mutates_own_dept_wo_desk_cannot_cross_dept(self):
+    def test_supply_ops_share_inbox_non_supply_denied(self):
+        """Unified Təchizat inbox: all service_desk operators see/mutate; outsiders do not."""
+        sales = User.objects.create_user(
+            username="p41-sales",
+            email="p41-sales@test.az",
+            password="x",
+            role=Role.SALES,
+            is_staff=True,
+        )
         ticket = self._ticket(code="TK-P41-FM", department=self.fm_dept)
         wo = create_work_order_from_ticket(ticket, actor=self.admin)
         self.assertTrue(can_mutate_work_order(self.fm, wo))
-        self.assertFalse(can_view_work_order(self.desk, wo))
-        self.assertFalse(can_mutate_work_order(self.desk, wo))
+        self.assertTrue(can_view_work_order(self.desk, wo))
+        self.assertTrue(can_mutate_work_order(self.desk, wo))
+        self.assertFalse(can_view_work_order(sales, wo))
+        self.assertFalse(can_mutate_work_order(sales, wo))
 
         self.client.force_login(self.fm)
         resp = self.client.post(

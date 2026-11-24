@@ -1,0 +1,300 @@
+.cp-erp {
+  --erp-ink: var(--cp-text, #1e293b);
+  --erp-muted: var(--cp-text-muted, #64748b);
+  --erp-blue: var(--cp-primary, #0f5c8c);
+  --erp-border: var(--cp-border, #e2e8f0);
+  --erp-surface: var(--cp-surface, #fff);
+  background: var(--cp-bg, #f3f6fa);
+}
+
+.cp-erp .cp-main {
+  background: var(--cp-bg, #f3f6fa);
+}
+
+.cp-erp .cp-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.cp-erp .cp-brand {
+  padding-block: 22px 16px;
+}
+
+.cp-erp .cp-header {
+  align-items: center;
+  padding: 18px clamp(18px, 3vw, 36px);
+  background: var(--erp-surface);
+  border-bottom: 1px solid var(--erp-border);
+}
+
+.cp-erp .cp-header .cp-title {
+  font-size: clamp(1.5rem, 2.5vw, 1.95rem);
+  line-height: 1.35;
+  margin: 4px 0 0;
+  /* Avoid letter-by-letter wrap (broke “Rəhbərlik” at ~390px). */
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: manual;
+}
+
+.cp-erp .cp-content {
+  padding: 22px clamp(18px, 3vw, 36px) 44px;
+}
+
+.cp-erp .cp-card > .cp-table thead {
+  background: #f7f9fb;
+}
+
+.cp-erp .cp-lang select {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.erp-mobile-bar {
+  display: none;
+}
+
+.erp-metrics,
+.erp-quick-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 168px), 1fr));
+  gap: 14px;
+}
+
+.erp-metric {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 8px;
+  padding: 16px 18px;
+}
+
+.erp-metric .cp-meta {
+  color: var(--erp-muted);
+}
+
+.erp-metric .cp-metric {
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.erp-metric .cp-metric small {
+  font-size: .58em;
+  color: var(--erp-muted);
+}
+
+.erp-metric .mt-2 { margin-top: 0; }
+.erp-metric .cp-progress { width: 100%; }
+.erp-dashboard .crm-kpi-card { border-radius: 12px; }
+.erp-metric[aria-current="page"] {
+  border-color: var(--cp-primary);
+  box-shadow: inset 0 0 0 1px var(--cp-primary);
+}
+
+.erp-icon {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border-radius: 10px;
+  background: #e9f2f9;
+  color: var(--erp-blue);
+}
+
+.erp-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.erp-icon--green { background: #e6f4ee; color: #176447; }
+.erp-icon--amber { background: #fff1da; color: #80530b; }
+
+.erp-quick-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  color: var(--erp-ink);
+  overflow-wrap: anywhere;
+}
+
+.erp-metric-link:hover,
+.erp-quick-link:hover,
+.erp-space-tile:hover {
+  border-color: #91acc2;
+  text-decoration: none;
+}
+
+.erp-quick-link > svg:last-child {
+  flex: 0 0 15px;
+  margin-inline-start: auto;
+  color: var(--erp-blue);
+}
+
+.erp-space-register {
+  overflow: hidden;
+}
+
+.erp-section-heading,
+.erp-floor-heading,
+.erp-floor-occupancy,
+.erp-space-tile-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.erp-section-heading { padding: 16px 20px; }
+.erp-section-heading .cp-section { margin: 0; }
+
+.erp-space-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+
+.erp-space-register > .erp-space-filters {
+  padding: 0 20px 16px;
+}
+
+.erp-space-filters label { flex: 1 1 145px; min-width: 0; }
+.erp-space-filters label:first-child { flex: 2 1 220px; }
+.erp-space-filters label > .cp-meta { display: block; margin-bottom: 4px; }
+.erp-space-filters .cp-input { width: 100%; }
+
+.erp-floor {
+  padding: 16px 20px;
+  border-top: 1px solid var(--erp-border);
+}
+
+.erp-floor-heading h3 {
+  margin: 0 0 2px;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.erp-floor-code {
+  display: inline-grid;
+  place-items: center;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 4px 8px;
+  border-radius: 9px;
+  background: #e9f2f9;
+  color: var(--erp-blue);
+  font-weight: 750;
+}
+
+.erp-floor-occupancy strong { min-width: 3ch; text-align: end; }
+.erp-floor-occupancy progress { width: 82px; height: 9px; accent-color: #29785a; }
+
+.erp-space-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 195px), 1fr));
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.erp-space-tile {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--erp-border);
+  border-inline-start: 3px solid var(--space-color, #91acc2);
+  border-radius: 9px;
+  background: #f9fbfc;
+  color: var(--erp-ink);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.erp-space-tile--occupied { --space-color: #348265; --space-badge-bg: #e6f4ee; --space-badge-text: #17583f; }
+.erp-space-tile--vacant { --space-color: #3978b8; --space-badge-bg: #e9f2f9; --space-badge-text: #184b75; }
+.erp-space-tile--reserved { --space-color: #a47724; --space-badge-bg: #fff1da; --space-badge-text: #704b10; }
+.erp-space-tile--contracted { --space-color: #7351a2; --space-badge-bg: #f2ebfb; --space-badge-text: #563582; }
+.erp-space-tile--maintenance { --space-color: #a95726; --space-badge-bg: #fceee5; --space-badge-text: #85431c; }
+.erp-space-tile--blocked { --space-color: #a14d57; --space-badge-bg: #f9e8ec; --space-badge-text: #813d46; }
+
+.erp-space-status {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--space-badge-bg, #e9f2f9);
+  color: var(--space-badge-text, #184b75);
+  font-size: .75rem;
+  font-weight: 700;
+}
+
+.erp-floor-add { display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; }
+.erp-space-empty { border-top: 1px solid var(--erp-border); margin: 0; padding: 20px; }
+.erp-add-floor { padding: 14px 20px; }
+.erp-add-floor > summary { cursor: pointer; font-weight: 700; }
+
+@media screen and (max-width: 900px) {
+  .cp-erp { display: block; }
+  .cp-erp .cp-sidebar { position: static; width: 100%; height: auto; max-height: min(70vh, 28rem); overflow: auto; }
+  .cp-erp .cp-sidebar[hidden] { display: none; }
+  /* cp.css icon-rail hides labels under 900px — ERP drawer needs full labels */
+  .cp-erp .cp-nav-text,
+  .cp-erp .cp-brand-sub,
+  .cp-erp .cp-user-meta,
+  .cp-erp .cp-nav-label,
+  .cp-erp .cp-nav-summary-label {
+    display: inline !important;
+  }
+  .cp-erp .cp-nav-chevron { display: inline-block !important; }
+  .cp-erp .cp-nav-group-body {
+    margin-left: 8px !important;
+    border-left: 1px solid var(--cp-border, #e5e7eb) !important;
+    padding-left: 4px !important;
+  }
+  .cp-erp .cp-nav-summary { justify-content: space-between !important; padding: 10px 12px !important; }
+  .erp-mobile-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 18px;
+    background: var(--cp-primary-dark);
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .erp-menu-toggle:not([hidden]) {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border: 1px solid #8298ad;
+    border-radius: 8px;
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
+  }
+}
+
+@media screen and (max-width: 520px) {
+  .erp-section-heading, .erp-floor { padding-inline: 14px; }
+  .erp-space-register > .erp-space-filters { padding-inline: 14px; }
+}
+
+@media print {
+  .cp-erp { background: #fff; }
+  .cp-erp .cp-main { background: #fff; }
+  .cp-erp .cp-content { padding: 0; }
+  .erp-quick-links, .erp-space-filters, .erp-add-floor, .erp-floor-add, .erp-section-heading .cp-btn { display: none; }
+}

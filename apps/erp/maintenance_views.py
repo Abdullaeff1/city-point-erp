@@ -28,7 +28,7 @@ def can_manage_maintenance_plans(user) -> bool:
         return False
     if getattr(user, "role", None) == Role.MANAGEMENT:
         return False
-    if getattr(user, "role", None) not in {Role.PROPERTY_FM, Role.ADMIN}:
+    if getattr(user, "role", None) not in {Role.SERVICE_DESK, Role.ADMIN}:
         return False
     return user_has_permission(user, "work_order.edit") or user_has_permission(
         user, "work_order.create"
@@ -37,7 +37,7 @@ def can_manage_maintenance_plans(user) -> bool:
 
 class MaintenancePlanListView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = "erp/maintenance_plans.html"
-    allowed_roles = (Role.PROPERTY_FM,)
+    allowed_roles = (Role.SERVICE_DESK,)
     allow_management = True
     permission_required = "work_order.view"
     permission_denied_message = "Texniki planlara baxış icazəniz yoxdur."
@@ -85,7 +85,7 @@ class MaintenancePlanListView(PermissionRequiredMixin, RoleRequiredMixin, Templa
 
 class MaintenancePlanFormView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = "erp/maintenance_plan_form.html"
-    allowed_roles = (Role.PROPERTY_FM,)
+    allowed_roles = (Role.SERVICE_DESK,)
     allow_management = False
     permission_required = ("work_order.create", "work_order.edit")
     permission_denied_message = "Texniki plan yaratmaq icazəniz yoxdur."

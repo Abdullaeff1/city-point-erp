@@ -2,6 +2,7 @@
 {% load i18n %}
 {% block heading %}{% translate "Sənədlər" %}{% endblock %}
 {% block content %}
+<p class="cp-meta mb-3"><a href="{% url 'erp:correspondence_list' %}">{% translate "Kargüzarlıq reyestri →" %}</a></p>
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
     <thead>

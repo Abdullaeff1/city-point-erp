@@ -85,6 +85,15 @@ class MultiCompanyLoginTests(TestCase):
         self.assertEqual(self.client.session["portal_scope_mode"], MODE_SINGLE)
         self.assertEqual(self.client.session["portal_company_ids"], [self.c1.pk])
 
+    def test_company_profile_uses_selected_scope(self):
+        user = User.objects.create_user(username="profile", email="profile@test.az", role=Role.RESIDENT_USER)
+        ensure_portal_memberships(user, [self.c1, self.c2])
+        self.client.force_login(user)
+        self.client.post(reverse("portal:choose_companies"), {"choice": str(self.c2.pk)})
+        page = self.client.get(reverse("portal:company_profile"))
+        self.assertEqual(list(page.context["companies"]), [self.c2])
+        self.assertContains(page, self.c2.name)
+
     def test_choose_all_post(self):
         user = User.objects.create_user(
             username="allu",

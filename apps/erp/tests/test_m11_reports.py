@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -25,6 +25,8 @@ User = get_user_model()
 
 class ExecReportBuildersTests(TestCase):
     def setUp(self):
+        from apps.leases.models import Lease, LeaseStatus
+
         self.party = Party.objects.create(
             party_type=PartyType.ORGANIZATION,
             legal_name="M11 Co",
@@ -32,7 +34,7 @@ class ExecReportBuildersTests(TestCase):
         )
         building = Building.objects.create(code="M11B", name="M11B")
         floor = Floor.objects.create(building=building, code="F1", name="1")
-        Space.objects.create(
+        self.s1 = Space.objects.create(
             code="M11-S1",
             name="S1",
             floor=floor,
@@ -41,7 +43,7 @@ class ExecReportBuildersTests(TestCase):
             commercial_status=CommercialStatus.VACANT,
             occupancy=Occupancy.VACANT,
         )
-        Space.objects.create(
+        self.s2 = Space.objects.create(
             code="M11-S2",
             name="S2",
             floor=floor,
@@ -50,13 +52,26 @@ class ExecReportBuildersTests(TestCase):
             commercial_status=CommercialStatus.ACTIVE,
             occupancy=Occupancy.ACTIVE_LEASE,
         )
+        lease = Lease.objects.create(
+            code="LS-M11-S2",
+            party=self.party,
+            space=self.s2,
+            status=LeaseStatus.ACTIVE,
+            start_date=timezone.localdate().replace(year=2026, month=1, day=1),
+            rent=Decimal("1000"),
+        )
+        # Hold must be recorded on/before as_of used in assertions (2026-11-18)
+        Lease.objects.filter(pk=lease.pk).update(
+            created_at=timezone.make_aware(datetime(2026, 1, 1, 9, 0, 0))
+        )
 
     def test_parse_params_and_property(self):
         params = parse_report_params({"date_from": "2026-11-01", "date_to": "2026-11-18"})
         self.assertEqual(params["date_from"].isoformat(), "2026-11-01")
         prop = build_property_report(params)
         self.assertEqual(prop["space_count"], 2)
-        self.assertEqual(prop["vacant_count"], 1)
+        self.assertEqual(prop["available_count"], 1)
+        self.assertEqual(prop["occupied_count"], 1)
         self.assertAlmostEqual(prop["occupancy_pct"], 50.0)
 
     def test_finance_and_snapshot(self):

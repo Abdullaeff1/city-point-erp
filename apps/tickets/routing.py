@@ -24,8 +24,8 @@ CATEGORY_DEFAULT_QUEUE = {
 # Staff role → ticket department when User.ticket_department is empty (server drift).
 ROLE_DEFAULT_DEPARTMENT = {
     Role.SECURITY: "security",
-    Role.SERVICE_DESK: "servicedesk",
-    Role.PROPERTY_FM: "webservis",
+    # Unified Təchizat (ex-Service Desk + Facility) → webservis queue.
+    Role.SERVICE_DESK: "webservis",
 }
 
 

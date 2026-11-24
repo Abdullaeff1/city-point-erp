@@ -4,18 +4,36 @@ from __future__ import annotations
 
 from apps.accounts.models import Role
 from apps.accounts.portal_scope import get_portal_scope
+from apps.rbac.services import user_has_permission
 
 
 def user_can_manage_resident_profile(user) -> bool:
-    """Admin / Management / Property FM — profil + hüquqi/bank + sənəd CRUD."""
+    """Admin / Management / Təchizat — profil + hüquqi/bank + sənəd CRUD."""
     if not user or not getattr(user, "is_authenticated", False):
         return False
-    return user.role in {Role.ADMIN, Role.MANAGEMENT, Role.PROPERTY_FM}
+    return user.role in {Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK}
 
 
 def user_can_view_resident_legal_docs(user) -> bool:
     """ERP: hüquqi/bank/müqavilə/sənəd oxuma — eyni rollar."""
     return user_can_manage_resident_profile(user)
+
+
+def user_can_view_resident_directory(user) -> bool:
+    """Business-contact directory — not legal/bank/identity/attendance."""
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    if user_has_permission(user, "resident.directory.view"):
+        return True
+    # Full resident.view still implies directory access for staff who already had it.
+    return user_has_permission(user, "resident.view") and user.role in {
+        Role.ADMIN,
+        Role.MANAGEMENT,
+        Role.SERVICE_DESK,
+        Role.RECEPTION,
+        Role.SALES,
+        Role.ACCOUNTANT,
+    }
 
 
 def user_can_view_resident_ops_summary(user) -> bool:
@@ -25,7 +43,6 @@ def user_can_view_resident_ops_summary(user) -> bool:
     return user.role in {
         Role.ADMIN,
         Role.MANAGEMENT,
-        Role.PROPERTY_FM,
         Role.RECEPTION,
         Role.SERVICE_DESK,
     }

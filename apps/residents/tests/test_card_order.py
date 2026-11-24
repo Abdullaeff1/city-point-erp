@@ -52,6 +52,7 @@ class EmployeeCardOrderTests(TestCase):
         )
         self.assertEqual(emp.card_number, "")
         self.assertEqual(emp.access_level, "2")
+        self.assertEqual(emp.requested_access_level, "2")
         self.assertEqual(emp.card_order_status, CardOrderStatus.SUBMITTED)
         self.assertTrue(emp.id_document)
         self.assertEqual(ticket.subcategory.slug, "card-order")

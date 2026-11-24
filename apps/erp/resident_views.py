@@ -12,11 +12,14 @@ from django.utils.translation import gettext as _
 from django.views import View
 from django.views.generic import CreateView, FormView, TemplateView, UpdateView
 
-from apps.accounts.mixins import RoleRequiredMixin, StaffRequiredMixin
+from django.db.models import Q
+
+from apps.accounts.mixins import PermissionRequiredMixin, RoleRequiredMixin, StaffRequiredMixin
 from apps.accounts.models import Role
 from apps.documents.models import SEED_DOCUMENT_TYPES, Document, DocumentType
 from apps.documents.services import DocumentService
 from apps.erp.forms import RESIDENT_FORM_SECTIONS, ResidentCompanyForm, ResidentDocumentForm
+from apps.maintenance.access import work_orders_queryset_for
 from apps.residents.company_sync import (
     archive_resident_company,
     save_resident_company,
@@ -26,9 +29,11 @@ from apps.residents.lease_dates import lease_date_summary, lease_display_rows, p
 from apps.residents.models import ResidentCompany
 from apps.residents.permissions import (
     user_can_manage_resident_profile,
+    user_can_view_resident_directory,
     user_can_view_resident_legal_docs,
     user_is_reception_limited,
 )
+from apps.tickets.access import tickets_visible_to
 
 SECTION_HUB = "hub"
 SECTION_GENERAL = "general"
@@ -45,11 +50,140 @@ def _company(slug):
     return get_object_or_404(ResidentCompany, slug=slug, is_internal=False)
 
 
+def _directory_offices(company):
+    """Every current office on one company card (Space SoT + floor)."""
+    spaces = company.spaces.select_related("floor").order_by("floor__code", "code")
+    offices = []
+    for space in spaces:
+        status = getattr(space, "register_status", None) or ""
+        if status and status not in {"occupied", "reserved"}:
+            # Still list linked offices; vacant-only links are rare on active cards.
+            pass
+        floor = getattr(space, "floor", None)
+        offices.append(
+            {
+                "code": space.code,
+                "label": getattr(space, "short_label", None) or space.code,
+                "floor": str(floor) if floor else "—",
+                "status": status or "—",
+            }
+        )
+    return offices
+
+
+class ResidentDirectoryListView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    """Read-only Rezident şirkətlər directory for Supply operators."""
+
+    template_name = "erp/resident_directory.html"
+    permission_required = ("resident.directory.view", "resident.view")
+    permission_denied_message = "Rezident kataloquna baxış icazəniz yoxdur."
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not user_can_view_resident_directory(request.user):
+            raise PermissionDenied(self.permission_denied_message)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        from apps.core.search import filter_text_search
+
+        ctx = super().get_context_data(**kwargs)
+        q = (self.request.GET.get("q") or "").strip()
+        qs = (
+            ResidentCompany.objects.filter(is_internal=False, is_archived=False)
+            .prefetch_related("spaces__floor")
+            .order_by("name")
+        )
+        if q:
+            qs = filter_text_search(
+                qs,
+                q,
+                "name",
+                "slug",
+                "contact_person_name",
+                "phone",
+                "contact_email",
+                "manager_name",
+            )
+            # Office / floor text search via related spaces
+            space_match = ResidentCompany.objects.filter(
+                is_internal=False,
+                is_archived=False,
+            ).filter(
+                Q(spaces__code__icontains=q)
+                | Q(spaces__floor__name__icontains=q)
+                | Q(spaces__floor__code__icontains=q)
+            )
+            qs = (qs | space_match).distinct().order_by("name")
+
+        cards = []
+        for company in qs[:200]:
+            cards.append(
+                {
+                    "company": company,
+                    "offices": _directory_offices(company),
+                    "contact_name": company.contact_person_name or company.manager_name,
+                    "contact_position": company.contact_person_position
+                    or company.manager_position,
+                    "contact_phone": company.contact_person_phone
+                    or company.manager_phone
+                    or company.phone,
+                    "contact_email": company.contact_person_email
+                    or company.manager_email
+                    or company.contact_email,
+                }
+            )
+        ctx.update({"q": q, "cards": cards, "directory_mode": True})
+        return ctx
+
+
+class ResidentDirectoryDetailView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    template_name = "erp/resident_directory_detail.html"
+    permission_required = ("resident.directory.view", "resident.view")
+    permission_denied_message = "Rezident kataloquna baxış icazəniz yoxdur."
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not user_can_view_resident_directory(request.user):
+            raise PermissionDenied(self.permission_denied_message)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        company = _company(self.kwargs["slug"])
+        tickets = tickets_visible_to(self.request.user).filter(company=company).order_by(
+            "-updated_at"
+        )[:20]
+        work_orders = (
+            work_orders_queryset_for(self.request.user)
+            .filter(ticket__company=company)
+            .order_by("-created_at")[:20]
+        )
+        ctx.update(
+            {
+                "company": company,
+                "offices": _directory_offices(company),
+                "contact_name": company.contact_person_name or company.manager_name,
+                "contact_position": company.contact_person_position
+                or company.manager_position,
+                "contact_phone": company.contact_person_phone
+                or company.manager_phone
+                or company.phone,
+                "contact_email": company.contact_person_email
+                or company.manager_email
+                or company.contact_email,
+                "tickets": tickets,
+                "work_orders": work_orders,
+                "hide_legal_fields": True,
+                "directory_mode": True,
+            }
+        )
+        return ctx
+
+
 class ResidentCreateView(RoleRequiredMixin, CreateView):
     template_name = "erp/resident_form.html"
     form_class = ResidentCompanyForm
     model = ResidentCompany
-    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.PROPERTY_FM)
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -79,7 +213,7 @@ class ResidentUpdateView(RoleRequiredMixin, UpdateView):
     model = ResidentCompany
     slug_field = "slug"
     slug_url_kwarg = "slug"
-    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.PROPERTY_FM)
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK)
 
     def get_queryset(self):
         return ResidentCompany.objects.filter(is_internal=False)
@@ -119,7 +253,7 @@ class ResidentUpdateView(RoleRequiredMixin, UpdateView):
 
 
 class ResidentArchiveView(RoleRequiredMixin, View):
-    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.PROPERTY_FM)
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK)
 
     def post(self, request, slug):
         company = _company(slug)
@@ -129,7 +263,7 @@ class ResidentArchiveView(RoleRequiredMixin, View):
 
 
 class ResidentUnarchiveView(RoleRequiredMixin, View):
-    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.PROPERTY_FM)
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK)
 
     def post(self, request, slug):
         company = _company(slug)
@@ -194,7 +328,7 @@ class ResidentDocumentsView(StaffRequiredMixin, TemplateView):
 class ResidentDocumentCreateView(RoleRequiredMixin, FormView):
     template_name = "erp/resident_document_form.html"
     form_class = ResidentDocumentForm
-    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.PROPERTY_FM)
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK)
 
     def dispatch(self, request, *args, **kwargs):
         self.company = _company(kwargs["slug"])
@@ -244,7 +378,7 @@ class ResidentDocumentCreateView(RoleRequiredMixin, FormView):
 class ResidentDocumentUpdateView(RoleRequiredMixin, FormView):
     template_name = "erp/resident_document_form.html"
     form_class = ResidentDocumentForm
-    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.PROPERTY_FM)
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK)
 
     def dispatch(self, request, *args, **kwargs):
         self.company = _company(kwargs["slug"])
@@ -292,7 +426,7 @@ class ResidentDocumentUpdateView(RoleRequiredMixin, FormView):
 
 
 class ResidentDocumentDeleteView(RoleRequiredMixin, View):
-    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.PROPERTY_FM)
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK)
 
     def post(self, request, slug, pk):
         company = _company(slug)

@@ -1,34 +1,6 @@
 /* City Point Sales/CRM theme — mock SaaS layout (orange accent, light shell).
-   Applied only when .cp-theme-crm is on the shell (Role.SALES). */
-
-@font-face {
-  font-family: "Plus Jakarta Sans";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("../fonts/plus-jakarta-sans-latin.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Plus Jakarta Sans";
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url("../fonts/plus-jakarta-sans-latin-500.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Plus Jakarta Sans";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("../fonts/plus-jakarta-sans-latin-600.woff2") format("woff2");
-}
-@font-face {
-  font-family: "Plus Jakarta Sans";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("../fonts/plus-jakarta-sans-latin-700.woff2") format("woff2");
-}
+   Applied only when .cp-theme-crm is on the shell (Role.SALES).
+   Typography: shared Noto Sans from cp-theme.css (AZ-complete, local). */
 
 .cp-theme-crm {
   --cp-primary: #1a1d21;
@@ -55,7 +27,7 @@
   --cp-radius: 12px;
   --crm-radius-sm: 8px;
   --crm-radius-pill: 999px;
-  font-family: "Plus Jakarta Sans", "Segoe UI", Candara, Calibri, system-ui, sans-serif;
+  font-family: var(--cp-font, "Noto Sans", "Segoe UI", system-ui, sans-serif);
 }
 
 .cp-theme-crm .cp-sidebar {
@@ -121,6 +93,68 @@
   width: 3px;
   border-radius: 0 3px 3px 0;
   background: var(--crm-accent);
+}
+
+/* Management collapsible groups on light CRM shell */
+.cp-theme-crm .cp-nav-group {
+  margin: 2px 4px;
+}
+.cp-theme-crm .cp-nav-menu > .cp-nav-summary {
+  color: #374151;
+  border-left: 0;
+  margin: 2px 0;
+  border-radius: var(--crm-radius-sm);
+}
+.cp-theme-crm .cp-nav-menu > .cp-nav-summary.is-active {
+  background: #eef0f3;
+  color: var(--cp-text);
+  font-weight: 650;
+  border-left: 0;
+  box-shadow: none;
+}
+.cp-theme-crm .cp-nav-summary:hover {
+  background: #eef0f3;
+  color: var(--cp-text);
+}
+.cp-theme-crm .cp-nav-group[open] > .cp-nav-group-body {
+  border-left-color: #e5e7eb;
+  margin-left: 10px;
+}
+.cp-theme-crm .cp-nav-group-body a {
+  margin: 1px 0;
+  font-size: 13.5px;
+  padding: 8px 10px;
+}
+.cp-theme-crm .mgmt-decision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cp-theme-crm .mgmt-decision-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--crm-radius-sm);
+  background: #f8fafc;
+  color: inherit;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+.cp-theme-crm .mgmt-decision-row:hover {
+  border-color: #e5e7eb;
+  background: #fff;
+}
+.cp-theme-crm .mgmt-decision-row.has-pending {
+  border-color: color-mix(in srgb, var(--crm-accent) 35%, transparent);
+}
+.cp-theme-crm .mgmt-decision-count {
+  min-width: 2rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--crm-accent);
 }
 
 .cp-theme-crm .cp-user-bar {

@@ -1,0 +1,157 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{{ doc.registry_number|default:doc.title }}{% endblock %}
+{% block heading %}{{ doc.registry_number|default:doc.title }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:correspondence_list' %}">{% translate "Kargüzarlıq" %}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card mb-4">
+  <h2 class="cp-section">{{ doc.title }}</h2>
+  <p class="cp-meta">
+    {{ doc.get_direction_display }} ·
+    {% translate "Status" %}: {{ doc.get_correspondence_status_display|default:"—" }} ·
+    {% translate "Məktub tarixi" %}: {{ doc.document_date|date:"d.m.Y"|default:"—" }} ·
+    {% translate "Qəbul" %}: {{ doc.received_at|date:"d.m.Y"|default:"—" }}
+  </p>
+  <p class="cp-meta">
+    {% translate "Göndərənin istinadı" %}: {{ doc.external_reference|default:"—" }} ·
+    {% if doc.company %}{% translate "Şirkət" %}: {{ doc.company.name }} ·{% endif %}
+    {% if doc.lease %}{% translate "İcarə" %}: {{ doc.lease }} ·{% endif %}
+    {% if doc.routed_department %}{% translate "Departament" %}: {{ doc.routed_department.name }}{% endif %}
+  </p>
+  <p class="cp-meta">{% translate "Portal görünürlüyü" %}: {% if doc.visible_to_resident %}{% translate "Bəli" %}{% else %}{% translate "Xeyr (şirkətə bağlamaq portala açmır)" %}{% endif %}</p>
+  {% if linked %}
+  <p>
+    {% translate "Əlaqəli korrespondensiya" %}:
+    <a href="{% url 'erp:correspondence_detail' linked.pk %}">{{ linked.registry_number|default:linked.title }}</a>
+  </p>
+  {% endif %}
+  {% if can_download and doc.file %}
+  <p><a class="cp-btn-ghost" href="{% url 'erp:document_download' doc.pk %}">{% translate "Cari faylı aç" %}</a></p>
+  {% endif %}
+</div>
+
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Versiyalar" %}</h3>
+  <table class="cp-table">
+    <thead><tr><th>{% translate "Versiya" %}</th><th>{% translate "Tarix" %}</th><th>{% translate "Cari" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for v in versions %}
+      <tr>
+        <td>
+          v{{ v.version_label }}
+          {% if approved_version and approved_version.pk == v.pk %} · <strong>{% translate "təsdiqlənmiş" %}</strong>{% endif %}
+          {% if latest_dispatch and latest_dispatch.version_id == v.pk %} · <strong>{% translate "göndərilmiş" %}</strong>{% endif %}
+        </td>
+        <td class="cp-meta">{{ v.created_at|date:"d.m.Y H:i" }}</td>
+        <td>{% if v.is_current %}{% translate "Bəli" %}{% else %}—{% endif %}</td>
+        <td>{% if can_download %}<a href="{% url 'erp:document_download' doc.pk %}?version={{ v.pk }}">{% translate "Aç" %}</a>{% endif %}</td>
+      </tr>
+      {% empty %}<tr><td colspan="4" class="cp-meta">—</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <p class="cp-meta mt-2">
+    {% translate "Təsdiq" %}:
+    {% if approval_info.status == "pending" %}{% translate "Gözləyir" %} v{{ approval_info.version_label }}
+    {% elif approval_info.status == "approved" %}{% translate "Təsdiqlənib" %} v{{ approval_info.version_label }}
+    {% elif approval_info.status == "rejected" %}{% translate "Rədd" %}
+    {% else %}—{% endif %}
+  </p>
+</div>
+
+{% if latest_dispatch %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Göndərmə" %}</h3>
+  <p class="cp-meta">
+    {% translate "Alıcı" %}: {{ latest_dispatch.recipient }} ·
+    {% translate "Kanal" %}: {{ latest_dispatch.channel }} ·
+    {% translate "Versiya" %}: v{{ latest_dispatch.version.version_label }} ·
+    {{ latest_dispatch.dispatched_at|date:"d.m.Y H:i" }}
+    {% if latest_dispatch.dispatched_by %} · {{ latest_dispatch.dispatched_by.username }}{% endif %}
+  </p>
+  {% if can_download %}
+  <a href="{% url 'erp:document_download' doc.pk %}?version={{ latest_dispatch.version_id }}">{% translate "Göndərilmiş faylı aç" %}</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if can_edit and doc.direction == CorrespondenceDirection.INCOMING %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Yönləndir" %}</h3>
+  <form method="post" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="route">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}-route">
+    <label>
+      <span class="cp-meta">{% translate "Departament" %}</span>
+      <select class="cp-input" name="department_id" required>
+        {% for d in departments %}<option value="{{ d.id }}" {% if doc.routed_department_id == d.id %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Yönləndir" %}</button>
+  </form>
+</div>
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Cavab hazırla" %}</h3>
+  <form method="post" enctype="multipart/form-data" class="grid-2 gap-2">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="prepare_reply">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}-reply">
+    <label>
+      <span class="cp-meta">{% translate "Başlıq" %}</span>
+      <input class="cp-input" name="title" value="Cavab: {{ doc.registry_number }}" maxlength="200">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Fayl" %}</span>
+      <input class="cp-input" type="file" name="file" required>
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Cavab yarat" %}</button>
+  </form>
+</div>
+{% endif %}
+
+{% if can_edit and doc.direction == CorrespondenceDirection.OUTGOING %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Versiya / təsdiq / göndərmə" %}</h3>
+  <form method="post" enctype="multipart/form-data" class="mb-3">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="add_version">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}-ver">
+    <label><span class="cp-meta">{% translate "Yeni versiya" %}</span><input class="cp-input" type="file" name="file" required></label>
+    <button class="cp-btn" type="submit">{% translate "Versiya yüklə" %}</button>
+  </form>
+  <form method="post" class="mb-3">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="submit_approval">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}-apr">
+    <button class="cp-btn" type="submit">{% translate "Təsdiqə göndər" %}</button>
+    <span class="cp-meta"> — <a href="{% url 'erp:approvals' %}">{% translate "Təsdiqlər" %}</a></span>
+  </form>
+  <form method="post" class="grid-2 gap-2">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="dispatch">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}-disp">
+    <input type="hidden" name="operation_key" value="disp-{{ doc.pk }}-{{ approved_version.pk|default:'none' }}">
+    <label>
+      <span class="cp-meta">{% translate "Alıcı" %}</span>
+      <input class="cp-input" name="recipient" required value="{% if doc.company %}{{ doc.company.name }}{% endif %}">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Kanal" %}</span>
+      <select class="cp-input" name="channel">
+        <option value="manual">{% translate "Əl ilə / kuryer" %}</option>
+        <option value="hand">{% translate "Təhvil" %}</option>
+        <option value="post">{% translate "Poçt" %}</option>
+      </select>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Qeyd" %}</span>
+      <input class="cp-input" name="notes">
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Göndərməni qeyd et" %}</button>
+  </form>
+  <p class="cp-meta">{% translate "Göndərmə təsdiqlənmiş versiyaya bağlanır. Sonrakı qaralama tarixi göndərilmiş versiyanı gizlətmir." %}</p>
+</div>
+{% endif %}
+{% endblock %}

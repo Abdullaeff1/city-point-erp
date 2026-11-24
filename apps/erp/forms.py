@@ -621,21 +621,21 @@ class GuestVisitForm(forms.Form):
     id_document_held = forms.BooleanField(
         required=False,
         initial=False,
-        label=_("Şəxsiyyət vəsiqəsi saxlanıldı"),
-        help_text=_("Qonaq kartından ayrıdır — vəsiqə saxlanılanda seriya nömrəsi tələb olunur."),
+        label=_("Vəsiqə qəbul olundu"),
+        help_text=_("Qonaq kartı veriləndə işarələyin — seriya nömrəsi tələb olunur."),
     )
     guest_card_number = forms.CharField(
         required=False,
         label=_("Qonaq kartı №"),
         max_length=64,
-        help_text=_("İstəyə bağlı. Verildikdə nömrə qeyd olunur; çıxış Access hadisəsi ilə bağlana bilər."),
+        help_text=_("Yalnız vəsiqə qəbul olunanda. İstəyə bağlı; çıxış Access ilə bağlana bilər."),
         widget=forms.TextInput(attrs={"placeholder": _("Kart nömrəsi"), "autocomplete": "off"}),
     )
     id_override_reason = forms.CharField(
         required=False,
         label=_("Vəsiqəsiz giriş səbəbi"),
         max_length=255,
-        help_text=_("Vəsiqə saxlanılmadıqda (kuryer istisna) override icazəsi + səbəb"),
+        help_text=_("İstəyə bağlı qeyd (giriş üçün məcburi deyil)"),
     )
     notes = forms.CharField(
         required=False,
@@ -669,8 +669,14 @@ class GuestVisitForm(forms.Form):
     def clean(self):
         cleaned = super().clean()
         held = cleaned.get("id_document_held")
+        card = (cleaned.get("guest_card_number") or "").strip()
+        if card and not held:
+            self.add_error(
+                "id_document_held",
+                _("Qonaq kartı üçün vəsiqə qəbul olunmalıdır."),
+            )
         if held and not (cleaned.get("fin_code") or "").strip():
-            self.add_error("fin_code", _("Vəsiqə saxlanılanda seriya nömrəsi tələb olunur."))
+            self.add_error("fin_code", _("Vəsiqə qəbul olunanda seriya nömrəsi tələb olunur."))
         visit_type = cleaned.get("visit_type")
         if visit_type is not None and visit_type.code == LEASE_AREA_CODE:
             company = ResidentCompany.objects.filter(slug=CITY_POINT_SLUG, status="active").first()
@@ -894,6 +900,7 @@ RESIDENT_FORM_SECTIONS = {
         "manager_phone",
         "manager_email",
         "contact_person_name",
+        "contact_person_position",
         "contact_person_phone",
         "contact_person_email",
     ),
@@ -936,6 +943,7 @@ class ResidentCompanyForm(forms.ModelForm):
             "manager_phone",
             "manager_email",
             "contact_person_name",
+            "contact_person_position",
             "contact_person_phone",
             "contact_person_email",
             "bank_name",
@@ -970,6 +978,7 @@ class ResidentCompanyForm(forms.ModelForm):
             "manager_phone": _("Rəhbər telefon"),
             "manager_email": _("Rəhbər email"),
             "contact_person_name": _("Əlaqəli şəxs"),
+            "contact_person_position": _("Əlaqəli şəxs vəzifəsi"),
             "contact_person_phone": _("Əlaqə telefon"),
             "contact_person_email": _("Əlaqə email"),
             "bank_name": _("Bank adı"),
@@ -1002,6 +1011,7 @@ class ResidentCompanyForm(forms.ModelForm):
                 "manager_phone",
                 "manager_email",
                 "contact_person_name",
+                "contact_person_position",
                 "contact_person_phone",
                 "contact_person_email",
                 "bank_name",

@@ -2,34 +2,54 @@
 {% load i18n %}
 {% block heading %}{% translate "Fakturalar" %}{% endblock %}
 {% block content %}
-<div class="cp-card" style="padding:16px 20px;margin-bottom:16px;">
-  <div class="cp-meta">{% translate "Açıq borc" %}</div>
-  <div style="font-size:1.5rem;font-weight:700;">{{ open_total|floatformat:2 }} AZN</div>
+<div class="cp-card" style="padding:16px 20px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:24px;">
+  <div>
+    <div class="cp-meta">{% translate "Açıq borc" %}</div>
+    <div style="font-size:1.5rem;font-weight:700;">{% for currency, amounts in currency_totals.items %}<div>{{ amounts.open|floatformat:2 }} {{ currency }}</div>{% endfor %}</div>
+  </div>
+  <div>
+    <div class="cp-meta">{% translate "Vaxtı keçmiş" %}</div>
+    <div style="font-size:1.25rem;font-weight:600;">{% for currency, amounts in currency_totals.items %}<div>{{ amounts.overdue|floatformat:2 }} {{ currency }}</div>{% endfor %}</div>
+  </div>
 </div>
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table" style="width:100%;">
     <thead>
       <tr>
         <th>{% translate "Kod" %}</th>
-        <th>{% translate "Tarix" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Dövr" %}</th>
+        <th>{% translate "Son ödəniş" %}</th>
         <th>{% translate "Status" %}</th>
         <th style="text-align:right;">{% translate "Cəmi" %}</th>
+        <th style="text-align:right;">{% translate "Ödənilib" %}</th>
         <th style="text-align:right;">{% translate "Qalıq" %}</th>
       </tr>
     </thead>
     <tbody>
       {% for row in invoice_rows %}
-      <tr>
-        <td>{{ row.invoice.code }}</td>
-        <td>{{ row.invoice.issue_date|date:"d.m.Y" }}</td>
-        <td>{{ row.invoice.get_status_display }}</td>
-        <td style="text-align:right;">{{ row.invoice.total|floatformat:2 }}</td>
+      <tr{% if row.is_overdue %} style="color:var(--cp-danger, #b42318);"{% endif %}>
+        <td><a href="{% url 'portal:invoice_detail' row.invoice.code %}">{{ row.invoice.code }}</a></td>
+        <td>{{ row.company_name }}</td>
+        <td>{{ row.period_label|default:"—" }}</td>
+        <td>{{ row.invoice.due_date|date:"d.m.Y"|default:"—" }}</td>
+        <td>{{ row.invoice.get_status_display }}{% if row.is_overdue and row.invoice.status != "overdue" %} · {% translate "gecikmiş" %}{% endif %}</td>
+        <td style="text-align:right;">{{ row.invoice.total|floatformat:2 }} {{ row.currency }}</td>
+        <td style="text-align:right;">{{ row.paid|floatformat:2 }}</td>
         <td style="text-align:right;">{{ row.balance|floatformat:2 }}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Faktura yoxdur." %}</td></tr>
+      <tr><td colspan="8" class="cp-meta empty-pad">{% translate "Faktura yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+{% if page_obj.has_other_pages %}
+<nav class="flex gap-3 mt-3">
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">{% translate "Əvvəlki" %}</a>{% endif %}
+  <span>{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">{% translate "Növbəti" %}</a>{% endif %}
+</nav>
+{% endif %}
+<p class="cp-meta mt-3">{% translate "Cəmi və vaxtı keçmiş məbləğlər bütün uyğun fakturaları (səhifələmədən asılı olmayaraq) əhatə edir; valyutalar ayrı saxlanır. Detal səhifəsində sətirlər və təsdiqlənmiş ödənişlər görünür. Rəsmi PDF yalnız Finance tərəfindən fakturaya bağlanmış sənəd olduqda endirilir." %}</p>
 {% endblock %}

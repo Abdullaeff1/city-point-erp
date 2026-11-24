@@ -38,7 +38,7 @@ class MonetaryApprovalBasisTests(TestCase):
             username="mon-fm",
             email="mon-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.mgmt = User.objects.create_user(
@@ -64,7 +64,7 @@ class MonetaryApprovalBasisTests(TestCase):
             priority=WorkOrderPriority.NORMAL,
         )
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             defaults={"max_amount": Decimal("1000.00"), "is_active": True},
         )
         self.supplier = Party.objects.create(legal_name="MON Supplier")
@@ -167,7 +167,7 @@ class MonetaryApprovalBasisTests(TestCase):
         )
 
         self._approve_pr_as_admin(pr)
-        PurchaseApprovalLimit.objects.filter(role=Role.PROPERTY_FM).delete()
+        PurchaseApprovalLimit.objects.filter(role=Role.SERVICE_DESK).delete()
         with self.assertRaises(DomainError) as ctx_lim:
             self._quote_po(pr, unit_price="10")
         self.assertIn("limit", str(ctx_lim.exception).lower())
@@ -177,7 +177,7 @@ class MonetaryApprovalBasisTests(TestCase):
         )
         self._approve_pr_as_admin(pr2)
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             defaults={"max_amount": Decimal("1000.00"), "is_active": True},
         )
         rfq = ProcurementService.create_rfq_from_pr(pr2, actor=self.admin)

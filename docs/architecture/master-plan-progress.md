@@ -1,6 +1,6 @@
 # Master plan execution status (Phases 0–13)
 
-Updated: 2026-09-21
+Updated: 2026-11-23
 
 This documents what was **implemented in code** vs what remains **ops/business-gated**.  
 Scaffold UI alone ≠ Definition of Done.
@@ -18,9 +18,10 @@ Scaffold UI alone ≠ Definition of Done.
 | **8 Warehouse** | Thin-real | Negative stock guard; low-stock → create PR from ERP |
 | **9 Procurement** | Thin-real | PR approve → PO → receive→stock; ApprovalService + events |
 | **10 DMS** | Thin-real | `DocumentService.upload_new` / `add_version` |
-| **11 Billing** | Thin-real | Monthly lease charges; invoice+due; `Payment`; invoice→journal hook |
-| **12 Accounting** | Thin-real | Minimal CoA seed; `post_journal`; invoice AR/revenue JE |
-| **13 BI** | Partial | Existing KPI reports remain; data will improve as workflows used |
+| **11 Billing** | Product DoD | Charge→invoice→payment; `invoice_balance`; portal `/portal/invoices/`; Finance `/finance/charges|invoices|payments`; Phase 11 A–G acceptance (2026-11) |
+| **12 Accounting** | Product DoD | Synthetic 3-digit CoA; invoice/payment draft JE → accountant `post_to_gl`; period close; TB opening/movement/closing; Phase 12 A–C acceptance (2026-11) |
+| **13 BI** | Product DoD | As-of occupancy/AR/WO/stock; operational vs posted AR; drill + multi-sheet Excel; Phase 13 acceptance (2026-11) |
+| **Production Acceptance** | Local READY / on-site open | FSA 14 + full **791 OK** (2026-11-23); onsite sheet + AZ release report; deploy **BLOCKED** until Finance/NetAdmin/operator signatures |
 
 ## Honest limits
 
@@ -28,7 +29,10 @@ Scaffold UI alone ≠ Definition of Done.
 - AxTrax **write** not invented (adapter mock).
 - SLA durations / taxonomy final matrix need City Point business approval.
 - Party/Person cutover not finished (dual-read only).
-- RFQ comparison, PM auto-generation, portal invoices, full BI exports — deferred.
+- Utilities tariff, unapplied overpayment credit, formal credit-note/correction policy, bank feed — Finance-pending (Phase 11/12).
+- Procurement AP/payable JE (account 200 unused) — Finance owner; launch defer only with written decision.
+- Website intake deferred without LAN/VPN path (Sales/IT).
+- Full BI historical stock — current-only labeling (Phase 13).
 
 ## Commands
 

@@ -1,0 +1,136 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block page_title %}{% translate "Kargüzarlıq" %}{% endblock %}
+{% block heading %}{% translate "Kargüzarlıq" %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:documents' %}">{% translate "Sənədlər" %}</a>
+{% endblock %}
+{% block content %}
+{% if can_edit %}
+<div class="cp-card p-card mb-4">
+  <h3 class="cp-section">{% translate "Daxil olan məktub qeydiyyatı" %}</h3>
+  <p class="cp-meta">{% translate "Daxili № avtomatik verilir. Göndərənin istinadı və məktub tarixi ayrıca saxlanır; qəbul tarixi filtri üçün istifadə olunur. Portala avtomatik açılmır." %}</p>
+  <form method="post" enctype="multipart/form-data" class="grid-2 gap-2">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="register_incoming">
+    <input type="hidden" name="submit_token" value="{{ submit_token }}-reg">
+    <label>
+      <span class="cp-meta">{% translate "Başlıq" %}</span>
+      <input class="cp-input" name="title" required maxlength="200" placeholder="{% translate 'İcarə müddətinin uzadılması…' %}">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Göndərənin istinadı" %}</span>
+      <input class="cp-input" name="external_reference" maxlength="120" placeholder="ASBC-LET-2026-19">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Məktub tarixi" %}</span>
+      <input class="cp-input" type="date" name="letter_date">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Qəbul tarixi" %}</span>
+      <input class="cp-input" type="date" name="received_at">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Rezident şirkət" %}</span>
+      <select class="cp-input" name="company_id">
+        <option value="">—</option>
+        {% for c in companies %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Departament" %}</span>
+      <select class="cp-input" name="department_id">
+        <option value="">—</option>
+        {% for d in departments %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label style="grid-column:1/-1;">
+      <span class="cp-meta">{% translate "Əsas fayl" %}</span>
+      <input class="cp-input" type="file" name="file" required>
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Qeydiyyat et" %}</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="cp-card p-card mb-4">
+  <form method="get" class="flex-wrap gap-2" style="display:flex;flex-wrap:wrap;gap:12px;align-items:end;">
+    <label><span class="cp-meta">{% translate "Daxili №" %}</span><input class="cp-input" name="registry" value="{{ filters.registry }}"></label>
+    <label><span class="cp-meta">{% translate "Göndərən istinadı" %}</span><input class="cp-input" name="external_ref" value="{{ filters.external_ref }}"></label>
+    <label>
+      <span class="cp-meta">{% translate "İstiqamət" %}</span>
+      <select class="cp-input" name="direction">
+        <option value="">—</option>
+        <option value="incoming" {% if filters.direction == "incoming" %}selected{% endif %}>{% translate "Daxil olan" %}</option>
+        <option value="outgoing" {% if filters.direction == "outgoing" %}selected{% endif %}>{% translate "Gedən" %}</option>
+      </select>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Tarix sahəsi" %}</span>
+      <select class="cp-input" name="date_field">
+        <option value="received" {% if filters.date_field != "letter" %}selected{% endif %}>{% translate "Qəbul" %}</option>
+        <option value="letter" {% if filters.date_field == "letter" %}selected{% endif %}>{% translate "Məktub" %}</option>
+      </select>
+    </label>
+    <label><span class="cp-meta">{% translate "Tarixdən" %}</span><input class="cp-input" type="date" name="date_from" value="{{ filters.date_from }}"></label>
+    <label><span class="cp-meta">{% translate "Tarixə" %}</span><input class="cp-input" type="date" name="date_to" value="{{ filters.date_to }}"></label>
+    <label>
+      <span class="cp-meta">{% translate "Şirkət" %}</span>
+      <select class="cp-input" name="company">
+        <option value="">—</option>
+        {% for c in companies %}<option value="{{ c.id }}" {% if filters.company_id == c.id|stringformat:'s' %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Departament" %}</span>
+      <select class="cp-input" name="department">
+        <option value="">—</option>
+        {% for d in departments %}<option value="{{ d.id }}" {% if filters.department_id == d.id|stringformat:'s' %}selected{% endif %}>{{ d.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Status" %}</span>
+      <select class="cp-input" name="status">
+        <option value="">—</option>
+        {% for val, label in status_choices %}
+        <option value="{{ val }}" {% if filters.status == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="cp-btn" type="submit">{% translate "Axtar" %}</button>
+  </form>
+</div>
+
+<div class="cp-card p-card">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Daxili №" %}</th>
+        <th>{% translate "İstiqamət" %}</th>
+        <th>{% translate "Başlıq" %}</th>
+        <th>{% translate "Göndərən istinadı" %}</th>
+        <th>{% translate "Şirkət" %}</th>
+        <th>{% translate "Məktub" %}</th>
+        <th>{% translate "Qəbul" %}</th>
+        <th>{% translate "Status" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in rows %}
+      <tr>
+        <td><a href="{% url 'erp:correspondence_detail' d.pk %}">{{ d.registry_number|default:"—" }}</a></td>
+        <td>{{ d.get_direction_display }}</td>
+        <td>{{ d.title }}</td>
+        <td class="cp-meta">{{ d.external_reference|default:"—" }}</td>
+        <td class="cp-meta">{% if d.company %}{{ d.company.name }}{% else %}—{% endif %}</td>
+        <td class="cp-meta">{{ d.document_date|date:"d.m.Y"|default:"—" }}</td>
+        <td class="cp-meta">{{ d.received_at|date:"d.m.Y"|default:"—" }}</td>
+        <td>{{ d.get_correspondence_status_display|default:"—" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="cp-meta">{% translate "Qeyd yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

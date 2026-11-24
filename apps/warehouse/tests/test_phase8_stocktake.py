@@ -50,7 +50,7 @@ class Phase8StocktakeBase(TestCase):
             username="st8-fm",
             email="st8-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.mgmt = User.objects.create_user(
@@ -335,7 +335,7 @@ class Phase8StocktakeConcurrentPost(TransactionTestCase):
             username="st8-conc-fm",
             email="st8-conc@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.wh = Warehouse.objects.create(code="ST8C", name="Concurrent WH")

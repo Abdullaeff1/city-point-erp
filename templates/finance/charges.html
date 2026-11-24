@@ -59,6 +59,9 @@
     <thead>
       <tr>
         <th>{% translate "Təsvir" %}</th>
+        <th>{% translate "Mənbə" %}</th>
+        <th>{% translate "Dövr" %}</th>
+        <th>{% translate "İcarə" %}</th>
         <th>{% translate "Şirkət" %}</th>
         <th>{% translate "Məbləğ" %}</th>
         <th>{% translate "Faktura" %}</th>
@@ -68,12 +71,15 @@
       {% for c in charges %}
       <tr>
         <td>{{ c.description }}</td>
+        <td>{{ c.get_source_display }}</td>
+        <td>{% if c.period_start %}{{ c.period_start|date:"Y-m" }}{% else %}—{% endif %}</td>
+        <td>{% if c.lease_id %}{{ c.lease.code }}{% else %}—{% endif %}</td>
         <td>{{ c.party.display_name }}</td>
         <td>{{ c.amount }} {{ c.currency }}</td>
         <td>{% if c.invoice_id %}<a href="{% url 'finance:invoice_detail' code=c.invoice.code %}">{{ c.invoice.code }}</a>{% else %}—{% endif %}</td>
       </tr>
       {% empty %}
-      <tr><td colspan="4" class="cp-meta">{% translate "Boş" %}</td></tr>
+      <tr><td colspan="7" class="cp-meta">{% translate "Boş" %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

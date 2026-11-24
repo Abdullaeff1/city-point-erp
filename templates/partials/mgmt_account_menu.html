@@ -1,0 +1,20 @@
+{% load i18n %}
+<details class="mgmt-account">
+  <summary aria-label="{% translate 'Hesab menyusu' %}">
+    <span class="cp-avatar" aria-hidden="true">{{ user.initials }}</span>
+    <span class="mgmt-account-label">
+      <span class="mgmt-account-name">{{ user.display_name }}</span>
+    </span>
+    <i data-lucide="chevron-down" width="14" height="14" aria-hidden="true"></i>
+  </summary>
+  <div class="mgmt-account-panel" role="menu">
+    <div class="mgmt-account-name">{{ user.display_name }}</div>
+    <div class="mgmt-account-role">{% translate "Rəhbərlik" %}</div>
+    <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+      <button type="submit" class="cp-btn soft" style="width:100%;" role="menuitem">
+        <i data-lucide="log-out" width="16" height="16" aria-hidden="true"></i>
+        {% translate "Çıxış" %}
+      </button>
+    </form>
+  </div>
+</details>

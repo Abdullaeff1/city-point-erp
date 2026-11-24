@@ -1,13 +1,13 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
-{% block page_title %}{% if mode == "edit" %}{% translate "Təchizatçı redaktə" %}{% else %}{% translate "Yeni təchizatçı" %}{% endif %}{% endblock %}
-{% block heading %}{% if mode == "edit" %}{% translate "Təchizatçı redaktə" %}{% else %}{% translate "Yeni təchizatçı" %}{% endif %}{% endblock %}
+{% block page_title %}{% if mode == "edit" %}{% translate "Podratçı redaktə" %}{% else %}{% translate "Yeni podratçı" %}{% endif %}{% endblock %}
+{% block heading %}{% if mode == "edit" %}{% translate "Podratçı redaktə" %}{% else %}{% translate "Yeni podratçı" %}{% endif %}{% endblock %}
 {% block back_trail %}
- · <a href="{% url 'erp:procurement_suppliers' %}">{% translate "Təchizatçılar" %}</a>
+ · <a href="{% url 'erp:procurement_suppliers' %}">{% translate "Podratçılar" %}</a>
 {% endblock %}
 {% block content %}
 <div class="cp-card p-card" style="max-width:720px;">
-  <p class="cp-meta mb-3">{% translate "Təchizatçı Party qeydidir — avtomatik ResidentCompany yaradılmır." %}</p>
+  <p class="cp-meta mb-3">{% translate "Podratçı Party qeydidir — avtomatik ResidentCompany yaradılmır." %}</p>
   <form method="post" class="flex-col gap-3">
     {% csrf_token %}
     <input type="hidden" name="submit_token" value="{{ submit_token }}">

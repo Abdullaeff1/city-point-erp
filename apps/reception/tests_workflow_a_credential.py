@@ -57,10 +57,16 @@ class WorkflowACredentialIdentityTests(TestCase):
             card_number="007001",
             employee=None,
         )
-        self.assertEqual(checkout_guests_from_access_events([ev]), 1)
+        self.assertEqual(checkout_guests_from_access_events([ev]), 0)
         visit.refresh_from_db()
-        self.assertEqual(visit.status, VisitStatus.LEFT)
-        self.assertEqual(visit.check_out_at, departed)
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
+        from apps.reception.services import ReceptionService
+
+        closed = ReceptionService.check_out_visit(
+            visit, actor=None, id_returned=True, departed_at=departed
+        )
+        self.assertEqual(closed.status, VisitStatus.LEFT)
+        self.assertEqual(closed.actual_departure_at, departed)
 
     def test_B_employee_event_same_badge_does_not_close_guest(self):
         visit, _ = self._inside_visit(card="007001")
@@ -150,11 +156,9 @@ class WorkflowACredentialIdentityTests(TestCase):
             card_number="SAME-T",
         )
         self.assertNotEqual(ev1.pk, ev2.pk)
-        self.assertEqual(checkout_guests_from_access_events([ev1, ev2]), 1)
+        self.assertEqual(checkout_guests_from_access_events([ev1, ev2]), 0)
         visit.refresh_from_db()
-        self.assertEqual(visit.status, VisitStatus.LEFT)
-        self.assertEqual(visit.check_out_at, stamp)
-        # Second event: visit already closed — no extra checkout, no ambiguity flood
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
         self.assertEqual(
             SyncLog.objects.filter(operation=GUEST_CHECKOUT_AMBIGUOUS_OP).count(),
             0,
@@ -170,6 +174,9 @@ class WorkflowACredentialIdentityTests(TestCase):
             occurred_at=departed,
             card_number="7001",  # AxTrax may strip zeros; local keys still match
         )
-        self.assertEqual(checkout_guests_from_access_events([ev]), 1)
+        from apps.reception.services import find_guest_access_for_event
+
+        self.assertIsNotNone(find_guest_access_for_event(card="7001", occurred_at=departed))
+        self.assertEqual(checkout_guests_from_access_events([ev]), 0)
         visit.refresh_from_db()
-        self.assertEqual(visit.status, VisitStatus.LEFT)
+        self.assertEqual(visit.status, VisitStatus.INSIDE)

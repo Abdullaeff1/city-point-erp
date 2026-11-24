@@ -30,7 +30,7 @@ class Phase9ProcurementAcceptanceTests(TestCase):
             username="p9-fm",
             email="p9-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.mgmt = User.objects.create_user(
@@ -49,7 +49,7 @@ class Phase9ProcurementAcceptanceTests(TestCase):
             is_superuser=True,
         )
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             defaults={"max_amount": Decimal("5000.00"), "is_active": True},
         )
         self.wh = Warehouse.objects.create(code="P9WH", name="Phase9 WH")
@@ -117,6 +117,7 @@ class Phase9ProcurementAcceptanceTests(TestCase):
         self.assertIn("qalan", str(ctx.exception).lower())
 
     def test_two_supplier_comparison_totals(self):
+        """Scenario P9-A (comparison only): 10 filters + 5 L oil — not the receipt journey PR."""
         pr = ProcurementService.create_manual_pr(
             actor=self.fm,
             title="P9 compare",
@@ -147,6 +148,7 @@ class Phase9ProcurementAcceptanceTests(TestCase):
         self.assertEqual(r.context["lowest_quote_id"], q_lo.pk)
 
     def test_operator_journey_http_two_receipts_and_replay(self):
+        """Scenario P9-B (e2e receive): 10 filters + 4 L oil — separate PR from P9-A compare."""
         self.client.force_login(self.fm)
         # 1–2 create + approve PR (admin approve)
         pr = ProcurementService.create_manual_pr(

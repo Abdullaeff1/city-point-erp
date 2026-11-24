@@ -9,8 +9,7 @@ class Role(models.TextChoices):
     ADMIN = "admin", _("Admin")
     MANAGEMENT = "management", _("Rəhbərlik")
     RECEPTION = "reception", _("Reception")
-    SERVICE_DESK = "service_desk", _("Service Desk")
-    PROPERTY_FM = "property_fm", _("Property / FM")
+    SERVICE_DESK = "service_desk", _("Təchizat şöbəsi")
     SECURITY = "security", _("Təhlükəsizlik")
     ACCOUNTANT = "accountant", _("Mühasib")
     SALES = "sales", _("Satış")
@@ -22,7 +21,6 @@ STAFF_ROLES = {
     Role.MANAGEMENT,
     Role.RECEPTION,
     Role.SERVICE_DESK,
-    Role.PROPERTY_FM,
     Role.SECURITY,
     Role.ACCOUNTANT,
     Role.SALES,

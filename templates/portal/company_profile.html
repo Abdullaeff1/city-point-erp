@@ -1,0 +1,16 @@
+{% extends "portal/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Şirkət profili" %}{% endblock %}
+{% block content %}
+{% for company in companies %}
+<section class="cp-card p-card mb-4">
+  <h2 class="cp-section">{{ company.name }}</h2>
+  <dl>
+    <dt class="cp-meta">{% translate "VÖEN" %}</dt>
+    <dd>{{ company.voen|default:"—" }}</dd>
+    <dt class="cp-meta">{% translate "Hüquqi forma" %}</dt>
+    <dd>{{ company.legal_form|default:"—" }}</dd>
+  </dl>
+</section>
+{% empty %}<p>{% translate "Şirkət tapılmadı." %}</p>{% endfor %}
+{% endblock %}

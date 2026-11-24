@@ -18,13 +18,18 @@ from apps.accounts.mixins import PermissionRequiredMixin, StaffRequiredMixin
 from apps.core.services import DomainError
 from apps.rbac.services import require_permission, user_has_permission
 from apps.procurement.models import (
+    ComparisonCoverage,
     POLine,
     POStatus,
+    PRLineAward,
     PRSource,
     PRStatus,
     PurchaseOrder,
     PurchaseRequest,
+    QuoteLineResponseStatus,
     RFQ,
+    RFQDispatchChannel,
+    RFQInvitation,
     RFQQuote,
 )
 from apps.procurement.services import ProcurementService
@@ -167,11 +172,9 @@ class ProcurementListView(PermissionRequiredMixin, StaffRequiredMixin, TemplateV
                 except InvalidOperation:
                     messages.error(request, _("Qiymət rəqəm olmalıdır."))
                     return redirect("erp:procurement")
-                if price < 0:
-                    messages.error(request, _("Qiymət mənfi ola bilməz."))
-                    return redirect("erp:procurement")
-                line.unit_price = price.quantize(Decimal("0.01"))
-                line.save(update_fields=["unit_price"])
+                ProcurementService.set_po_line_unit_price(
+                    line, unit_price=price, actor=request.user
+                )
                 if line.po.pr_id and line.po.pr.work_order_id:
                     sync_procurement_cost(line.po.pr.work_order)
                 messages.success(request, _("Satınalma qiyməti saxlanıldı."))
@@ -388,7 +391,7 @@ class ProcurementPODetailView(PermissionRequiredMixin, StaffRequiredMixin, Templ
                 "can_edit_procurement": _can_edit(self.request.user),
                 "submit_token": uuid.uuid4().hex,
                 "operation_key": uuid.uuid4().hex,
-                "can_receive": po.status in {POStatus.SENT, POStatus.PARTIAL, POStatus.DRAFT},
+                "can_receive": po.status in {POStatus.SENT, POStatus.PARTIAL},
             }
         )
         return ctx
@@ -406,10 +409,9 @@ class ProcurementPODetailView(PermissionRequiredMixin, StaffRequiredMixin, Templ
                 line = get_object_or_404(po.lines.all(), pk=request.POST.get("line_id"))
                 raw = str(request.POST.get("unit_price") or "0").strip().replace(",", ".")
                 price = Decimal(raw)
-                if price < 0:
-                    raise DomainError(_("Qiymət mənfi ola bilməz."))
-                line.unit_price = price.quantize(Decimal("0.01"))
-                line.save(update_fields=["unit_price"])
+                ProcurementService.set_po_line_unit_price(
+                    line, unit_price=price, actor=request.user
+                )
                 if po.pr_id and po.pr.work_order_id:
                     sync_procurement_cost(po.pr.work_order)
                 messages.success(request, _("Qiymət saxlanıldı."))
@@ -491,11 +493,11 @@ class ProcurementSupplierListView(PermissionRequiredMixin, StaffRequiredMixin, T
 class ProcurementSupplierFormView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
     template_name = "erp/procurement_supplier_form.html"
     permission_required = "procurement.edit"
-    permission_denied_message = "Təchizatçı idarəetməsi icazəniz yoxdur."
+    permission_denied_message = "Podratçı idarəetməsi icazəniz yoxdur."
 
     def dispatch(self, request, *args, **kwargs):
         if request.user.is_authenticated and not _can_edit(request.user):
-            raise PermissionDenied(_("Təchizatçı idarəetməsi icazəniz yoxdur."))
+            raise PermissionDenied(_("Podratçı idarəetməsi icazəniz yoxdur."))
         return super().dispatch(request, *args, **kwargs)
 
     def get_party(self):
@@ -544,7 +546,7 @@ class ProcurementSupplierFormView(PermissionRequiredMixin, StaffRequiredMixin, T
         if token:
             request.session[session_key] = token
             request.session.modified = True
-        messages.success(request, _("Təchizatçı saxlanıldı."))
+        messages.success(request, _("Podratçı saxlanıldı."))
         return redirect("erp:procurement_supplier_detail", pk=party.pk)
 
 
@@ -574,7 +576,12 @@ class ProcurementRFQDetailView(PermissionRequiredMixin, StaffRequiredMixin, Temp
 
     def get_rfq(self):
         return get_object_or_404(
-            RFQ.objects.select_related("pr").prefetch_related("quotes__supplier_party"),
+            RFQ.objects.select_related("pr").prefetch_related(
+                "quotes__supplier_party",
+                "quotes__lines",
+                "invitations__supplier_party",
+                "invitations__lines",
+            ),
             code=self.kwargs["code"],
         )
 
@@ -582,14 +589,16 @@ class ProcurementRFQDetailView(PermissionRequiredMixin, StaffRequiredMixin, Temp
         ctx = super().get_context_data(**kwargs)
         rfq = self.get_rfq()
         quotes = list(rfq.quotes.select_related("supplier_party").order_by("unit_price", "id"))
-        pr_lines = list(rfq.pr.lines.select_related("sku").all()) if rfq.pr_id else []
+        pr_lines = list(rfq.pr.lines.select_related("sku").order_by("id")) if rfq.pr_id else []
         qty_progress = ProcurementService.pr_qty_progress(rfq.pr) if rfq.pr_id else []
         remaining_total_qty = sum(
             (row["outstanding_order"] for row in qty_progress), Decimal("0")
         )
+        header_quotes = [q for q in quotes if not q.lines.exists()]
         quote_rows = []
         comparable = []
-        for q in quotes:
+        historical = []
+        for q in header_quotes:
             assessed = (
                 ProcurementService.assess_quote_amount(q, rfq.pr)
                 if rfq.pr_id
@@ -605,18 +614,69 @@ class ProcurementRFQDetailView(PermissionRequiredMixin, StaffRequiredMixin, Temp
             quote_rows.append(row)
             if complete:
                 comparable.append(row)
+            # After remaining qty is fully ordered, still rank header quotes historically
+            if (q.currency or "AZN").upper() == "AZN":
+                historical.append(row)
         lowest_id = None
         if comparable:
             comparable.sort(
                 key=lambda r: (r["assessed"].amount, r["quote"].pk)
             )
             lowest_id = comparable[0]["quote"].pk
+        elif historical:
+            historical.sort(
+                key=lambda r: (Decimal(str(r["quote"].unit_price or 0)), r["quote"].pk)
+            )
+            lowest_id = historical[0]["quote"].pk
+
+        comparison_raw = (
+            ProcurementService.build_line_comparison(rfq)
+            if rfq.pr_id
+            else {"rows": [], "suppliers": []}
+        )
+        comparison_suppliers = comparison_raw.get("suppliers") or []
+        comparison_rows = []
+        for row in comparison_raw.get("rows") or []:
+            cells_ordered = []
+            for s in comparison_suppliers:
+                cell = row.cells.get(s["id"])
+                cells_ordered.append({"supplier_id": s["id"], "cell": cell})
+            comparison_rows.append(
+                {
+                    "pr_line": row.pr_line,
+                    "remaining_qty": row.remaining_qty,
+                    "cells_ordered": cells_ordered,
+                }
+            )
+        comparison = {"rows": comparison_rows, "suppliers": comparison_suppliers}
+        active_awards = []
+        if rfq.pr_id:
+            active_awards = list(
+                PRLineAward.objects.filter(pr=rfq.pr, is_active=True)
+                .select_related("pr_line", "supplier_party", "quote_line", "po_line")
+                .order_by("pr_line_id")
+            )
+        invitations = list(
+            RFQInvitation.objects.filter(rfq=rfq)
+            .select_related("supplier_party")
+            .prefetch_related("lines__pr_line")
+            .order_by("-is_active", "-created_at")
+        )
+        has_unissued_awards = any(a.po_line_id is None for a in active_awards)
         can_select = (
             _can_edit(self.request.user)
             and rfq.pr_id is not None
             and _pr_allows_po(rfq.pr)
             and remaining_total_qty > 0
+            and not has_unissued_awards
         )
+        can_award = (
+            _can_edit(self.request.user)
+            and rfq.pr_id is not None
+            and _pr_allows_po(rfq.pr)
+            and remaining_total_qty > 0
+        )
+        po_outcomes = self.request.session.pop(f"rfq_po_outcomes_{rfq.code}", None)
         ctx.update(
             {
                 "rfq": rfq,
@@ -626,12 +686,26 @@ class ProcurementRFQDetailView(PermissionRequiredMixin, StaffRequiredMixin, Temp
                 "qty_progress": qty_progress,
                 "remaining_total_qty": remaining_total_qty,
                 "lowest_quote_id": lowest_id,
-                "suppliers": ProcurementService.supplier_queryset().filter(status=PartyStatus.ACTIVE),
+                "suppliers": ProcurementService.supplier_queryset().filter(
+                    status=PartyStatus.ACTIVE
+                ),
                 "can_edit_procurement": _can_edit(self.request.user),
                 "can_select_quote": can_select,
+                "can_award_lines": can_award,
                 "pending_commitments": (
                     _pending_commitments_for_pr(rfq.pr) if rfq.pr_id else []
                 ),
+                "line_comparison": comparison,
+                "invitations": invitations,
+                "active_awards": active_awards,
+                "has_unissued_awards": has_unissued_awards,
+                "po_outcomes": po_outcomes,
+                "dispatch_channels": RFQDispatchChannel.choices,
+                "coverage_labels": {
+                    ComparisonCoverage.NOT_INVITED: _("Dəvət olunmayıb"),
+                    ComparisonCoverage.INVITED_UNANSWERED: _("Cavabsız"),
+                    ComparisonCoverage.QUOTED: _("Təklif edilib"),
+                },
                 "submit_token": uuid.uuid4().hex,
             }
         )
@@ -663,6 +737,138 @@ class ProcurementRFQDetailView(PermissionRequiredMixin, StaffRequiredMixin, Temp
                 po = ProcurementService.select_rfq_quote_and_create_po(quote, actor=request.user)
                 messages.success(request, _("PO yaradıldı: %(code)s") % {"code": po.code})
                 return redirect("erp:procurement_po_detail", code=po.code)
+            elif action == "invite_supplier":
+                require_permission(
+                    request.user, "procurement.edit", message=_("Dəvət icazəniz yoxdur.")
+                )
+                supplier = get_object_or_404(Party, pk=request.POST.get("supplier_party_id"))
+                line_ids = request.POST.getlist("invite_line_id")
+                line_specs = []
+                for lid in line_ids:
+                    qty_raw = request.POST.get(f"invite_qty_{lid}", "").strip()
+                    spec = {"pr_line_id": int(lid)}
+                    if qty_raw:
+                        spec["qty"] = qty_raw
+                    line_specs.append(spec)
+                channel = request.POST.get("dispatch_channel") or RFQDispatchChannel.DRAFT
+                dispatch_ref = (request.POST.get("dispatch_ref") or "").strip()
+                mark = request.POST.get("mark_dispatched") == "1"
+                inv = ProcurementService.invite_supplier_to_rfq(
+                    rfq,
+                    supplier_party=supplier,
+                    line_specs=line_specs,
+                    actor=request.user,
+                    dispatch_channel=channel,
+                    dispatch_ref=dispatch_ref,
+                    mark_dispatched=mark,
+                )
+                messages.success(
+                    request,
+                    _("Dəvət yaradıldı (#%(id)s)%(disp)s")
+                    % {
+                        "id": inv.pk,
+                        "disp": _(" · göndərilib") if inv.is_dispatched else "",
+                    },
+                )
+            elif action == "add_line_quote":
+                require_permission(
+                    request.user, "procurement.edit", message=_("Təklif əlavə etmək icazəniz yoxdur.")
+                )
+                supplier = get_object_or_404(Party, pk=request.POST.get("supplier_party_id"))
+                line_ids = request.POST.getlist("quote_line_id")
+                responses = []
+                for lid in line_ids:
+                    status = (
+                        request.POST.get(f"response_status_{lid}")
+                        or QuoteLineResponseStatus.QUOTED
+                    )
+                    resp = {"pr_line_id": int(lid), "response_status": status}
+                    if status == QuoteLineResponseStatus.QUOTED:
+                        resp["unit_price"] = request.POST.get(f"unit_price_{lid}", "")
+                        qty = request.POST.get(f"qty_{lid}", "").strip()
+                        if qty:
+                            resp["qty"] = qty
+                        vat = request.POST.get(f"vat_rate_{lid}", "").strip()
+                        if vat:
+                            resp["vat_rate"] = vat
+                        resp["price_includes_vat"] = (
+                            request.POST.get(f"price_includes_vat_{lid}") == "1"
+                        )
+                    responses.append(resp)
+                ProcurementService.add_rfq_quote_lines(
+                    rfq,
+                    supplier_party=supplier,
+                    line_responses=responses,
+                    actor=request.user,
+                    supplier_reference=request.POST.get("supplier_reference", ""),
+                    notes=request.POST.get("notes", ""),
+                    lead_time_days=request.POST.get("lead_time_days") or 0,
+                )
+                messages.success(request, _("Sətir təklifi əlavə olundu."))
+            elif action == "award_lines":
+                require_permission(
+                    request.user, "procurement.edit", message=_("Mükafat icazəniz yoxdur.")
+                )
+                if not rfq.pr_id:
+                    raise DomainError(_("RFQ PR-ə bağlı deyil."))
+                pairs = request.POST.getlist("award_pair")
+                selections = []
+                for pair in pairs:
+                    # format: pr_line_id:quote_line_id
+                    parts = str(pair).split(":")
+                    if len(parts) != 2:
+                        continue
+                    selections.append(
+                        {"pr_line_id": int(parts[0]), "quote_line_id": int(parts[1])}
+                    )
+                awards = ProcurementService.award_pr_lines(
+                    rfq.pr,
+                    selections,
+                    actor=request.user,
+                    reason=request.POST.get("award_reason", ""),
+                )
+                messages.success(
+                    request, _("Mükafatlandı: %(n)s sətir") % {"n": len(awards)}
+                )
+            elif action == "create_pos_from_awards":
+                require_permission(
+                    request.user, "procurement.edit", message=_("PO yaratmaq icazəniz yoxdur.")
+                )
+                if not rfq.pr_id:
+                    raise DomainError(_("RFQ PR-ə bağlı deyil."))
+                outcomes = ProcurementService.create_pos_from_awards(
+                    rfq.pr, actor=request.user
+                )
+                serializable = []
+                for o in outcomes:
+                    serializable.append(
+                        {
+                            "supplier_id": o.supplier_id,
+                            "supplier_name": o.supplier_name,
+                            "status": o.status,
+                            "message": o.message,
+                            "po_code": o.po.code if o.po else "",
+                        }
+                    )
+                    if o.status == "issued" and o.po:
+                        messages.success(
+                            request,
+                            _("%(sup)s: PO %(code)s")
+                            % {"sup": o.supplier_name, "code": o.po.code},
+                        )
+                    elif o.status == "awaiting_financial_approval":
+                        messages.info(
+                            request,
+                            _("%(sup)s: maliyyə təsdiqi gözlənilir — %(msg)s")
+                            % {"sup": o.supplier_name, "msg": o.message},
+                        )
+                    elif o.status == "failed":
+                        messages.error(
+                            request,
+                            _("%(sup)s: %(msg)s")
+                            % {"sup": o.supplier_name or "—", "msg": o.message},
+                        )
+                request.session[f"rfq_po_outcomes_{rfq.code}"] = serializable
             else:
                 messages.error(request, _("Naməlum əməliyyat."))
         except DomainError as exc:

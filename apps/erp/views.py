@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
-from django.db.models import Count, IntegerField, OuterRef, Q, Subquery
+from django.db.models import Count, F, IntegerField, OuterRef, Q, Subquery
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -24,7 +24,9 @@ from apps.property.models import (
     BuildingAsset,
     BuildingAssetCategory,
     BuildingAssetKind,
+    CommercialStatus,
     Floor,
+    OperationalStatus,
     categories_for_kind,
     Space,
     add_one_month,
@@ -110,9 +112,7 @@ class DashboardView(StaffRequiredMixin, TemplateView):
         if role == Role.RECEPTION:
             return redirect("erp:reception")
         if role == Role.SERVICE_DESK:
-            return redirect("erp:helpdesk_dashboard")
-        if role == Role.PROPERTY_FM:
-            return redirect("erp:facility_dashboard")
+            return redirect("erp:supply_dashboard")
         if role == Role.ADMIN:
             # Prefer dedicated IT workspace; allow ?ops=1 for legacy ops panel.
             if request.GET.get("ops") != "1":
@@ -778,7 +778,7 @@ class ReceptionExportView(RoleRequiredMixin, View):
 class TicketListView(RoleRequiredMixin, ListView):
     template_name = "erp/tickets.html"
     context_object_name = "tickets"
-    allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM, Role.SECURITY)
+    allowed_roles = (Role.SERVICE_DESK, Role.SECURITY)
 
     def get_queryset(self):
         qs = tickets_visible_to(self.request.user).select_related(
@@ -864,7 +864,7 @@ class TicketListView(RoleRequiredMixin, ListView):
 class TicketCreateView(RoleRequiredMixin, FormView):
     template_name = "erp/ticket_create.html"
     form_class = StaffTicketForm
-    allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
+    allowed_roles = (Role.SERVICE_DESK,)
     allow_management = False
 
     def get_context_data(self, **kwargs):
@@ -919,7 +919,7 @@ class TicketCreateView(RoleRequiredMixin, FormView):
 
 class TicketDetailView(RoleRequiredMixin, TemplateView):
     template_name = "erp/ticket_detail.html"
-    allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
+    allowed_roles = (Role.SERVICE_DESK,)
 
     def get_ticket(self):
         return get_object_or_404(
@@ -1067,47 +1067,138 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
         return redirect("erp:ticket_detail", code=ticket.code)
 
 
-class SpaceListView(RoleRequiredMixin, ListView):
+class SpaceListView(PermissionRequiredMixin, StaffRequiredMixin, ListView):
     template_name = "erp/spaces.html"
     queryset = Space.objects.select_related("floor", "resident")
     context_object_name = "spaces"
-    allowed_roles = (Role.PROPERTY_FM,)
+    permission_required = "space.view"
+    permission_denied_message = "Sahələrə baxış icazəniz yoxdur."
+
+    def current_leases_by_space(self):
+        from apps.leases.models import Lease, LeaseStatus
+
+        if not user_has_permission(self.request.user, "lease.view"):
+            return {}
+        today = timezone.localdate()
+        leases = (
+            Lease.objects.filter(status__in=(LeaseStatus.ACTIVE, LeaseStatus.EXPIRING))
+            .filter(
+                Q(start_date__lte=today) | Q(start_date__isnull=True),
+                Q(end_date__gte=today) | Q(end_date__isnull=True),
+            )
+            .select_related("party")
+            .prefetch_related("lines")
+            .order_by(F("end_date").asc(nulls_last=True), "-created_at")
+        )
+        by_space = {}
+        for lease in leases:
+            if lease.space_id:
+                by_space.setdefault(lease.space_id, lease)
+            for line in lease.lines.all():
+                by_space.setdefault(line.space_id, lease)
+        return by_space
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        floors = Floor.objects.prefetch_related("spaces__resident").order_by("code")
-        floor_rows = []
-        for floor in floors:
-            from apps.property.models import CommercialStatus, Occupancy
+        floors = Floor.objects.select_related("building").prefetch_related("spaces__resident").order_by(
+            "building__code", "code",
+        )
+        statuses = {
+            "occupied": _("Dolu"),
+            "vacant": _("Boş"),
+            "reserved": CommercialStatus.RESERVED.label,
+            "contracted": CommercialStatus.CONTRACTED.label,
+            "maintenance": OperationalStatus.MAINTENANCE.label,
+            "blocked": OperationalStatus.BLOCKED.label,
+        }
+        query = self.request.GET.get("q", "").strip()
+        search = query.casefold()
+        floor_filter = self.request.GET.get("floor", "")
+        status_filter = self.request.GET.get("status", "")
+        if status_filter not in statuses:
+            status_filter = ""
+        # Management building cards: lease/as-of inventory selectors (not register_status alone)
+        mgmt = (self.request.GET.get("mgmt") or "").strip().lower()
+        mgmt_ids = None
+        mgmt_as_of = None
+        if mgmt in {"rentable", "occupied"}:
+            from apps.erp.exec_reports import build_property_report, parse_report_params
 
-            spaces = list(floor.spaces.all())
-            total = len(spaces)
-            # Prefer lease-driven commercial/occupancy flags over stale Space.resident
-            occupied = sum(
-                1
-                for s in spaces
-                if s.occupancy == Occupancy.ACTIVE_LEASE
-                or s.commercial_status in {CommercialStatus.ACTIVE, CommercialStatus.NOTICE}
-            )
-            pct = int(occupied / total * 100) if total else 0
-            floor_rows.append({"floor": floor, "total": total, "occupied": occupied, "pct": pct, "spaces": spaces})
+            as_of = (self.request.GET.get("as_of") or "").strip()
+            params = parse_report_params({"date_to": as_of} if as_of else {})
+            prop = build_property_report(params)
+            mgmt_as_of = params["date_to"]
+            if mgmt == "rentable":
+                mgmt_ids = set(prop.get("denominator_ids") or [])
+            else:
+                mgmt_ids = {r["space_id"] for r in (prop.get("occupied_rows") or [])}
+        filtering = bool(query or floor_filter or status_filter or mgmt_ids is not None)
+        counts = dict.fromkeys(statuses, 0)
+        current_leases = self.current_leases_by_space()
+        floor_rows = []
+        mgmt_visible_total = 0
+        for floor in floors:
+            spaces = floor.spaces.all()
+            occupied = 0
+            visible_spaces = []
+            for space in spaces:
+                status = space.register_status
+                counts[status] += 1
+                occupied += status == "occupied"
+                lease = current_leases.get(space.pk) if status == "occupied" else None
+                tenant = lease.party.display_name if lease else ""
+                if not tenant and status == "occupied" and space.resident_id:
+                    tenant = space.resident.name
+                if floor_filter and floor_filter != str(floor.pk):
+                    continue
+                if status_filter and status_filter != status:
+                    continue
+                if mgmt_ids is not None and space.pk not in mgmt_ids:
+                    continue
+                if search and not any(
+                    search in value.casefold() for value in (space.short_label, space.code, space.name, tenant)
+                ):
+                    continue
+                visible_spaces.append({
+                    "space": space, "status": status, "label": statuses[status], "tenant": tenant,
+                    "lease_end": lease.end_date if lease else None,
+                })
+            mgmt_visible_total += len(visible_spaces)
+            if visible_spaces or not filtering or (floor_filter == str(floor.pk) and not (search or status_filter or mgmt_ids is not None)):
+                total = len(spaces)
+                floor_rows.append({
+                    "floor": floor, "total": total, "occupied": occupied,
+                    "pct": occupied * 100 // total if total else 0, "spaces": visible_spaces,
+                })
+        space_count = sum(counts.values())
         ctx.update(
             {
-                "floor_count": floors.count(),
-                "space_count": Space.objects.count(),
-                "active_residents": ResidentCompany.objects.filter(status="active", is_internal=False).count(),
-                "guest_today": GuestVisit.objects.filter(scheduled_for=timezone.localdate()).count(),
+                "floor_count": len(floors),
+                "space_count": space_count,
+                "occupied_count": counts["occupied"],
+                "vacant_count": counts["vacant"],
+                "occupancy_pct": counts["occupied"] * 100 // space_count if space_count else 0,
                 "floor_rows": floor_rows,
-                "floor_form": FloorForm(),
-                "can_manage_spaces": True,
+                "floors": floors,
+                "space_statuses": list(statuses.items()),
+                "query": query,
+                "floor_filter": floor_filter,
+                "status_filter": status_filter,
+                "filtering": filtering,
+                "mgmt_filter": mgmt if mgmt_ids is not None else "",
+                "mgmt_as_of": mgmt_as_of,
+                "mgmt_filtered_count": mgmt_visible_total if mgmt_ids is not None else None,
+                "can_manage_spaces": user_has_permission(self.request.user, "space.edit"),
             }
         )
+        if ctx["can_manage_spaces"]:
+            ctx["floor_form"] = FloorForm()
         return ctx
 
 
-class FloorCreateView(RoleRequiredMixin, View):
-    allowed_roles = (Role.PROPERTY_FM,)
-    allow_management = False
+class FloorCreateView(PermissionRequiredMixin, StaffRequiredMixin, View):
+    permission_required = "space.edit"
+    permission_denied_message = "Sahə idarəetməsi icazəniz yoxdur."
 
     def post(self, request):
         form = FloorForm(request.POST)
@@ -1120,12 +1211,12 @@ class FloorCreateView(RoleRequiredMixin, View):
         return redirect("erp:spaces")
 
 
-class SpaceCreateView(RoleRequiredMixin, CreateView):
+class SpaceCreateView(PermissionRequiredMixin, StaffRequiredMixin, CreateView):
     template_name = "erp/space_form.html"
     form_class = SpaceForm
     model = Space
-    allowed_roles = (Role.PROPERTY_FM,)
-    allow_management = False
+    permission_required = "space.edit"
+    permission_denied_message = "Sahə idarəetməsi icazəniz yoxdur."
 
     def get_initial(self):
         initial = super().get_initial()
@@ -1148,14 +1239,14 @@ class SpaceCreateView(RoleRequiredMixin, CreateView):
         return reverse("erp:space_detail", kwargs={"code": self.object.code})
 
 
-class SpaceUpdateView(RoleRequiredMixin, UpdateView):
+class SpaceUpdateView(PermissionRequiredMixin, StaffRequiredMixin, UpdateView):
     template_name = "erp/space_form.html"
     form_class = SpaceForm
     model = Space
     slug_field = "code"
     slug_url_kwarg = "code"
-    allowed_roles = (Role.PROPERTY_FM,)
-    allow_management = False
+    permission_required = "space.edit"
+    permission_denied_message = "Sahə idarəetməsi icazəniz yoxdur."
 
     def get_queryset(self):
         return Space.objects.select_related("floor", "resident")
@@ -1175,13 +1266,13 @@ class SpaceUpdateView(RoleRequiredMixin, UpdateView):
         return reverse("erp:space_detail", kwargs={"code": self.object.code})
 
 
-class SpaceDeleteView(RoleRequiredMixin, DeleteView):
+class SpaceDeleteView(PermissionRequiredMixin, StaffRequiredMixin, DeleteView):
     model = Space
     slug_field = "code"
     slug_url_kwarg = "code"
     template_name = "erp/space_confirm_delete.html"
-    allowed_roles = (Role.PROPERTY_FM,)
-    allow_management = False
+    permission_required = "space.edit"
+    permission_denied_message = "Sahə idarəetməsi icazəniz yoxdur."
     success_url = "/erp/spaces/"
 
     def get_success_url(self):
@@ -1194,7 +1285,6 @@ class SpaceDeleteView(RoleRequiredMixin, DeleteView):
 
 
 BUILDING_ASSET_VIEW_ROLES = {
-    Role.PROPERTY_FM,
     Role.SERVICE_DESK,
     Role.MANAGEMENT,
     Role.ADMIN,
@@ -1400,9 +1490,10 @@ class BuildingInventoryListView(BuildingAssetListView):
     list_url_name = "erp:building_inventory"
 
 
-class SpaceDetailView(RoleRequiredMixin, TemplateView):
+class SpaceDetailView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
     template_name = "erp/space_detail.html"
-    allowed_roles = (Role.PROPERTY_FM,)
+    permission_required = "space.view"
+    permission_denied_message = "Sahələrə baxış icazəniz yoxdur."
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -1474,6 +1565,8 @@ class ResidentListView(StaffRequiredMixin, ListView):
 
     def get_queryset(self):
         from apps.core.search import filter_text_search
+        from apps.erp.exec_reports import parse_report_params
+        from apps.erp.management_hub import building_register_snapshot
         from apps.residents.permissions import user_can_manage_resident_profile
 
         show_archived = self.request.GET.get("archived") == "1"
@@ -1482,6 +1575,18 @@ class ResidentListView(StaffRequiredMixin, ListView):
             qs = qs.filter(is_archived=True)
         else:
             qs = qs.filter(is_archived=False)
+        # Management building card: companies on register-occupied spaces
+        if self.request.GET.get("occupying") == "1":
+            as_of = (self.request.GET.get("as_of") or "").strip()
+            params = parse_report_params({"date_to": as_of} if as_of else {})
+            snap = building_register_snapshot(as_of=params["date_to"])
+            company_ids = snap.get("occupying_resident_ids") or []
+            qs = qs.filter(pk__in=company_ids)
+            self._occupying_filter = True
+            self._occupying_as_of = params["date_to"]
+        else:
+            self._occupying_filter = False
+            self._occupying_as_of = None
         q = (self.request.GET.get("q") or "").strip()
         if q:
             qs = filter_text_search(qs, q, "name", "slug", "contact_email", "voen")
@@ -1505,6 +1610,8 @@ class ResidentListView(StaffRequiredMixin, ListView):
         ctx = super().get_context_data(**kwargs)
         ctx["q"] = self.request.GET.get("q") or ""
         ctx["show_archived"] = self.request.GET.get("archived") == "1"
+        ctx["occupying_filter"] = getattr(self, "_occupying_filter", False)
+        ctx["occupying_as_of"] = getattr(self, "_occupying_as_of", None)
         ctx["can_view_resident_guests"] = _can_view_resident_guests(self.request.user)
         ctx["can_view_resident_ticket_counts"] = _can_view_resident_ticket_counts(self.request.user)
         ctx["company_opens_tickets"] = self.request.user.role == Role.SERVICE_DESK
@@ -2010,7 +2117,7 @@ class DocumentDownloadView(PermissionRequiredMixin, StaffRequiredMixin, View):
 
 
 class ReportsView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
-    """M11 rəhbərlik hub — domain KPI + tarix/şirkət filter."""
+    """Phase 13 / M11 rəhbərlik hub — domain KPI + as-of filter + drill links."""
 
     template_name = "erp/reports.html"
     allowed_roles = (Role.MANAGEMENT, Role.ADMIN)
@@ -2039,10 +2146,17 @@ class ReportsView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
         if tab not in allowed:
             tab = "overview"
         bundle = build_exec_bundle(params, user=self.request.user)
+        q = (
+            f"date_from={params['date_from'].isoformat()}"
+            f"&date_to={params['date_to'].isoformat()}"
+        )
+        if params.get("company_id"):
+            q += f"&company_id={params['company_id']}"
         ctx.update(
             {
                 "tab": tab,
                 "params": params,
+                "filter_qs": q,
                 "bundle": bundle,
                 "prop": bundle["property"],
                 "crm": bundle["crm"],
@@ -2058,7 +2172,10 @@ class ReportsView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
                 "snapshots": ReportSnapshot.objects.filter(
                     company_id=params.get("company_id")
                 ).order_by("-snapshot_date")[:30],
-                # legacy KPI aliases for any residual template/tests
+                "snapshot_missing_note": (
+                    "Seçilmiş as-of üçün sətir yoxdursa capture edilməyib — "
+                    "sonrakı reconstruction həmin günkü görünüş deyil."
+                ),
                 "occupancy_pct": bundle["property"]["occupancy_pct"],
                 "vacant_m2": bundle["property"]["vacant_m2"],
                 "open_count": bundle["service_desk"].get("open_count", 0),
@@ -2090,9 +2207,71 @@ class ReportsExportView(RoleRequiredMixin, View):
         return exec_report_xlsx_response(bundle)
 
 
+class ReportsDrillView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
+    """KPI drill-down — same date/company scope; no Finance journal screen."""
+
+    template_name = "erp/reports_drill.html"
+    allowed_roles = (Role.MANAGEMENT, Role.ADMIN)
+    permission_required = "report.view"
+    permission_denied_message = "Hesabatlara baxış icazəniz yoxdur."
+
+    def get_context_data(self, **kwargs):
+        from apps.erp.exec_reports import (
+            build_finance_report,
+            build_fm_report,
+            build_property_report,
+            build_warehouse_report,
+            parse_report_params,
+        )
+
+        ctx = super().get_context_data(**kwargs)
+        params = parse_report_params(self.request.GET)
+        section = (self.kwargs.get("section") or "property").strip()
+        data = {}
+        if section == "property":
+            data = build_property_report(params)
+        elif section == "finance":
+            data = build_finance_report(params)
+        elif section == "fm":
+            data = build_fm_report(params)
+        elif section == "warehouse":
+            data = build_warehouse_report(params)
+        else:
+            section = "property"
+            data = build_property_report(params)
+        filter_qs = (
+            f"date_from={params['date_from'].isoformat()}"
+            f"&date_to={params['date_to'].isoformat()}"
+            + (
+                f"&company_id={params['company_id']}"
+                if params.get("company_id")
+                else ""
+            )
+        )
+        ctx.update(
+            {
+                "section": section,
+                "params": params,
+                "data": data,
+                "filter_qs": filter_qs,
+                "next_page_url": (
+                    f"?{filter_qs}&page={params['page'] + 1}"
+                    if data.get("open_wo_has_more")
+                    else ""
+                ),
+                "prev_page_url": (
+                    f"?{filter_qs}&page={params['page'] - 1}"
+                    if params.get("page", 1) > 1
+                    else ""
+                ),
+            }
+        )
+        return ctx
+
+
 class SlaReportView(RoleRequiredMixin, TemplateView):
     template_name = "erp/sla_report.html"
-    allowed_roles = (Role.MANAGEMENT, Role.ADMIN, Role.SERVICE_DESK, Role.PROPERTY_FM)
+    allowed_roles = (Role.MANAGEMENT, Role.ADMIN, Role.SERVICE_DESK)
 
     def get_context_data(self, **kwargs):
         from apps.tickets.reporting import build_sla_report
@@ -2111,7 +2290,7 @@ class SlaReportView(RoleRequiredMixin, TemplateView):
 
 
 class SlaReportExportView(RoleRequiredMixin, View):
-    allowed_roles = (Role.MANAGEMENT, Role.ADMIN, Role.SERVICE_DESK, Role.PROPERTY_FM)
+    allowed_roles = (Role.MANAGEMENT, Role.ADMIN, Role.SERVICE_DESK)
 
     def get(self, request, *args, **kwargs):
         from apps.tickets.reporting import build_sla_report, sla_report_xlsx_http_response
@@ -2135,9 +2314,27 @@ class LeaseListView(StaffRequiredMixin, ListView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
+        from datetime import timedelta
+
         from apps.leases.models import Lease
 
-        return Lease.objects.select_related("party", "space").order_by("-created_at")
+        qs = Lease.objects.select_related("party", "space").order_by("-created_at")
+        filt = (self.request.GET.get("filter") or "").strip()
+        if filt == "expiring":
+            today = timezone.localdate()
+            horizon = today + timedelta(days=90)
+            qs = qs.filter(
+                status__in=("active", "expiring"),
+                end_date__isnull=False,
+                end_date__gte=today,
+                end_date__lte=horizon,
+            ).order_by("end_date")
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["lease_filter"] = (self.request.GET.get("filter") or "").strip()
+        return ctx
 
 
 class LeaseDetailView(StaffRequiredMixin, TemplateView):

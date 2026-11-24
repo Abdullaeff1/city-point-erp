@@ -119,6 +119,27 @@ def start_lease_lifecycle_poller():
     print(f"Lease lifecycle poller started pid={proc.pid} log={log_path}")
 
 
+def start_guest_checkout_overdue_poller():
+    """Portal cardless visits past check-in+24h → in-app alerts (idempotent)."""
+    if os.environ.get("GUEST_CHECKOUT_OVERDUE_POLL_ON_START", "1") != "1":
+        print(
+            "Guest checkout overdue poller disabled "
+            "(GUEST_CHECKOUT_OVERDUE_POLL_ON_START!=1)"
+        )
+        return
+    log_dir = Path("var")
+    log_dir.mkdir(exist_ok=True)
+    log_path = log_dir / "guest_checkout_overdue_poller.log"
+    log = open(log_path, "a", encoding="utf-8")
+    proc = subprocess.Popen(
+        [sys.executable, "manage.py", "poll_guest_checkout_overdue"],
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    print(f"Guest checkout overdue poller started pid={proc.pid} log={log_path}")
+
+
 def start_ticket_email_outbox_poller():
     """Drain pending ticket.* NotificationDispatch EMAIL rows (TD-08)."""
     if os.environ.get("TICKET_EMAIL_OUTBOX_POLL_ON_START", "0") != "1":
@@ -187,6 +208,7 @@ def main():
     start_ticket_email_outbox_poller()
     start_crm_reminder_poller()
     start_lease_lifecycle_poller()
+    start_guest_checkout_overdue_poller()
     # OneDrive-mounted trees can crash Django autoreloader with Errno 5 (I/O error).
     cmd = [sys.executable, "manage.py", "runserver", "0.0.0.0:8000"]
     if os.environ.get("RUNSERVER_NORELOAD", "1") == "1":

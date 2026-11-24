@@ -1,10 +1,20 @@
 {% extends "base.html" %}
-{% load i18n cp_ui %}
+{% load i18n cp_ui static %}
 {% block title %}{% block page_title %}ERP{% endblock %} · City Point{% endblock %}
+{% block extra_head %}{% endblock %}
 {% block body %}
 {% with url_name=request.resolver_match.url_name %}
-<div class="cp-shell{% if user.role == 'sales' or user.role == 'management' %} cp-theme-crm{% endif %}">
-  <aside class="cp-sidebar">
+<div class="cp-shell cp-erp{% if user.role == 'management' %} cp-theme-mgmt{% elif user.role == 'sales' %} cp-theme-crm{% endif %}">
+  {% if user.role != "management" %}
+  <div class="erp-mobile-bar">
+    <button class="erp-menu-toggle" type="button" aria-controls="erp-sidebar" aria-expanded="true" hidden>
+      <i data-lucide="menu" width="19" height="19" aria-hidden="true"></i>
+      {% translate "Menyu" %}
+    </button>
+    <span>City Point ERP</span>
+  </div>
+  {% endif %}
+  <aside class="cp-sidebar" id="erp-sidebar">
     <div class="cp-brand">
       <div class="cp-brand-kicker">CITY POINT</div>
       <div class="cp-brand-sub">{% if user.role == 'sales' %}{% translate "Satış / CRM" %}{% elif user.role == 'management' %}{% translate "Rəhbərlik" %}{% else %}{% translate "Business Center" %}{% endif %}</div>
@@ -26,38 +36,42 @@
       {% if nav_crm %}<a class="{% nav_active 'crm_reports' %}" href="{% url 'erp:crm_reports' %}"><i data-lucide="pie-chart" width="18" height="18"></i><span class="cp-nav-text">{% translate "CRM hesabat" %}</span></a>{% endif %}
       <a class="{% nav_active 'alerts' %}" href="{% url 'erp:alerts' %}"><i data-lucide="bell" width="18" height="18"></i><span class="cp-nav-text">{% translate "Bildirişlər" %}</span>{% if unread_alerts %}<span class="badge badge-muted" style="margin-left:auto;background:var(--crm-accent);color:#fff;">{{ unread_alerts }}</span>{% endif %}</a>
 
-      {% include "partials/workspace_switcher_nav.html" %}
       {% include "partials/role_switch_nav.html" %}
 
       {% elif user.role == "management" %}
-      {# Rəhbərlik — ERP modul hub nav gated by nav_* #}
-      <div class="cp-nav-label">{% translate "Əsas" %}</div>
+      {# Rəhbərlik — birbaşa İdarə paneli + qruplaşdırılmış şöbə menyuları #}
+      {% for group in mgmt_nav_groups %}
+      {% if group.kind == "link" %}
+      <a class="cp-nav-direct {% if group.is_active %}is-active{% endif %}" href="{{ group.url }}" data-mgmt-nav="{{ group.key }}">
+        <i data-lucide="{{ group.icon }}" width="18" height="18" aria-hidden="true"></i>
+        <span class="cp-nav-text">{{ group.label }}</span>
+      </a>
+      {% else %}
+      <details class="cp-nav-group cp-nav-menu" {% if group.is_open %}open{% endif %} data-mgmt-nav="{{ group.key }}">
+        <summary class="cp-nav-summary {% if group.is_active %}is-active{% endif %}">
+          <span class="cp-nav-summary-main">
+            <i data-lucide="{{ group.icon }}" width="18" height="18" aria-hidden="true"></i>
+            <span class="cp-nav-text">{{ group.label }}</span>
+          </span>
+          <i data-lucide="chevron-down" class="cp-nav-chevron" width="14" height="14" aria-hidden="true"></i>
+        </summary>
+        <div class="cp-nav-group-body">
+          {% for item in group.items %}
+          <a class="{% if item.is_active %}is-active{% endif %}" href="{{ item.url }}">
+            {% if item.icon %}<i data-lucide="{{ item.icon }}" width="16" height="16" aria-hidden="true"></i>{% endif %}
+            <span class="cp-nav-text">{{ item.label }}</span>
+            {% if item.badge_key == 'residents' and resident_count %}<span class="badge badge-muted" style="margin-left:auto;background:var(--crm-accent-soft);color:var(--crm-accent);">{{ resident_count }}</span>{% endif %}
+            {% if item.badge_key == 'security' and open_security_alerts %}<span class="badge badge-muted" style="margin-left:auto;background:var(--crm-accent);color:#fff;">{{ open_security_alerts }}</span>{% endif %}
+            {% if item.badge_key == 'alerts' and unread_alerts %}<span class="badge badge-muted" style="margin-left:auto;background:var(--crm-accent);color:#fff;">{{ unread_alerts }}</span>{% endif %}
+          </a>
+          {% endfor %}
+        </div>
+      </details>
+      {% endif %}
+      {% empty %}
       <a class="{% nav_active 'dashboard' %}" href="{% url 'erp:dashboard' %}"><i data-lucide="layout-dashboard" width="18" height="18"></i><span class="cp-nav-text">{% translate "İdarə paneli" %}</span></a>
-      {% if nav_approvals %}
-      <a class="{% nav_active 'approvals' %}" href="{% url 'erp:approvals' %}"><i data-lucide="check-circle" width="18" height="18"></i><span class="cp-nav-text">{% translate "Təsdiqlər" %}</span></a>
-      <a class="{% nav_active 'payment_approvals' %}" href="{% url 'erp:payment_approvals' %}"><i data-lucide="banknote" width="18" height="18"></i><span class="cp-nav-text">{% translate "Ödəniş təsdiqi" %}</span></a>
-      {% endif %}
+      {% endfor %}
 
-      <div class="cp-nav-label">{% translate "Əsas modullar" %}</div>
-      {% if nav_internal_access %}<a class="{% nav_active 'internal_staff_access' 'internal_staff_access_detail' 'hr_dashboard' %}" href="{% url 'erp:hr_dashboard' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "HR & Employees" %}</span></a>{% endif %}
-      {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' 'resident_documents' 'resident_employees' 'resident_employee_access' 'resident_tickets' %}" href="{% url 'erp:residents' %}"><i data-lucide="building" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rezidentlər" %}</span>{% if resident_count %}<span class="badge badge-muted" style="margin-left:auto;background:var(--crm-accent-soft);color:var(--crm-accent);">{{ resident_count }}</span>{% endif %}</a>{% endif %}
-      {% if nav_crm %}<a class="{% nav_active 'crm_leads' 'crm_lead_detail' 'crm_opportunities' 'crm_offers' 'crm_lease_applications' 'crm_available_spaces' 'crm_reports' %}" href="{% url 'erp:crm_leads' %}"><i data-lucide="handshake" width="18" height="18"></i><span class="cp-nav-text">{% translate "CRM" %}</span></a>{% endif %}
-      {% if nav_docs %}<a class="{% nav_active 'documents' %}" href="{% url 'erp:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Documents" %}</span></a>{% endif %}
-      {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' 'building_equipment' 'building_inventory' 'facility_dashboard' %}" href="{% url 'erp:facility_dashboard' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Property" %}</span></a>{% endif %}
-      {% if nav_tickets %}<a class="{% nav_active 'tickets' 'ticket_detail' 'sla_report' 'work_orders' 'helpdesk_dashboard' %}" href="{% url 'erp:helpdesk_dashboard' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Helpdesk" %}</span></a>{% endif %}
-      {% if nav_supply %}
-      <a class="{% nav_active 'warehouse' 'warehouse_sku_detail' 'warehouse_sku_create' 'stocktake_list' 'stocktake_detail' 'building_inventory' %}" href="{% url 'erp:warehouse' %}"><i data-lucide="package" width="18" height="18"></i><span class="cp-nav-text">{% translate "Inventory" %}</span></a>
-      <a class="{% nav_active 'procurement' 'procurement_dashboard' 'procurement_pr_create' 'procurement_pr_detail' 'procurement_po_detail' 'procurement_suppliers' 'procurement_supplier_create' 'procurement_supplier_edit' 'procurement_supplier_detail' 'procurement_rfq_detail' %}" href="{% url 'erp:procurement_dashboard' %}"><i data-lucide="shopping-cart" width="18" height="18"></i><span class="cp-nav-text">{% translate "Procurement" %}</span></a>
-      {% endif %}
-      {% if nav_finance %}<a class="{% nav_active 'billing' 'accounting' 'ar_aging' 'accounting_periods' %}" href="{% url 'erp:ar_aging' %}"><i data-lucide="calculator" width="18" height="18"></i><span class="cp-nav-text">{% translate "Accounting" %}</span></a>{% endif %}
-      <a class="{% nav_active 'people_inside' 'alerts' %}" href="{% url 'erp:people_inside' %}"><i data-lucide="shield-check" width="18" height="18"></i><span class="cp-nav-text">{% translate "Security" %}</span>{% if open_security_alerts %}<span class="badge badge-muted" style="margin-left:auto;background:var(--crm-accent);color:#fff;">{{ open_security_alerts }}</span>{% endif %}</a>
-      {% if nav_reports %}<a class="{% nav_active 'reports' %}" href="{% url 'erp:reports' %}"><i data-lucide="bar-chart-3" width="18" height="18"></i><span class="cp-nav-text">{% translate "Reports" %}</span></a>{% endif %}
-
-      <div class="cp-nav-label">{% translate "Digər" %}</div>
-      <a class="{% nav_active 'alerts' %}" href="{% url 'erp:alerts' %}"><i data-lucide="bell" width="18" height="18"></i><span class="cp-nav-text">{% translate "Bildirişlər" %}</span>{% if unread_alerts %}<span class="badge badge-muted" style="margin-left:auto;background:var(--crm-accent);color:#fff;">{{ unread_alerts }}</span>{% endif %}</a>
-      {% if nav_announcements %}<a class="{% nav_active 'announcements' 'announcement_create' 'announcement_edit' %}" href="{% url 'erp:announcements' %}"><i data-lucide="megaphone" width="18" height="18"></i><span class="cp-nav-text">{% translate "Elanlar" %}</span></a>{% endif %}
-
-      {% include "partials/workspace_switcher_nav.html" %}
       {% include "partials/role_switch_nav.html" %}
 
       {% elif user.role == "reception" %}
@@ -72,7 +86,7 @@
       {% if nav_property or nav_residents or nav_parties or nav_leases or nav_building_assets %}
       <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
-      {% if user.role == "admin" or user.role == "property_fm" %}<a class="{% nav_active 'drawing_access_queue' %}" href="{% url 'erp:drawing_access_queue' %}"><i data-lucide="file-key" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rəsm icazələri" %}</span></a>{% endif %}
+      {% if user.role == "admin" or user.role == "service_desk" %}<a class="{% nav_active 'drawing_access_queue' %}" href="{% url 'erp:drawing_access_queue' %}"><i data-lucide="file-key" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rəsm icazələri" %}</span></a>{% endif %}
       {% if nav_building_assets %}
       <a class="{% nav_active 'building_equipment' 'building_assets' %}" href="{% url 'erp:building_equipment' %}"><i data-lucide="cpu" width="18" height="18"></i><span class="cp-nav-text">{% translate "Avadanlıqlar" %}</span></a>
       <a class="{% nav_active 'building_inventory' %}" href="{% url 'erp:building_inventory' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "İnventarlar" %}</span></a>
@@ -82,15 +96,14 @@
       {% if nav_parties and not nav_residents %}<a class="{% nav_active 'residents' %}" href="{% url 'erp:residents' %}"><i data-lucide="building" width="18" height="18"></i><span class="cp-nav-text">{% translate "Parties" %}</span></a>{% endif %}
       {% if nav_leases %}<a class="{% nav_active 'leases' 'lease_detail' %}" href="{% url 'erp:leases' %}"><i data-lucide="file-signature" width="18" height="18"></i><span class="cp-nav-text">{% translate "İcarələr" %}</span></a>{% endif %}
       {% endif %}
-      {% include "partials/workspace_switcher_nav.html" %}
       {% include "partials/role_switch_nav.html" %}
       {% else %}
       {% if user.role != "service_desk" %}
       <div class="cp-nav-label">{% translate "İDARƏETMƏ" %}</div>
       {% if user.role == "admin" %}
       <a class="{% nav_active 'it_dashboard' %}" href="{% url 'erp:it_dashboard' %}"><i data-lucide="layout-dashboard" width="18" height="18"></i><span class="cp-nav-text">{% translate "İdarə paneli" %}</span></a>
-      {% elif user.role == "property_fm" %}
-      <a class="{% nav_active 'facility_dashboard' %}" href="{% url 'erp:facility_dashboard' %}"><i data-lucide="layout-dashboard" width="18" height="18"></i><span class="cp-nav-text">{% translate "İdarə paneli" %}</span></a>
+      {% elif user.role == "service_desk" %}
+      <a class="{% nav_active 'supply_dashboard' 'facility_dashboard' 'helpdesk_dashboard' %}" href="{% url 'erp:supply_dashboard' %}"><i data-lucide="layout-dashboard" width="18" height="18"></i><span class="cp-nav-text">{% translate "Təchizat şöbəsi" %}</span></a>
       {% else %}
       <a class="{% nav_active 'dashboard' %}" href="{% url 'erp:dashboard' %}{% if user.role == 'admin' %}?ops=1{% endif %}"><i data-lucide="layout-dashboard" width="18" height="18"></i><span class="cp-nav-text">{% translate "İdarə paneli" %}</span></a>
       {% endif %}
@@ -104,7 +117,7 @@
 
       {% if user.role == "service_desk" %}
       <div class="cp-nav-label">{% translate "İDARƏETMƏ" %}</div>
-      <a class="{% nav_active 'helpdesk_dashboard' %}" href="{% url 'erp:helpdesk_dashboard' %}"><i data-lucide="layout-dashboard" width="18" height="18"></i><span class="cp-nav-text">{% translate "İdarə paneli" %}</span></a>
+      <a class="{% nav_active 'supply_dashboard' 'facility_dashboard' 'helpdesk_dashboard' %}" href="{% url 'erp:supply_dashboard' %}"><i data-lucide="layout-dashboard" width="18" height="18"></i><span class="cp-nav-text">{% translate "Təchizat şöbəsi" %}</span></a>
       {% endif %}
       {% if nav_reception or nav_tickets or nav_work_orders %}
       <div class="cp-nav-label">{% translate "ƏMƏLİYYAT" %}</div>
@@ -114,14 +127,15 @@
       {% if nav_work_orders %}<a class="{% nav_active 'work_orders' 'work_order_detail' 'work_order_create' 'maintenance_plans' 'maintenance_plan_create' 'maintenance_plan_edit' %}" href="{% url 'erp:work_orders' %}"><i data-lucide="wrench" width="18" height="18"></i><span class="cp-nav-text">{% translate "İş sifarişləri" %}</span></a>{% endif %}
       {% endif %}
 
-      {% if nav_property or nav_residents or nav_leases or nav_building_assets %}
+      {% if nav_property or nav_residents or nav_resident_directory or nav_leases or nav_building_assets %}
       <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
-      {% if user.role == "admin" or user.role == "property_fm" %}<a class="{% nav_active 'drawing_access_queue' %}" href="{% url 'erp:drawing_access_queue' %}"><i data-lucide="file-key" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rəsm icazələri" %}</span></a>{% endif %}
+      {% if user.role == "admin" or user.role == "service_desk" %}<a class="{% nav_active 'drawing_access_queue' %}" href="{% url 'erp:drawing_access_queue' %}"><i data-lucide="file-key" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rəsm icazələri" %}</span></a>{% endif %}
       {% if nav_building_assets %}
       <a class="{% nav_active 'building_equipment' 'building_assets' %}" href="{% url 'erp:building_equipment' %}"><i data-lucide="cpu" width="18" height="18"></i><span class="cp-nav-text">{% translate "Avadanlıqlar" %}</span></a>
       <a class="{% nav_active 'building_inventory' %}" href="{% url 'erp:building_inventory' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "İnventarlar" %}</span></a>
       {% endif %}
+      {% if nav_resident_directory %}<a class="{% nav_active 'resident_directory' 'resident_directory_detail' %}" href="{% url 'erp:resident_directory' %}"><i data-lucide="building" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rezident şirkətlər" %}</span></a>{% endif %}
       {% if nav_residents %}<a class="{% nav_active 'residents' 'resident_detail' 'resident_documents' 'resident_employees' 'resident_employee_access' 'resident_create' 'resident_edit' %}" href="{% url 'erp:residents' %}"><i data-lucide="users" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rezidentlər" %}</span><span class="badge badge-muted" style="margin-left:auto;">{{ resident_count }}</span></a>{% endif %}
       {% if nav_leases %}<a class="{% nav_active 'leases' 'lease_detail' %}" href="{% url 'erp:leases' %}"><i data-lucide="file-signature" width="18" height="18"></i><span class="cp-nav-text">{% translate "İcarələr" %}</span></a>{% endif %}
       {% endif %}
@@ -148,7 +162,10 @@
       <a class="{% nav_active 'billing' %}" href="{% url 'erp:billing' %}"><i data-lucide="receipt" width="18" height="18"></i><span class="cp-nav-text">{% translate "Billing" %}</span></a>
       <a class="{% nav_active 'accounting' %}" href="{% url 'erp:accounting' %}"><i data-lucide="book-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Mühasibat" %}</span></a>
       {% endif %}
-      {% if nav_docs %}<a class="{% nav_active 'documents' %}" href="{% url 'erp:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sənədlər" %}</span></a>{% endif %}
+      {% if nav_docs %}
+      <a class="{% nav_active 'documents' 'correspondence_list' 'correspondence_detail' %}" href="{% url 'erp:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sənədlər" %}</span></a>
+      <a class="{% nav_active 'correspondence_list' 'correspondence_detail' %}" href="{% url 'erp:correspondence_list' %}"><i data-lucide="mail" width="18" height="18"></i><span class="cp-nav-text">{% translate "Kargüzarlıq" %}</span></a>
+      {% endif %}
       {% if nav_docs %}<a class="{% nav_active 'building_procedures' 'building_procedure_create' 'building_procedure_edit' %}" href="{% url 'erp:building_procedures' %}"><i data-lucide="book-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Daxili prosedurlar" %}</span></a>{% endif %}
       {% if nav_announcements %}<a class="{% nav_active 'announcements' 'announcement_create' 'announcement_edit' %}" href="{% url 'erp:announcements' %}"><i data-lucide="megaphone" width="18" height="18"></i><span class="cp-nav-text">{% translate "Elanlar" %}</span></a>{% endif %}
       {% endif %}
@@ -166,10 +183,10 @@
       {% endif %}
       {% endif %}
 
-      {% include "partials/workspace_switcher_nav.html" %}
       {% include "partials/role_switch_nav.html" %}
       {% endif %}
     </nav>
+    {% if user.role != "management" %}
     <div class="cp-user-bar">
       <div class="cp-avatar">{{ user.initials }}</div>
       <div class="min-0 flex-1">
@@ -177,27 +194,50 @@
         <div class="cp-user-role">{{ user.get_role_display }}</div>
       </div>
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}
-        <button type="submit" class="cp-btn-ghost" title="{% translate 'Çıxış' %}"{% if user.role != 'sales' and user.role != 'management' %} style="color:rgba(255,255,255,0.7);"{% endif %}><i data-lucide="log-out" width="16" height="16"></i></button>
+        <button type="submit" class="cp-btn-ghost" title="{% translate 'Çıxış' %}"><i data-lucide="log-out" width="16" height="16"></i></button>
       </form>
     </div>
+    {% endif %}
   </aside>
   <main class="cp-main">
-    <header class="cp-header">
-      <div>
+    <header class="cp-header{% if user.role == 'management' %} cp-mgmt-header{% endif %}">
+      {% if user.role == "management" %}
+      <button type="button" class="cp-mgmt-toggle erp-menu-toggle" aria-controls="erp-sidebar" aria-expanded="true" title="{% translate 'Menyu' %}">
+        <span class="cp-mgmt-burger" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </span>
+        <span class="sr-only">{% translate "Menyu" %}</span>
+      </button>
+      {% endif %}
+      <div class="min-0" style="flex:1;">
         <p class="cp-meta">CITY POINT · {% if user.role == 'sales' %}{% translate "Satış / CRM" %}{% elif user.role == 'management' %}{% translate "Rəhbərlik" %}{% else %}{% translate "Business Center" %}{% endif %}</p>
         <h1 class="cp-title">{% block heading %}{% endblock %}{% block heading_count %}{% endblock %}</h1>
       </div>
-      <form action="{% url 'set_language' %}" method="post" class="cp-lang">
-        {% csrf_token %}
-        <input name="next" type="hidden" value="{{ request.get_full_path }}">
-        <select name="language" onchange="this.form.submit()" style="border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;">
-          {% get_current_language as LANGUAGE_CODE %}
-          {% get_available_languages as LANGUAGES %}
-          {% for lang_code, lang_name in LANGUAGES %}
-            <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>{{ lang_code|upper }}</option>
-          {% endfor %}
-        </select>
-      </form>
+      {% if user.role == "management" %}
+      <div class="cp-mgmt-header-right">
+        <a class="mgmt-notif-btn" href="{% url 'erp:alerts' %}" title="{% translate 'Bildirişlər' %}">
+          <i data-lucide="bell" width="18" height="18" aria-hidden="true"></i>
+          {% if unread_alerts %}<span class="badge badge-muted" style="background:var(--mgmt-accent);color:#111;">{{ unread_alerts }}</span>{% endif %}
+        </a>
+        <form action="{% url 'set_language' %}" method="post" class="cp-lang">
+          {% csrf_token %}
+          <input name="next" type="hidden" value="{{ request.get_full_path }}">
+          <select name="language" aria-label="{% translate 'Dil' %}" onchange="this.form.submit()">
+            {% get_current_language as LANGUAGE_CODE %}
+            {% get_available_languages as LANGUAGES %}
+            {% for lang_code, lang_name in LANGUAGES %}
+              <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>{{ lang_code|upper }}</option>
+            {% endfor %}
+          </select>
+        </form>
+        <button type="button" class="cp-icon-btn" data-cp-theme-toggle data-label-dark="{% translate 'Qaranlıq rejim' %}" data-label-light="{% translate 'İşıqlı rejim' %}" title="{% translate 'Qaranlıq rejim' %}" aria-pressed="false">
+          <i data-lucide="moon" width="18" height="18" aria-hidden="true"></i>
+        </button>
+        {% include "partials/mgmt_account_menu.html" %}
+      </div>
+      {% else %}
+      {% include "partials/cp_topbar_actions.html" %}
+      {% endif %}
     </header>
     <div class="cp-content">
       {% if messages %}
@@ -205,7 +245,14 @@
           <div class="badge badge-resolved mb-4" style="border-radius:10px;padding:8px 12px;">{{ message }}</div>
         {% endfor %}
       {% endif %}
-      {% if user.role == "reception" and url_name != 'reception' or user.role == "service_desk" and url_name != 'tickets' or user.role != "reception" and user.role != "service_desk" and url_name != 'dashboard' %}
+      {% if user.role == "management" and url_name != "dashboard" %}
+      <nav class="cp-breadcrumbs" aria-label="{% translate 'Breadcrumb' %}">
+        <a href="{% url 'erp:dashboard' %}">{% translate "Rəhbərlik paneli" %}</a>
+        <span aria-hidden="true">/</span>
+        <span>{% block breadcrumb_current %}{% endblock %}</span>
+      </nav>
+      {% endif %}
+      {% if user.role == "reception" and url_name != 'reception' or user.role == "service_desk" and url_name != 'tickets' or user.role != "reception" and user.role != "service_desk" and user.role != "management" and url_name != 'dashboard' %}
       <p class="cp-meta mb-3" style="margin-top:-8px;">
         {% if user.role == "reception" %}
         <a href="{% url 'erp:reception' %}">← {% translate "Qəbul" %}</a>

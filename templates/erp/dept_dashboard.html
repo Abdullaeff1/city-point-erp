@@ -2,6 +2,7 @@
 {% load i18n %}
 {% block heading %}{{ dashboard_title }}{% endblock %}
 {% block content %}
+{% include "partials/dept_quick_actions.html" %}
 {% include "partials/dept_kpi_strip.html" with kpis=kpis %}
 {% if stats %}
 <div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
@@ -17,6 +18,15 @@
   {% include "partials/dept_pending_list.html" %}
   {% include "partials/dept_recent_list.html" %}
   {% include "partials/dept_notifications.html" %}
-  {% include "partials/dept_quick_actions.html" %}
+  {% if reports %}
+  <section class="cp-card p-card mb-4">
+    <h2 class="cp-section">{% translate "Hesabatlar" %}</h2>
+    <div class="flex gap-2" style="flex-wrap:wrap;">
+      {% for report in reports %}
+      <a class="cp-btn-ghost" href="{{ report.url }}">{{ report.label }}</a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
 </div>
 {% endblock %}

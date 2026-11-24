@@ -1,7 +1,3 @@
-{% load i18n %}
-{% if nav_show_workspace_switcher and nav_workspaces %}
-<div class="cp-nav-label">{% translate "İş sahələri" %}</div>
-{% for ws in nav_workspaces %}
-<a href="{% url ws.url_name %}"><i data-lucide="panels-top-left" width="18" height="18"></i><span class="cp-nav-text">{{ ws.label }}</span></a>
-{% endfor %}
-{% endif %}
+{# Retired: staff "İş sahələri" workspace switcher removed.
+   Department landing uses role + permissions (apps.accounts.nav.resolve_landing_url_name).
+   Accidental include renders nothing. Resident company chooser is unrelated (portal_scope). #}

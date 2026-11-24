@@ -77,7 +77,7 @@ class WorkflowBAcceptanceTests(TestCase):
             username="wb-fm",
             email="wb-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
             ticket_department=self.fm_dept,
         )
@@ -85,7 +85,7 @@ class WorkflowBAcceptanceTests(TestCase):
             username="wb-fm2",
             email="wb-fm2@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
             ticket_department=self.fm_dept,
         )

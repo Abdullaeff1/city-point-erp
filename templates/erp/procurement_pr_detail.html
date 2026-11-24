@@ -66,7 +66,7 @@
       {% csrf_token %}
       <input type="hidden" name="action" value="create_po">
       <label>
-        <span class="cp-meta">{% translate "Təchizatçı" %}</span>
+        <span class="cp-meta">{% translate "Podratçı" %}</span>
         <select class="cp-input" name="supplier_party_id" required>
           <option value="">—</option>
           {% for s in suppliers %}<option value="{{ s.id }}">{{ s.display_name }}</option>{% endfor %}

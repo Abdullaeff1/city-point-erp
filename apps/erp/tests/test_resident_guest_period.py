@@ -53,7 +53,7 @@ class ResidentGuestPeriodTests(TestCase):
         self.admin = self._user("admin", Role.ADMIN)
         self.management = self._user("management", Role.MANAGEMENT)
         self.reception = self._user("reception", Role.RECEPTION)
-        self.fm = self._user("fm", Role.PROPERTY_FM)
+        self.fm = self._user("fm", Role.SERVICE_DESK)
         self.desk = self._user("desk", Role.SERVICE_DESK)
         self.detail = reverse("erp:resident_detail", args=[self.company.slug])
         self.guests = reverse("erp:resident_guests", args=[self.company.slug])

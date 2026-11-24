@@ -11,12 +11,44 @@ from apps.tickets.models import Ticket
 TICKET_CODE_RE = re.compile(r"\bTK-\d+\b")
 
 
-def user_notifications(user, *, namespace: str, limit: int = 100):
+def user_notifications(user, *, namespace: str, limit: int | None = 100, company_ids=None, unread_only=False):
+    queryset = Notification.objects.filter(user=user)
+    if unread_only:
+        queryset = queryset.filter(is_read=False)
     notes = list(
-        Notification.objects.filter(user=user)
+        queryset
         .select_related("ticket")
         .order_by("-created_at")[:limit]
     )
+    visible_notes = []
+    guest_prefix = "visitor.checked_in."
+    overdue_prefix = "visitor.checkout_overdue."
+    visible_guest_keys = set()
+    visible_overdue_keys = set()
+    if namespace == "portal" and company_ids is not None:
+        from apps.reception.models import GuestVisit
+
+        guest_ids = [n.event_key[len(guest_prefix):] for n in notes if n.event_key.startswith(guest_prefix)]
+        visits = GuestVisit.objects.filter(company_id__in=company_ids, pk__in=[int(i) for i in guest_ids if i.isdecimal()])
+        visible_guest_keys = {f"{guest_prefix}{pk}" for pk in visits.values_list("pk", flat=True)}
+        overdue_visit_ids = []
+        for n in notes:
+            if not n.event_key.startswith(overdue_prefix):
+                continue
+            # visitor.checkout_overdue.{visit_id}.u.{user_id}
+            parts = n.event_key[len(overdue_prefix) :].split(".")
+            if parts and parts[0].isdecimal():
+                overdue_visit_ids.append(int(parts[0]))
+        overdue_ok = set(
+            GuestVisit.objects.filter(
+                company_id__in=company_ids, pk__in=overdue_visit_ids
+            ).values_list("pk", flat=True)
+        )
+        for n in notes:
+            if n.event_key.startswith(overdue_prefix):
+                parts = n.event_key[len(overdue_prefix) :].split(".")
+                if parts and parts[0].isdecimal() and int(parts[0]) in overdue_ok:
+                    visible_overdue_keys.add(n.event_key)
     missing_codes = []
     for note in notes:
         if note.ticket_id:
@@ -30,20 +62,57 @@ def user_notifications(user, *, namespace: str, limit: int = 100):
             ticket.code: ticket
             for ticket in Ticket.objects.filter(code__in=set(missing_codes))
         }
+    drawing_prefix = "space_drawing_access_result:"
+    visible_drawing_keys = set()
+    if namespace == "portal" and company_ids is not None:
+        from apps.property.models import SpaceDrawingAccessRequest
+
+        drawing_ids = [
+            n.event_key[len(drawing_prefix) :]
+            for n in notes
+            if n.event_key.startswith(drawing_prefix)
+        ]
+        req_pks = [int(i) for i in drawing_ids if i.isdecimal()]
+        if req_pks:
+            allowed = SpaceDrawingAccessRequest.objects.filter(
+                pk__in=req_pks,
+                drawing__space__resident_id__in=company_ids,
+            ).values_list("pk", flat=True)
+            visible_drawing_keys = {f"{drawing_prefix}{pk}" for pk in allowed}
+
     for note in notes:
+        if namespace == "portal" and company_ids is not None and note.event_key.startswith(guest_prefix) and note.event_key not in visible_guest_keys:
+            continue
+        if (
+            namespace == "portal"
+            and company_ids is not None
+            and note.event_key.startswith(overdue_prefix)
+            and note.event_key not in visible_overdue_keys
+        ):
+            continue
+        if (
+            namespace == "portal"
+            and company_ids is not None
+            and note.event_key.startswith(drawing_prefix)
+            and note.event_key not in visible_drawing_keys
+        ):
+            continue
         ticket = note.ticket if note.ticket_id else None
         if ticket is None:
             match = TICKET_CODE_RE.search(note.message or "")
             ticket = by_code.get(match.group(0)) if match else None
-        note.target_url = notification_target_url(note, ticket, user, namespace)
-    return notes
+        if namespace == "portal" and company_ids is not None and ticket and ticket.company_id not in company_ids:
+            continue
+        note.target_url = notification_target_url(note, ticket, user, namespace, company_ids=company_ids)
+        visible_notes.append(note)
+    return visible_notes
 
 
-def notification_target_url(note, ticket, user, namespace: str) -> str:
+def notification_target_url(note, ticket, user, namespace: str, *, company_ids=None) -> str:
     if ticket is not None:
         if namespace == "portal":
             company_id = getattr(user, "resident_company_id", None)
-            if company_id and ticket.company_id == company_id:
+            if ticket.company_id in (company_ids if company_ids is not None else [company_id]):
                 return reverse("portal:request_detail", kwargs={"code": ticket.code})
             return ""
         if namespace == "security":
@@ -134,6 +203,12 @@ def notification_target_url(note, ticket, user, namespace: str) -> str:
     if key.startswith("warehouse.issue.") and namespace == "erp":
         return reverse("erp:work_orders")
     if key.startswith("visitor.checked_in.") and namespace == "portal":
+        return reverse("portal:guests")
+    if key.startswith("visitor.checkout_overdue.") and namespace == "portal":
+        parts = key[len("visitor.checkout_overdue.") :].split(".")
+        visit_id = parts[0] if parts and parts[0].isdecimal() else ""
+        if visit_id:
+            return f"{reverse('portal:guests')}?overdue=1"
         return reverse("portal:guests")
     if key.startswith("visitor.return_pending.") or key.startswith("visitor.id_returned."):
         if namespace == "security":

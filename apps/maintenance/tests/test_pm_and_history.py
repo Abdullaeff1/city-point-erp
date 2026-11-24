@@ -31,7 +31,7 @@ User = get_user_model()
 class PreventiveMaintenanceTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username="fm1", email="fm1@test.az", password="x", role=Role.PROPERTY_FM
+            username="fm1", email="fm1@test.az", password="x", role=Role.SERVICE_DESK
         )
         self.asset = BuildingAsset.objects.create(
             name="AHU-1",

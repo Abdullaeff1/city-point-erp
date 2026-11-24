@@ -89,6 +89,7 @@ def create_employee_card_order(
         full_name=name[:160],
         card_number="",
         access_level=access_level,
+        requested_access_level=access_level,
         card_order_status=CardOrderStatus.SUBMITTED,
         is_active=True,
     )

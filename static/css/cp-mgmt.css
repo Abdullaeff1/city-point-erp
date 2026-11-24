@@ -1,0 +1,674 @@
+/* Management portal — EstatePro-like shell, City Point navy/teal/gold tokens.
+   Scoped to .cp-theme-mgmt so other roles keep their shells. */
+
+.cp-theme-mgmt {
+  --mgmt-sidebar-bg: #0b1f33;
+  --mgmt-sidebar-text: #c8d5e1;
+  --mgmt-sidebar-muted: #7f93a8;
+  --mgmt-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --mgmt-sidebar-active: #ffffff;
+  --mgmt-sidebar-active-bg: rgba(15, 92, 140, 0.35);
+  --mgmt-accent: #c9a227;
+  --mgmt-accent-soft: rgba(201, 162, 39, 0.18);
+  --mgmt-content-bg: #f6f7fb;
+  --mgmt-card: #ffffff;
+  --mgmt-border: #e5e7eb;
+  --mgmt-text: #1f2937;
+  --mgmt-muted: #6b7280;
+  --mgmt-header-h: 64px;
+  /* Room for “İçəridə / təhlükəsizlik” + badge without clipping */
+  --cp-sidebar: 300px;
+  --cp-bg: var(--mgmt-content-bg);
+  --cp-surface: var(--mgmt-card);
+  --cp-border: var(--mgmt-border);
+  --cp-text: var(--mgmt-text);
+  --cp-text-muted: var(--mgmt-muted);
+  --cp-sidebar-bg: var(--mgmt-sidebar-bg);
+  --cp-sidebar-text: var(--mgmt-sidebar-text);
+  --cp-sidebar-muted: var(--mgmt-sidebar-muted);
+  --cp-sidebar-hover: var(--mgmt-sidebar-hover);
+  --cp-sidebar-active: var(--mgmt-sidebar-active);
+  --cp-sidebar-active-bg: var(--mgmt-sidebar-active-bg);
+  --cp-header-bg: var(--mgmt-card);
+  --crm-accent: var(--cp-primary);
+  --crm-accent-soft: var(--cp-primary-soft);
+  --crm-radius-sm: 10px;
+}
+
+html[data-theme="dark"] .cp-theme-mgmt {
+  --mgmt-content-bg: #0b1220;
+  --mgmt-card: #151d2e;
+  --mgmt-border: #243044;
+  --mgmt-text: #e2e8f0;
+  --mgmt-muted: #94a3b8;
+  --mgmt-sidebar-bg: #07111c;
+}
+
+.cp-theme-mgmt .cp-sidebar {
+  background: var(--mgmt-sidebar-bg) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--mgmt-sidebar-text);
+  overflow: hidden;
+}
+
+/* Subtle inset scrollbar — matches dark rail, no bottom bar */
+.cp-theme-mgmt .cp-nav {
+  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+}
+.cp-theme-mgmt .cp-nav::-webkit-scrollbar {
+  width: 4px;
+  height: 0;
+}
+.cp-theme-mgmt .cp-nav::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.28);
+  border-radius: 999px;
+}
+.cp-theme-mgmt .cp-nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(201, 162, 39, 0.45);
+}
+
+.cp-theme-mgmt .cp-brand {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 18px 16px 14px;
+}
+
+.cp-theme-mgmt .cp-brand-kicker {
+  color: var(--mgmt-accent) !important;
+  letter-spacing: 0.16em;
+}
+
+.cp-theme-mgmt .cp-brand-sub {
+  color: #fff !important;
+  font-weight: 700;
+}
+
+.cp-theme-mgmt .cp-nav a,
+.cp-theme-mgmt .cp-nav-menu > .cp-nav-summary,
+.cp-theme-mgmt .cp-nav-role-btn {
+  color: var(--mgmt-sidebar-text) !important;
+  margin: 2px 8px;
+  border-radius: 10px;
+  box-shadow: none !important;
+}
+
+/* Keep Lucide icons visible when long AZ labels flex-shrink the row. */
+.cp-theme-mgmt .cp-nav-summary-main > svg,
+.cp-theme-mgmt .cp-nav-summary-main > i,
+.cp-theme-mgmt .cp-nav-direct > svg,
+.cp-theme-mgmt .cp-nav-direct > i,
+.cp-theme-mgmt .cp-nav-group-body a > svg,
+.cp-theme-mgmt .cp-nav-group-body a > i {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+.cp-theme-mgmt .cp-nav-group-body a > svg,
+.cp-theme-mgmt .cp-nav-group-body a > i {
+  width: 16px;
+  height: 16px;
+}
+.cp-theme-mgmt .cp-nav a,
+.cp-theme-mgmt .cp-nav-group-body a {
+  min-width: 0;
+  gap: 8px;
+  padding-inline-end: 10px;
+}
+.cp-theme-mgmt .cp-nav a .cp-nav-text,
+.cp-theme-mgmt .cp-nav-group-body a .cp-nav-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cp-theme-mgmt .cp-nav a .badge,
+.cp-theme-mgmt .cp-nav-group-body a .badge {
+  flex-shrink: 0;
+  margin-left: auto;
+  min-width: 1.5rem;
+  justify-content: center;
+  padding-inline: 7px;
+}
+
+.cp-theme-mgmt .cp-nav a:hover,
+.cp-theme-mgmt .cp-nav-summary:hover {
+  background: var(--mgmt-sidebar-hover) !important;
+  color: #fff !important;
+}
+
+.cp-theme-mgmt .cp-nav a.is-active,
+.cp-theme-mgmt .cp-nav-menu > .cp-nav-summary.is-active {
+  background: var(--mgmt-sidebar-active-bg) !important;
+  color: var(--mgmt-sidebar-active) !important;
+  box-shadow: inset 3px 0 0 var(--mgmt-accent) !important;
+}
+
+.cp-theme-mgmt .cp-nav a.is-active::before {
+  display: none;
+}
+
+.cp-theme-mgmt .cp-nav-group[open] > .cp-nav-group-body {
+  border-left-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.cp-theme-mgmt .cp-nav-label {
+  color: var(--mgmt-sidebar-muted) !important;
+}
+
+.cp-theme-mgmt .cp-user-bar {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: transparent;
+}
+
+.cp-theme-mgmt .cp-user-name { color: #fff !important; }
+.cp-theme-mgmt .cp-user-role { color: var(--mgmt-sidebar-muted) !important; }
+.cp-theme-mgmt .cp-avatar {
+  background: var(--mgmt-accent-soft) !important;
+  color: var(--mgmt-accent) !important;
+  border-color: rgba(201, 162, 39, 0.35);
+}
+
+.cp-theme-mgmt .cp-main {
+  background: var(--mgmt-content-bg);
+}
+
+.cp-theme-mgmt .cp-mgmt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: var(--mgmt-header-h);
+  padding: 12px 20px;
+  background: var(--mgmt-card);
+  border-bottom: 1px solid var(--mgmt-border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.cp-theme-mgmt .cp-mgmt-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cp-theme-mgmt .cp-mgmt-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.cp-theme-mgmt .cp-mgmt-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--mgmt-border);
+  background: var(--mgmt-card);
+  color: var(--mgmt-text);
+  cursor: pointer;
+}
+
+.cp-theme-mgmt .cp-mgmt-toggle:focus-visible {
+  outline: 2px solid var(--cp-primary);
+  outline-offset: 2px;
+}
+
+.cp-theme-mgmt .cp-mgmt-header .cp-title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.cp-theme-mgmt .cp-mgmt-header .cp-meta {
+  margin: 0 0 2px;
+}
+
+.cp-theme-mgmt .cp-card,
+.cp-theme-mgmt .crm-kpi-card,
+.cp-theme-mgmt .mgmt-module-card,
+.cp-theme-mgmt .mgmt-decision-row {
+  background: var(--mgmt-card);
+  border: 1px solid var(--mgmt-border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  border-radius: 12px;
+}
+
+.cp-theme-mgmt .crm-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.cp-theme-mgmt .crm-kpi-card {
+  display: block;
+  padding: 14px 16px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.cp-theme-mgmt .crm-kpi-card__label {
+  color: var(--mgmt-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cp-theme-mgmt .crm-kpi-card__value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.cp-theme-mgmt .mgmt-decision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cp-theme-mgmt .mgmt-decision-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.cp-theme-mgmt .mgmt-decision-row.has-pending {
+  border-color: color-mix(in srgb, var(--mgmt-accent) 45%, var(--mgmt-border));
+}
+
+.cp-theme-mgmt .mgmt-decision-count {
+  min-width: 2rem;
+  text-align: center;
+  font-weight: 700;
+  color: var(--cp-primary);
+  font-size: 1.15rem;
+}
+
+.cp-theme-mgmt .mgmt-portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 1rem;
+}
+
+.cp-theme-mgmt .mgmt-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 1rem;
+}
+
+.cp-theme-mgmt .mgmt-event-row,
+.cp-theme-mgmt .mgmt-activity-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--mgmt-border);
+  text-decoration: none;
+  color: inherit;
+}
+
+.cp-theme-mgmt .mgmt-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 1rem;
+}
+
+.cp-theme-mgmt .mgmt-shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--mgmt-border);
+  background: var(--mgmt-card);
+  color: var(--mgmt-text);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cp-theme-mgmt .mgmt-shortcut:hover {
+  border-color: var(--cp-primary);
+}
+
+.cp-theme-mgmt .mgmt-account {
+  position: relative;
+}
+
+.cp-theme-mgmt .mgmt-account > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--mgmt-border);
+  cursor: pointer;
+  background: var(--mgmt-card);
+}
+
+.cp-theme-mgmt .mgmt-account > summary::-webkit-details-marker { display: none; }
+
+.cp-theme-mgmt .mgmt-account > summary:focus-visible {
+  outline: 2px solid var(--cp-primary);
+  outline-offset: 2px;
+}
+
+.cp-theme-mgmt .mgmt-account-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 220px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--mgmt-border);
+  background: var(--mgmt-card);
+  box-shadow: var(--cp-shadow);
+  z-index: 40;
+}
+
+.cp-theme-mgmt .mgmt-account-name {
+  font-weight: 700;
+}
+
+.cp-theme-mgmt .mgmt-account-role {
+  color: var(--mgmt-muted);
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.cp-theme-mgmt .mgmt-notif-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--mgmt-border);
+  color: var(--mgmt-text);
+  text-decoration: none;
+}
+
+.cp-theme-mgmt .mgmt-notif-btn .badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  font-size: 10px;
+  padding: 0 4px;
+}
+
+.cp-theme-mgmt .cp-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 12px;
+  color: var(--mgmt-muted);
+  font-size: 13px;
+}
+
+.cp-theme-mgmt .cp-breadcrumbs a {
+  color: var(--cp-primary);
+  text-decoration: none;
+}
+
+.cp-theme-mgmt .cp-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cp-theme-mgmt .cp-filter-chips a {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--mgmt-border);
+  text-decoration: none;
+  color: var(--mgmt-text);
+  font-size: 13px;
+}
+
+.cp-theme-mgmt .cp-filter-chips a.is-active {
+  background: var(--cp-primary-soft);
+  border-color: var(--cp-primary);
+  color: var(--cp-primary-dark);
+  font-weight: 650;
+}
+
+/* Direct dashboard link (no nested disclosure) */
+.cp-theme-mgmt .cp-nav-direct {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--mgmt-sidebar-text) !important;
+}
+.cp-theme-mgmt .cp-nav-direct.is-active {
+  background: var(--mgmt-sidebar-active-bg) !important;
+  color: var(--mgmt-sidebar-active) !important;
+  box-shadow: inset 3px 0 0 var(--mgmt-accent) !important;
+}
+
+/* Hamburger toggle (local CSS, no CDN) */
+.cp-theme-mgmt .cp-mgmt-burger {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 18px;
+  height: 14px;
+}
+.cp-theme-mgmt .cp-mgmt-burger span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  border-radius: 1px;
+  background: currentColor;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  transform-origin: center;
+}
+/* Mobile drawer open → X; desktop keeps three bars */
+@media screen and (max-width: 900px) {
+  .cp-theme-mgmt .cp-mgmt-toggle[aria-expanded="true"] .cp-mgmt-burger span:nth-child(1) {
+    transform: translateY(6px) rotate(45deg);
+  }
+  .cp-theme-mgmt .cp-mgmt-toggle[aria-expanded="true"] .cp-mgmt-burger span:nth-child(2) {
+    opacity: 0;
+  }
+  .cp-theme-mgmt .cp-mgmt-toggle[aria-expanded="true"] .cp-mgmt-burger span:nth-child(3) {
+    transform: translateY(-6px) rotate(-45deg);
+  }
+}
+
+/* Smooth sidebar + main shift */
+.cp-theme-mgmt .cp-sidebar {
+  width: var(--cp-sidebar, 260px);
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width 0.22s ease;
+}
+.cp-theme-mgmt .cp-main {
+  transition: margin 0.22s ease;
+  min-width: 0;
+}
+.cp-theme-mgmt .cp-nav-text,
+.cp-theme-mgmt .cp-brand-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 1;
+  transition: opacity 0.16s ease;
+}
+
+/* Desktop collapse */
+.cp-theme-mgmt.cp-shell--nav-collapsed .cp-sidebar,
+html.cp-mgmt-nav-preload-collapsed .cp-theme-mgmt .cp-sidebar {
+  width: 76px;
+}
+.cp-theme-mgmt.cp-shell--nav-collapsed .cp-nav-text,
+.cp-theme-mgmt.cp-shell--nav-collapsed .cp-brand-sub,
+.cp-theme-mgmt.cp-shell--nav-collapsed .cp-user-meta,
+.cp-theme-mgmt.cp-shell--nav-collapsed .cp-nav-chevron,
+html.cp-mgmt-nav-preload-collapsed .cp-theme-mgmt .cp-nav-text,
+html.cp-mgmt-nav-preload-collapsed .cp-theme-mgmt .cp-brand-sub,
+html.cp-mgmt-nav-preload-collapsed .cp-theme-mgmt .cp-nav-chevron {
+  display: none !important;
+}
+.cp-theme-mgmt.cp-shell--nav-collapsed .cp-nav-group-body {
+  display: none !important;
+}
+.cp-theme-mgmt.cp-shell--nav-collapsed .cp-nav-direct,
+.cp-theme-mgmt.cp-shell--nav-collapsed .cp-nav-summary {
+  justify-content: center;
+  padding-inline: 10px;
+}
+
+/* Dashboard building strip */
+.cp-theme-mgmt .mgmt-dash-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  margin-bottom: 1rem;
+}
+.cp-theme-mgmt .mgmt-date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--mgmt-border);
+  background: var(--mgmt-card);
+  font-weight: 650;
+  color: var(--mgmt-text);
+}
+.cp-theme-mgmt .mgmt-occupancy-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--mgmt-accent-soft);
+  color: var(--mgmt-text);
+}
+.cp-theme-mgmt .mgmt-building-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.cp-theme-mgmt .mgmt-building-card {
+  display: block;
+  padding: 16px;
+  text-decoration: none;
+  color: inherit;
+  background: var(--mgmt-card);
+  border: 1px solid var(--mgmt-border);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  min-width: 0;
+}
+.cp-theme-mgmt .mgmt-building-card:hover {
+  border-color: var(--cp-primary);
+}
+.cp-theme-mgmt .mgmt-building-card .crm-kpi-card__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.cp-mgmt-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(15, 23, 42, 0.45);
+  cursor: pointer;
+}
+
+.cp-theme-mgmt .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-theme-mgmt .cp-sidebar,
+  .cp-theme-mgmt .cp-main,
+  .cp-theme-mgmt .cp-nav-text,
+  .cp-theme-mgmt .cp-brand-sub,
+  .cp-theme-mgmt .cp-mgmt-burger span {
+    transition: none !important;
+  }
+}
+
+@media screen and (max-width: 1100px) {
+  .cp-theme-mgmt .mgmt-building-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media screen and (max-width: 900px) {
+  .cp-theme-mgmt .mgmt-two-col { grid-template-columns: 1fr; }
+  .cp-theme-mgmt .mgmt-account-label { display: none; }
+  .cp-theme-mgmt .erp-mobile-bar { display: none; }
+  .cp-theme-mgmt .cp-mgmt-header {
+    padding-inline: 12px;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  /* Title row full-width so AZ glyphs are not squeezed to ~1ch (letter stack). */
+  .cp-theme-mgmt .cp-mgmt-header > .min-0 {
+    order: 3;
+    flex: 1 1 100%;
+    min-width: 100%;
+  }
+  .cp-theme-mgmt .cp-mgmt-header .cp-title {
+    overflow-wrap: normal;
+    word-break: normal;
+    white-space: normal;
+  }
+  .cp-theme-mgmt .mgmt-building-grid {
+    grid-template-columns: 1fr;
+  }
+  .cp-theme-mgmt .cp-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    width: min(100%, 300px);
+    max-height: 100dvh;
+    overflow: hidden;
+    transform: translateX(-105%);
+    transition: transform 0.22s ease;
+  }
+  .cp-theme-mgmt .cp-sidebar.is-drawer-open {
+    transform: translateX(0);
+  }
+  body.cp-mgmt-drawer-open {
+    overflow: hidden;
+  }
+}

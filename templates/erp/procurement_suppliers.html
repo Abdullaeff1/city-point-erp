@@ -1,7 +1,7 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
-{% block page_title %}{% translate "Təchizatçılar" %}{% endblock %}
-{% block heading %}{% translate "Təchizatçılar" %}{% endblock %}
+{% block page_title %}{% translate "Podratçılar" %}{% endblock %}
+{% block heading %}{% translate "Podratçılar" %}{% endblock %}
 {% block back_trail %}
  · <a href="{% url 'erp:procurement' %}">{% translate "Satınalma" %}</a>
 {% endblock %}
@@ -23,7 +23,7 @@
     </label>
     <button class="cp-btn" type="submit">{% translate "Filter" %}</button>
     {% if can_edit_procurement %}
-    <a class="cp-btn" href="{% url 'erp:procurement_supplier_create' %}">{% translate "Yeni təchizatçı" %}</a>
+    <a class="cp-btn" href="{% url 'erp:procurement_supplier_create' %}">{% translate "Yeni podratçı" %}</a>
     {% endif %}
   </form>
 </div>
@@ -38,7 +38,7 @@
         <td>{{ s.contact_email|default:s.contact_phone|default:"—" }}</td>
         <td>{{ s.get_status_display }}</td>
       </tr>
-      {% empty %}<tr><td colspan="4" class="cp-meta">{% translate "Təchizatçı yoxdur." %}</td></tr>{% endfor %}
+      {% empty %}<tr><td colspan="4" class="cp-meta">{% translate "Podratçı yoxdur." %}</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

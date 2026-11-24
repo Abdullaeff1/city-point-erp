@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.documents.storage import private_document_storage
@@ -14,6 +15,8 @@ DOCUMENT_TYPE_POWER_OF_ATTORNEY = "power_of_attorney"
 DOCUMENT_TYPE_BANK_CERTIFICATE = "bank_certificate"
 DOCUMENT_TYPE_COMPANY_EXTRACT = "company_extract"
 DOCUMENT_TYPE_LEASE_APPLICATION_SIGNED = "lease_application_signed"
+DOCUMENT_TYPE_INCOMING_LETTER = "incoming_letter"
+DOCUMENT_TYPE_OUTGOING_LETTER = "outgoing_letter"
 DOCUMENT_TYPE_OTHER = "other"
 
 SEED_DOCUMENT_TYPES = (
@@ -26,6 +29,8 @@ SEED_DOCUMENT_TYPES = (
     (DOCUMENT_TYPE_BANK_CERTIFICATE, "Bank arayışı"),
     (DOCUMENT_TYPE_COMPANY_EXTRACT, "Reyestrdən çıxarış"),
     (DOCUMENT_TYPE_LEASE_APPLICATION_SIGNED, "İmzalanmış müraciət forması"),
+    (DOCUMENT_TYPE_INCOMING_LETTER, "Daxil olan məktub"),
+    (DOCUMENT_TYPE_OUTGOING_LETTER, "Gedən məktub"),
     (DOCUMENT_TYPE_OTHER, "Digər"),
 )
 
@@ -40,8 +45,25 @@ DEFAULT_RETENTION_DAYS = {
     DOCUMENT_TYPE_BANK_CERTIFICATE: 365,
     DOCUMENT_TYPE_COMPANY_EXTRACT: 365,
     DOCUMENT_TYPE_LEASE_APPLICATION_SIGNED: 3650,
+    DOCUMENT_TYPE_INCOMING_LETTER: 3650,  # retention policy pending City Point legal confirm
+    DOCUMENT_TYPE_OUTGOING_LETTER: 3650,
     DOCUMENT_TYPE_OTHER: 730,
 }
+
+
+class CorrespondenceDirection(models.TextChoices):
+    INCOMING = "incoming", _("Daxil olan")
+    OUTGOING = "outgoing", _("Gedən")
+
+
+class CorrespondenceStatus(models.TextChoices):
+    REGISTERED = "registered", _("Qeydiyyatda")
+    ROUTED = "routed", _("Yönləndirilib")
+    IN_PROGRESS = "in_progress", _("İşlənir")
+    PENDING_APPROVAL = "pending_approval", _("Təsdiq gözləyir")
+    APPROVED = "approved", _("Təsdiqlənib")
+    DISPATCHED = "dispatched", _("Göndərilib")
+    CLOSED = "closed", _("Bağlı")
 
 
 class DocumentSensitivity(models.TextChoices):
@@ -119,6 +141,93 @@ class Document(models.Model):
         blank=True,
         on_delete=models.PROTECT,
         related_name="amendments",
+    )
+    # --- Phase 10 correspondence / kargüzarlıq (optional; vault docs leave blank) ---
+    direction = models.CharField(
+        max_length=16,
+        choices=CorrespondenceDirection.choices,
+        blank=True,
+        db_index=True,
+    )
+    registry_number = models.CharField(
+        max_length=32,
+        blank=True,
+        db_index=True,
+        verbose_name=_("Daxili qeydiyyat №"),
+    )
+    external_reference = models.CharField(
+        max_length=120,
+        blank=True,
+        verbose_name=_("Göndərənin istinadı"),
+    )
+    received_at = models.DateField(
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name=_("Qəbul / daxilolma tarixi"),
+    )
+    correspondence_status = models.CharField(
+        max_length=24,
+        choices=CorrespondenceStatus.choices,
+        blank=True,
+        db_index=True,
+    )
+    routed_department = models.ForeignKey(
+        "tickets.TicketDepartment",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="routed_documents",
+    )
+    related_correspondence = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="linked_correspondence",
+        help_text=_("Incoming↔outgoing reply pair"),
+    )
+    party = models.ForeignKey(
+        "parties.Party",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="documents",
+    )
+    ticket = models.ForeignKey(
+        "tickets.Ticket",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="documents",
+    )
+    work_order = models.ForeignKey(
+        "maintenance.WorkOrder",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="documents",
+    )
+    purchase_request = models.ForeignKey(
+        "procurement.PurchaseRequest",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="documents",
+    )
+    purchase_order = models.ForeignKey(
+        "procurement.PurchaseOrder",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="documents",
+    )
+    invoice = models.ForeignKey(
+        "billing.Invoice",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="documents",
     )
     published_at = models.DateField()
     document_date = models.DateField(null=True, blank=True, verbose_name=_("Sənəd tarixi"))
@@ -226,3 +335,58 @@ class DocumentVersion(models.Model):
 
     def __str__(self):
         return f"{self.document_id}@{self.version_label}"
+
+
+class CorrespondenceNumberSequence(models.Model):
+    """Yearly counter for official IN-/OUT- registry numbers (concurrent-safe)."""
+
+    direction = models.CharField(max_length=16, choices=CorrespondenceDirection.choices)
+    year = models.PositiveIntegerField()
+    last_value = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("direction", "year")
+
+    def __str__(self):
+        return f"{self.direction}:{self.year}:{self.last_value}"
+
+
+class DocumentDispatch(models.Model):
+    """Manual dispatch record for an approved outgoing correspondence version."""
+
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="dispatches")
+    version = models.ForeignKey(
+        DocumentVersion,
+        on_delete=models.PROTECT,
+        related_name="dispatches",
+    )
+    recipient = models.CharField(max_length=255)
+    channel = models.CharField(
+        max_length=32,
+        default="manual",
+        help_text=_("manual|courier|hand|post — no external email required"),
+    )
+    dispatched_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="document_dispatches",
+    )
+    dispatched_at = models.DateTimeField(default=timezone.now)
+    notes = models.CharField(max_length=255, blank=True)
+    operation_key = models.CharField(max_length=64, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-dispatched_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["document", "operation_key"],
+                name="uniq_document_dispatch_operation_key",
+                condition=~models.Q(operation_key=""),
+            )
+        ]
+
+    def __str__(self):
+        return f"dispatch:{self.document_id}:v{self.version_id}"

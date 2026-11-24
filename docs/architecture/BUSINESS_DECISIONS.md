@@ -240,3 +240,42 @@ Demo: `manager@citypoint.az` / `manager123`.
 **Status:** A.4–A.7 uyğunlaşdırılır (2026-11-12)
 
 Ayrı portal `/finance/` — Security kimi. Rol: yalnız `accountant`. **Admin/Management girmir** (ödəniş təsdiqi ERP-də). Avadanlıq/inventar `/finance/building-equipment/` və `/finance/building-inventory/` — **eyni Maliyyə shell** (navbar/brand dəyişmir); ERP URL-ləri digər rollar üçündür, mühasib ERP asset URL-indən finance-ə redirect olur. Demo: `accountant@citypoint.az` / `accountant123`.
+
+---
+
+## A.8 — AP / təchizatçı fakturası (mühəndis default + açıq Finance qərarları)
+
+**Status:** qismən tətbiq · Finance təsdiqi gözlənilir (2026-11-23)
+
+| Mövzu | Mühəndis default (kod) | Finance qərarı lazımdır |
+|-------|------------------------|-------------------------|
+| Orijinal faktura miqdarı | Saxlanılır (yenidən yazılmır) | — |
+| order 10 / receive 6 / invoice 10 | Variance +4; bütün sənəd **HOLD**; AP JE **yox** | Over-receive qəbulu (HOLD-u qaldırıb tanıma) |
+| MATCHED | Qəbul miqdarını **rezerv** edir | — |
+| Void / cancel (matched) | Rezervi buraxır | — |
+| Recognized | Unposted JE Dr expense / Cr AP (+VAT mapping) | GR inventar vs expense vaxtı; statutory VAT |
+| Goods receipt | Bu gün **GL yazmır** (`POLine.received_qty` yalnız) | GR posting əlavə olunarsa tanıma ilə dublləşmə qadağası |
+| Void (draft/hold/matched) | Rezerv buraxılır | — |
+| Void (recognized, unposted JE) | Reverse draft JE + void + rezerv buraxılır | — |
+| Void (recognized, **posted** JE) | **Bloklanır** — miqdar rezervdə qalır | Posted JE reverse / second-invoice release |
+| AP ödəniş | `finance.supplier_payment` → Mgmt **approve** → mühasib **settle** (tarix+məbləğ+bank ref) → SPAY + unposted JE → `post_to_gl` | Bank sübutu; settle aktoru |
+| Uğursuz/ləğv transfer | Mühasib `cancel_payment_authorization` (səbəb məcburi) → CANCELLED; rezerv buraxılır | Kim ləğv edir (Mgmt vs mühasib) — default mühasib |
+| Bank reference | Global unique (case-insensitive) bir SPAY | Bir transfer → çox faktura? |
+
+### Finance qərarları hələ açıq (operator qeydi)
+
+1. **Qəbul / tanıma vaxtı (receipt timing):** GR inventar JE varmı, yoxsa yalnız AP tanıma (expense) — hazırkı default yalnız AP.
+2. **AP ƏDV (VAT):** statutory dərəcə, input VAT hesabı və xərcə daxil/ayrı yazılış.
+3. **Exception approval:** HOLD over-receive və ya qeyri-standart match üçün kim təsdiq edir.
+4. **Posted JE reverse:** posted recognized fakturanın void/miqdar buraxılışı — bu gün **bloklanır**; reverse + ikinci faktura siyasəti təsdiq gözləyir.
+5. **Partial / overpay:** kod partial 400+600 və over-allocation reject edir; exception overpay Finance təsdiqi ayrıca.
+6. **Settlement sübutu:** mühəndis default — bank/transfer `reference` məcburidir; bank çıxarışı/PDF əlavəsi hələ yoxdur.
+7. **Settlement icazəsi:** default mühasib (`can_mutate_finance`); ayrıca rol lazımdırmı?
+8. **Unused approval ləğvi:** default mühasib + səbəb; rəhbərlik də ləğv etməlidir?
+9. **Bir bank transfer → çox faktura:** hazırda qadağan (unique ref); allocation modeli lazımdırmı?
+
+**Gözləmədə (provider):** bank feed, e-invoice adapter — provider sənədi + test mühiti olmadan həyata keçirilmir.
+
+Kod: `apps/finance/ap_services.py`; `/finance/payables/`; ERP `/erp/payment-approvals/` (AP bölməsi). Sərhədlər: `docs/architecture/finance-integration-boundaries.md`.
+
+

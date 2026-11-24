@@ -69,7 +69,7 @@ class WorkflowEDocumentTests(TestCase):
             username="we-fm",
             email="we-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.mgmt = User.objects.create_user(
@@ -252,7 +252,7 @@ class WorkflowEProcurementTests(TestCase):
             username="we-p-fm",
             email="we-p-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.mgmt = User.objects.create_user(
@@ -279,7 +279,7 @@ class WorkflowEProcurementTests(TestCase):
             priority=WorkOrderPriority.NORMAL,
         )
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             defaults={"max_amount": Decimal("1000"), "is_active": True},
         )
 
@@ -318,7 +318,7 @@ class WorkflowEProcurementTests(TestCase):
         self.assertEqual(req.payload.get("amount"), "")
         self.assertEqual(req.payload.get("currency"), "")
 
-        PurchaseApprovalLimit.objects.filter(role=Role.PROPERTY_FM).delete()
+        PurchaseApprovalLimit.objects.filter(role=Role.SERVICE_DESK).delete()
         pr_miss = ProcurementService.create_pr_for_work_order(
             self.wo, actor=self.fm, description="miss", qty="1", sku=self.sku
         )
@@ -474,7 +474,7 @@ class WorkflowEConcurrencyTests(TransactionTestCase):
             username="we-c-fm",
             email="we-c-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.m1 = User.objects.create_user(
@@ -499,7 +499,7 @@ class WorkflowEConcurrencyTests(TransactionTestCase):
         )
         self.sku = SKU.objects.create(code="WE-C-SKU", name="C", unit="ədəd", reorder_level=1)
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             defaults={"max_amount": Decimal("1"), "is_active": True},
         )
         self.pr = ProcurementService.create_pr_for_work_order(

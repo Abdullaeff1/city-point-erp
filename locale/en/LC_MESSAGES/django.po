@@ -677,3 +677,57 @@ msgstr "Maintenance"
 
 msgid "Xəbərdarlıq"
 msgstr "Notice"
+
+msgid "Menyu"
+msgstr "Menu"
+
+msgid "Mərtəbələr və sahələr"
+msgstr "Floors and spaces"
+
+msgid "Mərtəbələr üzrə sahələr"
+msgstr "Spaces by floor"
+
+msgid "Dolu"
+msgstr "Occupied"
+
+msgid "Sahə əlavə et"
+msgstr "Add space"
+
+msgid "Süzgəclər"
+msgstr "Filters"
+
+msgid "Axtarış"
+msgstr "Search"
+
+msgid "Sahə kodu, adı və ya rezident"
+msgstr "Space code, name, or tenant"
+
+msgid "Bütün mərtəbələr"
+msgstr "All floors"
+
+msgid "Bütün statuslar"
+msgstr "All statuses"
+
+msgid "Sıfırla"
+msgstr "Reset"
+
+msgid "Bu mərtəbədə sahə yoxdur."
+msgstr "There are no spaces on this floor."
+
+msgid "Süzgəclərə uyğun sahə tapılmadı."
+msgstr "No spaces match the filters."
+
+msgid "Mərtəbə yoxdur. Əvvəlcə mərtəbə əlavə edin."
+msgstr "No floors yet. Add a floor first."
+
+msgid "Mərtəbə əlavə et"
+msgstr "Add floor"
+
+msgid "Əlavə et"
+msgstr "Add"
+
+msgid "Tez keçidlər"
+msgstr "Quick links"
+
+msgid "Müqavilə bitir"
+msgstr "Lease ends"

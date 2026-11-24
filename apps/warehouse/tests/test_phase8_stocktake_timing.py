@@ -32,7 +32,7 @@ class Phase8StocktakeTimingBoundaryTests(TestCase):
             username="st8-t-fm",
             email="st8-t-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
         )
         self.wh = Warehouse.objects.create(code="ST8T", name="Timing WH")

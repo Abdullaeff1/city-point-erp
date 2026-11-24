@@ -2,8 +2,15 @@
 {% load i18n cp_ui %}
 {% block title %}{% block page_title %}{% translate "Rəhbərlik" %}{% endblock %} · City Point{% endblock %}
 {% block body %}
-<div class="cp-shell">
-  <aside class="cp-sidebar">
+<div class="cp-shell cp-erp">
+  <div class="erp-mobile-bar">
+    <button class="erp-menu-toggle" type="button" aria-controls="erp-sidebar" aria-expanded="true" hidden>
+      <i data-lucide="menu" width="19" height="19" aria-hidden="true"></i>
+      {% translate "Menyu" %}
+    </button>
+    <span>City Point · {% translate "Rəhbərlik" %}</span>
+  </div>
+  <aside class="cp-sidebar" id="erp-sidebar">
     <div class="cp-brand">
       <div class="cp-brand-kicker">CITY POINT</div>
       <div class="cp-brand-sub">{% translate "Rəhbərlik" %}</div>
@@ -34,7 +41,7 @@
         <div class="cp-user-role">{{ user.get_role_display }}</div>
       </div>
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}
-        <button type="submit" class="cp-btn-ghost" title="{% translate 'Çıxış' %}" style="color:rgba(255,255,255,0.7);"><i data-lucide="log-out" width="16" height="16"></i></button>
+        <button type="submit" class="cp-btn-ghost" title="{% translate 'Çıxış' %}"><i data-lucide="log-out" width="16" height="16"></i></button>
       </form>
     </div>
   </aside>
@@ -44,17 +51,7 @@
         <p class="cp-meta">CITY POINT · {% translate "Rəhbərlik" %}</p>
         <h1 class="cp-title">{% block heading %}{% endblock %}</h1>
       </div>
-      <form action="{% url 'set_language' %}" method="post" class="cp-lang">
-        {% csrf_token %}
-        <input name="next" type="hidden" value="{{ request.get_full_path }}">
-        <select name="language" onchange="this.form.submit()" style="border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;">
-          {% get_current_language as LANGUAGE_CODE %}
-          {% get_available_languages as LANGUAGES %}
-          {% for lang_code, lang_name in LANGUAGES %}
-            <option value="{{ lang_code }}" {% if lang_code == LANGUAGE_CODE %}selected{% endif %}>{{ lang_code|upper }}</option>
-          {% endfor %}
-        </select>
-      </form>
+      {% include "partials/cp_topbar_actions_local.html" %}
     </header>
     <div class="cp-content">
       {% if messages %}

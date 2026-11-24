@@ -20,7 +20,7 @@ class PartyStatus(models.TextChoices):
 class PartyRoleCode(models.TextChoices):
     RESIDENT = "resident", _("Rezident")
     PROSPECT = "prospect", _("Prospect")
-    SUPPLIER = "supplier", _("Təchizatçı")
+    SUPPLIER = "supplier", _("Podratçı")
     CONTRACTOR = "contractor", _("Podratçı")
     PARTNER = "partner", _("Partnyor")
     OTHER = "other", _("Digər")

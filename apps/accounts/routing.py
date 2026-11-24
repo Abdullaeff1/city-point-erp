@@ -9,7 +9,7 @@ from django.urls import reverse
 def home_url_name_for(user) -> str:
     """Named URL for the user's primary landing page after login / wrong-portal.
 
-    Delegates to permission-validated workspace resolution (Phase 3).
+    Delegates to permission-validated department landing (Phase 3).
     """
     from apps.accounts.nav import resolve_landing_url_name
 

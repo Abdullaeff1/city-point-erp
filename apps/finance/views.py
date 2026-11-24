@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -12,15 +13,24 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from apps.accounts.mixins import FinancePortalMixin
-from apps.accounts.models import Role
 from apps.accounting.models import Account, AccountingPeriod, JournalEntry
 from apps.accounting.services import (
     AccountingService,
+    ensure_period,
     import_coa_from_xlsx,
     seed_minimal_coa,
     trial_balance,
 )
-from apps.billing.models import Charge, Invoice, InvoiceStatus, Payment
+from apps.billing.models import (
+    Charge,
+    ChargeSource,
+    Invoice,
+    InvoiceStatus,
+    Payment,
+    SupplierInvoice,
+    SupplierInvoiceStatus,
+    SupplierPayment,
+)
 from apps.billing.policy import in_invoice_window
 from apps.billing.services import (
     apply_penalty_charge,
@@ -33,6 +43,21 @@ from apps.billing.services import (
     record_payment,
     void_invoice,
 )
+from apps.finance.ap_services import (
+    WF_SUPPLIER_PAYMENT,
+    SupplierInvoiceService,
+    line_match_snapshot,
+    authorizable_payable_amount,
+    open_payment_authorization_amount,
+    payable_balance,
+    payable_recon_snapshot,
+    posted_ap_balance,
+    supplier_invoice_gross,
+    supplier_payment_queue_invoice_ids,
+)
+from apps.finance.dashboard import build_dashboard
+from apps.parties.models import Party, PartyStatus
+from apps.procurement.models import POLine
 from apps.core.services import DomainError
 from apps.erp.views import (
     BuildingEquipmentListView as ErpBuildingEquipmentListView,
@@ -44,6 +69,7 @@ from apps.finance.access import (
     can_approve_payment,
     can_close_period,
     can_mutate_finance,
+    can_reopen_period,
 )
 from apps.finance.reports import (
     aging_xlsx_response,
@@ -51,7 +77,6 @@ from apps.finance.reports import (
     trial_balance_xlsx_response,
 )
 from apps.leases.lease_ops import generate_monthly_lease_charges
-from apps.parties.models import Party
 from apps.workflows.models import ApprovalRequest, ApprovalStatus
 from apps.workflows.services import ApprovalService
 
@@ -63,32 +88,12 @@ class HomeView(FinancePortalMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        mark_overdue_invoices()
-        open_inv = Invoice.objects.filter(
-            status__in=(InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE)
-        )
-        unbilled = Charge.objects.filter(invoice__isnull=True).count()
-        draft_count = Invoice.objects.filter(status=InvoiceStatus.DRAFT).count()
-        unposted = JournalEntry.objects.filter(posted=False).count()
-        pending_pay = ApprovalRequest.objects.filter(
-            workflow_code=WF_PAYMENT, status=ApprovalStatus.PENDING
-        ).count()
-        ar_total = sum(
-            (invoice_balance(i) for i in open_inv.select_related("party")), Decimal("0")
-        )
+        dash = build_dashboard()
+        ctx.update(dash)
         ctx.update(
             {
-                "open_invoice_count": open_inv.count(),
-                "unbilled_count": unbilled,
-                "draft_count": draft_count,
-                "unposted_je": unposted,
-                "pending_payments": pending_pay,
-                "ar_total": ar_total,
                 "in_invoice_window": in_invoice_window(),
-                "paid_month": Payment.objects.filter(
-                    paid_at__year=timezone.localdate().year,
-                    paid_at__month=timezone.localdate().month,
-                ).count(),
+                "unbilled_count": Charge.objects.filter(invoice__isnull=True).count(),
                 "can_mutate": can_mutate_finance(self.request.user),
                 "can_approve": can_approve_payment(self.request.user),
             }
@@ -132,15 +137,32 @@ class ChargesView(FinancePortalMixin, TemplateView):
                 messages.success(request, _("İcarə charge: %(stats)s") % {"stats": stats})
             elif action == "invoice_party":
                 party = get_object_or_404(Party, pk=request.POST.get("party_id"))
-                ids = list(
-                    Charge.objects.filter(party=party, invoice__isnull=True).values_list(
-                        "pk", flat=True
-                    )[:100]
+                # Phase 4.3 / 11: depozit kirayə/xidmət ilə eyni fakturada ola bilməz.
+                non_deposit = list(
+                    Charge.objects.filter(party=party, invoice__isnull=True)
+                    .exclude(source=ChargeSource.DEPOSIT)
+                    .order_by("pk")
+                    .values_list("pk", flat=True)[:100]
                 )
+                deposit_only = list(
+                    Charge.objects.filter(
+                        party=party,
+                        invoice__isnull=True,
+                        source=ChargeSource.DEPOSIT,
+                    )
+                    .order_by("pk")
+                    .values_list("pk", flat=True)[:100]
+                )
+                ids = non_deposit or deposit_only
                 if not ids:
                     messages.warning(request, _("Fakturasız charge yoxdur."))
                 else:
                     inv = generate_invoice_from_charges(party, ids)
+                    if non_deposit and deposit_only:
+                        messages.info(
+                            request,
+                            _("Depozit ayrıca qaldı — növbəti fakturada kəsilə bilər."),
+                        )
                     messages.success(
                         request, _("Draft faktura: %(code)s") % {"code": inv.code}
                     )
@@ -296,14 +318,26 @@ class InvoiceDetailView(FinancePortalMixin, TemplateView):
 
 
 class PaymentsView(FinancePortalMixin, TemplateView):
+    """Confirmed payments list, or pending approval inspect (?pending=1).
+
+    Accountant may inspect pending requests; approve/reject remains Management-only
+    (A.7) — typically via ERP. POST approve on this portal still gated by can_approve.
+    """
+
     template_name = "finance/payments.html"
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["payments"] = Payment.objects.select_related("invoice", "invoice__party")[:200]
+        pending_only = self.request.GET.get("pending") == "1"
+        ctx["pending_only"] = pending_only
         ctx["pending"] = ApprovalRequest.objects.filter(
             workflow_code=WF_PAYMENT, status=ApprovalStatus.PENDING
         ).select_related("requested_by")[:50]
+        ctx["payments"] = (
+            Payment.objects.none()
+            if pending_only
+            else Payment.objects.select_related("invoice", "invoice__party")[:200]
+        )
         ctx["can_approve"] = can_approve_payment(self.request.user)
         return ctx
 
@@ -392,7 +426,21 @@ class JournalsView(FinancePortalMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         today = timezone.localdate()
-        ctx["entries"] = JournalEntry.objects.prefetch_related("lines__account")[:100]
+        qs = JournalEntry.objects.prefetch_related("lines__account").order_by(
+            "-entry_date", "-id"
+        )
+        posted_filter = self.request.GET.get("posted", "")
+        source_filter = (self.request.GET.get("source") or "").strip()
+        if posted_filter == "0":
+            qs = qs.filter(posted=False)
+        elif posted_filter == "1":
+            qs = qs.filter(posted=True)
+        if source_filter:
+            qs = qs.filter(source=source_filter)
+        ctx["entries"] = qs[:100]
+        ctx["posted_filter"] = posted_filter
+        ctx["source_filter"] = source_filter
+        ctx["unposted_count"] = JournalEntry.objects.filter(posted=False).count()
         ctx["unposted_today"] = JournalEntry.objects.filter(
             posted=False, entry_date=today
         ).count()
@@ -410,7 +458,90 @@ class JournalsView(FinancePortalMixin, TemplateView):
                 messages.success(request, _("Baş kitaba yazıldı: %(code)s") % {"code": entry.code})
             except DomainError as exc:
                 messages.error(request, str(exc))
+            return redirect("finance:journal_detail", code=entry.code)
         return redirect("finance:journals")
+
+
+class JournalDetailView(FinancePortalMixin, TemplateView):
+    """Inspect JE lines, period, and durable billing source link."""
+
+    template_name = "finance/journal_detail.html"
+
+    def get_entry(self):
+        return get_object_or_404(
+            JournalEntry.objects.prefetch_related("lines__account"),
+            code=self.kwargs["code"],
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        entry = self.get_entry()
+        period = ensure_period(entry.entry_date.year, entry.entry_date.month)
+        source_invoice = None
+        source_payment = None
+        source_supplier_invoice = None
+        ref = entry.source_ref or ""
+        if entry.source == "billing.invoice" and ref.startswith("invoice:"):
+            try:
+                source_invoice = Invoice.objects.select_related("party").get(
+                    pk=int(ref.split(":", 1)[1])
+                )
+            except (Invoice.DoesNotExist, ValueError, TypeError):
+                source_invoice = None
+        elif entry.source == "billing.payment" and ref.startswith("payment:"):
+            try:
+                source_payment = Payment.objects.select_related(
+                    "invoice", "invoice__party", "party"
+                ).get(pk=int(ref.split(":", 1)[1]))
+            except (Payment.DoesNotExist, ValueError, TypeError):
+                source_payment = None
+        elif entry.source == "billing.supplier_invoice" and ref.startswith(
+            "supplier_invoice:"
+        ):
+            try:
+                source_supplier_invoice = SupplierInvoice.objects.select_related(
+                    "supplier_party"
+                ).get(pk=int(ref.split(":", 1)[1]))
+            except (SupplierInvoice.DoesNotExist, ValueError, TypeError):
+                source_supplier_invoice = None
+        elif entry.source == "billing.supplier_payment" and ref.startswith(
+            "supplier_payment:"
+        ):
+            try:
+                sp = SupplierPayment.objects.select_related(
+                    "supplier_invoice", "supplier_invoice__supplier_party"
+                ).get(pk=int(ref.split(":", 1)[1]))
+                source_supplier_invoice = sp.supplier_invoice
+            except (SupplierPayment.DoesNotExist, ValueError, TypeError):
+                source_supplier_invoice = None
+        total_d = sum((ln.debit or Decimal("0") for ln in entry.lines.all()), Decimal("0"))
+        total_c = sum((ln.credit or Decimal("0") for ln in entry.lines.all()), Decimal("0"))
+        ctx.update(
+            {
+                "entry": entry,
+                "period": period,
+                "source_invoice": source_invoice,
+                "source_payment": source_payment,
+                "source_supplier_invoice": source_supplier_invoice,
+                "total_debit": total_d,
+                "total_credit": total_c,
+                "can_mutate": can_mutate_finance(self.request.user),
+            }
+        )
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        entry = self.get_entry()
+        if not can_mutate_finance(request.user):
+            messages.error(request, _("İcazə yoxdur."))
+            return redirect("finance:journal_detail", code=entry.code)
+        if request.POST.get("action") == "post_gl":
+            try:
+                AccountingService.post_to_gl(entry, actor=request.user)
+                messages.success(request, _("Baş kitaba yazıldı: %(code)s") % {"code": entry.code})
+            except DomainError as exc:
+                messages.error(request, str(exc))
+        return redirect("finance:journal_detail", code=entry.code)
 
 
 class JournalCreateView(FinancePortalMixin, TemplateView):
@@ -461,29 +592,42 @@ class TrialBalanceView(FinancePortalMixin, TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         today = timezone.localdate()
+        as_of = None
         try:
             year = int(self.request.GET.get("year") or today.year)
             month = int(self.request.GET.get("month") or 0)
+            raw_as_of = (self.request.GET.get("as_of") or "").strip()
+            if raw_as_of:
+                as_of = date.fromisoformat(raw_as_of)
         except ValueError:
-            year, month = today.year, 0
-        rows = trial_balance(year=year, month=month or None)
+            year, month, as_of = today.year, 0, None
+        rows = trial_balance(year=year, month=month or None, as_of=as_of)
         ctx["rows"] = rows
         ctx["year"] = year
         ctx["month"] = month
+        ctx["as_of"] = as_of.isoformat() if as_of else ""
         ctx["total_debit"] = sum((r["debit"] for r in rows), Decimal("0"))
         ctx["total_credit"] = sum((r["credit"] for r in rows), Decimal("0"))
+        ctx["total_opening"] = sum((r.get("opening_balance") or 0 for r in rows), Decimal("0"))
+        ctx["total_closing"] = sum((r.get("closing_balance") or r["balance"] for r in rows), Decimal("0"))
         return ctx
 
 
 class TrialBalanceExportView(FinancePortalMixin, View):
     def get(self, request, *args, **kwargs):
         today = timezone.localdate()
+        as_of = None
         try:
             year = int(request.GET.get("year") or today.year)
             month = int(request.GET.get("month") or 0)
+            raw_as_of = (request.GET.get("as_of") or "").strip()
+            if raw_as_of:
+                as_of = date.fromisoformat(raw_as_of)
         except ValueError:
-            year, month = today.year, 0
-        return trial_balance_xlsx_response(trial_balance(year=year, month=month or None))
+            year, month, as_of = today.year, 0, None
+        return trial_balance_xlsx_response(
+            trial_balance(year=year, month=month or None, as_of=as_of)
+        )
 
 
 class PeriodsView(FinancePortalMixin, TemplateView):
@@ -500,7 +644,7 @@ class PeriodsView(FinancePortalMixin, TemplateView):
             AccountingPeriod.objects.get_or_create(year=y, month=m)
         ctx["periods"] = AccountingPeriod.objects.all()[:24]
         ctx["can_close"] = can_close_period(self.request.user)
-        ctx["can_reopen"] = self.request.user.role == Role.MANAGEMENT
+        ctx["can_reopen"] = can_reopen_period(self.request.user)
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -518,8 +662,8 @@ class PeriodsView(FinancePortalMixin, TemplateView):
                 AccountingService.close_period(year=year, month=month, actor=request.user)
                 messages.success(request, _("Dövr bağlandı."))
             elif action == "reopen":
-                if request.user.role != Role.MANAGEMENT:
-                    raise DomainError(_("Yalnız rəhbərlik aça bilər."))
+                if not can_reopen_period(request.user):
+                    raise DomainError(_("İcazə yoxdur."))
                 AccountingService.reopen_period(year=year, month=month, actor=request.user)
                 messages.success(request, _("Dövr yenidən açıldı."))
         except DomainError as exc:
@@ -539,3 +683,269 @@ class BuildingInventoryListView(FinancePortalMixin, ErpBuildingInventoryListView
 
     template_name = "finance/building_assets.html"
     list_url_name = "finance:building_inventory"
+
+
+class PayablesView(FinancePortalMixin, TemplateView):
+    """Supplier invoices + AP payment queues (pending / settle / unposted / posted)."""
+
+    template_name = "finance/payables.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        status = self.request.GET.get("status", "")
+        queue = (self.request.GET.get("queue") or "").strip()
+        qs = SupplierInvoice.objects.select_related("supplier_party", "journal_entry").order_by(
+            "-invoice_date", "-id"
+        )
+        if status:
+            qs = qs.filter(status=status)
+
+        payment_rows = None
+        if queue in ("pending_approval", "awaiting_settle"):
+            ids = supplier_payment_queue_invoice_ids(queue=queue)
+            qs = qs.filter(pk__in=ids) if ids else qs.none()
+        elif queue == "unposted_settle":
+            payment_rows = (
+                SupplierPayment.objects.filter(journal_entry__posted=False)
+                .select_related(
+                    "supplier_invoice",
+                    "supplier_invoice__supplier_party",
+                    "journal_entry",
+                )
+                .order_by("-paid_at", "-id")[:200]
+            )
+            qs = SupplierInvoice.objects.none()
+        elif queue == "posted_settle":
+            payment_rows = (
+                SupplierPayment.objects.filter(journal_entry__posted=True)
+                .select_related(
+                    "supplier_invoice",
+                    "supplier_invoice__supplier_party",
+                    "journal_entry",
+                )
+                .order_by("-paid_at", "-id")[:200]
+            )
+            qs = SupplierInvoice.objects.none()
+
+        pending_n = ApprovalRequest.objects.filter(
+            workflow_code=WF_SUPPLIER_PAYMENT, status=ApprovalStatus.PENDING
+        ).count()
+        awaiting_n = len(supplier_payment_queue_invoice_ids(queue="awaiting_settle"))
+        unposted_n = SupplierPayment.objects.filter(journal_entry__posted=False).count()
+        posted_n = SupplierPayment.objects.filter(journal_entry__posted=True).count()
+
+        ctx["invoices"] = qs[:200]
+        ctx["payment_rows"] = payment_rows
+        ctx["status_filter"] = status
+        ctx["queue_filter"] = queue
+        ctx["statuses"] = SupplierInvoiceStatus.choices
+        ctx["can_mutate"] = can_mutate_finance(self.request.user)
+        ctx["queue_counts"] = {
+            "pending_approval": pending_n,
+            "awaiting_settle": awaiting_n,
+            "unposted_settle": unposted_n,
+            "posted_settle": posted_n,
+        }
+        return ctx
+
+
+class PayableCreateView(FinancePortalMixin, TemplateView):
+    template_name = "finance/payable_form.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["suppliers"] = Party.objects.filter(status=PartyStatus.ACTIVE).order_by(
+            "legal_name"
+        )[:500]
+        ctx["po_lines"] = (
+            POLine.objects.select_related("po", "po__supplier_party")
+            .filter(received_qty__gt=0)
+            .order_by("-po_id", "id")[:300]
+        )
+        ctx["can_mutate"] = can_mutate_finance(self.request.user)
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        if not can_mutate_finance(request.user):
+            messages.error(request, _("İcazə yoxdur."))
+            return redirect("finance:payables")
+        try:
+            party = get_object_or_404(Party, pk=request.POST.get("supplier_party"))
+            selected = {str(x) for x in request.POST.getlist("selected_po_line")}
+            all_ids = request.POST.getlist("row_po_line_id")
+            qtys = request.POST.getlist("qty_invoiced")
+            prices = request.POST.getlist("unit_price")
+            lines = []
+            for i, plid in enumerate(all_ids):
+                if not plid or str(plid) not in selected:
+                    continue
+                po_line = POLine.objects.select_related("po").get(pk=plid)
+                qty = Decimal(qtys[i] or 0)
+                price = Decimal(prices[i] or po_line.unit_price or 0)
+                if qty <= 0:
+                    continue
+                lines.append(
+                    {
+                        "po_line": po_line,
+                        "qty_invoiced": qty,
+                        "unit_price": price,
+                        "description": po_line.description,
+                    }
+                )
+            raw_date = (request.POST.get("invoice_date") or "").strip()
+            inv_date = timezone.localdate()
+            if raw_date:
+                inv_date = date.fromisoformat(raw_date)
+            inv = SupplierInvoiceService.create_draft(
+                supplier_party=party,
+                supplier_invoice_no=request.POST.get("supplier_invoice_no") or "",
+                invoice_date=inv_date,
+                currency=request.POST.get("currency") or "AZN",
+                notes=request.POST.get("notes") or "",
+                lines=lines,
+                actor=request.user,
+            )
+            messages.success(request, _("Podratçı fakturası yaradıldı: %(code)s") % {"code": inv.code})
+            return redirect("finance:payable_detail", code=inv.code)
+        except (DomainError, InvalidOperation, ValueError, POLine.DoesNotExist) as exc:
+            messages.error(request, str(exc))
+            return redirect("finance:payable_create")
+
+
+class PayableDetailView(FinancePortalMixin, TemplateView):
+    template_name = "finance/payable_detail.html"
+
+    def get_invoice(self):
+        return get_object_or_404(
+            SupplierInvoice.objects.select_related(
+                "supplier_party", "journal_entry"
+            ).prefetch_related("lines__po_line__po"),
+            code=self.kwargs["code"],
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        inv = self.get_invoice()
+        line_rows = []
+        for ln in inv.lines.all():
+            snap = line_match_snapshot(ln)
+            line_rows.append({"line": ln, **snap})
+        block = None
+        if inv.status == SupplierInvoiceStatus.MATCHED:
+            block = SupplierInvoiceService.recognition_block_reason(inv)
+        pending_pay = ApprovalRequest.objects.filter(
+            workflow_code=WF_SUPPLIER_PAYMENT,
+            status=ApprovalStatus.PENDING,
+            payload__supplier_invoice_id=inv.pk,
+        ).first()
+        approved_awaiting = [
+            req
+            for req in ApprovalRequest.objects.filter(
+                workflow_code=WF_SUPPLIER_PAYMENT,
+                status=ApprovalStatus.APPROVED,
+                payload__supplier_invoice_id=inv.pk,
+            ).order_by("pk")
+            if not (req.payload or {}).get("supplier_payment_id")
+        ]
+        ctx.update(
+            {
+                "invoice": inv,
+                "line_rows": line_rows,
+                "can_mutate": can_mutate_finance(self.request.user),
+                "recognition_block": block,
+                "gross": supplier_invoice_gross(inv),
+                "payable_balance": payable_balance(inv),
+                "posted_ap_balance": posted_ap_balance(inv),
+                "recon": payable_recon_snapshot(inv),
+                "authorizable_amount": authorizable_payable_amount(inv),
+                "open_auth_amount": open_payment_authorization_amount(inv),
+                "supplier_payments": inv.payments.select_related("journal_entry").all(),
+                "pending_supplier_payment": pending_pay,
+                "approved_awaiting_settle": approved_awaiting,
+            }
+        )
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        inv = self.get_invoice()
+        if not can_mutate_finance(request.user):
+            messages.error(request, _("İcazə yoxdur."))
+            return redirect("finance:payable_detail", code=inv.code)
+        action = request.POST.get("action")
+        try:
+            if action == "validate":
+                out = SupplierInvoiceService.validate_and_match_or_hold(inv, actor=request.user)
+                if out.status == SupplierInvoiceStatus.HOLD:
+                    messages.warning(request, out.hold_reason or _("HOLD."))
+                else:
+                    messages.success(request, _("MATCHED — miqdar rezerv olundu."))
+            elif action == "revalidate":
+                out = SupplierInvoiceService.revalidate_hold(inv, actor=request.user)
+                if out.status == SupplierInvoiceStatus.HOLD:
+                    messages.warning(request, out.hold_reason or _("Hələ HOLD."))
+                else:
+                    messages.success(request, _("Yenidən yoxlama: MATCHED."))
+            elif action == "recognize":
+                out = SupplierInvoiceService.recognize_payable(inv, actor=request.user)
+                messages.success(
+                    request,
+                    _("AP tanındı (unposted JE): %(code)s")
+                    % {"code": out.journal_entry.code if out.journal_entry_id else "—"},
+                )
+            elif action == "request_pay":
+                SupplierInvoiceService.request_supplier_payment(
+                    inv,
+                    amount=request.POST.get("amount") or 0,
+                    actor=request.user,
+                    method=request.POST.get("method") or "bank",
+                    reference=request.POST.get("reference") or "",
+                )
+                messages.success(request, _("Podratçı ödəniş sorğusu rəhbərliyə göndərildi."))
+            elif action == "settle_pay":
+                req = get_object_or_404(
+                    ApprovalRequest,
+                    pk=request.POST.get("approval_id"),
+                    workflow_code=WF_SUPPLIER_PAYMENT,
+                    status=ApprovalStatus.APPROVED,
+                )
+                raw_date = (request.POST.get("paid_at") or "").strip()
+                paid_at = date.fromisoformat(raw_date) if raw_date else timezone.localdate()
+                pay = SupplierInvoiceService.record_supplier_payment(
+                    invoice=inv,
+                    amount=request.POST.get("amount") or (req.payload or {}).get("amount") or 0,
+                    approval_request=req,
+                    method=request.POST.get("method") or (req.payload or {}).get("method") or "bank",
+                    reference=request.POST.get("reference") or "",
+                    paid_at=paid_at,
+                )
+                messages.success(
+                    request,
+                    _(
+                        "Settlement qeydə alındı: %(amt)s · ref %(ref)s · JE %(je)s (unposted)."
+                    )
+                    % {
+                        "amt": pay.amount,
+                        "ref": pay.reference or "—",
+                        "je": pay.journal_entry.code if pay.journal_entry_id else "—",
+                    },
+                )
+            elif action == "cancel_pay_auth":
+                req = get_object_or_404(
+                    ApprovalRequest,
+                    pk=request.POST.get("approval_id"),
+                    workflow_code=WF_SUPPLIER_PAYMENT,
+                )
+                SupplierInvoiceService.cancel_payment_authorization(
+                    req,
+                    actor=request.user,
+                    reason=request.POST.get("reason") or "",
+                )
+                messages.info(request, _("Ödəniş icazəsi ləğv edildi — rezerv buraxıldı."))
+            elif action == "void":
+                SupplierInvoiceService.void_supplier_invoice(inv, actor=request.user)
+                messages.success(request, _("Void — rezerv buraxıldı (uyğun olduqda)."))
+            else:
+                messages.error(request, _("Naməlum əməliyyat."))
+        except (DomainError, ValueError) as exc:
+            messages.error(request, str(exc))
+        return redirect("finance:payable_detail", code=inv.code)

@@ -619,6 +619,8 @@ Tam siyahı: [`MVP_YUKLENMELI_SENEDLER.md`](docs/deployment/MVP_YUKLENMELI_SENED
 
 **DoD:** Upload→version→portal görünürlük→download ACL; kargüzarlıq siyahısı.
 
+**Status (2026-11-23):** Tamamlandı (dev). Kargüzarlıq: `/erp/correspondence/` — daxil olan qeydiyyat (IN-/OUT- №), qəbul vs məktub tarixi, yönləndirmə, cavab cütü, versiya təsdiqi, əl ilə göndərmə (dispatched version qorunur). Migration `documents.0007_phase10_correspondence`. Retention hüquqi təsdiq gözləyir. Live göndərmə/email bu run-dan kənar.
+
 ---
 
 ## Phase 11 — Billing

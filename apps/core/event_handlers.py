@@ -148,12 +148,26 @@ def _ticket_resolved_notify(event: bus.DomainEvent) -> None:
 
 
 def _notify_property_fm(*, message: str, event_key_prefix: str, ticket=None) -> None:
+    """Notify Təchizat operators (service_desk + supply.head) on new WO."""
     from apps.accounts.models import Role
     from apps.comms.services import notify_in_app
+    from apps.rbac.models import UserPermission
     from django.contrib.auth import get_user_model
 
     User = get_user_model()
-    for user in User.objects.filter(role=Role.PROPERTY_FM, is_active=True)[:20]:
+    role_ids = set(
+        User.objects.filter(
+            role__in=(Role.SERVICE_DESK,),
+            is_active=True,
+        ).values_list("pk", flat=True)[:40]
+    )
+    head_ids = set(
+        UserPermission.objects.filter(
+            permission__code="supply.head",
+            user__is_active=True,
+        ).values_list("user_id", flat=True)[:20]
+    )
+    for user in User.objects.filter(pk__in=role_ids | head_ids).order_by("pk"):
         notify_in_app(
             user=user,
             message=message,

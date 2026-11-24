@@ -2,7 +2,7 @@ from django.core.exceptions import PermissionDenied
 from django.utils.translation import gettext as _
 
 from apps.accounts.models import Role
-from apps.rbac.models import PermissionCode, RolePermission
+from apps.rbac.models import PermissionCode, RolePermission, UserPermission
 
 # Foundation catalog — extend per scope; seed is idempotent.
 DEFAULT_PERMISSIONS = [
@@ -37,7 +37,9 @@ DEFAULT_PERMISSIONS = [
     ("resident.view", "Rezident baxış", "residents"),
     ("resident.edit", "Rezident redaktə", "residents"),
     ("resident.export", "Rezident export", "residents"),
+    ("resident.directory.view", "Rezident kataloq (əlaqə RO)", "residents"),
     ("residents.export_access", "Giriş/çıxış Excel export", "residents"),
+    ("supply.head", "Təchizat şöbəsi rəhbəri", "supply"),
     ("document.view", "Sənəd baxış", "documents"),
     ("document.edit", "Sənəd redaktə", "documents"),
     ("crm.view", "CRM baxış", "crm"),
@@ -85,6 +87,7 @@ _MANAGEMENT_EXCLUDE = {
     "space.edit",
     "property.asset.edit",
     "user.admin",
+    "supply.head",  # designated Head of Supply only via UserPermission
 }
 
 _RECEPTION_PERMS = [
@@ -105,21 +108,9 @@ _RECEPTION_PERMS = [
 
 ROLE_MATRIX = {
     Role.RECEPTION: _RECEPTION_PERMS,
+    # Unified Təchizat şöbəsi (ex-Service Desk + Facility). Mutate warehouse/procurement
+    # only via designated supply.head UserPermission — not the role matrix.
     Role.SERVICE_DESK: [
-        "ticket.view",
-        "ticket.create",
-        "ticket.edit",
-        "ticket.export",
-        "work_order.view",
-        "work_order.edit",
-        "party.view",
-        "document.view",
-        "lease.view",
-        "warehouse.view",
-        "resident.view",
-        "space.view",
-    ],
-    Role.PROPERTY_FM: [
         "space.view",
         "space.edit",
         "property.asset.view",
@@ -139,12 +130,10 @@ ROLE_MATRIX = {
         "reception.view",
         "reception.search",
         "warehouse.view",
-        "warehouse.edit",
         "procurement.view",
-        "procurement.edit",
-        "procurement.approve",
         "resident.view",
         "resident.edit",
+        "resident.directory.view",
     ],
     Role.SECURITY: [
         "security.view",
@@ -188,6 +177,37 @@ ROLE_MATRIX = {
 }
 
 
+# Supply mutate codes — never grant via SERVICE_DESK RolePermission; only supply.head / Admin.
+SUPPLY_MUTATIONS_NOT_ON_ROLE = frozenset(
+    {
+        "warehouse.edit",
+        "procurement.edit",
+        "procurement.approve",
+    }
+)
+
+
+def reconcile_retired_property_fm_role() -> dict:
+    """Idempotent cleanup: retire legacy ``property_fm`` role grants and remapped users."""
+    from django.contrib.auth import get_user_model
+
+    # Literal legacy code — Role.PROPERTY_FM removed from enum.
+    legacy_fm = "property_fm"
+    User = get_user_model()
+    remapped = User.objects.filter(role=legacy_fm).update(role=Role.SERVICE_DESK)
+    deleted_count, _ = RolePermission.objects.filter(role=legacy_fm).delete()
+    # Drop any accidental SERVICE_DESK role grants for supply mutate codes.
+    stripped, _ = RolePermission.objects.filter(
+        role=Role.SERVICE_DESK,
+        permission__code__in=SUPPLY_MUTATIONS_NOT_ON_ROLE,
+    ).delete()
+    return {
+        "users_remapped": remapped,
+        "deleted_fm_role_grants": deleted_count,
+        "stripped_sd_mutate_grants": stripped,
+    }
+
+
 def seed_rbac_catalog() -> int:
     created = 0
     for code, name, module in DEFAULT_PERMISSIONS:
@@ -205,13 +225,45 @@ def seed_rbac_catalog() -> int:
         for code in codes:
             perm = PermissionCode.objects.get(code=code)
             RolePermission.objects.get_or_create(role=role, permission=perm)
+    reconcile_retired_property_fm_role()
     return created
+
+
+# Operational powers implied by designated Təchizat rəhbəri (single UserPermission).
+_SUPPLY_HEAD_IMPLIES = frozenset(
+    {
+        "procurement.view",
+        "procurement.edit",
+        "warehouse.view",
+        "warehouse.edit",
+        "work_order.create",
+        "resident.directory.view",
+    }
+)
+
+
+def grant_user_permission(user, code: str):
+    """Idempotent per-user grant (designated Supply head, etc.)."""
+    perm, _ = PermissionCode.objects.get_or_create(
+        code=code,
+        defaults={"name": code, "module": code.split(".", 1)[0]},
+    )
+    obj, _ = UserPermission.objects.get_or_create(user=user, permission=perm)
+    return obj
 
 
 def user_has_permission(user, code: str) -> bool:
     if not user or not user.is_authenticated:
         return False
     if user.role == Role.ADMIN:
+        return True
+    # Explicit per-user grant (smallest head-of-department assignment).
+    if UserPermission.objects.filter(user_id=user.pk, permission__code=code).exists():
+        return True
+    # supply.head implies procurement/warehouse mutate without separate grants.
+    if code in _SUPPLY_HEAD_IMPLIES and UserPermission.objects.filter(
+        user_id=user.pk, permission__code="supply.head"
+    ).exists():
         return True
     # Explicit RolePermission grant (including extras beyond ROLE_MATRIX).
     if RolePermission.objects.filter(role=user.role, permission__code=code).exists():

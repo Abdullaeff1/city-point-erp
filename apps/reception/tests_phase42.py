@@ -107,11 +107,16 @@ class Phase42ReceptionSecurityTests(TestCase):
             card_number="CARD-P42-AX",
             occurred_at=timezone.now(),
         )
+        # AxTrax OUT is passage evidence only — does not start RETURN_PENDING.
         n = checkout_guests_from_access_events([event])
-        self.assertEqual(n, 1)
+        self.assertEqual(n, 0)
+        visit.refresh_from_db()
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
+        ReceptionService.check_out_visit(
+            visit, actor=self.reception, id_returned=False, allow_return_pending=True
+        )
         visit.refresh_from_db()
         self.assertEqual(visit.status, VisitStatus.RETURN_PENDING)
-        # Duplicate OUT is no-op
         self.assertEqual(checkout_guests_from_access_events([event]), 0)
         ReceptionService.complete_id_return(visit, actor=self.reception)
         visit.refresh_from_db()

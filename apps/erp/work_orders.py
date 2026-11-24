@@ -78,7 +78,7 @@ def procurement_mirror(wo):
 
 class WorkOrderListView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = "erp/work_orders.html"
-    allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
+    allowed_roles = (Role.SERVICE_DESK,)
     allow_management = True
     permission_required = "work_order.view"
     permission_denied_message = "İş sifarişlərinə baxış icazəniz yoxdur."
@@ -98,7 +98,7 @@ class WorkOrderCreateView(PermissionRequiredMixin, RoleRequiredMixin, TemplateVi
     """Facility standalone Work Order create (no Helpdesk ticket)."""
 
     template_name = "erp/work_order_create.html"
-    allowed_roles = (Role.PROPERTY_FM,)
+    allowed_roles = (Role.SERVICE_DESK,)
     allow_management = False
     permission_required = "work_order.create"
     permission_denied_message = "İş sifarişi yaratmaq icazəniz yoxdur."
@@ -160,7 +160,7 @@ class WorkOrderCreateView(PermissionRequiredMixin, RoleRequiredMixin, TemplateVi
 
 class WorkOrderDetailView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = "erp/work_order_detail.html"
-    allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
+    allowed_roles = (Role.SERVICE_DESK,)
     allow_management = True
     permission_required = "work_order.view"
     permission_denied_message = "İş sifarişinə baxış icazəniz yoxdur."
@@ -374,7 +374,7 @@ class WorkOrderDetailView(PermissionRequiredMixin, RoleRequiredMixin, TemplateVi
 
 class WorkOrderImportView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = "erp/work_order_import.html"
-    allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
+    allowed_roles = (Role.SERVICE_DESK,)
     allow_management = True
     permission_required = "work_order.view"
     permission_denied_message = "İş sifarişinə baxış icazəniz yoxdur."
@@ -467,7 +467,7 @@ def _confirm_preview(wo, sheet, posted) -> int:
 
 
 class WorkOrderSheetTemplateView(PermissionRequiredMixin, RoleRequiredMixin, View):
-    allowed_roles = (Role.SERVICE_DESK, Role.PROPERTY_FM)
+    allowed_roles = (Role.SERVICE_DESK,)
     allow_management = True
     permission_required = "work_order.view"
     permission_denied_message = "İş sifarişinə baxış icazəniz yoxdur."

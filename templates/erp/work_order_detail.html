@@ -44,6 +44,9 @@
           {% if wo.ticket and can_view_ticket_link %}
           <a href="{% url 'erp:ticket_detail' wo.ticket.code %}">{{ wo.ticket.code }}</a>
           · {{ wo.ticket.department|default:"—" }}
+          {% if nav_resident_directory and wo.ticket.company_id %}
+          · <a href="{% url 'erp:resident_directory_detail' wo.ticket.company.slug %}">{{ wo.ticket.company.name }}</a>
+          {% endif %}
           {% elif wo.ticket %}
           {{ wo.ticket.code }}
           · <span class="cp-meta">{% translate "məhdud" %}</span>
@@ -54,7 +57,7 @@
       <form method="post" class="flex-col gap-2">
         {% csrf_token %}
         <input type="hidden" name="action" value="assign">
-        <label class="cp-meta" for="assigned_to">{% translate "Təyinat (Facility)" %}</label>
+        <label class="cp-meta" for="assigned_to">{% translate "Təyinat (Təchizat şöbəsi)" %}</label>
         <select class="cp-input" id="assigned_to" name="assigned_to">
           <option value="">—</option>
           {% for u in assignees %}

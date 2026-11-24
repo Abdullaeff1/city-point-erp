@@ -7,7 +7,7 @@ from django.urls import reverse
 
 from apps.accounts.context_processors import role_context
 from apps.accounts.models import Role
-from apps.accounts.nav import build_nav_flags, list_workspaces, resolve_landing_url_name
+from apps.accounts.nav import build_nav_flags, resolve_landing_url_name
 from apps.accounts.routing import home_url_name_for
 from apps.rbac.services import seed_rbac_catalog
 
@@ -32,10 +32,10 @@ class LandingResolutionTests(TestCase):
         self.assertEqual(resolve_landing_url_name(self._user("m", Role.MANAGEMENT)), "erp:dashboard")
         self.assertEqual(resolve_landing_url_name(self._user("r", Role.RECEPTION)), "erp:reception")
         self.assertEqual(resolve_landing_url_name(self._user("s", Role.SECURITY)), "security:home")
-        self.assertEqual(resolve_landing_url_name(self._user("fm", Role.PROPERTY_FM)), "erp:facility_dashboard")
+        self.assertEqual(resolve_landing_url_name(self._user("fm", Role.SERVICE_DESK)), "erp:supply_dashboard")
         self.assertEqual(resolve_landing_url_name(self._user("sa", Role.SALES)), "erp:dashboard")
         self.assertEqual(resolve_landing_url_name(self._user("a", Role.ACCOUNTANT)), "finance:home")
-        self.assertEqual(resolve_landing_url_name(self._user("sd", Role.SERVICE_DESK)), "erp:helpdesk_dashboard")
+        self.assertEqual(resolve_landing_url_name(self._user("sd", Role.SERVICE_DESK)), "erp:supply_dashboard")
         self.assertEqual(
             resolve_landing_url_name(self._user("ad", Role.ADMIN, is_superuser=True)),
             "erp:it_dashboard",
@@ -45,13 +45,21 @@ class LandingResolutionTests(TestCase):
         sales = self._user("hs", Role.SALES)
         self.assertEqual(home_url_name_for(sales), resolve_landing_url_name(sales))
 
-    def test_multi_workspace_switcher_for_admin(self):
+    def test_workspace_switcher_removed_for_admin(self):
+        """Staff sidebar must not expose İş sahələri — including Admin."""
         admin = self._user("aw", Role.ADMIN, is_superuser=True)
-        ws = list_workspaces(admin)
-        self.assertGreaterEqual(len(ws), 2)
         flags = build_nav_flags(admin)
-        self.assertTrue(flags["nav_show_workspace_switcher"])
+        self.assertFalse(flags["nav_show_workspace_switcher"])
+        self.assertEqual(flags["nav_workspaces"], [])
         self.assertFalse(flags["nav_crm"])  # A.10 Admin out of CRM nav
+
+        client = Client()
+        client.force_login(admin)
+        resp = client.get(reverse("erp:it_dashboard"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, "İş sahələri")
+        # Department home still reachable; ROLLAR preview may remain for Admin
+        self.assertContains(resp, "İdarə paneli")
 
 
 class NavFlagsTests(TestCase):
@@ -79,11 +87,20 @@ class NavFlagsTests(TestCase):
 
     def test_fm_has_work_orders_not_reception_desk(self):
         fm = User.objects.create_user(
-            username="nfm", email="nfm@test.az", password="x", role=Role.PROPERTY_FM, is_staff=True
+            username="nfm", email="nfm@test.az", password="x", role=Role.SERVICE_DESK, is_staff=True
         )
         flags = build_nav_flags(fm)
         self.assertTrue(flags["nav_work_orders"])
         self.assertFalse(flags["nav_reception"])
+        self.assertFalse(flags["nav_leases"])
+
+    def test_service_desk_supply_nav_hides_leases(self):
+        desk = User.objects.create_user(
+            username="nsd", email="nsd@test.az", password="x", role=Role.SERVICE_DESK, is_staff=True
+        )
+        flags = build_nav_flags(desk)
+        self.assertTrue(flags["nav_property"])
+        self.assertFalse(flags["nav_leases"])
 
     def test_context_processor_exposes_nav(self):
         from django.contrib.sessions.middleware import SessionMiddleware
@@ -97,7 +114,8 @@ class NavFlagsTests(TestCase):
         req.session.save()
         ctx = role_context(req)
         self.assertTrue(ctx["nav_crm"])
-        self.assertIn("nav_workspaces", ctx)
+        self.assertFalse(ctx.get("nav_show_workspace_switcher"))
+        self.assertEqual(ctx.get("nav_workspaces"), [])
 
 
 @override_settings(DEBUG=True)

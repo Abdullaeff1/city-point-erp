@@ -1,0 +1,161 @@
+{% extends "finance/base.html" %}
+{% load i18n %}
+{% block heading %}{{ invoice.code }}{% endblock %}
+{% block back_trail %} · <a href="{% url 'finance:payables' %}">{% translate "Podratçı fakturaları" %}</a>{% endblock %}
+{% block content %}
+<div class="cp-card p-card mb-4">
+  <div class="flex gap-3" style="flex-wrap:wrap;">
+    <div style="flex:1 1 160px;"><div class="cp-meta">{% translate "Podratçı" %}</div><div>{{ invoice.supplier_party.display_name }}</div></div>
+    <div style="flex:1 1 120px;"><div class="cp-meta">{% translate "Faktura №" %}</div><div>{{ invoice.supplier_invoice_no }}</div></div>
+    <div style="flex:1 1 120px;"><div class="cp-meta">{% translate "Tarix" %}</div><div>{{ invoice.invoice_date }}</div></div>
+    <div style="flex:1 1 120px;"><div class="cp-meta">{% translate "Status" %}</div><div>{{ invoice.get_status_display }}</div></div>
+    <div style="flex:1 1 120px;"><div class="cp-meta">{% translate "Valyuta" %}</div><div>{{ invoice.currency }}</div></div>
+  </div>
+  {% if invoice.hold_reason %}<p class="cp-meta mt-3" style="color:var(--cp-danger);">{{ invoice.hold_reason }}</p>{% endif %}
+  {% if invoice.journal_entry_id %}
+  <p class="mt-2"><a href="{% url 'finance:journal_detail' code=invoice.journal_entry.code %}">{{ invoice.journal_entry.code }}</a>
+    {% if invoice.journal_entry.posted %}· {% translate "posted" %}{% else %}· {% translate "unposted" %}{% endif %}
+  </p>
+  {% endif %}
+</div>
+
+<div class="cp-card p-card mb-4" style="overflow-x:auto;">
+  <div class="cp-section">{% translate "Uyğunlaşdırma" %}</div>
+  <table class="cp-table mt-2">
+    <thead>
+      <tr>
+        <th>{% translate "PO" %}</th>
+        <th>{% translate "Sifariş" %}</th>
+        <th>{% translate "Qəbul" %}</th>
+        <th>{% translate "Əvvəl rezerv" %}</th>
+        <th>{% translate "Mövcud" %}</th>
+        <th>{% translate "Faktura" %}</th>
+        <th>{% translate "Variance" %}</th>
+        <th>{% translate "Qiymət" %}</th>
+        <th>{% translate "Net" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in line_rows %}
+      <tr>
+        <td>{{ row.line.po_line.po.code }} · {{ row.line.description|default:row.line.po_line.description }}</td>
+        <td>{{ row.ordered }}</td>
+        <td>{{ row.received }}</td>
+        <td>{{ row.previously_reserved }}</td>
+        <td>{{ row.available }}</td>
+        <td>{{ row.qty_invoiced }}</td>
+        <td>{% if row.over %}<strong>{{ row.variance }}</strong>{% else %}{{ row.variance }}{% endif %}</td>
+        <td>{{ row.unit_price }}</td>
+        <td>{{ row.line_net }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if invoice.status == "recognized" %}
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Kreditor uzlaşma (ops vs posted)" %}</div>
+  <p class="mt-2">
+    {% translate "Brüt" %}: {{ recon.gross }} {{ invoice.currency }}
+    · {% translate "Settlement" %}: {{ recon.settled }}
+    · {% translate "Əməliyyat açıq" %}: <strong>{{ recon.ops }}</strong>
+    · {% translate "Posted AP" %}: <strong>{{ recon.posted }}</strong>
+    {% if recon.diff %}<span class="cp-meta"> · Δ {{ recon.diff }}</span>{% endif %}
+  </p>
+  <ul class="cp-meta mt-2" style="padding-left:1.2rem;">
+    {% for exp in recon.explanations %}
+    <li>{{ exp }}</li>
+    {% endfor %}
+  </ul>
+  {% if open_auth_amount %}
+  <p class="cp-meta mt-2">{% translate "Təsdiq/sorğu rezervi" %}: {{ open_auth_amount }} · {% translate "Yenə sorğu oluna bilər" %}: {{ authorizable_amount }}</p>
+  {% endif %}
+  {% if pending_supplier_payment %}
+  <div class="mt-3">
+    <p class="cp-meta">{% translate "Gözləyən ödəniş sorğusu" %}: {{ pending_supplier_payment.payload.amount }} ({{ pending_supplier_payment.payload.method }})</p>
+    {% if can_mutate %}
+    <form method="post" class="flex gap-2 mt-2" style="flex-wrap:wrap;align-items:flex-end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="cancel_pay_auth">
+      <input type="hidden" name="approval_id" value="{{ pending_supplier_payment.pk }}">
+      <label><span class="cp-meta">{% translate "Ləğv səbəbi" %}</span><input class="cp-input mt-1" name="reason" required placeholder="{% translate 'Transfer ləğv / səhv məbləğ…' %}"></label>
+      <button class="cp-btn-ghost" type="submit">{% translate "Sorğunu ləğv et" %}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% if approved_awaiting_settle %}
+  <div class="cp-section mt-3">{% translate "Təsdiqlənmiş — settlement gözləyir" %}</div>
+  {% for req in approved_awaiting_settle %}
+  <div class="mt-2" style="border-top:1px solid var(--cp-border, #ddd);padding-top:0.75rem;">
+    <form method="post" class="flex gap-2" style="flex-wrap:wrap;align-items:flex-end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="settle_pay">
+      <input type="hidden" name="approval_id" value="{{ req.pk }}">
+      <input type="hidden" name="amount" value="{{ req.payload.amount }}">
+      <span class="cp-meta">{{ req.payload.amount }} {{ invoice.currency }}</span>
+      <label><span class="cp-meta">{% translate "Settlement tarixi" %}</span><input class="cp-input mt-1" type="date" name="paid_at" required></label>
+      <label><span class="cp-meta">{% translate "Bank ref (sübut)" %}</span><input class="cp-input mt-1" name="reference" required placeholder="TRX-…"></label>
+      <label><span class="cp-meta">{% translate "Metod" %}</span><input class="cp-input mt-1" name="method" value="{{ req.payload.method|default:'bank' }}"></label>
+      {% if can_mutate %}
+      <button class="cp-btn" type="submit">{% translate "Settlement qeyd et" %}</button>
+      {% endif %}
+    </form>
+    {% if can_mutate %}
+    <form method="post" class="flex gap-2 mt-2" style="flex-wrap:wrap;align-items:flex-end;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="cancel_pay_auth">
+      <input type="hidden" name="approval_id" value="{{ req.pk }}">
+      <label><span class="cp-meta">{% translate "Uğursuz/ləğv səbəbi" %}</span><input class="cp-input mt-1" name="reason" required placeholder="{% translate 'Bank rədd / transfer baş tutmadı…' %}"></label>
+      <button class="cp-btn-ghost" type="submit">{% translate "İcazəni ləğv et (rezerv burax)" %}</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+  <table class="cp-table mt-3">
+    <thead><tr><th>{% translate "Tarix" %}</th><th>{% translate "Məbləğ" %}</th><th>{% translate "Metod / ref" %}</th><th>{% translate "JE" %}</th></tr></thead>
+    <tbody>
+      {% for p in supplier_payments %}
+      <tr>
+        <td>{{ p.paid_at }}</td>
+        <td>{{ p.amount }} {{ p.currency }}</td>
+        <td>{{ p.method }} · {{ p.reference|default:"—" }}</td>
+        <td>{% if p.journal_entry_id %}<a href="{% url 'finance:journal_detail' code=p.journal_entry.code %}">{{ p.journal_entry.code }}</a>{% if p.journal_entry.posted %} · posted{% else %} · unposted{% endif %}{% else %}—{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="cp-meta">{% translate "Ödəniş yoxdur" %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if can_mutate %}
+<div class="flex gap-2" style="flex-wrap:wrap;align-items:flex-end;">
+  {% if invoice.status == "draft" %}
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="validate"><button class="cp-btn" type="submit">{% translate "Yoxla / Match" %}</button></form>
+  {% endif %}
+  {% if invoice.status == "hold" %}
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="revalidate"><button class="cp-btn" type="submit">{% translate "Yenidən yoxla (qəbuldan sonra)" %}</button></form>
+  {% endif %}
+  {% if invoice.status == "matched" %}
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="recognize"><button class="cp-btn" type="submit" {% if recognition_block %}disabled title="{{ recognition_block }}"{% endif %}>{% translate "AP tanı (JE)" %}</button></form>
+  {% if recognition_block %}<p class="cp-meta" style="flex:1 1 100%;">{{ recognition_block }}</p>{% endif %}
+  {% endif %}
+  {% if invoice.status == "recognized" and not pending_supplier_payment and authorizable_amount > 0 %}
+  <form method="post" class="flex gap-2" style="flex-wrap:wrap;align-items:flex-end;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="request_pay">
+    <label><span class="cp-meta">{% translate "Ödəniş məbləği" %}</span><input class="cp-input mt-1" name="amount" value="{{ authorizable_amount }}" required></label>
+    <label><span class="cp-meta">{% translate "Metod" %}</span><input class="cp-input mt-1" name="method" value="bank"></label>
+    <button class="cp-btn" type="submit">{% translate "Ödəniş sorğusu" %}</button>
+  </form>
+  {% endif %}
+  {% if invoice.status != "void" %}
+  <form method="post">{% csrf_token %}<input type="hidden" name="action" value="void"><button class="cp-btn-ghost" type="submit">{% translate "Void" %}</button></form>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

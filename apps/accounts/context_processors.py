@@ -57,6 +57,9 @@ def role_context(request):
     if user and user.is_authenticated and role == Role.RESIDENT_USER:
         scope = get_portal_scope(request)
         if scope:
+            from apps.comms.links import user_notifications
+
+            unread = len(user_notifications(user, namespace="portal", limit=None, company_ids=scope.company_ids, unread_only=True))
             portal_scope_mode = scope.mode
             if scope.mode == MODE_ALL:
                 portal_scope_label = f"Bütün şirkətlər ({len(scope.company_ids)})"
@@ -69,6 +72,19 @@ def role_context(request):
 
             portal_can_switch_company = len(eligible_company_ids_for(user)) > 1
 
+    mgmt_nav_groups: list = []
+    if is_management and user and user.is_authenticated:
+        from apps.accounts.mgmt_nav import build_management_nav
+
+        url_name = None
+        if getattr(request, "resolver_match", None):
+            url_name = request.resolver_match.url_name
+        mgmt_nav_groups = build_management_nav(
+            user,
+            url_name=url_name,
+            query=getattr(request, "GET", None),
+        )
+
     return {
         "unread_alerts": unread,
         "open_rapid_alerts": open_rapid_alerts,
@@ -78,6 +94,7 @@ def role_context(request):
         **nav_flags,
         "is_management": is_management,
         "is_adminish": is_adminish,
+        "mgmt_nav_groups": mgmt_nav_groups,
         "nav_role_switch": can_switch,
         "role_switch_targets": role_targets,
         "is_impersonating": impersonating,

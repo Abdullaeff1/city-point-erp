@@ -195,7 +195,7 @@
             <label class="cp-meta" style="display:flex;align-items:center;gap:8px;margin-top:2px;">
               {{ form.id_document_held }} {{ form.id_document_held.label }}
             </label>
-            <label id="walk-in-card-wrap">
+            <label id="walk-in-card-wrap" hidden>
               <span class="cp-meta">{{ form.guest_card_number.label }}</span>
               <div class="mt-1">{{ form.guest_card_number }}</div>
               {% if form.guest_card_number.help_text %}<span class="cp-meta" style="display:block;font-size:12px;">{{ form.guest_card_number.help_text }}</span>{% endif %}
@@ -355,8 +355,8 @@
         <td class="cp-cell-clip" title="{{ v.host.full_name|default:'—' }}">{{ v.host.full_name|default:"—" }}</td>
         <td class="cp-cell-clip" title="{{ v.visit_type.name|default:'—' }}">{{ v.visit_type.name|default:"—" }}</td>
         <td class="cp-cell-clip" title="{{ v.check_in_at|date:'H:i'|default:'—' }}">{{ v.check_in_at|date:"H:i"|default:"—" }}</td>
-        <td class="cp-cell-clip" title="{% if v.status == 'return_pending' and v.check_out_at %}{% translate 'Elektron çıxış' %}: {{ v.check_out_at|date:'H:i' }}{% else %}{{ v.check_out_at|date:'H:i'|default:'—' }}{% endif %}">
-          {% if v.check_out_at %}{{ v.check_out_at|date:"H:i" }}{% else %}<span class="cp-meta">{% translate "Naməlum" %}</span>{% endif %}
+        <td class="cp-cell-clip" title="{{ v.check_out_at|date:'H:i'|default:'—' }}">
+          {% if v.check_out_at %}{{ v.check_out_at|date:"H:i" }}{% else %}—{% endif %}
         </td>
         <td class="cp-cell-clip" title="{% if v.status == 'return_pending' %}{% translate 'Çıxış var; vəsiqə hələ Reception-dadır' %}{% else %}{{ v.id_document_label }}{% endif %}">
           {% if v.status == "return_pending" %}{% translate "Çıxış · vəsiqə gözləyir" %}{% else %}{{ v.id_document_label }}{% endif %}
@@ -380,8 +380,8 @@
             <form method="post" action="{% url 'erp:reception_status' v.pk %}" class="flex-col gap-2 mt-2" style="min-width:220px;">
               {% csrf_token %}
               <input class="cp-input" name="fin_code" placeholder="{% translate 'Seriya № (istəyə bağlı)' %}">
-              <label class="cp-meta guest-card-toggle"><input type="checkbox" name="id_document_held" class="js-id-held"> {% translate "Vəsiqə saxlanıldı" %}</label>
-              <label class="js-card-wrap">
+              <label class="cp-meta guest-card-toggle"><input type="checkbox" name="id_document_held" class="js-id-held"> {% translate "Vəsiqə qəbul olundu" %}</label>
+              <label class="js-card-wrap" hidden>
                 <span class="cp-meta">{% translate "Qonaq kartı № (istəyə bağlı)" %}</span>
                 <input class="cp-input mt-1" name="guest_card_number" placeholder="{% translate 'Kart nömrəsi' %}" autocomplete="off">
               </label>
@@ -797,8 +797,12 @@
     const wrap = document.getElementById("walk-in-card-wrap");
     const card = document.getElementById("id_guest_card_number");
     const fin = document.getElementById("id_fin_code");
-    if (wrap) wrap.hidden = false;
-    if (card) card.required = false;
+    const showCard = !!(held && held.checked);
+    if (wrap) wrap.hidden = !showCard;
+    if (card) {
+      card.required = false;
+      if (!showCard) card.value = "";
+    }
     if (fin && held) fin.required = held.checked;
   }
   const heldCb = document.getElementById("id_id_document_held");
@@ -813,8 +817,11 @@
     const input = wrap && wrap.querySelector('input[name="guest_card_number"]');
     const fin = form && form.querySelector('input[name="fin_code"]');
     function sync() {
-      if (wrap) wrap.hidden = false;
-      if (input) input.required = false;
+      if (wrap) wrap.hidden = !cb.checked;
+      if (input) {
+        input.required = false;
+        if (!cb.checked) input.value = "";
+      }
       if (fin) fin.required = cb.checked;
     }
     cb.addEventListener("change", sync);

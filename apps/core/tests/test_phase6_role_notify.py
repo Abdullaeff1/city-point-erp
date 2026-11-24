@@ -62,7 +62,7 @@ class Phase6NotifyLinkAcceptanceTests(TestCase):
         )
         self.fm = User.objects.create_user(
             username="p6-fm", email="p6-fm@test.az", password="x",
-            role=Role.PROPERTY_FM, is_staff=True, ticket_department=self.fm_dept,
+            role=Role.SERVICE_DESK, is_staff=True, ticket_department=self.fm_dept,
         )
         self.desk = User.objects.create_user(
             username="p6-desk", email="p6-desk@test.az", password="x",
@@ -90,7 +90,7 @@ class Phase6NotifyLinkAcceptanceTests(TestCase):
         self.sku = SKU.objects.create(code="P6-SKU", name="Part", unit="ədəd")
         Stock.objects.create(sku=self.sku, warehouse=self.wh, quantity=Decimal("10"))
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             defaults={"max_amount": Decimal("1000"), "is_active": True},
         )
 

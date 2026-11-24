@@ -69,6 +69,9 @@ class ResidentCompany(models.Model):
     manager_phone = models.CharField(max_length=64, blank=True, verbose_name=_("Rəhbər telefon"))
     manager_email = models.EmailField(blank=True, verbose_name=_("Rəhbər email"))
     contact_person_name = models.CharField(max_length=160, blank=True, verbose_name=_("Əlaqəli şəxs"))
+    contact_person_position = models.CharField(
+        max_length=120, blank=True, verbose_name=_("Əlaqəli şəxs vəzifəsi")
+    )
     contact_person_phone = models.CharField(max_length=64, blank=True, verbose_name=_("Əlaqə telefon"))
     contact_person_email = models.EmailField(blank=True, verbose_name=_("Əlaqə email"))
 
@@ -170,7 +173,14 @@ class ResidentEmployee(models.Model):
         max_length=8,
         choices=AccessLevel.choices,
         default=AccessLevel.LEVEL_1,
-        help_text="AxTraxNG access group: 1 = turn_back yox; 2 = turn_back icazəli",
+        help_text="AxTraxNG access group (faktiki): 1 = turn_back yox; 2 = turn_back icazəli",
+    )
+    requested_access_level = models.CharField(
+        max_length=8,
+        choices=AccessLevel.choices,
+        blank=True,
+        default="",
+        help_text="Portal kart sifarişində istənilən səviyyə (AxTrax sync ilə dəyişmir)",
     )
     card_order_status = models.CharField(
         max_length=16,

@@ -24,6 +24,8 @@ NAV_PERMISSION_MAP: dict[str, tuple[str, ...]] = {
     "nav_property": ("space.view",),
     "nav_building_assets": ("property.asset.view", "space.view"),
     "nav_residents": ("resident.view",),
+    "nav_resident_directory": ("resident.directory.view", "resident.view"),
+    "nav_leases": ("lease.view",),
     "nav_docs": ("document.view",),
     "nav_reports": ("report.view",),
     "nav_approvals": ("approval.view",),
@@ -38,7 +40,7 @@ NAV_PERMISSION_MAP: dict[str, tuple[str, ...]] = {
     "nav_parties": ("party.view",),
 }
 
-# Ordered workspaces for landing fallback + sidebar switcher.
+# Ordered department homes for landing fallback only (sidebar switcher removed).
 WORKSPACE_CATALOG: tuple[dict, ...] = (
     {
         "key": "management",
@@ -69,18 +71,25 @@ WORKSPACE_CATALOG: tuple[dict, ...] = (
         "roles_prefer": (Role.SECURITY,),
     },
     {
+        "key": "supply",
+        "label": _("Təchizat şöbəsi"),
+        "url_name": "erp:supply_dashboard",
+        "perms": ("ticket.view", "work_order.view"),
+        "roles_prefer": (Role.SERVICE_DESK,),
+    },
+    {
         "key": "facility",
         "label": _("Obyekt idarəetməsi"),
-        "url_name": "erp:facility_dashboard",
+        "url_name": "erp:supply_dashboard",
         "perms": ("space.view",),
-        "roles_prefer": (Role.PROPERTY_FM,),
+        "roles_prefer": (),
     },
     {
         "key": "helpdesk",
         "label": _("Helpdesk"),
-        "url_name": "erp:helpdesk_dashboard",
+        "url_name": "erp:supply_dashboard",
         "perms": ("ticket.view",),
-        "roles_prefer": (Role.SERVICE_DESK,),
+        "roles_prefer": (),
     },
     {
         "key": "finance",
@@ -117,10 +126,9 @@ ROLE_PREFERRED_LANDING: dict[str, tuple[str, tuple[str, ...]]] = {
     Role.MANAGEMENT: ("erp:dashboard", ("approval.view", "report.view")),
     Role.RECEPTION: ("erp:reception", ("reception.view", "reception.manage")),
     Role.SECURITY: ("security:home", ("security.view",)),
-    Role.PROPERTY_FM: ("erp:facility_dashboard", ("space.view",)),
+    Role.SERVICE_DESK: ("erp:supply_dashboard", ("ticket.view", "work_order.view")),
     Role.SALES: ("erp:dashboard", ("crm.view",)),
     Role.ACCOUNTANT: ("finance:home", ("finance.view",)),
-    Role.SERVICE_DESK: ("erp:helpdesk_dashboard", ("ticket.view",)),
     Role.ADMIN: ("erp:it_dashboard", ()),  # admin bypass
 }
 
@@ -131,7 +139,7 @@ def build_nav_flags(user) -> dict:
     empty.update(
         {
             "nav_announcements": False,
-            "nav_leases": False,  # intentionally hidden — data on resident card
+            # Workspace switcher retired — kept empty for template/context BC.
             "nav_workspaces": [],
             "nav_show_workspace_switcher": False,
         }
@@ -142,7 +150,6 @@ def build_nav_flags(user) -> dict:
     flags = {key: _has(user, *codes) for key, codes in NAV_PERMISSION_MAP.items()}
     # Announcements: product helper (includes MANAGEMENT publish).
     flags["nav_announcements"] = bool(can_publish_announcement(user))
-    flags["nav_leases"] = False
 
     # CRM Admin-out (A.10): Admin has all perms but must not see CRM nav.
     if getattr(user, "role", None) == Role.ADMIN:
@@ -155,14 +162,19 @@ def build_nav_flags(user) -> dict:
     }:
         flags["nav_reception"] = False
 
-    workspaces = list_workspaces(user)
-    flags["nav_workspaces"] = workspaces
-    flags["nav_show_workspace_switcher"] = len(workspaces) > 1
+    # Supply portal operators do not need lease management in the sidebar.
+    from apps.accounts.supply import is_supply_portal_user
+
+    if flags.get("nav_leases") and is_supply_portal_user(user):
+        flags["nav_leases"] = False
+
+    flags["nav_workspaces"] = []
+    flags["nav_show_workspace_switcher"] = False
     return flags
 
 
 def list_workspaces(user) -> list[dict]:
-    """Workspaces the user may open (permission-filtered). Admin sees all."""
+    """Permission-filtered department homes for landing fallback (not a nav menu)."""
     if not user or not getattr(user, "is_authenticated", False):
         return []
     role = getattr(user, "role", None)

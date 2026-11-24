@@ -2,7 +2,15 @@
 {% load i18n %}
 {% block page_title %}{% translate "İcarələr" %}{% endblock %}
 {% block heading %}{% translate "İcarələr" %}{% endblock %}
+{% block breadcrumb_current %}{% if lease_filter == 'expiring' %}{% translate "Bitən icarələr" %}{% else %}{% translate "İcarələr" %}{% endif %}{% endblock %}
 {% block content %}
+<nav class="cp-filter-chips" aria-label="{% translate 'Süzgəc' %}">
+  <a href="{% url 'erp:leases' %}" class="{% if not lease_filter %}is-active{% endif %}">{% translate "Hamısı" %}</a>
+  <a href="{% url 'erp:leases' %}?filter=expiring" class="{% if lease_filter == 'expiring' %}is-active{% endif %}">{% translate "Bitən (90 gün)" %}</a>
+</nav>
+{% if lease_filter == 'expiring' %}
+<p class="cp-meta mb-3">{% translate "Aktiv / bitməkdə olan icarələr · end_date növbəti 90 gün · Asia/Baku." %}</p>
+{% endif %}
 <div class="cp-card">
   <table class="cp-table">
     <thead>

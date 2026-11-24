@@ -19,7 +19,7 @@ from apps.accounts.models import Role
 from apps.comms.models import BuildingProcedure
 from apps.erp.forms import BuildingProcedureForm
 
-_ALLOWED = (Role.ADMIN, Role.MANAGEMENT, Role.PROPERTY_FM)
+_ALLOWED = (Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK)
 
 
 class BuildingProcedureListView(RoleRequiredMixin, ListView):

@@ -8,7 +8,6 @@ ROLE_ORDER = (
     Role.RECEPTION,
     Role.SERVICE_DESK,
     Role.SECURITY,
-    Role.PROPERTY_FM,
     Role.MANAGEMENT,
     Role.ADMIN,
 )

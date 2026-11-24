@@ -100,7 +100,7 @@ class Phase5AuditNotifyTests(TestCase):
             username="p5-fm",
             email="p5-fm@test.az",
             password="x",
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             is_staff=True,
             ticket_department=self.fm_dept,
         )
@@ -166,7 +166,7 @@ class Phase5AuditNotifyTests(TestCase):
         self.supplier = Party.objects.create(legal_name="P5 Supplier")
         PartyRole.objects.get_or_create(party=self.supplier, role=PartyRoleCode.SUPPLIER)
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM,
+            role=Role.SERVICE_DESK,
             defaults={"max_amount": Decimal("1000"), "is_active": True},
         )
 

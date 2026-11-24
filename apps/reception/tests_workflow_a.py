@@ -143,10 +143,9 @@ class WorkflowAGuestAcceptanceTests(TestCase):
         self.assertEqual(closed.status, VisitStatus.LEFT)
         self.assertIsNotNone(closed.check_out_at)
         stamp = closed.check_out_at
-        with self.assertRaises(DomainError):
-            portal_check_out_visit(closed, actor=self.res_a, company=self.co_a)
-        closed.refresh_from_db()
-        self.assertEqual(closed.check_out_at, stamp)
+        # Repeated portal submission is idempotent (safe double-click)
+        again = portal_check_out_visit(closed, actor=self.res_a, company=self.co_a)
+        self.assertEqual(again.check_out_at, stamp)
 
     def test_D_other_company_and_multi_membership(self):
         guest = Guest.objects.create(first_name="Scope", last_name="Guest")
@@ -223,15 +222,17 @@ class WorkflowAGuestAcceptanceTests(TestCase):
             card_number="GK-900",
         )
         n = checkout_guests_from_access_events([event])
-        self.assertEqual(n, 1)
+        self.assertEqual(n, 0)
         visit.refresh_from_db()
-        self.assertEqual(visit.status, VisitStatus.LEFT)
-        self.assertEqual(visit.check_out_at, departed)
-        # Reprocess same event — no change
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
+        closed = ReceptionService.check_out_visit(
+            visit, actor=self.reception, id_returned=True, departed_at=departed
+        )
+        self.assertEqual(closed.status, VisitStatus.LEFT)
+        self.assertEqual(closed.actual_departure_at, departed)
+        self.assertIsNotNone(closed.check_out_recorded_at)
         n2 = checkout_guests_from_access_events([event, event])
         self.assertEqual(n2, 0)
-        visit.refresh_from_db()
-        self.assertEqual(visit.check_out_at, departed)
 
     def test_entry_or_wrong_card_does_not_close(self):
         guest = Guest.objects.create(first_name="Stay", last_name="Inside")
@@ -274,14 +275,17 @@ class WorkflowAGuestAcceptanceTests(TestCase):
             check_in_at=t0,
         )
         create_visitor_access(visit_a, credential="SHARED-1")
-        # Close A via turnstile at t1
+        # Close A via Reception (AxTrax OUT does not finalize card return)
         ev_a = AccessEvent.objects.create(
             event_type=AccessEventType.OUT,
             result=AccessResult.GRANTED,
             occurred_at=t1,
             card_number="SHARED-1",
         )
-        self.assertEqual(checkout_guests_from_access_events([ev_a]), 1)
+        self.assertEqual(checkout_guests_from_access_events([ev_a]), 0)
+        ReceptionService.check_out_visit(
+            visit_a, actor=self.reception, id_returned=True, departed_at=t1
+        )
         visit_a.refresh_from_db()
         self.assertEqual(visit_a.status, VisitStatus.LEFT)
         access_a = visit_a.visitor_access
@@ -297,7 +301,6 @@ class WorkflowAGuestAcceptanceTests(TestCase):
             check_in_at=t2,
         )
         create_visitor_access(visit_b, credential="SHARED-1")
-        # Delayed/replayed exit belonging to A's interval
         late_a = AccessEvent.objects.create(
             event_type=AccessEventType.OUT,
             result=AccessResult.GRANTED,
@@ -307,17 +310,21 @@ class WorkflowAGuestAcceptanceTests(TestCase):
         self.assertEqual(checkout_guests_from_access_events([late_a]), 0)
         visit_b.refresh_from_db()
         self.assertEqual(visit_b.status, VisitStatus.INSIDE)
-        # Genuine B exit at t3
         ev_b = AccessEvent.objects.create(
             event_type=AccessEventType.OUT,
             result=AccessResult.GRANTED,
             occurred_at=t3,
             card_number="SHARED-1",
         )
-        self.assertEqual(checkout_guests_from_access_events([ev_b]), 1)
+        self.assertEqual(checkout_guests_from_access_events([ev_b]), 0)
+        visit_b.refresh_from_db()
+        self.assertEqual(visit_b.status, VisitStatus.INSIDE)
+        ReceptionService.check_out_visit(
+            visit_b, actor=self.reception, id_returned=True, departed_at=t3
+        )
         visit_b.refresh_from_db()
         self.assertEqual(visit_b.status, VisitStatus.LEFT)
-        self.assertEqual(visit_b.check_out_at, t3)
+        self.assertEqual(visit_b.actual_departure_at, t3)
 
     def test_ambiguity_preserves_open_visit(self):
         # Two ACTIVE assignments with overlapping intervals for same card → no auto close.
@@ -397,10 +404,19 @@ class WorkflowAGuestAcceptanceTests(TestCase):
             occurred_at=departed,
             card_number="ID-1",
         )
-        self.assertEqual(checkout_guests_from_access_events([ev]), 1)
+        self.assertEqual(checkout_guests_from_access_events([ev]), 0)
+        visit.refresh_from_db()
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
+        ReceptionService.check_out_visit(
+            visit,
+            actor=self.reception,
+            id_returned=False,
+            allow_return_pending=True,
+            departed_at=departed,
+        )
         visit.refresh_from_db()
         self.assertEqual(visit.status, VisitStatus.RETURN_PENDING)
-        self.assertEqual(visit.check_out_at, departed)
+        self.assertEqual(visit.actual_departure_at, departed)
         self.assertTrue(visit.id_document_held)
         self.client.force_login(self.reception)
         page = self.client.get(reverse("erp:reception"), {"status": "id_pending"})
@@ -461,7 +477,12 @@ class WorkflowAGuestAcceptanceTests(TestCase):
             occurred_at=departed,
             card_number="SYNC-44",
         )
-        self.assertEqual(checkout_guests_from_access_events([event]), 1)
+        self.assertEqual(checkout_guests_from_access_events([event]), 0)
+        visit.refresh_from_db()
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
+        ReceptionService.check_out_visit(
+            visit, actor=self.reception, id_returned=False, allow_return_pending=True
+        )
         visit.refresh_from_db()
         self.assertEqual(visit.status, VisitStatus.RETURN_PENDING)
         self.assertEqual(checkout_guests_from_access_events([event]), 0)

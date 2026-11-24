@@ -29,6 +29,7 @@ from apps.erp.warehouse_views import (
     WarehouseSkuDetailView,
 )
 from apps.erp.stocktake_views import StocktakeDetailView, StocktakeListView
+from apps.erp.correspondence_views import CorrespondenceDetailView, CorrespondenceListView
 from apps.erp.procurement_views import (
     ProcurementListView,
     ProcurementPODetailView,
@@ -45,6 +46,11 @@ app_name = "erp"
 urlpatterns = [
     path("", views.DashboardView.as_view(), name="dashboard"),
     path(
+        "dashboards/supply/",
+        dashboard_views.SupplyDashboardView.as_view(),
+        name="supply_dashboard",
+    ),
+    path(
         "dashboards/facility/",
         dashboard_views.FacilityDashboardView.as_view(),
         name="facility_dashboard",
@@ -53,6 +59,16 @@ urlpatterns = [
         "dashboards/helpdesk/",
         dashboard_views.HelpdeskDashboardView.as_view(),
         name="helpdesk_dashboard",
+    ),
+    path(
+        "directory/residents/",
+        resident_views.ResidentDirectoryListView.as_view(),
+        name="resident_directory",
+    ),
+    path(
+        "directory/residents/<slug:slug>/",
+        resident_views.ResidentDirectoryDetailView.as_view(),
+        name="resident_directory_detail",
     ),
     path(
         "dashboards/hr/",
@@ -374,6 +390,16 @@ urlpatterns = [
         name="document_download",
     ),
     path(
+        "correspondence/",
+        CorrespondenceListView.as_view(),
+        name="correspondence_list",
+    ),
+    path(
+        "correspondence/<int:pk>/",
+        CorrespondenceDetailView.as_view(),
+        name="correspondence_detail",
+    ),
+    path(
         "announcements/",
         announcement_views.AnnouncementListView.as_view(),
         name="announcements",
@@ -420,6 +446,11 @@ urlpatterns = [
     ),
     path("reports/", views.ReportsView.as_view(), name="reports"),
     path("reports/export.xlsx", views.ReportsExportView.as_view(), name="reports_export"),
+    path(
+        "reports/drill/<str:section>/",
+        views.ReportsDrillView.as_view(),
+        name="reports_drill",
+    ),
     path("reports/sla/", views.SlaReportView.as_view(), name="sla_report"),
     path(
         "reports/sla/export.xlsx",

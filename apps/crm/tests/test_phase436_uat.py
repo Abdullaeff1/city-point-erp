@@ -424,13 +424,13 @@ class Phase436ProcurementScopeTests(TestCase):
     def setUp(self):
         seed_rbac_catalog()
         self.fm = User.objects.create_user(
-            username="fm436", email="fm436@test.az", password="x", role=Role.PROPERTY_FM, is_staff=True
+            username="fm436", email="fm436@test.az", password="x", role=Role.SERVICE_DESK, is_staff=True
         )
         self.admin = User.objects.create_user(
             username="adm436", email="adm436@test.az", password="x", role=Role.ADMIN, is_staff=True, is_superuser=True
         )
         PurchaseApprovalLimit.objects.update_or_create(
-            role=Role.PROPERTY_FM, defaults={"max_amount": Decimal("100"), "is_active": True}
+            role=Role.SERVICE_DESK, defaults={"max_amount": Decimal("100"), "is_active": True}
         )
         from apps.maintenance.models import WorkOrder, WorkOrderPriority, WorkOrderStatus
         from apps.maintenance.services import next_wo_code

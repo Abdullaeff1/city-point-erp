@@ -33,7 +33,7 @@ from apps.property.models import (
 class DrawingManagerMixin(RoleRequiredMixin):
     """Only Admin + Property/FM (explicitly excludes Management-only for drawing ops)."""
 
-    allowed_roles = (Role.PROPERTY_FM,)
+    allowed_roles = (Role.SERVICE_DESK,)
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:

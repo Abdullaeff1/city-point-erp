@@ -7,7 +7,7 @@
   <form method="get" class="flex-wrap gap-2" style="display:flex;align-items:end;gap:12px;flex-wrap:wrap;">
     <label>
       <span class="cp-meta">{% translate "Axtarış" %}</span>
-      <input class="cp-input" type="search" name="q" value="{{ q }}" placeholder="PR / PO / təchizatçı…">
+      <input class="cp-input" type="search" name="q" value="{{ q }}" placeholder="PR / PO / podratçı…">
     </label>
     <label>
       <span class="cp-meta">{% translate "Mənbə" %}</span>
@@ -30,7 +30,7 @@
     <button class="cp-btn" type="submit">{% translate "Filter" %}</button>
     {% if can_edit_procurement %}
     <a class="cp-btn" href="{% url 'erp:procurement_pr_create' %}">{% translate "Yeni PR" %}</a>
-    <a class="cp-btn-ghost" href="{% url 'erp:procurement_suppliers' %}">{% translate "Təchizatçılar" %}</a>
+    <a class="cp-btn-ghost" href="{% url 'erp:procurement_suppliers' %}">{% translate "Podratçılar" %}</a>
     {% endif %}
   </form>
 </div>
@@ -70,7 +70,7 @@
               <input type="hidden" name="pr_id" value="{{ pr.id }}">
               <input type="hidden" name="submit_token" value="{{ submit_token }}-po-{{ pr.id }}">
               <select class="cp-input" name="supplier_party_id" required>
-                <option value="">{% translate "Təchizatçı…" %}</option>
+                <option value="">{% translate "Podratçı…" %}</option>
                 {% for s in suppliers %}
                 <option value="{{ s.id }}">{{ s.display_name }}</option>
                 {% endfor %}

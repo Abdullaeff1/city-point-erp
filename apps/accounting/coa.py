@@ -1,4 +1,9 @@
-"""Named CoA role → account code mapping (A.6). Codes are 3-digit international style."""
+"""Named CoA role → account code mapping (A.6).
+
+Default codes are the synthetic 3-digit placeholder chart. Finance may override
+via Django setting ACCOUNTING_ROLE_CODES = {"ar": "115", ...} after importing
+the real chart. code_for() always resolves through that merge.
+"""
 
 from __future__ import annotations
 
@@ -32,5 +37,19 @@ DEFAULT_COA_ROWS = [
 ]
 
 
+def role_codes() -> dict[str, str]:
+    """Merged role→code map (settings override wins)."""
+    codes = dict(DEFAULT_ROLE_CODES)
+    try:
+        from django.conf import settings
+
+        override = getattr(settings, "ACCOUNTING_ROLE_CODES", None) or {}
+        if isinstance(override, dict):
+            codes.update({str(k): str(v) for k, v in override.items() if k and v})
+    except Exception:  # noqa: BLE001 — settings may be unconfigured in import-time tools
+        pass
+    return codes
+
+
 def code_for(role: str) -> str:
-    return DEFAULT_ROLE_CODES.get(role, role)
+    return role_codes().get(role, role)

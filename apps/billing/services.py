@@ -40,12 +40,15 @@ def generate_invoice_from_charges(party, charge_ids, *, apply_vat: bool = True) 
 
     Phase 4.3: deposit charges must not mix with rent/service/other on one invoice.
     """
+    # Lock in pk order to avoid deadlocks when two operators invoice overlapping sets.
     charges = list(
-        Charge.objects.select_for_update().filter(
+        Charge.objects.select_for_update()
+        .filter(
             party=party,
             pk__in=list(charge_ids),
             invoice__isnull=True,
         )
+        .order_by("pk")
     )
     if not charges:
         raise ValueError("No uninvoiced charges found for party")
@@ -313,6 +316,24 @@ def apply_penalty_charge(invoice: Invoice, *, amount, description: str = "") -> 
 
 def invoice_balance(invoice: Invoice) -> Decimal:
     paid = sum((p.amount for p in invoice.payments.all()), Decimal("0"))
+    return (invoice.total or Decimal("0")) - paid
+
+
+def invoice_balance_as_of(invoice: Invoice, as_of) -> Decimal:
+    """Operational balance reconstructed by issue_date / paid_at (Asia/Baku dates).
+
+    DRAFT/VOID → 0. Payments counted only when paid_at <= as_of.
+    """
+    if invoice.status == InvoiceStatus.VOID:
+        return Decimal("0")
+    if invoice.status == InvoiceStatus.DRAFT:
+        return Decimal("0")
+    if not invoice.issue_date or invoice.issue_date > as_of:
+        return Decimal("0")
+    paid = sum(
+        (p.amount or Decimal("0") for p in invoice.payments.all() if p.paid_at and p.paid_at <= as_of),
+        Decimal("0"),
+    )
     return (invoice.total or Decimal("0")) - paid
 
 

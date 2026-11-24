@@ -1,0 +1,36 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Rezident şirkətlər" %}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3">{% translate "Yalnız biznes əlaqə və ofis məlumatı — hüquqi / bank / şəxsiyyət məlumatı göstərilmir." %}</p>
+<form method="get" class="flex gap-2 mb-4" style="flex-wrap:wrap;">
+  <input class="cp-input" type="search" name="q" value="{{ q }}" placeholder="{% translate 'Şirkət, ofis və ya mərtəbə…' %}" style="min-width:220px;flex:1;">
+  <button class="cp-btn" type="submit">{% translate "Axtar" %}</button>
+</form>
+<div class="grid gap-3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
+  {% for card in cards %}
+  <a class="cp-card p-card" href="{% url 'erp:resident_directory_detail' card.company.slug %}" style="text-decoration:none;color:inherit;">
+    <div class="cp-section" style="margin:0;">{{ card.company.name }}</div>
+    {% if card.contact_name %}
+    <div class="mt-2"><span class="cp-meta">{% translate "Əlaqə" %}</span>
+      <div>{{ card.contact_name }}{% if card.contact_position %} · {{ card.contact_position }}{% endif %}</div>
+      {% if card.contact_phone %}<div class="cp-meta">{{ card.contact_phone }}</div>{% endif %}
+      {% if card.contact_email %}<div class="cp-meta">{{ card.contact_email }}</div>{% endif %}
+    </div>
+    {% endif %}
+    {% if card.offices %}
+    <div class="mt-2">
+      <span class="cp-meta">{% translate "Ofislər" %}</span>
+      <ul style="margin:0.35rem 0 0;padding-left:1.1rem;">
+        {% for o in card.offices %}
+        <li>{{ o.label }} · {% translate "Mərtəbə" %} {{ o.floor }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </a>
+  {% empty %}
+  <p class="cp-meta">{% translate "Nəticə yoxdur." %}</p>
+  {% endfor %}
+</div>
+{% endblock %}

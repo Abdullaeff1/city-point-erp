@@ -125,35 +125,47 @@ class ReceptionServiceTests(TestCase):
         self.assertEqual(visit.check_in_at, check_in)
         self.assertIsNone(visit.check_out_at)
 
-    def test_walk_in_without_id_requires_override(self):
-        with self.assertRaises(DomainError):
-            ReceptionService.register_walk_in(
-                fin_code="7A3B2C1D2K",
-                first_name="Ali",
-                last_name="Veli",
-                company=self.company,
-                host=self.host,
-                visit_type=self.vtype,
-                id_document_held=False,
-                actor=self.user,
-            )
+    def test_walk_in_without_id_ok_without_override(self):
+        """Vəsiqə giriş üçün məcburi deyil — kart yoxdursa override lazım deyil."""
         visit = ReceptionService.register_walk_in(
-            fin_code="7A3B2C1D2K",
+            fin_code="",
             first_name="Ali",
             last_name="Veli",
             company=self.company,
             host=self.host,
             visit_type=self.vtype,
             id_document_held=False,
-            allow_id_override=True,
-            id_override_reason="Vəsiqə yoxdur — rəhbər razılığı",
             actor=self.user,
         )
         self.assertEqual(visit.status, VisitStatus.INSIDE)
         self.assertTrue(visit.check_in_at)
         self.assertFalse(visit.id_document_held)
-        self.assertIn("rəhbər", visit.id_override_reason)
+        self.assertEqual(visit.id_override_reason, "")
         self.assertFalse(VisitorAccess.objects.filter(visit=visit).exists())
+
+    def test_walk_in_form_hides_card_until_id_held_and_allows_no_id(self):
+        client = Client()
+        client.login(email="reception@test.az", password="x")
+        page = client.get(reverse("erp:reception"))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "Vəsiqə qəbul olundu")
+        self.assertContains(page, 'id="walk-in-card-wrap" hidden')
+        self.assertNotContains(page, "walk-in-override-wrap")
+        ok = client.post(
+            reverse("erp:reception"),
+            {
+                "first_name": "NoId",
+                "last_name": "Guest",
+                "company": self.company.pk,
+                "host": self.host.pk,
+                "visit_type": self.vtype.pk,
+                "notes": "",
+            },
+        )
+        self.assertEqual(ok.status_code, 302)
+        visit = GuestVisit.objects.get(guest__first_name="NoId", guest__last_name="Guest")
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
+        self.assertFalse(visit.id_document_held)
 
     def test_check_in_requires_serial_when_id_held(self):
         visit = pre_register_visit(
@@ -218,23 +230,20 @@ class ReceptionServiceTests(TestCase):
         self.assertEqual(visit.visitor_access.status, VisitorAccessStatus.ACTIVE)
         self.assertEqual(visit.visitor_access.credential, "GK-1001")
 
-    def test_walk_in_card_without_id_with_override(self):
-        visit = ReceptionService.register_walk_in(
-            fin_code="",
-            first_name="Kart",
-            last_name="Only",
-            company=self.company,
-            host=self.host,
-            visit_type=self.vtype,
-            id_document_held=False,
-            allow_id_override=True,
-            id_override_reason="Kart verildi, vəsiqə yox",
-            guest_card_number="GK-ONLY-1",
-            actor=self.user,
-        )
-        self.assertFalse(visit.id_document_held)
-        self.assertEqual(visit.visitor_access.credential, "GK-ONLY-1")
-        self.assertEqual(visit.visitor_access.status, VisitorAccessStatus.ACTIVE)
+    def test_walk_in_card_without_id_rejected(self):
+        with self.assertRaises(DomainError) as ctx:
+            ReceptionService.register_walk_in(
+                fin_code="",
+                first_name="Kart",
+                last_name="Only",
+                company=self.company,
+                host=self.host,
+                visit_type=self.vtype,
+                id_document_held=False,
+                guest_card_number="GK-ONLY-1",
+                actor=self.user,
+            )
+        self.assertIn("vəsiqə", str(ctx.exception).lower())
 
     def test_fin_reuses_guest(self):
         g1 = ReceptionService.find_or_create_guest(
@@ -606,7 +615,7 @@ class ReceptionPermissionTests(TestCase):
             username="rec_perm", email="r@test.az", password="x", role=Role.RECEPTION
         )
         self.fm = User.objects.create_user(
-            username="fm_perm", email="fm@test.az", password="x", role=Role.PROPERTY_FM
+            username="fm_perm", email="fm@test.az", password="x", role=Role.SERVICE_DESK
         )
 
     def test_reception_has_granular_perms(self):
@@ -971,15 +980,13 @@ class GuestAccessEventCheckoutTests(TestCase):
         from apps.residents.models import AccessEvent, AccessEventType, AccessResult
 
         visit = ReceptionService.register_walk_in(
-            fin_code="",
+            fin_code="OU99887766",
             first_name="Out",
             last_name="Guest",
             company=self.company,
             host=self.host,
             visit_type=self.vtype,
-            id_document_held=False,
-            allow_id_override=True,
-            id_override_reason="test",
+            id_document_held=True,
             guest_card_number="GK-OUT-9",
             actor=self.user,
         )
@@ -990,10 +997,14 @@ class GuestAccessEventCheckoutTests(TestCase):
             card_number="GK-OUT-9",
         )
         n = checkout_guests_from_access_events([event])
-        self.assertEqual(n, 1)
+        self.assertEqual(n, 0)
+        visit.refresh_from_db()
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
+        self.assertIsNone(visit.check_out_at)
+        # Reception owns card return
+        ReceptionService.check_out_visit(visit, actor=self.user, id_returned=True)
         visit.refresh_from_db()
         self.assertEqual(visit.status, VisitStatus.LEFT)
-        self.assertTrue(visit.check_out_at)
 
     def test_checkout_id_held_goes_return_pending(self):
         from apps.reception.services import checkout_guests_from_access_events
@@ -1017,7 +1028,12 @@ class GuestAccessEventCheckoutTests(TestCase):
             card_number="GK-HELD-1",
         )
         n = checkout_guests_from_access_events([event])
-        self.assertEqual(n, 1)
+        self.assertEqual(n, 0)
+        visit.refresh_from_db()
+        self.assertEqual(visit.status, VisitStatus.INSIDE)
+        ReceptionService.check_out_visit(
+            visit, actor=self.user, id_returned=False, allow_return_pending=True
+        )
         visit.refresh_from_db()
         self.assertEqual(visit.status, VisitStatus.RETURN_PENDING)
 
@@ -1025,15 +1041,13 @@ class GuestAccessEventCheckoutTests(TestCase):
         from apps.integrations.axtrax_events_sync import sync_event_rows
 
         visit = ReceptionService.register_walk_in(
-            fin_code="",
+            fin_code="SY999001AA",
             first_name="Sync",
             last_name="Guest",
             company=self.company,
             host=self.host,
             visit_type=self.vtype,
-            id_document_held=False,
-            allow_id_override=True,
-            id_override_reason="sync",
+            id_document_held=True,
             guest_card_number="999001",
             actor=self.user,
         )
@@ -1055,6 +1069,6 @@ class GuestAccessEventCheckoutTests(TestCase):
             advance_cursor=False,
         )
         self.assertEqual(stats["created"], 1)
-        self.assertEqual(stats["guest_checkouts"], 1)
+        self.assertEqual(stats["guest_checkouts"], 0)
         visit.refresh_from_db()
-        self.assertEqual(visit.status, VisitStatus.LEFT)
+        self.assertEqual(visit.status, VisitStatus.INSIDE)

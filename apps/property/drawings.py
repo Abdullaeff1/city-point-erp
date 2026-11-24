@@ -31,13 +31,13 @@ DEFAULT_ACCESS_TTL_HOURS = 72
 def user_can_manage_space_drawings(user) -> bool:
     if not user or not getattr(user, "is_authenticated", False):
         return False
-    return user.role in {Role.ADMIN, Role.MANAGEMENT, Role.PROPERTY_FM}
+    return user.role in {Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK}
 
 
 def drawing_managers_qs():
     return User.objects.filter(
         is_active=True,
-        role__in=[Role.ADMIN, Role.MANAGEMENT, Role.PROPERTY_FM],
+        role__in=[Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK],
     )
 
 
