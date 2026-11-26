@@ -9,6 +9,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from apps.accounts.models import Role
+from apps.audit.models import AuditLog
 from apps.core.services import DomainError
 from apps.maintenance.models import WorkOrder, WorkOrderPriority, WorkOrderStatus
 from apps.maintenance.services import next_wo_code
@@ -20,7 +21,12 @@ from apps.procurement.models import (
     PurchaseRequest,
 )
 from apps.procurement.services import ProcurementService
-from apps.rbac.services import seed_rbac_catalog
+from apps.procurement.tests.support import (
+    approve_pending_commitment,
+    approve_pr_via_management,
+    issue_priced_po,
+)
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.warehouse.models import SKU
 from apps.workflows.models import ApprovalRequest, ApprovalStatus
 from apps.workflows.services import ApprovalService
@@ -41,6 +47,7 @@ class MonetaryApprovalBasisTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.mgmt = User.objects.create_user(
             username="mon-mgmt",
             email="mon-mgmt@test.az",
@@ -71,7 +78,8 @@ class MonetaryApprovalBasisTests(TestCase):
         PartyRole.objects.get_or_create(party=self.supplier, role=PartyRoleCode.SUPPLIER)
 
     def _approve_pr_as_admin(self, pr: PurchaseRequest) -> PurchaseRequest:
-        return ProcurementService.approve_pr(pr, actor=self.admin)
+        # Admin has no self-approval: escalate, then Management decides the PR.
+        return approve_pr_via_management(pr, actor=self.admin)
 
     def _quote_po(self, pr: PurchaseRequest, *, unit_price: str, currency: str = "AZN"):
         rfq = ProcurementService.create_rfq_from_pr(pr, actor=self.admin)
@@ -84,6 +92,15 @@ class MonetaryApprovalBasisTests(TestCase):
         if currency != "AZN":
             quote.currency = currency
             quote.save(update_fields=["currency"])
+        return ProcurementService.select_rfq_quote_and_create_po(quote, actor=self.fm)
+
+    def _quote_po_with_management(self, pr: PurchaseRequest, *, unit_price: str):
+        """Quote → first attempt escalates → Management approves → PO issued."""
+        with self.assertRaises(DomainError) as ctx:
+            self._quote_po(pr, unit_price=unit_price)
+        self.assertIn("öhdəlik sorğusu", str(ctx.exception))
+        approve_pending_commitment(pr, mgmt=self.mgmt)
+        quote = pr.rfqs.order_by("-id").first().quotes.order_by("-id").first()
         return ProcurementService.select_rfq_quote_and_create_po(quote, actor=self.fm)
 
     def test_a_one_unit_8000_escalates_at_quote(self):
@@ -99,7 +116,8 @@ class MonetaryApprovalBasisTests(TestCase):
         self.assertIn("8000", str(ctx.exception))
         self.assertIn("öhdəlik sorğusu", str(ctx.exception))
 
-    def test_b_2000_units_at_010_local_quote_path(self):
+    def test_b_2000_units_at_010_needs_management_commitment(self):
+        """No local authority: even a small 200 AZN commitment needs Management approval."""
         pr = ProcurementService.create_pr_for_work_order(
             self.wo, actor=self.fm, description="bulk", qty="2000", sku=self.sku
         )
@@ -109,16 +127,17 @@ class MonetaryApprovalBasisTests(TestCase):
             pr,
         )
         self.assertEqual(assessed.amount, Decimal("200.00"))
-        po = self._quote_po(pr, unit_price="0.10")
+        po = self._quote_po_with_management(pr, unit_price="0.10")
         self.assertIsNotNone(po.pk)
         self.assertEqual(po.lines.get().unit_price, Decimal("0.10"))
 
-    def test_c_threshold_1000_inclusive_and_above(self):
+    def test_c_threshold_has_no_local_authority(self):
+        """Retired FM local limit: 1000.00 and 1000.01 both require a Management commitment."""
         pr_at = ProcurementService.create_pr_for_work_order(
             self.wo, actor=self.fm, description="at", qty="1", sku=self.sku
         )
         self._approve_pr_as_admin(pr_at)
-        po_at = self._quote_po(pr_at, unit_price="1000.00")
+        po_at = self._quote_po_with_management(pr_at, unit_price="1000.00")
         self.assertIsNotNone(po_at.pk)
 
         pr_over = ProcurementService.create_pr_for_work_order(
@@ -127,6 +146,9 @@ class MonetaryApprovalBasisTests(TestCase):
         self._approve_pr_as_admin(pr_over)
         with self.assertRaises(DomainError):
             self._quote_po(pr_over, unit_price="1000.01")
+        self.assertEqual(pr_over.purchase_orders.count(), 0)
+        po_over = self._quote_po_with_management(pr_over, unit_price="1000.01")
+        self.assertIsNotNone(po_over.pk)
 
     def test_d_mixed_priced_unpriced_unknown_at_pr(self):
         """PR schema has no price field — any populated PR is amount_unknown."""
@@ -238,19 +260,21 @@ class MonetaryApprovalBasisTests(TestCase):
         pr.refresh_from_db()
         self.assertEqual(pr.status, PRStatus.APPROVED)
 
-    def test_h_multiple_pos_respect_role_limit_cumulative(self):
+    def test_h_multiple_pos_each_need_management_commitment(self):
         pr = ProcurementService.create_pr_for_work_order(
             self.wo, actor=self.fm, description="multi", qty="2", sku=self.sku
         )
         self._approve_pr_as_admin(pr)
         line_id = pr.lines.get().pk
-        # process_only approval — cumulative role limit still applies to known quotes.
-        po1 = ProcurementService.create_po_from_pr(
+        # process_only PR approval grants no spending authority; each priced tranche needs
+        # its own Management commitment.
+        po1 = issue_priced_po(
             pr,
-            supplier_party=self.supplier,
+            supplier=self.supplier,
             actor=self.fm,
             unit_price="700",
             line_qtys={line_id: "1"},
+            mgmt=self.mgmt,
         )
         self.assertEqual(ProcurementService.assess_po_amount(po1).amount, Decimal("700.00"))
         with self.assertRaises(DomainError) as ctx:
@@ -264,18 +288,21 @@ class MonetaryApprovalBasisTests(TestCase):
         self.assertIn("öhdəlik sorğusu", str(ctx.exception))
         self.assertEqual(pr.purchase_orders.count(), 1)
 
-        # Admin may still convert (override); documents open spending until Finance sets ceiling policy.
-        po2 = ProcurementService.create_po_from_pr(
-            pr,
-            supplier_party=self.supplier,
-            actor=self.admin,
-            unit_price="700",
-            line_qtys={line_id: "1"},
+        # Admin has no override: second tranche still blocked, nothing audited as override.
+        with self.assertRaises(DomainError):
+            ProcurementService.create_po_from_pr(
+                pr,
+                supplier_party=self.supplier,
+                actor=self.admin,
+                unit_price="700",
+                line_qtys={line_id: "1"},
+            )
+        self.assertEqual(pr.purchase_orders.count(), 1)
+        self.assertFalse(
+            AuditLog.objects.filter(action="procurement.commitment.admin_override").exists()
         )
-        self.assertEqual(pr.purchase_orders.count(), 2)
         committed = ProcurementService.pr_committed_amount(pr)
-        self.assertEqual(committed.amount, Decimal("1400.00"))
-
+        self.assertEqual(committed.amount, Decimal("700.00"))
     def test_i_document_and_goods_receipt_paths_untouched_smoke(self):
         from apps.documents.models import DocumentSensitivity, DocumentType, DOCUMENT_TYPE_OTHER
         from apps.documents.services import DocumentService

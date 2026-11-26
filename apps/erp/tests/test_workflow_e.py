@@ -32,7 +32,7 @@ from apps.procurement.models import (
     PurchaseRequest,
 )
 from apps.procurement.services import ProcurementService
-from apps.rbac.services import seed_rbac_catalog
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.residents.models import ResidentCompany
 from apps.warehouse.models import SKU, Warehouse
 from apps.workflows.models import ApprovalRequest, ApprovalStatus
@@ -255,6 +255,7 @@ class WorkflowEProcurementTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.mgmt = User.objects.create_user(
             username="we-p-mgmt",
             email="we-p-mgmt@test.az",

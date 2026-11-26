@@ -16,6 +16,7 @@ from apps.core.services import DomainError
 from apps.parties.models import Party, PartyRole, PartyRoleCode
 from apps.procurement.models import GoodsReceiptOperation, POLine, PurchaseOrder
 from apps.procurement.services import ProcurementService
+from apps.procurement.tests.support import approve_pr_via_management, issue_priced_po
 from apps.warehouse.models import SKU, Stock, StockMovement, StockMovementType, Warehouse
 
 User = get_user_model()
@@ -69,8 +70,9 @@ class _ReceiptFixtureMixin:
             title=f"GR PR {uuid.uuid4().hex[:8]}",
             lines=[{"description": "Line A", "qty": str(qty), "sku_id": sku.pk}],
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)
-        po = ProcurementService.create_po_from_pr(pr, supplier_party=self.supplier, actor=self.admin)
+        # Mandatory Management policy: PR + priced commitment approved before issue.
+        approve_pr_via_management(pr, actor=self.admin)
+        po = issue_priced_po(pr, supplier=self.supplier, unit_price="10", actor=self.admin)
         if extra_lines:
             for spec in extra_lines:
                 POLine.objects.create(

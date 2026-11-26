@@ -1,4 +1,4 @@
-{% extends "erp/base.html" %}
+﻿{% extends "erp/base.html" %}
 {% load i18n l10n %}
 {% block page_title %}{{ po.code }}{% endblock %}
 {% block heading %}{{ po.code }}{% endblock %}
@@ -9,7 +9,7 @@
 <div class="cp-card p-card mb-4">
   <p class="cp-meta">
     {{ po.get_status_display }}
-    · {% translate "Podratçı" %}:
+    · {% translate "Təchizatçı" %}:
     {% if po.supplier_party_id %}<a href="{% url 'erp:procurement_supplier_detail' po.supplier_party_id %}">{{ po.supplier_party.display_name }}</a>{% else %}—{% endif %}
     {% if po.pr_id %}· PR: <a href="{% url 'erp:procurement_pr_detail' po.pr.code %}">{{ po.pr.code }}</a>{% endif %}
     · {{ po.ordered_at|default:"—" }}

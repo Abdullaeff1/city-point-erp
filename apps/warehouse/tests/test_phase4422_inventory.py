@@ -13,8 +13,9 @@ from apps.audit.models import AuditLog
 from apps.maintenance.models import WorkOrder, WorkOrderPriority, WorkOrderStatus
 from apps.procurement.models import POStatus, PRStatus
 from apps.procurement.services import ProcurementService
+from apps.procurement.tests.support import approve_pr_via_management, issue_priced_po
 from apps.parties.models import Party
-from apps.rbac.services import seed_rbac_catalog
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.warehouse.access import can_mutate_warehouse
 from apps.warehouse.models import SKU, Stock, StockMovement, StockMovementType, Warehouse
 from apps.warehouse.services import (
@@ -43,6 +44,7 @@ class Phase4422SkuMasterTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.desk = User.objects.create_user(
             username="w4422-desk",
             email="w4422-desk@test.az",
@@ -153,6 +155,7 @@ class Phase4422StockAdjustTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.sku = create_sku(code="ADJ1", name="Adjustable", reorder_level=2, actor=self.fm)
         self.wh = Warehouse.objects.create(code="ADJWH", name="Adj WH")
 
@@ -213,6 +216,7 @@ class Phase4422IssueReceiptTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.admin = User.objects.create_user(
             username="w4422-iss-adm",
             email="w4422-iss-adm@test.az",
@@ -266,13 +270,13 @@ class Phase4422IssueReceiptTests(TestCase):
         self.stock.quantity = Decimal("1")
         self.stock.save(update_fields=["quantity"])
         pr = ProcurementService.create_pr_from_low_stock(stock=self.stock, requested_by=self.fm)
-        # Admin bypasses FM approval-limit fail-closed path for receive coverage.
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        # Mandatory Management approval: PR decision + priced commitment before issue.
+        approve_pr_via_management(pr, actor=self.admin)
         from apps.parties.models import PartyRole, PartyRoleCode
 
         supplier = Party.objects.create(legal_name="Supplier 4422")
         PartyRole.objects.get_or_create(party=supplier, role=PartyRoleCode.SUPPLIER)
-        po = ProcurementService.create_po_from_pr(pr, supplier_party=supplier)
+        po = issue_priced_po(pr, supplier=supplier, unit_price="5", actor=self.admin)
         line = po.lines.get()
         half = max((line.qty or Decimal("2")) / 2, Decimal("1"))
         ProcurementService.receive_po(
@@ -311,6 +315,7 @@ class Phase4422ConcurrentIssueTests(TransactionTestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.sku = SKU.objects.create(code="CONC1", name="Concurrent", unit="pcs", reorder_level=0)
         self.wh = Warehouse.objects.create(code="CONCWH", name="Conc WH")
         Stock.objects.create(sku=self.sku, warehouse=self.wh, quantity=Decimal("5"))

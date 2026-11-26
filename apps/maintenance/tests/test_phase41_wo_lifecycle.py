@@ -15,7 +15,7 @@ from apps.core.services import DomainError
 from apps.maintenance.access import can_mutate_work_order, can_view_work_order, work_orders_queryset_for
 from apps.maintenance.models import WorkOrderStatus
 from apps.maintenance.services import WorkOrderService, create_wo_from_ticket, ticket_has_active_work_order
-from apps.rbac.services import seed_rbac_catalog
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.residents.models import ResidentCompany
 from apps.tickets.models import (
     Ticket,
@@ -71,6 +71,7 @@ class Phase41WorkOrderLifecycleTests(TestCase):
             is_staff=True,
             ticket_department=self.fm_dept,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.mgmt = User.objects.create_user(
             username="p41-mgmt",
             email="p41-mgmt@test.az",
@@ -180,7 +181,7 @@ class Phase41WorkOrderLifecycleTests(TestCase):
         self.assertEqual(wo.status, WorkOrderStatus.OPEN)
 
     def test_supply_ops_share_inbox_non_supply_denied(self):
-        """Unified Təchizat inbox: all service_desk operators see/mutate; outsiders do not."""
+        """Facility inbox: supply.head sees/mutates; ordinary desk (other dept) and outsiders do not."""
         sales = User.objects.create_user(
             username="p41-sales",
             email="p41-sales@test.az",
@@ -191,8 +192,9 @@ class Phase41WorkOrderLifecycleTests(TestCase):
         ticket = self._ticket(code="TK-P41-FM", department=self.fm_dept)
         wo = create_work_order_from_ticket(ticket, actor=self.admin)
         self.assertTrue(can_mutate_work_order(self.fm, wo))
-        self.assertTrue(can_view_work_order(self.desk, wo))
-        self.assertTrue(can_mutate_work_order(self.desk, wo))
+        # Ordinary desk (not supply.head, other ticket dept) stays negative.
+        self.assertFalse(can_view_work_order(self.desk, wo))
+        self.assertFalse(can_mutate_work_order(self.desk, wo))
         self.assertFalse(can_view_work_order(sales, wo))
         self.assertFalse(can_mutate_work_order(sales, wo))
 

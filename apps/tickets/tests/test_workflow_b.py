@@ -81,6 +81,9 @@ class WorkflowBAcceptanceTests(TestCase):
             is_staff=True,
             ticket_department=self.fm_dept,
         )
+        from apps.rbac.services import grant_user_permission
+
+        grant_user_permission(self.fm, "supply.head")
         self.fm2 = User.objects.create_user(
             username="wb-fm2",
             email="wb-fm2@test.az",
@@ -89,6 +92,7 @@ class WorkflowBAcceptanceTests(TestCase):
             is_staff=True,
             ticket_department=self.fm_dept,
         )
+        grant_user_permission(self.fm2, "supply.head")
         self.security = User.objects.create_user(
             username="wb-sec",
             email="wb-sec@test.az",
@@ -173,10 +177,15 @@ class WorkflowBAcceptanceTests(TestCase):
         self.assertEqual(ticket.department_id, self.desk_dept.pk)
 
         self.client.force_login(self.fm)
-        dash = self.client.get(reverse("erp:facility_dashboard"))
+        dash = self.client.get(reverse("erp:facility_dashboard"), follow=True)
         self.assertEqual(dash.status_code, 200)
+        self.assertEqual(dash.request["PATH_INFO"], reverse("erp:supply_dashboard"))
         kpis = dash.context["kpis"]
-        open_kpi = next(k for k in kpis if "WO" in str(k["label"]))
+        open_kpi = next(
+            k
+            for k in kpis
+            if "iş sifariş" in str(k["label"]).casefold() or "wo" in str(k["label"]).casefold()
+        )
         self.assertGreaterEqual(open_kpi["value"], 1)
         pending_codes = [p["title"] for p in dash.context["pending"]]
         self.assertIn(wo.code, pending_codes)

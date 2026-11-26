@@ -1,4 +1,4 @@
-{% extends "erp/base.html" %}
+﻿{% extends "erp/base.html" %}
 {% load i18n %}
 {% block page_title %}{{ pr.code }}{% endblock %}
 {% block heading %}{{ pr.code }}{% endblock %}
@@ -66,7 +66,7 @@
       {% csrf_token %}
       <input type="hidden" name="action" value="create_po">
       <label>
-        <span class="cp-meta">{% translate "Podratçı" %}</span>
+        <span class="cp-meta">{% translate "Təchizatçı" %}</span>
         <select class="cp-input" name="supplier_party_id" required>
           <option value="">—</option>
           {% for s in suppliers %}<option value="{{ s.id }}">{{ s.display_name }}</option>{% endfor %}

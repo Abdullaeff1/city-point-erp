@@ -29,10 +29,12 @@
 </nav>
 
 {% if tab == 'overview' or not tab %}
+{% if can_manage_spaces %}
 <div class="flex gap-2 mb-4" style="flex-wrap:wrap;">
   <a class="cp-btn" href="{% url 'erp:space_edit' space.code %}">{% translate "Düzəliş et" %}</a>
   <a class="cp-btn-ghost" href="{% url 'erp:space_delete' space.code %}">{% translate "Sil" %}</a>
 </div>
+{% endif %}
 <div class="grid-main mb-5">
   <div class="cp-card p-card-lg">
     <div class="cp-title">{{ space.short_label }}</div>

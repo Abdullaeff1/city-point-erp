@@ -82,14 +82,43 @@ class WorkOrderListView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView
     allow_management = True
     permission_required = "work_order.view"
     permission_denied_message = "İş sifarişlərinə baxış icazəniz yoxdur."
+    page_size = 50
 
     def get_context_data(self, **kwargs):
+        from django.core.paginator import Paginator
+
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
-        work_orders = list(work_orders_for(user)[:200])
+        qs = work_orders_for(user).order_by("-created_at", "code")
+        status_filter = (self.request.GET.get("status") or "").strip().lower()
+        wait_filter = (self.request.GET.get("wait") or "").strip().lower()
+        open_statuses = (
+            WorkOrderStatus.OPEN,
+            WorkOrderStatus.ASSIGNED,
+            WorkOrderStatus.IN_PROGRESS,
+        )
+        if status_filter == "open":
+            qs = qs.filter(status__in=open_statuses)
+        elif status_filter in {s.value for s in WorkOrderStatus}:
+            qs = qs.filter(status=status_filter)
+        if wait_filter == "material":
+            from apps.erp.department_dashboards import Q_material_wait
+
+            qs = qs.filter(Q_material_wait()).distinct()
+        total = qs.count()
+        try:
+            page_num = max(1, int(self.request.GET.get("page") or 1))
+        except (TypeError, ValueError):
+            page_num = 1
+        page = Paginator(qs, self.page_size).get_page(page_num)
+        work_orders = list(page.object_list)
         for wo in work_orders:
             wo.can_view_ticket_link = bool(wo.ticket_id) and can_view_ticket(user, wo.ticket)
         ctx["work_orders"] = work_orders
+        ctx["work_order_total"] = total
+        ctx["page_obj"] = page
+        ctx["status_filter"] = status_filter
+        ctx["wait_filter"] = wait_filter
         ctx["can_create_wo"] = can_create_standalone_work_order(user)
         return ctx
 

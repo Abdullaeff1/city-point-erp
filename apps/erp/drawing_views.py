@@ -31,7 +31,7 @@ from apps.property.models import (
 
 
 class DrawingManagerMixin(RoleRequiredMixin):
-    """Only Admin + Property/FM (explicitly excludes Management-only for drawing ops)."""
+    """Admin + Təchizat (service_desk) drawing ops; Management uses can_manage helper."""
 
     allowed_roles = (Role.SERVICE_DESK,)
 
@@ -39,7 +39,7 @@ class DrawingManagerMixin(RoleRequiredMixin):
         if not request.user.is_authenticated:
             return self.handle_no_permission()
         if not user_can_manage_space_drawings(request.user):
-            raise PermissionDenied(_("Sahə rəsmləri yalnız Admin və Property/FM üçündür."))
+            raise PermissionDenied(_("Sahə rəsmləri yalnız Admin və Təchizat şöbəsi üçündür."))
         # Skip RoleRequiredMixin's ADMIN|MANAGEMENT|*allowed — we already gated.
         from django.contrib.auth.mixins import LoginRequiredMixin
 

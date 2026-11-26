@@ -680,7 +680,6 @@ msgstr "Notice"
 
 msgid "Menyu"
 msgstr "Menu"
-
 msgid "Mərtəbələr və sahələr"
 msgstr "Floors and spaces"
 
@@ -731,3 +730,81 @@ msgstr "Quick links"
 
 msgid "Müqavilə bitir"
 msgstr "Lease ends"
+
+msgid "Təchizat şöbəsi"
+msgstr "Supply department"
+msgid "Rəsm icazələri"
+msgstr "Drawing permissions"
+msgid "Avadanlıqlar"
+msgstr "Equipment"
+msgid "İnventarlar"
+msgstr "Inventory"
+msgid "Açıq müraciətlər"
+msgstr "Open requests"
+
+msgid "Təyinatsız müraciətlər"
+msgstr "Unassigned requests"
+
+msgid "Açıq iş sifarişləri"
+msgstr "Open work orders"
+
+msgid "SLA risk və pozuntu"
+msgstr "SLA risk and breach"
+msgid "Əməliyyat növbələri"
+msgstr "Operations queues"
+
+msgid "Material gözləyən təmirlər"
+msgstr "Repairs waiting for material"
+msgid "Rəhbər təsdiqini gözləyən alışlar"
+msgstr "Purchases awaiting management approval"
+msgid "Təsdiqlənib sifarişə hazır olan alışlar"
+msgstr "Approved purchases ready to order"
+msgid "Qismən qəbul edilmiş sifarişlər"
+msgstr "Partially received orders"
+msgid "Planlı"
+msgstr "Planned"
+
+msgid "Yeni iş tapşırığı"
+msgstr "New work order"
+
+msgid "Qaranlıq rejim"
+msgstr "Dark mode"
+
+msgid "İşıqlı rejim"
+msgstr "Light mode"
+
+msgid "Rezident şirkətlər"
+msgstr "Resident companies"
+
+msgid "Rezident şirkət"
+msgstr "Resident company"
+
+msgid "risk: %(r)s · pozuntu: %(b)s"
+msgstr "risk: %(r)s · breach: %(b)s"
+
+msgid "təsdiqlənmiş öhdəlik"
+msgstr "approved commitment"
+
+msgid "podratçı öhdəliyi (PR deyil)"
+msgstr "supplier commitment (not PR)"
+
+msgid "Gözləyən alış təsdiqləri"
+msgstr "Pending purchase approvals"
+
+msgid "Sifarişə hazır öhdəliklər"
+msgstr "Commitments ready to issue"
+
+msgid "Sifarişə hazır öhdəlik yoxdur."
+msgstr "No commitments ready to issue."
+
+msgid "PR proses"
+msgstr "PR process"
+
+msgid "Podratçı öhdəliyi"
+msgstr "Supplier commitment"
+
+msgid "Oxuma rejimində: Təchizat gözləyən satınalma təsdiqlərini görür; qərar Rəhbərliyə məxsusdur."
+msgstr "Read-only: Supply can see pending purchase approvals; Management decides."
+
+msgid "Yalnız Rəhbərliyin təsdiqlədiyi, istifadə olunmamış və cari şərtlərə uyğun podratçı öhdəlikləri. Bir PR-də bir neçə podratçı varsa, hər öhdəlik ayrı sətir kimi sayılır."
+msgstr "Only Management-approved, unused supplier commitments that still match current terms. When one PR has several suppliers, each commitment is a separate row."

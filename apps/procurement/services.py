@@ -925,6 +925,88 @@ class ProcurementService(Service):
         return None
 
     @classmethod
+    def commitment_still_matches_current_terms(cls, req: ApprovalRequest) -> bool:
+        """True when an approved/pending commitment fingerprint matches current PR lines."""
+        payload = req.payload or {}
+        fingerprint = (payload.get("fingerprint") or "").strip()
+        unit_price = payload.get("unit_price")
+        if not fingerprint or unit_price in (None, ""):
+            return False
+        pr = PurchaseRequest.objects.filter(pk=req.entity_id).first()
+        if pr is None:
+            return False
+        current = cls.commitment_fingerprint(
+            pr,
+            unit_price=unit_price,
+            currency=(payload.get("currency") or _SUPPORTED_CURRENCY),
+            supplier_id=payload.get("supplier_id"),
+            quote_id=payload.get("quote_id"),
+        )
+        return current == fingerprint
+
+    @classmethod
+    def list_issuable_commitments(cls) -> list[ApprovalRequest]:
+        """Approved, unused supplier commitments that still match current terms.
+
+        Counting unit: one row per supplier commitment (not per PR). A PR with
+        supplier A approved and B pending contributes only A's row.
+        """
+        ct = ContentType.objects.get_for_model(PurchaseRequest)
+        rows = (
+            ApprovalRequest.objects.filter(
+                workflow_code=WF_PROCUREMENT_COMMITMENT,
+                status=ApprovalStatus.APPROVED,
+                entity_type=ct,
+            )
+            .select_related("requested_by")
+            .order_by("-decided_at", "-id")
+        )
+        ready: list[ApprovalRequest] = []
+        seen: set[int] = set()
+        for req in rows:
+            payload = req.payload or {}
+            if payload.get("consumed_po_id"):
+                continue
+            if not cls.commitment_still_matches_current_terms(req):
+                continue
+            fingerprint = payload.get("fingerprint") or ""
+            matched = cls.find_matching_commitment(
+                PurchaseRequest.objects.get(pk=req.entity_id),
+                fingerprint=fingerprint,
+                status=ApprovalStatus.APPROVED,
+            )
+            if matched is None or matched.pk != req.pk:
+                continue
+            if req.pk in seen:
+                continue
+            seen.add(req.pk)
+            ready.append(req)
+        return ready
+
+    @classmethod
+    def list_pending_procurement_approvals(
+        cls, *, kind: str = "all"
+    ) -> list[ApprovalRequest]:
+        """Pending process-PR and/or supplier-commitment requests (Supply RO inbox)."""
+        ct = ContentType.objects.get_for_model(PurchaseRequest)
+        codes: list[str]
+        if kind == "commitment":
+            codes = [WF_PROCUREMENT_COMMITMENT]
+        elif kind == "pr":
+            codes = [WF_PROCUREMENT_PR]
+        else:
+            codes = [WF_PROCUREMENT_PR, WF_PROCUREMENT_COMMITMENT]
+        return list(
+            ApprovalRequest.objects.filter(
+                workflow_code__in=codes,
+                status=ApprovalStatus.PENDING,
+                entity_type=ct,
+            )
+            .select_related("requested_by")
+            .order_by("created_at", "id")
+        )
+
+    @classmethod
     @transaction.atomic
     def escalate_commitment_for_management(
         cls,

@@ -18,7 +18,7 @@ from apps.maintenance.access import (
 )
 from apps.maintenance.models import WorkOrder, WorkOrderPriority, WorkOrderStatus
 from apps.maintenance.services import create_standalone_work_order
-from apps.rbac.services import seed_rbac_catalog, user_has_permission
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog, user_has_permission
 from apps.residents.models import ResidentCompany
 from apps.tickets.models import (
     Ticket,
@@ -105,6 +105,7 @@ class Phase4421StandaloneWorkOrderTests(TestCase):
             is_staff=True,
             ticket_department=self.fm_dept,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.desk = User.objects.create_user(
             username="p4421-desk",
             email="p4421-desk@test.az",
@@ -171,7 +172,7 @@ class Phase4421StandaloneWorkOrderTests(TestCase):
         list_resp = self.client.get(reverse("erp:work_orders"))
         self.assertEqual(list_resp.status_code, 200)
         self.assertContains(list_resp, wo.code)
-        self.assertContains(list_resp, "Facility")
+        self.assertContains(list_resp, "Planl")  # Planlı / planned standalone source
 
         detail = self.client.get(reverse("erp:work_order_detail", kwargs={"code": wo.code}))
         self.assertEqual(detail.status_code, 200)

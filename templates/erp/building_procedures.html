@@ -2,9 +2,11 @@
 {% load i18n %}
 {% block heading %}{% translate "Daxili prosedurlar" %}{% endblock %}
 {% block content %}
+{% if can_manage_procedures %}
 <div class="mb-4">
   <a class="cp-btn" href="{% url 'erp:building_procedure_create' %}">{% translate "Prosedur əlavə et" %}</a>
 </div>
+{% endif %}
 
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
@@ -33,10 +35,12 @@
             {% if p.file %}
             <a class="cp-btn-ghost" href="{% url 'erp:building_procedure_download' p.pk %}">{% translate "Yüklə" %}</a>
             {% endif %}
+            {% if can_manage_procedures %}
             <a class="cp-btn-ghost" href="{% url 'erp:building_procedure_edit' p.pk %}">{% translate "Redaktə" %}</a>
             <form method="post" action="{% url 'erp:building_procedure_delete' p.pk %}" onsubmit="return confirm('{% translate "Silinsin?" %}');">{% csrf_token %}
               <button class="cp-btn-ghost" type="submit">{% translate "Sil" %}</button>
             </form>
+            {% endif %}
           </div>
         </td>
       </tr>

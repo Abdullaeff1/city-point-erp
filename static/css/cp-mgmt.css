@@ -1,47 +1,28 @@
-/* Management portal — EstatePro-like shell, City Point navy/teal/gold tokens.
-   Scoped to .cp-theme-mgmt so other roles keep their shells. */
+/* Management portal — layout chrome; shared Supply palette via cp-theme.css tokens.
+   Scoped to .cp-theme-mgmt for Management-only structure (grouped nav, header). */
 
 .cp-theme-mgmt {
-  --mgmt-sidebar-bg: #0b1f33;
-  --mgmt-sidebar-text: #c8d5e1;
-  --mgmt-sidebar-muted: #7f93a8;
-  --mgmt-sidebar-hover: rgba(255, 255, 255, 0.06);
-  --mgmt-sidebar-active: #ffffff;
-  --mgmt-sidebar-active-bg: rgba(15, 92, 140, 0.35);
-  --mgmt-accent: #c9a227;
-  --mgmt-accent-soft: rgba(201, 162, 39, 0.18);
-  --mgmt-content-bg: #f6f7fb;
-  --mgmt-card: #ffffff;
-  --mgmt-border: #e5e7eb;
-  --mgmt-text: #1f2937;
-  --mgmt-muted: #6b7280;
+  --mgmt-sidebar-bg: var(--cp-sidebar-bg);
+  --mgmt-sidebar-text: var(--cp-sidebar-text);
+  --mgmt-sidebar-muted: var(--cp-sidebar-muted);
+  --mgmt-sidebar-hover: var(--cp-sidebar-hover);
+  --mgmt-sidebar-active: var(--cp-sidebar-active);
+  --mgmt-sidebar-active-bg: var(--cp-sidebar-active-bg);
+  --mgmt-accent: var(--cp-accent);
+  --mgmt-accent-soft: rgba(123, 144, 163, 0.18);
+  --mgmt-content-bg: var(--cp-bg);
+  --mgmt-card: var(--cp-surface);
+  --mgmt-border: var(--cp-border);
+  --mgmt-text: var(--cp-text);
+  --mgmt-muted: var(--cp-text-muted);
   --mgmt-header-h: 64px;
   /* Room for “İçəridə / təhlükəsizlik” + badge without clipping */
   --cp-sidebar: 300px;
-  --cp-bg: var(--mgmt-content-bg);
-  --cp-surface: var(--mgmt-card);
-  --cp-border: var(--mgmt-border);
-  --cp-text: var(--mgmt-text);
-  --cp-text-muted: var(--mgmt-muted);
-  --cp-sidebar-bg: var(--mgmt-sidebar-bg);
-  --cp-sidebar-text: var(--mgmt-sidebar-text);
-  --cp-sidebar-muted: var(--mgmt-sidebar-muted);
-  --cp-sidebar-hover: var(--mgmt-sidebar-hover);
-  --cp-sidebar-active: var(--mgmt-sidebar-active);
-  --cp-sidebar-active-bg: var(--mgmt-sidebar-active-bg);
-  --cp-header-bg: var(--mgmt-card);
-  --crm-accent: var(--cp-primary);
-  --crm-accent-soft: var(--cp-primary-soft);
   --crm-radius-sm: 10px;
 }
 
 html[data-theme="dark"] .cp-theme-mgmt {
-  --mgmt-content-bg: #0b1220;
-  --mgmt-card: #151d2e;
-  --mgmt-border: #243044;
-  --mgmt-text: #e2e8f0;
-  --mgmt-muted: #94a3b8;
-  --mgmt-sidebar-bg: #07111c;
+  --mgmt-accent-soft: rgba(154, 168, 188, 0.2);
 }
 
 .cp-theme-mgmt .cp-sidebar {
@@ -64,7 +45,7 @@ html[data-theme="dark"] .cp-theme-mgmt {
   border-radius: 999px;
 }
 .cp-theme-mgmt .cp-nav::-webkit-scrollbar-thumb:hover {
-  background: rgba(201, 162, 39, 0.45);
+  background: rgba(100, 147, 129, 0.45);
 }
 
 .cp-theme-mgmt .cp-brand {
@@ -73,12 +54,12 @@ html[data-theme="dark"] .cp-theme-mgmt {
 }
 
 .cp-theme-mgmt .cp-brand-kicker {
-  color: var(--mgmt-accent) !important;
+  color: var(--cp-brand-kicker) !important;
   letter-spacing: 0.16em;
 }
 
 .cp-theme-mgmt .cp-brand-sub {
-  color: #fff !important;
+  color: var(--cp-brand-title) !important;
   font-weight: 700;
 }
 
@@ -140,11 +121,12 @@ html[data-theme="dark"] .cp-theme-mgmt {
 .cp-theme-mgmt .cp-nav-menu > .cp-nav-summary.is-active {
   background: var(--mgmt-sidebar-active-bg) !important;
   color: var(--mgmt-sidebar-active) !important;
-  box-shadow: inset 3px 0 0 var(--mgmt-accent) !important;
+  box-shadow: none !important;
 }
 
 .cp-theme-mgmt .cp-nav a.is-active::before {
-  display: none;
+  display: none !important;
+  content: none !important;
 }
 
 .cp-theme-mgmt .cp-nav-group[open] > .cp-nav-group-body {
@@ -163,9 +145,9 @@ html[data-theme="dark"] .cp-theme-mgmt {
 .cp-theme-mgmt .cp-user-name { color: #fff !important; }
 .cp-theme-mgmt .cp-user-role { color: var(--mgmt-sidebar-muted) !important; }
 .cp-theme-mgmt .cp-avatar {
-  background: var(--mgmt-accent-soft) !important;
-  color: var(--mgmt-accent) !important;
-  border-color: rgba(201, 162, 39, 0.35);
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #e8edf4 !important;
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .cp-theme-mgmt .cp-main {
@@ -214,7 +196,7 @@ html[data-theme="dark"] .cp-theme-mgmt {
 }
 
 .cp-theme-mgmt .cp-mgmt-toggle:focus-visible {
-  outline: 2px solid var(--cp-primary);
+  outline: 2px solid var(--cp-progress-fill);
   outline-offset: 2px;
 }
 

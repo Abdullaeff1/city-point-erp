@@ -1,11 +1,11 @@
-{% comment %}Expects: kpis — list of {label, value, meta?, url?}{% endcomment %}
+{% comment %}Expects: kpis — list of {label, value, meta?, url?, accent?}{% endcomment %}
 {% if kpis %}
 <div class="erp-metrics mb-4">
   {% for item in kpis %}
     {% if item.url %}
-    <a class="cp-card erp-metric erp-metric-link" href="{{ item.url }}">
+    <a class="cp-card erp-metric erp-metric-link{% if item.accent %} supply-kpi--{{ item.accent }}{% endif %}" href="{{ item.url }}">
     {% else %}
-    <div class="cp-card erp-metric">
+    <div class="cp-card erp-metric{% if item.accent %} supply-kpi--{{ item.accent }}{% endif %}">
     {% endif %}
       <div class="cp-meta">{{ item.label }}</div>
       <div class="cp-metric">{{ item.value }}</div>

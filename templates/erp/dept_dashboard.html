@@ -4,6 +4,20 @@
 {% block content %}
 {% include "partials/dept_quick_actions.html" %}
 {% include "partials/dept_kpi_strip.html" with kpis=kpis %}
+{% if queues %}
+<section class="cp-card p-card mb-4" aria-label="{% translate 'Əməliyyat növbələri' %}">
+  <h2 class="cp-section">{% translate "Əməliyyat növbələri" %}</h2>
+  <div class="flex gap-3" style="flex-wrap:wrap;">
+    {% for q in queues %}
+    <a class="cp-card erp-metric erp-metric-link{% if q.accent %} supply-kpi--{{ q.accent }}{% endif %}" href="{{ q.url }}" style="min-width:160px;flex:1 1 160px;">
+      <div class="cp-meta">{{ q.label }}</div>
+      <div class="cp-metric">{{ q.count }}</div>
+      {% if q.unit %}<div class="cp-meta">{{ q.unit }}</div>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% if stats %}
 <div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
   {% for s in stats %}

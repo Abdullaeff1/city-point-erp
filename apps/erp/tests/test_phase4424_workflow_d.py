@@ -15,7 +15,8 @@ from apps.maintenance.services import next_wo_code
 from apps.parties.models import Party, PartyRole, PartyRoleCode
 from apps.procurement.models import GoodsReceiptOperation, POLine
 from apps.procurement.services import ProcurementService
-from apps.rbac.services import seed_rbac_catalog
+from apps.procurement.tests.support import approve_pr_via_management, issue_priced_po
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.warehouse.models import SKU, Stock, StockMovement, StockMovementType, Warehouse
 from apps.warehouse.services import confirm_issue, request_issue_line
 
@@ -40,6 +41,7 @@ class WorkflowDProcurementChainTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.wh = Warehouse.objects.create(code="WFD-WH", name="WFD WH")
         self.sku = SKU.objects.create(code="WFD-SKU", name="Cable", unit="m", reorder_level=0)
         Stock.objects.create(sku=self.sku, warehouse=self.wh, quantity=Decimal("0"))
@@ -59,18 +61,17 @@ class WorkflowDProcurementChainTests(TestCase):
         )
         self.assertEqual(pr.work_order_id, self.wo.pk)
 
-        # 2) Approve (Admin bypasses FM limit)
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        # 2) Mandatory Management approval of the PR (no Admin bypass)
+        approve_pr_via_management(pr, actor=self.admin)
         pr.refresh_from_db()
         self.assertEqual(pr.status, "approved")
 
-        # 3) PO with supplier
-        po = ProcurementService.create_po_from_pr(
-            pr, supplier_party=self.supplier, actor=self.admin
+        # 3) Priced PO with supplier — Management commitment approved before issue
+        po = issue_priced_po(
+            pr, supplier=self.supplier, unit_price="2.50", actor=self.admin
         )
         line = po.lines.get()
-        line.unit_price = Decimal("2.50")
-        line.save(update_fields=["unit_price"])
+        self.assertEqual(line.unit_price, Decimal("2.50"))
         self.assertEqual(line.qty, Decimal("10"))
 
         before = Stock.objects.get(sku=self.sku, warehouse=self.wh).quantity

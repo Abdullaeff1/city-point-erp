@@ -1,39 +1,17 @@
-/* City Point Sales/CRM theme — mock SaaS layout (orange accent, light shell).
-   Applied only when .cp-theme-crm is on the shell (Role.SALES).
-   Typography: shared Noto Sans from cp-theme.css (AZ-complete, local). */
+/* City Point Sales/CRM — layout chrome; shared Supply palette from cp-theme.css.
+   Applied only when .cp-theme-crm is on the shell (Role.SALES). */
 
 .cp-theme-crm {
-  --cp-primary: #1a1d21;
-  --cp-primary-dark: #0f1114;
-  --cp-primary-soft: #fff4ec;
-  --cp-soft: #f3f4f6;
-  --cp-background: #f3f4f6;
-  --cp-bg: #f3f4f6;
-  --cp-surface: #ffffff;
-  --cp-text: #1a1d21;
-  --cp-text-muted: #6b7280;
-  --cp-muted: #6b7280;
-  --cp-border: #e5e7eb;
-  --cp-accent: #ff6a00;
-  --crm-accent: #ff6a00;
-  --crm-accent-soft: #fff4ec;
-  --crm-accent-hover: #e85f00;
-  --cp-success: #16a34a;
-  --cp-warning: #d97706;
-  --cp-danger: #dc2626;
-  --cp-info: #2563eb;
-  --cp-shadow: 0 1px 2px rgba(15, 17, 20, 0.06);
-  --cp-sidebar: 260px;
-  --cp-radius: 12px;
   --crm-radius-sm: 8px;
   --crm-radius-pill: 999px;
+  --cp-radius: 12px;
   font-family: var(--cp-font, "Noto Sans", "Segoe UI", system-ui, sans-serif);
 }
 
 .cp-theme-crm .cp-sidebar {
-  background: #f9fafb;
-  color: var(--cp-text);
-  border-right: 1px solid var(--cp-border);
+  background: var(--cp-sidebar-bg);
+  color: var(--cp-sidebar-text);
+  border-right: 1px solid var(--cp-sidebar-border);
 }
 
 .cp-theme-crm .cp-brand {
@@ -41,20 +19,20 @@
 }
 
 .cp-theme-crm .cp-brand-kicker {
-  color: var(--cp-text);
-  letter-spacing: 0.04em;
+  color: var(--cp-brand-kicker);
+  letter-spacing: 0.16em;
   font-size: 11px;
   font-weight: 700;
 }
 
 .cp-theme-crm .cp-brand-sub {
-  color: var(--cp-muted);
+  color: var(--cp-brand-title);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .cp-theme-crm .cp-nav-label {
-  color: #9ca3af;
+  color: var(--cp-sidebar-muted);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -63,7 +41,7 @@
 }
 
 .cp-theme-crm .cp-nav a {
-  color: #374151;
+  color: var(--cp-sidebar-text);
   border-radius: var(--crm-radius-sm);
   margin: 2px 6px;
   padding: 9px 12px;
@@ -72,52 +50,46 @@
 }
 
 .cp-theme-crm .cp-nav a:hover {
-  background: #eef0f3;
-  color: var(--cp-text);
+  background: var(--cp-sidebar-hover);
+  color: #ffffff;
 }
 
 .cp-theme-crm .cp-nav a.is-active {
-  background: #eef0f3;
-  color: var(--cp-text);
+  background: var(--cp-sidebar-active-bg);
+  color: var(--cp-sidebar-active);
   font-weight: 650;
   box-shadow: none;
   border-left: 0;
 }
 
 .cp-theme-crm .cp-nav a.is-active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--crm-accent);
+  display: none;
+  content: none;
 }
 
-/* Management collapsible groups on light CRM shell */
+/* Collapsible groups on shared navy rail */
 .cp-theme-crm .cp-nav-group {
   margin: 2px 4px;
 }
 .cp-theme-crm .cp-nav-menu > .cp-nav-summary {
-  color: #374151;
+  color: var(--cp-sidebar-text);
   border-left: 0;
   margin: 2px 0;
   border-radius: var(--crm-radius-sm);
 }
 .cp-theme-crm .cp-nav-menu > .cp-nav-summary.is-active {
-  background: #eef0f3;
-  color: var(--cp-text);
+  background: var(--cp-sidebar-active-bg);
+  color: var(--cp-sidebar-active);
   font-weight: 650;
   border-left: 0;
   box-shadow: none;
 }
 .cp-theme-crm .cp-nav-summary:hover {
-  background: #eef0f3;
-  color: var(--cp-text);
+  background: var(--cp-sidebar-hover);
+  color: #ffffff;
 }
 .cp-theme-crm .cp-nav-group[open] > .cp-nav-group-body {
-  border-left-color: #e5e7eb;
+  border-left-color: rgba(255, 255, 255, 0.12);
   margin-left: 10px;
 }
 .cp-theme-crm .cp-nav-group-body a {
@@ -158,35 +130,36 @@
 }
 
 .cp-theme-crm .cp-user-bar {
-  border-top: 1px solid var(--cp-border);
-  background: transparent;
-  color: var(--cp-text);
+  border-top: 1px solid var(--cp-sidebar-border);
+  background: var(--cp-sidebar-bg);
+  color: var(--cp-sidebar-text);
   padding: 14px 16px;
   gap: 10px;
 }
 
 .cp-theme-crm .cp-avatar {
-  background: var(--crm-accent-soft);
-  color: var(--crm-accent);
-  border: 1px solid #ffd8bf;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8edf4;
+  border: 1px solid rgba(255, 255, 255, 0.16);
   font-weight: 700;
 }
 
 .cp-theme-crm .cp-user-name {
-  color: var(--cp-text);
+  color: #ffffff;
   font-weight: 600;
 }
 
 .cp-theme-crm .cp-user-role {
-  color: var(--cp-muted);
+  color: var(--cp-sidebar-muted);
 }
 
 .cp-theme-crm .cp-user-bar .cp-btn-ghost {
-  color: var(--cp-muted) !important;
+  color: var(--cp-sidebar-text) !important;
 }
 
 .cp-theme-crm .cp-user-bar .cp-btn-ghost:hover {
-  color: var(--cp-text) !important;
+  color: #ffffff !important;
+  background: var(--cp-sidebar-hover);
 }
 
 .cp-theme-crm .cp-main {

@@ -220,6 +220,8 @@
   color: var(--erp-ink);
   font-weight: 500;
   overflow-wrap: anywhere;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .erp-space-tile--occupied { --space-color: #348265; --space-badge-bg: #e6f4ee; --space-badge-text: #17583f; }
@@ -244,9 +246,33 @@
 .erp-add-floor > summary { cursor: pointer; font-weight: 700; }
 
 @media screen and (max-width: 900px) {
-  .cp-erp { display: block; }
-  .cp-erp .cp-sidebar { position: static; width: 100%; height: auto; max-height: min(70vh, 28rem); overflow: auto; }
+  .cp-erp { display: block; overflow-x: hidden; }
+  .cp-erp .cp-main,
+  .cp-erp .cp-content {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+  .cp-erp .cp-card { max-width: 100%; }
+  .cp-erp .cp-table { display: block; width: 100%; overflow-x: auto; }
+  /* Fixed drawer — do not push page content below a tall static nav. */
+  .cp-erp .cp-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 60;
+    width: min(280px, 88vw);
+    height: 100%;
+    max-height: none;
+    overflow: auto;
+    box-shadow: 8px 0 28px rgba(15, 23, 42, 0.18);
+  }
   .cp-erp .cp-sidebar[hidden] { display: none; }
+  body.cp-erp-nav-open::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(15, 23, 42, 0.35);
+  }
   /* cp.css icon-rail hides labels under 900px — ERP drawer needs full labels */
   .cp-erp .cp-nav-text,
   .cp-erp .cp-brand-sub,

@@ -4,9 +4,10 @@
 {% block content %}
 <p class="cp-meta mb-3">{% translate "Yalnız biznes əlaqə və ofis məlumatı — hüquqi / bank / şəxsiyyət məlumatı göstərilmir." %}</p>
 <form method="get" class="flex gap-2 mb-4" style="flex-wrap:wrap;">
-  <input class="cp-input" type="search" name="q" value="{{ q }}" placeholder="{% translate 'Şirkət, ofis və ya mərtəbə…' %}" style="min-width:220px;flex:1;">
+  <input class="cp-input" type="search" name="q" value="{{ q }}" placeholder="{% translate 'Şirkət, ofis kodu, etiket və ya mərtəbə…' %}" style="min-width:220px;flex:1;">
   <button class="cp-btn" type="submit">{% translate "Axtar" %}</button>
 </form>
+{% if company_total %}<p class="cp-meta mb-3">{% translate "Cəmi" %}: <strong>{{ company_total }}</strong></p>{% endif %}
 <div class="grid gap-3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));">
   {% for card in cards %}
   <a class="cp-card p-card" href="{% url 'erp:resident_directory_detail' card.company.slug %}" style="text-decoration:none;color:inherit;">
@@ -23,7 +24,11 @@
       <span class="cp-meta">{% translate "Ofislər" %}</span>
       <ul style="margin:0.35rem 0 0;padding-left:1.1rem;">
         {% for o in card.offices %}
-        <li>{{ o.label }} · {% translate "Mərtəbə" %} {{ o.floor }}</li>
+        <li>
+          {{ o.label }} · {% translate "Mərtəbə" %} {{ o.floor }}
+          {% if o.kind == "reserved" %}<span class="cp-meta">· {% translate "Rezerv" %}</span>
+          {% elif o.kind == "historical" %}<span class="cp-meta">· {% translate "Tarixi" %}</span>{% endif %}
+        </li>
         {% endfor %}
       </ul>
     </div>
@@ -33,4 +38,15 @@
   <p class="cp-meta">{% translate "Nəticə yoxdur." %}</p>
   {% endfor %}
 </div>
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<nav class="flex gap-2 mt-4" style="flex-wrap:wrap;align-items:center;" aria-label="{% translate 'Səhifələmə' %}">
+  {% if page_obj.has_previous %}
+  <a class="cp-btn-ghost" href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q|urlencode }}{% endif %}">{% translate "Əvvəlki" %}</a>
+  {% endif %}
+  <span class="cp-meta">{% blocktranslate with page=page_obj.number pages=page_obj.paginator.num_pages %}Səhifə {{ page }} / {{ pages }}{% endblocktranslate %}</span>
+  {% if page_obj.has_next %}
+  <a class="cp-btn-ghost" href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q|urlencode }}{% endif %}">{% translate "Növbəti" %}</a>
+  {% endif %}
+</nav>
+{% endif %}
 {% endblock %}

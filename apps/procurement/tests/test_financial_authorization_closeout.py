@@ -21,7 +21,12 @@ from apps.procurement.services import (
     WF_PROCUREMENT_COMMITMENT,
     ProcurementService,
 )
-from apps.rbac.services import seed_rbac_catalog
+from apps.procurement.tests.support import (
+    approve_pending_commitment,
+    approve_pr_via_management,
+    issue_priced_po,
+)
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.warehouse.models import SKU
 from apps.workflows.models import ApprovalRequest, ApprovalStatus
 from apps.workflows.services import ApprovalService
@@ -47,6 +52,7 @@ class HistoricalApprovalEvidenceTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.sku = SKU.objects.create(code="HIST-SKU", name="H", unit="ədəd", reorder_level=1)
         self.wo = WorkOrder.objects.create(
             code=next_wo_code(),
@@ -109,10 +115,14 @@ class HistoricalApprovalEvidenceTests(TestCase):
             self.wo, actor=self.fm, description="legacy-small", qty="1", sku=self.sku
         )
         self._legacy_approved(pr, amount="2")
-        # Fake ceiling of 2 AZN must not block-or-allow as money; role limit 1000 applies.
-        po = ProcurementService.create_po_from_pr(
-            pr, supplier_party=self.supplier, actor=self.fm, unit_price="200"
-        )
+        # Fake ceiling of 2 AZN must not block-or-allow as money; no local FM authority
+        # either — a 200 AZN issue still needs a Management commitment.
+        with self.assertRaises(DomainError):
+            ProcurementService.create_po_from_pr(
+                pr, supplier_party=self.supplier, actor=self.fm, unit_price="200"
+            )
+        self.assertEqual(pr.purchase_orders.count(), 0)
+        po = issue_priced_po(pr, supplier=self.supplier, unit_price="200", actor=self.fm)
         self.assertEqual(ProcurementService.assess_po_amount(po).amount, Decimal("200.00"))
 
     def test_report_lists_unverified(self):
@@ -135,6 +145,7 @@ class PricedEscalationPathTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.mgmt = User.objects.create_user(
             username="esc-mgmt",
             email="esc-mgmt@test.az",
@@ -168,7 +179,7 @@ class PricedEscalationPathTests(TestCase):
         pr = ProcurementService.create_pr_for_work_order(
             self.wo, actor=self.fm, description="capex", qty="1", sku=self.sku
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)  # process_only
+        approve_pr_via_management(pr, actor=self.admin)  # process_only
         rfq = ProcurementService.create_rfq_from_pr(pr, actor=self.fm)
         quote = ProcurementService.add_rfq_quote(
             rfq, supplier_party=self.supplier, unit_price="8000", actor=self.fm
@@ -228,19 +239,36 @@ class PricedEscalationPathTests(TestCase):
         with self.assertRaises(DomainError):
             ProcurementService.select_rfq_quote_and_create_po(quote2, actor=self.fm)
 
-    def test_admin_override_audited(self):
+    def test_admin_has_no_commitment_override(self):
+        """Admin cannot bypass Management: priced PO needs a commitment, no override audit."""
         pr = ProcurementService.create_pr_for_work_order(
             self.wo, actor=self.fm, description="ovr", qty="1", sku=self.sku
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)
-        before = AuditLog.objects.filter(action="procurement.commitment.admin_override").count()
+        approve_pr_via_management(pr, actor=self.admin)
+        with self.assertRaises(DomainError):
+            ProcurementService.create_po_from_pr(
+                pr, supplier_party=self.supplier, actor=self.admin, unit_price="8000"
+            )
+        self.assertEqual(PurchaseOrder.objects.filter(pr=pr).count(), 0)
+        self.assertFalse(
+            AuditLog.objects.filter(action="procurement.commitment.admin_override").exists()
+        )
+        # Pending Management commitment exists; only Management's decision unlocks issue.
+        self.assertTrue(
+            ApprovalRequest.objects.filter(
+                workflow_code=WF_PROCUREMENT_COMMITMENT,
+                status=ApprovalStatus.PENDING,
+                entity_id=pr.pk,
+            ).exists()
+        )
+        approve_pending_commitment(pr, mgmt=self.mgmt)
         po = ProcurementService.create_po_from_pr(
             pr, supplier_party=self.supplier, actor=self.admin, unit_price="8000"
         )
         self.assertIsNotNone(po.pk)
-        after = AuditLog.objects.filter(action="procurement.commitment.admin_override").count()
-        self.assertEqual(after, before + 1)
-
+        self.assertFalse(
+            AuditLog.objects.filter(action="procurement.commitment.admin_override").exists()
+        )
 
 class CommitmentConcurrencyTests(TransactionTestCase):
     def setUp(self):
@@ -252,6 +280,7 @@ class CommitmentConcurrencyTests(TransactionTestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.admin = User.objects.create_user(
             username="conc-admin",
             email="conc-admin@test.az",
@@ -276,15 +305,22 @@ class CommitmentConcurrencyTests(TransactionTestCase):
         self.pr = ProcurementService.create_pr_for_work_order(
             self.wo, actor=self.fm, description="race", qty="1", sku=self.sku
         )
-        ProcurementService.approve_pr(self.pr, actor=self.admin)
+        approve_pr_via_management(self.pr, actor=self.admin)
 
     def test_concurrent_700_plus_700_one_succeeds(self):
+        """One Management-approved commitment can be consumed by exactly one issuer."""
         if connection.vendor != "postgresql":
             self.skipTest("requires PostgreSQL row-level locks")
 
         pr_id = self.pr.pk
         supplier_id = self.supplier.pk
         fm_id = self.fm.pk
+        # No local authority: first attempt escalates, Management approves the 700 AZN commitment.
+        with self.assertRaises(DomainError):
+            ProcurementService.create_po_from_pr(
+                self.pr, supplier_party=self.supplier, actor=self.fm, unit_price="700"
+            )
+        approve_pending_commitment(self.pr)
         barrier = threading.Barrier(2, timeout=20)
         outcomes: list[str] = []
         lock = threading.Lock()
@@ -296,16 +332,9 @@ class CommitmentConcurrencyTests(TransactionTestCase):
                 actor = User.objects.get(pk=fm_id)
                 supplier = Party.objects.get(pk=supplier_id)
                 pr = PurchaseRequest.objects.get(pk=pr_id)
-                if mode == "direct":
-                    ProcurementService.create_po_from_pr(
-                        pr, supplier_party=supplier, actor=actor, unit_price="700"
-                    )
-                else:
-                    rfq = ProcurementService.create_rfq_from_pr(pr, actor=actor)
-                    quote = ProcurementService.add_rfq_quote(
-                        rfq, supplier_party=supplier, unit_price="700", actor=actor
-                    )
-                    ProcurementService.select_rfq_quote_and_create_po(quote, actor=actor)
+                ProcurementService.create_po_from_pr(
+                    pr, supplier_party=supplier, actor=actor, unit_price="700"
+                )
                 with lock:
                     outcomes.append(f"ok:{mode}")
             except DomainError as exc:
@@ -318,8 +347,8 @@ class CommitmentConcurrencyTests(TransactionTestCase):
                 connections.close_all()
 
         threads = [
-            threading.Thread(target=worker, args=("direct",)),
-            threading.Thread(target=worker, args=("quote",)),
+            threading.Thread(target=worker, args=("first",)),
+            threading.Thread(target=worker, args=("second",)),
         ]
         for t in threads:
             t.start()
@@ -338,10 +367,18 @@ class CommitmentConcurrencyTests(TransactionTestCase):
         )
         self.assertEqual(committed.amount, Decimal("700.00"))
         self.assertLessEqual(committed.amount, Decimal("1000.00"))
-
-    def test_exact_threshold_and_second_partial_within_ceiling(self):
-        po1 = ProcurementService.create_po_from_pr(
-            self.pr, supplier_party=self.supplier, actor=self.fm, unit_price="1000"
+    def test_exact_threshold_requires_commitment_and_no_second_tranche_bypass(self):
+        # Retired FM local limit: even exactly 1000 AZN needs a Management commitment.
+        with self.assertRaises(DomainError):
+            ProcurementService.create_po_from_pr(
+                self.pr, supplier_party=self.supplier, actor=self.fm, unit_price="1000"
+            )
+        self.assertEqual(PurchaseOrder.objects.filter(pr=self.pr).count(), 0)
+        po1 = issue_priced_po(
+            self.pr,
+            supplier=self.supplier,
+            unit_price="1000",
+            actor=self.fm,
         )
         self.assertEqual(ProcurementService.assess_po_amount(po1).amount, Decimal("1000.00"))
         # Remaining qty is zero after full order — block before monetary micro-order.
@@ -351,27 +388,30 @@ class CommitmentConcurrencyTests(TransactionTestCase):
             )
         self.assertIn("qalan miqdar", str(ctx.exception).lower())
 
-        # Fresh PR qty=2: order 1@600 then 1@400 within 1000
+        # Fresh PR qty=2: first tranche 1@600 needs its own commitment.
         pr2 = ProcurementService.create_pr_for_work_order(
             self.wo, actor=self.fm, description="partial", qty="2", sku=self.sku
         )
-        ProcurementService.approve_pr(pr2, actor=self.admin)
+        approve_pr_via_management(pr2, actor=self.admin)
         line_id = pr2.lines.get().pk
-        ProcurementService.create_po_from_pr(
+        issue_priced_po(
             pr2,
-            supplier_party=self.supplier,
-            actor=self.fm,
+            supplier=self.supplier,
             unit_price="600",
-            line_qtys={line_id: "1"},
-        )
-        po2 = ProcurementService.create_po_from_pr(
-            pr2,
-            supplier_party=self.supplier,
             actor=self.fm,
-            unit_price="400",
             line_qtys={line_id: "1"},
         )
-        self.assertEqual(ProcurementService.assess_po_amount(po2).amount, Decimal("400.00"))
+        # Second tranche 1@400 is a new commitment: no local FM/Admin bypass.
+        for actor in (self.fm, self.admin):
+            with self.assertRaises(DomainError):
+                ProcurementService.create_po_from_pr(
+                    pr2,
+                    supplier_party=self.supplier,
+                    actor=actor,
+                    unit_price="400",
+                    line_qtys={line_id: "1"},
+                )
+        self.assertEqual(pr2.purchase_orders.count(), 1)
         self.assertEqual(
-            ProcurementService.pr_committed_amount(pr2).amount, Decimal("1000.00")
+            ProcurementService.pr_committed_amount(pr2).amount, Decimal("600.00")
         )

@@ -11,7 +11,7 @@ from apps.accounts.models import Role
 from apps.maintenance.access import can_mutate_work_order, can_view_work_order, work_orders_queryset_for
 from apps.maintenance.models import WorkOrder, WorkOrderPriority, WorkOrderStatus
 from apps.maintenance.services import next_wo_code
-from apps.rbac.services import seed_rbac_catalog
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.residents.models import ResidentCompany
 from apps.tickets.models import (
     Ticket,
@@ -65,6 +65,7 @@ class Phase42WorkOrderVisibilityTests(TestCase):
             is_staff=True,
             ticket_department=self.fm_dept,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.mgmt = User.objects.create_user(
             username="p42-mgmt",
             email="p42-mgmt@test.az",

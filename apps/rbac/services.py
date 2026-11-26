@@ -108,11 +108,10 @@ _RECEPTION_PERMS = [
 
 ROLE_MATRIX = {
     Role.RECEPTION: _RECEPTION_PERMS,
-    # Unified Təchizat şöbəsi (ex-Service Desk + Facility). Mutate warehouse/procurement
-    # only via designated supply.head UserPermission — not the role matrix.
+    # Unified Təchizat şöbəsi. Warehouse/procurement mutate → supply.head only.
+    # Space / resident master-data mutate is never on this role (Admin / explicit grant).
     Role.SERVICE_DESK: [
         "space.view",
-        "space.edit",
         "property.asset.view",
         "property.asset.edit",
         "ticket.view",
@@ -120,11 +119,10 @@ ROLE_MATRIX = {
         "ticket.edit",
         "ticket.export",
         "work_order.view",
-        "work_order.create",
+        # work_order.create → supply.head / Admin (standalone & facility inbox)
         "work_order.edit",
         "party.view",
-        "lease.view",
-        "lease.edit",
+        # lease.view / lease.edit → Finance/Sales owners; never Supply role
         "document.view",
         "document.edit",
         "reception.view",
@@ -132,7 +130,6 @@ ROLE_MATRIX = {
         "warehouse.view",
         "procurement.view",
         "resident.view",
-        "resident.edit",
         "resident.directory.view",
     ],
     Role.SECURITY: [
@@ -177,7 +174,7 @@ ROLE_MATRIX = {
 }
 
 
-# Supply mutate codes — never grant via SERVICE_DESK RolePermission; only supply.head / Admin.
+# Never grant via SERVICE_DESK RolePermission — supply.head / Admin / explicit UserPermission.
 SUPPLY_MUTATIONS_NOT_ON_ROLE = frozenset(
     {
         "warehouse.edit",
@@ -186,9 +183,52 @@ SUPPLY_MUTATIONS_NOT_ON_ROLE = frozenset(
     }
 )
 
+# Space + resident company master-data mutate — not part of Supply role (RO in portal).
+SUPPLY_MASTER_DATA_MUTATIONS_NOT_ON_ROLE = frozenset(
+    {
+        "space.edit",
+        "resident.edit",
+    }
+)
+
+# Lease ops — Finance/Sales ownership; never role-derived for Supply.
+SUPPLY_LEASE_PERMISSIONS_NOT_ON_ROLE = frozenset(
+    {
+        "lease.view",
+        "lease.edit",
+    }
+)
+
+# Standalone WO creation is Head/Admin — strip leftover role grants on SERVICE_DESK.
+SUPPLY_STANDALONE_CREATE_NOT_ON_ROLE = frozenset({"work_order.create"})
+
+
+def list_supply_master_data_user_exceptions() -> list[tuple]:
+    """Explicit UserPermission exceptions for space.edit / resident.edit (not revoked)."""
+    return list(
+        UserPermission.objects.filter(
+            permission__code__in=SUPPLY_MASTER_DATA_MUTATIONS_NOT_ON_ROLE
+        )
+        .select_related("user", "permission")
+        .order_by("user_id", "permission__code")
+        .values_list("user_id", "user__username", "user__email", "permission__code")
+    )
+
+
+def list_supply_lease_user_exceptions() -> list[tuple]:
+    """Explicit UserPermission exceptions for lease.view / lease.edit (not revoked)."""
+    return list(
+        UserPermission.objects.filter(
+            permission__code__in=SUPPLY_LEASE_PERMISSIONS_NOT_ON_ROLE
+        )
+        .select_related("user", "permission")
+        .order_by("user_id", "permission__code")
+        .values_list("user_id", "user__username", "user__email", "permission__code")
+    )
+
 
 def reconcile_retired_property_fm_role() -> dict:
-    """Idempotent cleanup: retire legacy ``property_fm`` role grants and remapped users."""
+    """Idempotent cleanup: retire legacy ``property_fm``; strip SD mutate RolePermissions."""
     from django.contrib.auth import get_user_model
 
     # Literal legacy code — Role.PROPERTY_FM removed from enum.
@@ -196,15 +236,22 @@ def reconcile_retired_property_fm_role() -> dict:
     User = get_user_model()
     remapped = User.objects.filter(role=legacy_fm).update(role=Role.SERVICE_DESK)
     deleted_count, _ = RolePermission.objects.filter(role=legacy_fm).delete()
-    # Drop any accidental SERVICE_DESK role grants for supply mutate codes.
+    strip_codes = (
+        SUPPLY_MUTATIONS_NOT_ON_ROLE
+        | SUPPLY_MASTER_DATA_MUTATIONS_NOT_ON_ROLE
+        | SUPPLY_LEASE_PERMISSIONS_NOT_ON_ROLE
+        | SUPPLY_STANDALONE_CREATE_NOT_ON_ROLE
+    )
     stripped, _ = RolePermission.objects.filter(
         role=Role.SERVICE_DESK,
-        permission__code__in=SUPPLY_MUTATIONS_NOT_ON_ROLE,
+        permission__code__in=strip_codes,
     ).delete()
     return {
         "users_remapped": remapped,
         "deleted_fm_role_grants": deleted_count,
         "stripped_sd_mutate_grants": stripped,
+        "master_data_user_exceptions": list_supply_master_data_user_exceptions(),
+        "lease_user_exceptions": list_supply_lease_user_exceptions(),
     }
 
 
@@ -225,6 +272,11 @@ def seed_rbac_catalog() -> int:
         for code in codes:
             perm = PermissionCode.objects.get(code=code)
             RolePermission.objects.get_or_create(role=role, permission=perm)
+    # supply.head is UserPermission-only for designation; strip leftover role grants
+    # (e.g. Management) so seed twice cannot reintroduce head via RolePermission.
+    RolePermission.objects.filter(permission__code="supply.head").exclude(
+        role=Role.ADMIN
+    ).delete()
     reconcile_retired_property_fm_role()
     return created
 

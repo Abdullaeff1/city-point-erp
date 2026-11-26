@@ -12,7 +12,12 @@ from apps.core.services import DomainError
 from apps.parties.models import Party, PartyRole, PartyRoleCode, PartyStatus
 from apps.procurement.models import PRSource, PRStatus, PurchaseApprovalLimit, PurchaseOrder, PurchaseRequest
 from apps.procurement.services import ProcurementService
-from apps.rbac.services import seed_rbac_catalog
+from apps.procurement.tests.support import (
+    approve_pr_via_management,
+    issue_priced_po,
+    issue_quote_po,
+)
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.residents.models import ResidentCompany
 from apps.warehouse.models import SKU, Stock, Warehouse
 
@@ -29,6 +34,7 @@ class Phase4423ManualPRTests(TestCase):
         self.fm = User.objects.create_user(
             username="p4423-fm", email="p4423-fm@test.az", password="x", role=Role.SERVICE_DESK, is_staff=True
         )
+        grant_user_permission(self.fm, "supply.head")
         self.admin = User.objects.create_user(
             username="p4423-adm",
             email="p4423-adm@test.az",
@@ -108,9 +114,13 @@ class Phase4423ManualPRTests(TestCase):
         pr.refresh_from_db()
         self.assertEqual(pr.status, PRStatus.SUBMITTED)
 
-        # Admin can approve MANUAL
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        # Admin cannot self-approve MANUAL either — Management must decide.
+        with self.assertRaises(DomainError):
+            ProcurementService.approve_pr(pr, actor=self.admin)
         pr.refresh_from_db()
+        self.assertEqual(pr.status, PRStatus.SUBMITTED)
+
+        approve_pr_via_management(pr, actor=self.admin)
         self.assertEqual(pr.status, PRStatus.APPROVED)
 
     def test_accountant_cannot_create_pr(self):
@@ -140,6 +150,7 @@ class Phase4423SupplierTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.residents_before = ResidentCompany.objects.count()
 
     def test_supplier_create_edit_and_no_resident_company(self):
@@ -197,6 +208,7 @@ class Phase4423POAndRFQTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.admin = User.objects.create_user(
             username="p4423-po-adm",
             email="p4423-po-adm@test.az",
@@ -217,10 +229,10 @@ class Phase4423POAndRFQTests(TestCase):
             title="Need parts",
             lines=[{"description": "Bolt", "qty": "4", "sku_id": self.sku.pk}],
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        approve_pr_via_management(pr, actor=self.admin)
         with self.assertRaises(DomainError):
             ProcurementService.create_po_from_pr(pr, supplier_party=None, actor=self.admin)
-        po = ProcurementService.create_po_from_pr(pr, supplier_party=self.supplier, actor=self.admin)
+        po = issue_priced_po(pr, supplier=self.supplier, unit_price="10", actor=self.admin)
         self.assertEqual(po.supplier_party_id, self.supplier.pk)
         before = Stock.objects.get(sku=self.sku, warehouse=self.wh).quantity
         ProcurementService.receive_po(po, warehouse=self.wh, actor=self.admin)
@@ -237,12 +249,12 @@ class Phase4423POAndRFQTests(TestCase):
             title="RFQ path",
             lines=[{"description": "Valve", "qty": "2", "sku_id": self.sku.pk}],
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        approve_pr_via_management(pr, actor=self.admin)
         rfq = ProcurementService.create_rfq_from_pr(pr, actor=self.admin)
         quote = ProcurementService.add_rfq_quote(
             rfq, supplier_party=self.supplier, unit_price="15.50", actor=self.admin
         )
-        po = ProcurementService.select_rfq_quote_and_create_po(quote, actor=self.admin)
+        po = issue_quote_po(quote, actor=self.admin)
         self.assertEqual(po.supplier_party_id, self.supplier.pk)
         self.assertEqual(po.lines.get().unit_price, Decimal("15.50"))
         quote.refresh_from_db()
@@ -254,7 +266,7 @@ class Phase4423POAndRFQTests(TestCase):
             title="UI PO",
             lines=[{"description": "x", "qty": "1", "sku_id": self.sku.pk}],
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        approve_pr_via_management(pr, actor=self.admin)
         self.client.force_login(self.admin)
         resp = self.client.post(
             reverse("erp:procurement_pr_detail", kwargs={"code": pr.code}),

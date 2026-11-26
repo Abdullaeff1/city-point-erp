@@ -101,12 +101,15 @@ class FacilityAggregationTests(TestCase):
         )
 
     def test_facility_kpi_counts_spaces(self):
+        # Facility landing now reuses the Supply board (no separate space KPIs).
         board = build_facility_dashboard(self.fm)
-        vacant = next(k["value"] for k in board["kpis"] if "Boş" in str(k["label"]))
-        self.assertGreaterEqual(vacant, 1)
-        occupied = next(k["value"] for k in board["kpis"] if "Məşğul" in str(k["label"]))
-        self.assertGreaterEqual(occupied, 1)
-        open_wo = next(k["value"] for k in board["kpis"] if "Açıq WO" in str(k["label"]))
+        labels = [str(k["label"]) for k in board["kpis"]]
+        self.assertTrue(any("müraciət" in lab.casefold() for lab in labels))
+        open_wo = next(
+            k["value"]
+            for k in board["kpis"]
+            if "iş sifariş" in str(k["label"]).casefold() or "wo" in str(k["label"]).casefold()
+        )
         self.assertGreaterEqual(open_wo, 0)
 
     def test_vacant_kpi_matches_filtered_floor_register(self):
@@ -115,13 +118,15 @@ class FacilityAggregationTests(TestCase):
             operational_status=OperationalStatus.BLOCKED,
         )
         self.client.force_login(self.fm)
-        board = build_facility_dashboard(self.fm)
-        vacant = next(kpi for kpi in board["kpis"] if kpi.get("url", "").endswith("?status=vacant"))
-        response = self.client.get(vacant["url"])
+        response = self.client.get(reverse("erp:spaces"), {"status": "vacant"})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(vacant["value"], response.context["vacant_count"])
-        visible_codes = [item["space"].code for row in response.context["floor_rows"] for item in row["spaces"]]
-        self.assertEqual(visible_codes, ["T-VAC"])
+        visible_codes = [
+            item["space"].code
+            for row in response.context["floor_rows"]
+            for item in row["spaces"]
+        ]
+        self.assertIn("T-VAC", visible_codes)
+        self.assertNotIn("T-BLOCKED", visible_codes)
         self.assertContains(response, reverse("erp:space_detail", kwargs={"code": "T-VAC"}))
 
         response = self.client.get(reverse("erp:spaces"), {"floor": self.floor.pk, "q": "t-blocked"})

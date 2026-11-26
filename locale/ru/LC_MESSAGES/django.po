@@ -680,7 +680,6 @@ msgstr "Уведомление"
 
 msgid "Menyu"
 msgstr "Меню"
-
 msgid "Mərtəbələr və sahələr"
 msgstr "Этажи и помещения"
 
@@ -731,3 +730,81 @@ msgstr "Быстрые ссылки"
 
 msgid "Müqavilə bitir"
 msgstr "Окончание аренды"
+
+msgid "Təchizat şöbəsi"
+msgstr "Отдел снабжения"
+msgid "Rəsm icazələri"
+msgstr "Разрешения на чертежи"
+msgid "Avadanlıqlar"
+msgstr "Оборудование"
+msgid "İnventarlar"
+msgstr "Инвентарь"
+msgid "Açıq müraciətlər"
+msgstr "Открытые обращения"
+
+msgid "Təyinatsız müraciətlər"
+msgstr "Неназначенные обращения"
+
+msgid "Açıq iş sifarişləri"
+msgstr "Открытые наряды"
+
+msgid "SLA risk və pozuntu"
+msgstr "SLA риск и нарушение"
+msgid "Əməliyyat növbələri"
+msgstr "Операционные очереди"
+
+msgid "Material gözləyən təmirlər"
+msgstr "Ремонты, ожидающие материал"
+msgid "Rəhbər təsdiqini gözləyən alışlar"
+msgstr "Закупки, ожидающие утверждения руководства"
+msgid "Təsdiqlənib sifarişə hazır olan alışlar"
+msgstr "Утверждённые закупки, готовые к заказу"
+msgid "Qismən qəbul edilmiş sifarişlər"
+msgstr "Частично принятые заказы"
+msgid "Planlı"
+msgstr "Плановый"
+
+msgid "Yeni iş tapşırığı"
+msgstr "Новый наряд"
+
+msgid "Qaranlıq rejim"
+msgstr "Тёмный режим"
+
+msgid "İşıqlı rejim"
+msgstr "Светлый режим"
+
+msgid "Rezident şirkətlər"
+msgstr "Компании-резиденты"
+
+msgid "Rezident şirkət"
+msgstr "Компания-резидент"
+
+msgid "risk: %(r)s · pozuntu: %(b)s"
+msgstr "риск: %(r)s · нарушение: %(b)s"
+
+msgid "təsdiqlənmiş öhdəlik"
+msgstr "утверждённое обязательство"
+
+msgid "podratçı öhdəliyi (PR deyil)"
+msgstr "обязательство поставщика (не PR)"
+
+msgid "Gözləyən alış təsdiqləri"
+msgstr "Ожидающие утверждения закупок"
+
+msgid "Sifarişə hazır öhdəliklər"
+msgstr "Обязательства, готовые к выдаче"
+
+msgid "Sifarişə hazır öhdəlik yoxdur."
+msgstr "Нет обязательств, готовых к выдаче."
+
+msgid "PR proses"
+msgstr "Процесс PR"
+
+msgid "Podratçı öhdəliyi"
+msgstr "Обязательство поставщика"
+
+msgid "Oxuma rejimində: Təchizat gözləyən satınalma təsdiqlərini görür; qərar Rəhbərliyə məxsusdur."
+msgstr "Только чтение: Снабжение видит ожидающие утверждения; решение за руководством."
+
+msgid "Yalnız Rəhbərliyin təsdiqlədiyi, istifadə olunmamış və cari şərtlərə uyğun podratçı öhdəlikləri. Bir PR-də bir neçə podratçı varsa, hər öhdəlik ayrı sətir kimi sayılır."
+msgstr "Только утверждённые руководством, неиспользованные обязательства поставщика с актуальными условиями. Если у одного PR несколько поставщиков, каждое обязательство — отдельная строка."

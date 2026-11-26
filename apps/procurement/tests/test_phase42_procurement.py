@@ -12,7 +12,8 @@ from apps.maintenance.models import WorkOrder, WorkOrderPriority, WorkOrderStatu
 from apps.maintenance.services import next_wo_code
 from apps.procurement.models import PRStatus, PurchaseApprovalLimit, PurchaseRequest
 from apps.procurement.services import ProcurementService
-from apps.rbac.services import seed_rbac_catalog
+from apps.procurement.tests.support import approve_pr_via_management, issue_priced_po
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.warehouse.models import SKU, Stock, Warehouse
 from apps.warehouse.services import can_confirm_warehouse_issue, request_issue_line
 from apps.workflows.models import ApprovalRequest, ApprovalStatus
@@ -39,6 +40,7 @@ class Phase42ProcurementWarehouseTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.mgmt = User.objects.create_user(
             username="p42w-mgmt",
             email="p42w-mgmt@test.az",
@@ -146,12 +148,12 @@ class Phase42ProcurementWarehouseTests(TestCase):
         pr = ProcurementService.create_pr_for_work_order(
             self.wo, actor=self.admin, description="recv", qty="3", sku=self.sku
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        approve_pr_via_management(pr, actor=self.admin)
         from apps.parties.models import Party, PartyRole, PartyRoleCode
 
         supplier = Party.objects.create(legal_name="Phase42 Supplier")
         PartyRole.objects.get_or_create(party=supplier, role=PartyRoleCode.SUPPLIER)
-        po = ProcurementService.create_po_from_pr(pr, supplier_party=supplier)
+        po = issue_priced_po(pr, supplier=supplier, unit_price="5", actor=self.admin)
         before = Stock.objects.get(pk=self.stock.pk).quantity
         ProcurementService.receive_po(po, warehouse=self.wh, actor=self.admin)
         self.stock.refresh_from_db()

@@ -75,6 +75,11 @@ class PermissionCatalogTests(TestCase):
         self.assertNotIn("procurement.approve", ROLE_MATRIX[Role.SERVICE_DESK])
         self.assertNotIn("procurement.edit", ROLE_MATRIX[Role.SERVICE_DESK])
         self.assertNotIn("warehouse.edit", ROLE_MATRIX[Role.SERVICE_DESK])
+        self.assertNotIn("space.edit", ROLE_MATRIX[Role.SERVICE_DESK])
+        self.assertNotIn("resident.edit", ROLE_MATRIX[Role.SERVICE_DESK])
+        self.assertNotIn("lease.view", ROLE_MATRIX[Role.SERVICE_DESK])
+        self.assertNotIn("lease.edit", ROLE_MATRIX[Role.SERVICE_DESK])
+        self.assertNotIn("work_order.create", ROLE_MATRIX[Role.SERVICE_DESK])
         self.assertNotIn("procurement.approve", ROLE_MATRIX[Role.MANAGEMENT])
 
     def test_crm_dual_gate(self):

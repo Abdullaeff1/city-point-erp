@@ -7,10 +7,17 @@ from apps.rbac.services import user_has_permission
 
 
 def is_supply_head(user) -> bool:
-    """Designated Head of Supply via explicit ``supply.head`` UserPermission."""
+    """Designated Head of Supply via explicit ``supply.head`` UserPermission only.
+
+    RolePermission / ROLE_MATRIX must never confer head status (Management RO).
+    """
     if not user or not getattr(user, "is_authenticated", False):
         return False
-    return user_has_permission(user, "supply.head")
+    from apps.rbac.models import UserPermission
+
+    return UserPermission.objects.filter(
+        user_id=user.pk, permission__code="supply.head"
+    ).exists()
 
 
 def is_supply_portal_user(user) -> bool:

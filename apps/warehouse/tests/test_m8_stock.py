@@ -7,6 +7,7 @@ from apps.accounts.models import Role
 from apps.maintenance.models import WorkOrder, WorkOrderPriority, WorkOrderStatus
 from apps.procurement.models import POStatus, PRStatus
 from apps.procurement.services import ProcurementService
+from apps.procurement.tests.support import approve_pr_via_management, issue_priced_po
 from apps.parties.models import Party
 from apps.warehouse.models import SKU, Stock, StockMovementType, Warehouse
 from apps.warehouse.services import apply_movement, confirm_issue, request_issue_line
@@ -70,12 +71,12 @@ class M8StockProcurementTests(TestCase):
 
     def test_partial_po_receive(self):
         pr = ProcurementService.create_pr_from_low_stock(stock=self.stock, requested_by=self.admin)
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        approve_pr_via_management(pr, actor=self.admin)
         from apps.parties.models import PartyRole, PartyRoleCode
 
         supplier = Party.objects.create(legal_name="Supplier MMC")
         PartyRole.objects.get_or_create(party=supplier, role=PartyRoleCode.SUPPLIER)
-        po = ProcurementService.create_po_from_pr(pr, supplier_party=supplier)
+        po = issue_priced_po(pr, supplier=supplier, unit_price="5", actor=self.admin)
         line = po.lines.get()
         half = (line.qty or Decimal("1")) / 2
         if half <= 0:

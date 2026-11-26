@@ -1,0 +1,31 @@
+/* Təchizat şöbəsi shell marker — palette lives in cp-theme.css shared tokens.
+   Keep this file for load-order compatibility and Supply-only KPI class aliases. */
+
+.cp-theme-supply {
+  /* Identity only; colors inherit from :root / dark tokens in cp-theme.css */
+  --supply-sidebar-bg: var(--cp-sidebar-bg);
+  --supply-sidebar-active-bg: var(--cp-sidebar-active-bg);
+  --supply-sidebar-hover: var(--cp-sidebar-hover);
+  --supply-sidebar-text: var(--cp-sidebar-text);
+  --supply-sidebar-muted: var(--cp-sidebar-muted);
+  --supply-sidebar-border: var(--cp-sidebar-border);
+  --supply-content-bg: var(--cp-bg);
+  --supply-card: var(--cp-surface);
+  --supply-primary-btn: var(--cp-primary);
+  --supply-kpi-neutral: var(--cp-kpi-neutral);
+  --supply-kpi-green: var(--cp-kpi-positive);
+  --supply-kpi-amber: var(--cp-kpi-waiting);
+  --supply-kpi-risk: var(--cp-kpi-risk);
+  --supply-kpi-approval: var(--cp-kpi-approval);
+  --supply-progress-fill: var(--cp-progress-fill);
+  --supply-progress-track: var(--cp-progress-track);
+  --supply-badge-ok-bg: var(--cp-badge-ok-bg);
+  --supply-badge-overdue-bg: var(--cp-badge-overdue-bg);
+  --supply-text: var(--cp-text);
+  --supply-muted: var(--cp-text-muted);
+  --supply-border: var(--cp-border);
+  --supply-link: var(--cp-link);
+  --supply-focus: var(--cp-focus-ring);
+  --supply-badge-ok-fg: var(--cp-badge-ok-fg);
+  --supply-badge-overdue-fg: var(--cp-badge-overdue-fg);
+}

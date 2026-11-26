@@ -1,0 +1,80 @@
+/* City Point Django Admin — shared palette (operators who use /admin/). */
+:root {
+  --primary: #29354b;
+  --secondary: #1c2437;
+  --accent: #364258;
+  --primary-fg: #ffffff;
+  --body-fg: #1a2332;
+  --body-bg: #f5f6f8;
+  --body-quiet-color: #6b7c8f;
+  --body-loud-color: #1a2332;
+  --header-color: #e8edf4;
+  --header-branding-color: #ffffff;
+  --header-bg: #1c2437;
+  --header-link-color: #e8edf4;
+  --breadcrumbs-fg: #9aa8bc;
+  --breadcrumbs-link-fg: #e8edf4;
+  --breadcrumbs-bg: #151b29;
+  --link-fg: #4a5a70;
+  --link-hover-color: #29354b;
+  --link-selected-fg: #61907e;
+  --hairline-color: #e2e6ec;
+  --border-color: #e2e6ec;
+  --darkened-bg: #eef1f4;
+  --selected-bg: #e8ecf1;
+  --selected-row: #e8ecf1;
+  --button-bg: #29354b;
+  --button-hover-bg: #364258;
+  --default-button-bg: #29354b;
+  --default-button-hover-bg: #364258;
+  --close-button-bg: #7b90a3;
+  --delete-button-bg: #a36f62;
+  --object-tools-bg: #364258;
+  --object-tools-hover-bg: #29354b;
+  --message-success-bg: #e0f0e6;
+  --message-warning-bg: #f5efe3;
+  --message-error-bg: #f8dfdb;
+}
+
+#header {
+  background: #1c2437;
+  color: #e8edf4;
+}
+#branding h1,
+#branding h1 a:link,
+#branding h1 a:visited {
+  color: #ffffff;
+}
+div.breadcrumbs {
+  background: #151b29;
+  color: #9aa8bc;
+}
+.module h2,
+.module caption,
+inline-group h2 {
+  background: #364258;
+  color: #ffffff;
+}
+a:link,
+a:visited {
+  color: #4a5a70;
+}
+.button,
+input[type="submit"],
+input[type="button"],
+.submit-row input,
+a.button {
+  background: #29354b;
+  color: #fff;
+}
+.button:hover,
+input[type="submit"]:hover,
+input[type="button"]:hover {
+  background: #364258;
+}
+.delete-confirmation form input[type="submit"],
+.deletelink,
+.deletelink:link,
+.deletelink:visited {
+  background: #a36f62;
+}

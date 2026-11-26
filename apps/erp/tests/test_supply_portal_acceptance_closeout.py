@@ -94,17 +94,18 @@ class SupplyPortalAcceptanceCloseoutTests(TestCase):
         self.assertTrue(user_has_permission(self.head, "supply.head"))
         self.assertTrue(user_has_permission(self.head, "procurement.edit"))  # implied
         self.assertTrue(user_has_permission(self.head, "warehouse.edit"))  # implied
-        self.assertTrue(user_has_permission(self.head, "space.edit"))  # Təchizat facility
+        self.assertFalse(user_has_permission(self.head, "space.edit"))  # master data RO
         self.assertFalse(user_has_permission(self.staff_sd, "supply.head"))
         self.assertFalse(user_has_permission(self.staff_sd, "procurement.edit"))
         self.assertFalse(user_has_permission(self.staff_sd, "warehouse.edit"))
-        # Non-head Təchizat: facility yes; warehouse/procurement mutate no.
+        # Non-head Təchizat: facility view yes; master-data / WH-PO mutate no.
         self.assertFalse(user_has_permission(self.legacy_fm, "supply.head"))
         self.assertFalse(user_has_permission(self.legacy_fm, "warehouse.edit"))
         self.assertFalse(user_has_permission(self.legacy_fm, "procurement.edit"))
         self.assertFalse(user_has_permission(self.legacy_fm, "procurement.approve"))
         self.assertTrue(user_has_permission(self.legacy_fm, "warehouse.view"))
-        self.assertTrue(user_has_permission(self.legacy_fm, "space.edit"))
+        self.assertTrue(user_has_permission(self.legacy_fm, "space.view"))
+        self.assertFalse(user_has_permission(self.legacy_fm, "space.edit"))
         self.assertFalse(user_has_permission(self.mgmt, "warehouse.edit"))
         self.assertFalse(user_has_permission(self.mgmt, "procurement.edit"))
         self.assertTrue(user_has_permission(self.mgmt, "approval.decide"))

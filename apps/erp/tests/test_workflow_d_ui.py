@@ -15,7 +15,11 @@ from apps.maintenance.services import next_wo_code
 from apps.parties.models import Party, PartyRole, PartyRoleCode
 from apps.procurement.models import PurchaseOrder, PurchaseRequest
 from apps.procurement.services import ProcurementService
-from apps.rbac.services import seed_rbac_catalog
+from apps.procurement.tests.support import (
+    approve_pending_commitment,
+    approve_pr_via_management,
+)
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.warehouse.models import SKU, Stock, Warehouse
 from apps.warehouse.services import confirm_issue, request_issue_line
 
@@ -41,6 +45,7 @@ class WorkflowDUICloseoutTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.wh = Warehouse.objects.create(code="WFDUI-WH", name="WFD UI WH")
         self.sku = SKU.objects.create(
             code="WFDUI-SKU", name="Filter", unit="ədəd", reorder_level=5
@@ -73,8 +78,8 @@ class WorkflowDUICloseoutTests(TestCase):
         self.assertEqual(create_pr.status_code, 302)
         pr = PurchaseRequest.objects.filter(lines__sku=self.sku).latest("id")
 
-        # Process approve (Admin) — quantity-only, not spending authority
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        # Process approval comes from Management only (Admin has no self-approval).
+        approve_pr_via_management(pr, actor=self.admin)
         pr.refresh_from_db()
         self.assertEqual(pr.status, "approved")
 
@@ -113,11 +118,19 @@ class WorkflowDUICloseoutTests(TestCase):
         self.assertContains(compare, "Seç və PO yarat")
         self.assertContains(compare, "25")
 
-        # Select cheapest (Admin within authority for UI path)
+        # Select cheapest — Admin has no local authority: escalates, no PO yet.
         from apps.procurement.models import RFQQuote
 
         cheap = RFQQuote.objects.filter(rfq__code=rfq_code, unit_price=Decimal("25")).get()
         self.client.force_login(self.admin)
+        select = self.client.post(
+            rfq_url,
+            {"action": "select_quote", "quote_id": str(cheap.pk)},
+        )
+        self.assertEqual(select.status_code, 302)
+        self.assertFalse(PurchaseOrder.objects.filter(pr=pr).exists())
+        # Management approves the commitment, then the same UI action issues the PO.
+        approve_pending_commitment(pr)
         select = self.client.post(
             rfq_url,
             {"action": "select_quote", "quote_id": str(cheap.pk)},
@@ -182,7 +195,7 @@ class WorkflowDUICloseoutTests(TestCase):
         pr = ProcurementService.create_pr_for_work_order(
             self.wo, actor=self.fm, description="x", qty="1", sku=self.sku
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        approve_pr_via_management(pr, actor=self.admin)
         self.client.force_login(mgmt)
         page = self.client.get(reverse("erp:procurement_pr_detail", kwargs={"code": pr.code}))
         self.assertEqual(page.status_code, 200)

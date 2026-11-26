@@ -24,15 +24,18 @@ def _empty_board() -> dict:
         "notifications": [],
         "quick_actions": [],
         "reports": [],
+        "queues": [],
     }
 
 
-def _kpi(label, value, *, url=None, meta=None) -> dict:
+def _kpi(label, value, *, url=None, meta=None, accent=None) -> dict:
     item = {"label": label, "value": value}
     if url:
         item["url"] = url
     if meta:
         item["meta"] = meta
+    if accent:
+        item["accent"] = accent
     return item
 
 
@@ -45,16 +48,35 @@ def _link(label, url_name, *, icon="arrow-right", mutate_perm=None, user=None) -
 def _user_notifications(user, limit=8) -> list[dict]:
     if not user or not getattr(user, "is_authenticated", False):
         return []
-    rows = Notification.objects.filter(user=user).order_by("-created_at")[:limit]
+    from apps.comms.links import user_notifications
+
+    rows = user_notifications(user, namespace="erp", limit=limit)
     return [
         {
             "title": n.message or _("Bildiriş"),
             "at": n.created_at,
-            "url": reverse("erp:alerts"),
+            "url": getattr(n, "target_url", None) or reverse("erp:alerts"),
             "unread": not n.is_read,
         }
         for n in rows
     ]
+
+
+def _sla_flags_at(ticket, *, now) -> tuple[bool, bool]:
+    """Return (at_risk, breached) using one evaluation instant (business calendar)."""
+    from apps.tickets.business_calendar import business_seconds_between
+    from apps.tickets.models import CLOSED_STATUSES
+
+    if not ticket.sla_due_at or ticket.status in CLOSED_STATUSES:
+        return False, False
+    if ticket.sla_paused_at:
+        return False, False
+    remaining = business_seconds_between(now, ticket.sla_due_at)
+    if remaining <= 0:
+        return False, True
+    if remaining <= 2 * 3600:
+        return True, False
+    return False, False
 
 
 def build_supply_dashboard(user) -> dict:
@@ -65,35 +87,79 @@ def build_supply_dashboard(user) -> dict:
     from apps.tickets.models import OPEN_STATUSES
 
     board = _empty_board()
+    now = timezone.now()
     visible = tickets_visible_to(user)
     open_qs = visible.filter(status__in=OPEN_STATUSES)
-    open_list = list(open_qs.select_related("company", "department", "category")[:80])
-    open_count = open_qs.count()
-    unassigned = open_qs.filter(assignee__isnull=True).count()
-    sla_risk = sum(1 for t in open_list if getattr(t, "sla_risk", False))
-    sla_breach = sum(1 for t in open_list if getattr(t, "sla_breached", False))
-
-    open_wo_qs = work_orders_queryset_for(user).filter(
-        status__in=(WorkOrderStatus.OPEN, WorkOrderStatus.ASSIGNED, WorkOrderStatus.IN_PROGRESS)
+    # Full authorized open population for totals (preview rows capped separately).
+    open_all = list(open_qs.select_related("company", "department", "category"))
+    open_count = len(open_all)
+    unassigned = sum(
+        1
+        for t in open_all
+        if t.assignee_id is None and getattr(t, "assigned_employee_id", None) is None
     )
-    open_wo_count = open_wo_qs.count()
-    open_wo_list = list(open_wo_qs.select_related("ticket", "ticket__company")[:10])
-
+    sla_risk = 0
+    sla_breach = 0
     by_dept: dict[str, int] = {}
-    for t in open_list:
+    for t in open_all:
+        at_risk, breached = _sla_flags_at(t, now=now)
+        if at_risk:
+            sla_risk += 1
+        if breached:
+            sla_breach += 1
         name = t.department.name if t.department_id else _("Şöbəsiz")
         by_dept[name] = by_dept.get(name, 0) + 1
 
+    open_preview = open_all[:10]
+    # Combined card: at-risk ∪ breached (matches ticket list ?tab=sla which uses sla_risk;
+    # drill-down uses tab=sla for at-risk; breach included in KPI meta).
+    sla_combined = sla_risk + sla_breach
+
+    open_wo_statuses = (WorkOrderStatus.OPEN, WorkOrderStatus.ASSIGNED, WorkOrderStatus.IN_PROGRESS)
+    open_wo_qs = work_orders_queryset_for(user).filter(status__in=open_wo_statuses)
+    open_wo_count = open_wo_qs.count()
+    open_wo_list = list(open_wo_qs.select_related("ticket", "ticket__company")[:10])
+
     board["kpis"] = [
-        _kpi(_("Açıq ticket"), open_count, url=reverse("erp:tickets")),
-        _kpi(_("Təyinatsız"), unassigned, url=reverse("erp:tickets")),
-        _kpi(_("Açıq WO"), open_wo_count, url=reverse("erp:work_orders")),
-        _kpi(_("SLA risk"), sla_risk + sla_breach, meta=_("pozuntu: %(n)s") % {"n": sla_breach}),
+        _kpi(
+            _("Açıq müraciətlər"),
+            open_count,
+            url=reverse("erp:tickets") + "?tab=open",
+            accent="neutral",
+        ),
+        _kpi(
+            _("Təyinatsız müraciətlər"),
+            unassigned,
+            url=reverse("erp:tickets") + "?tab=queue",
+            accent="amber",
+        ),
+        _kpi(
+            _("Açıq iş sifarişləri"),
+            open_wo_count,
+            url=reverse("erp:work_orders") + "?status=open",
+            accent="green",
+        ),
+        _kpi(
+            _("SLA risk və pozuntu"),
+            sla_combined,
+            url=reverse("erp:tickets") + "?tab=sla",
+            meta=_("risk: %(r)s · pozuntu: %(b)s") % {"r": sla_risk, "b": sla_breach},
+            accent="risk",
+        ),
     ]
     board["stats"] = [
         {"label": k, "value": v} for k, v in sorted(by_dept.items(), key=lambda x: -x[1])[:6]
     ]
-    board["pending"] = [
+    # Prefer pending tickets when present; also keep WO preview so neither hides the other.
+    ticket_pending = [
+        {
+            "title": t.code,
+            "meta": t.get_status_display(),
+            "url": reverse("erp:ticket_detail", kwargs={"code": t.code}),
+        }
+        for t in open_preview
+    ]
+    wo_pending = [
         {
             "title": wo.code,
             "meta": (
@@ -103,14 +169,8 @@ def build_supply_dashboard(user) -> dict:
             "url": reverse("erp:work_order_detail", kwargs={"code": wo.code}),
         }
         for wo in open_wo_list
-    ] or [
-        {
-            "title": t.code,
-            "meta": t.get_status_display(),
-            "url": reverse("erp:ticket_detail", kwargs={"code": t.code}),
-        }
-        for t in open_list[:10]
     ]
+    board["pending"] = (ticket_pending + wo_pending)[:12] or ticket_pending or wo_pending
     board["recent"] = [
         {
             "title": f"{t.code} · {t.get_status_display()}",
@@ -120,9 +180,10 @@ def build_supply_dashboard(user) -> dict:
         for t in visible.order_by("-updated_at")[:10]
     ]
     board["notifications"] = _user_notifications(user)
+    board["queues"] = _supply_action_queues(user)
     actions = [
-        _link(_("Yeni ticket"), "erp:ticket_create", icon="plus", mutate_perm="ticket.create", user=user),
-        _link(_("Ticketlər"), "erp:tickets", icon="ticket"),
+        _link(_("Yeni müraciət"), "erp:ticket_create", icon="plus", mutate_perm="ticket.create", user=user),
+        _link(_("Müraciətlər"), "erp:tickets", icon="ticket"),
         _link(_("İş sifarişləri"), "erp:work_orders", icon="wrench"),
         _link(
             _("Yeni iş tapşırığı"),
@@ -135,12 +196,101 @@ def build_supply_dashboard(user) -> dict:
         _link(_("Satınalma"), "erp:procurement", icon="shopping-cart"),
         _link(_("Rezident şirkətlər"), "erp:resident_directory", icon="building"),
     ]
-    if user_has_permission(user, "space.edit"):
+    if user_has_permission(user, "space.view"):
         actions.append(_link(_("Sahələr"), "erp:spaces", icon="building-2"))
+    if user_has_permission(user, "property.asset.view"):
         actions.append(_link(_("Avadanlıqlar"), "erp:building_equipment", icon="cpu"))
     board["quick_actions"] = [a for a in actions if a]
     board["reports"] = [{"label": _("SLA hesabat"), "url": reverse("erp:sla_report")}]
     return board
+
+
+def _supply_action_queues(user) -> list[dict]:
+    """Material / procurement queues for users with matching permissions."""
+    queues: list[dict] = []
+    if not user or not getattr(user, "is_authenticated", False):
+        return queues
+
+    if user_has_permission(user, "work_order.view"):
+        from apps.maintenance.access import work_orders_queryset_for
+        from apps.maintenance.models import WorkOrderStatus
+
+        # Material wait: WO with recorded material requirement / waiting reason.
+        material_qs = work_orders_queryset_for(user).filter(
+            status__in=(WorkOrderStatus.OPEN, WorkOrderStatus.ASSIGNED, WorkOrderStatus.IN_PROGRESS),
+        ).filter(
+            Q_material_wait()
+        )
+        queues.append(
+            {
+                "label": _("Material gözləyən təmirlər"),
+                "count": material_qs.count(),
+                "url": reverse("erp:work_orders") + "?status=open&wait=material",
+                "unit": _("iş sifarişi"),
+                "accent": "amber",
+            }
+        )
+
+    if user_has_permission(user, "procurement.view"):
+        from apps.procurement.models import POStatus, PurchaseOrder
+        from apps.procurement.services import ProcurementService
+
+        pending_pr = ProcurementService.list_pending_procurement_approvals(kind="pr")
+        pending_commit = ProcurementService.list_pending_procurement_approvals(
+            kind="commitment"
+        )
+        awaiting_pr = len(pending_pr)
+        awaiting_commit = len(pending_commit)
+        # Supply RO list (Head without approval.decide); Management still uses hub.
+        pending_url = reverse("erp:procurement_pending_approvals")
+        if user_has_permission(user, "approval.decide"):
+            pending_url = reverse("erp:approvals") + "?workflow=procurement"
+        queues.append(
+            {
+                "label": _("Rəhbər təsdiqini gözləyən alışlar"),
+                "count": awaiting_pr + awaiting_commit,
+                "url": pending_url,
+                "unit": _("təsdiq sorğusu"),
+                "meta": _("PR: %(pr)s · öhdəlik: %(c)s")
+                % {"pr": awaiting_pr, "c": awaiting_commit},
+                "accent": "approval",
+            }
+        )
+        # Same selector as ProcurementReadyToIssueView — approved unused matching terms.
+        ready_rows = ProcurementService.list_issuable_commitments()
+        queues.append(
+            {
+                "label": _("Təsdiqlənib sifarişə hazır olan alışlar"),
+                "count": len(ready_rows),
+                "url": reverse("erp:procurement_ready_to_issue"),
+                "unit": _("təsdiqlənmiş öhdəlik"),
+                "meta": _("podratçı öhdəliyi (PR deyil)"),
+                "accent": "green",
+            }
+        )
+        partial = PurchaseOrder.objects.filter(status=POStatus.PARTIAL).count()
+        queues.append(
+            {
+                "label": _("Qismən qəbul edilmiş sifarişlər"),
+                "count": partial,
+                "url": reverse("erp:procurement") + f"?po_status={POStatus.PARTIAL}",
+                "unit": _("satınalma sifarişi"),
+                "accent": "amber",
+            }
+        )
+    return queues
+
+
+def Q_material_wait():
+    """Q filter for WOs with recorded material requirement (linked open PR / material cost line)."""
+    from django.db.models import Q
+
+    from apps.maintenance.models import CostLineKind
+
+    # Evidence: open purchase request on the WO, or a material cost line.
+    return (
+        Q(purchase_requests__isnull=False) & ~Q(purchase_requests__status="cancelled")
+    ) | Q(cost_lines__kind=CostLineKind.MATERIAL)
 
 
 def build_facility_dashboard(user) -> dict:

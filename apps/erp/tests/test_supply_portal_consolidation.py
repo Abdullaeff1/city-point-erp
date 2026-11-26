@@ -331,19 +331,28 @@ class SupplyPortalConsolidationTests(TestCase):
             )
 
     def test_desk_has_facility_powers_hides_leases_nav(self):
-        """Unified Təchizat role owns facility spaces; leases stay out of sidebar."""
+        """Təchizat may view spaces RO; leases and space.edit stay off the role."""
         from apps.rbac.services import user_has_permission
+        from apps.property.models import Building, Floor, Space
 
         grant_user_permission(self.desk, "supply.head")
         self.assertTrue(user_has_permission(self.desk, "supply.head"))
         self.assertTrue(user_has_permission(self.desk, "procurement.edit"))
-        self.assertTrue(user_has_permission(self.desk, "space.edit"))
+        self.assertFalse(user_has_permission(self.desk, "space.edit"))
+        building = Building.objects.create(code="SUP-B", name="Supply Bldg")
+        floor = Floor.objects.create(building=building, code="1", name="1")
+        space = Space.objects.create(code="SUP-101", name="Ofis 101", floor=floor)
         c = Client()
         c.force_login(self.desk)
         r = c.get(reverse("erp:spaces"))
         self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "SUP-101")
+        detail = c.get(reverse("erp:space_detail", kwargs={"code": space.code}))
+        self.assertEqual(detail.status_code, 200)
         from apps.accounts.nav import build_nav_flags
 
         flags = build_nav_flags(self.desk)
         self.assertTrue(flags["nav_property"])
         self.assertFalse(flags["nav_leases"])
+        self.assertFalse(flags["nav_residents"])
+        self.assertTrue(flags["nav_resident_directory"])

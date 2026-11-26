@@ -30,9 +30,11 @@ def can_manage_maintenance_plans(user) -> bool:
         return False
     if getattr(user, "role", None) not in {Role.SERVICE_DESK, Role.ADMIN}:
         return False
-    return user_has_permission(user, "work_order.edit") or user_has_permission(
-        user, "work_order.create"
-    )
+    # PM plans generate orphan / standalone work orders — facility inbox (Admin or
+    # designated supply.head) only; ordinary SERVICE_DESK is read-only here.
+    from apps.maintenance.access import can_create_standalone_work_order
+
+    return can_create_standalone_work_order(user)
 
 
 class MaintenancePlanListView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):

@@ -9,7 +9,8 @@
   {% endif %}
   <a class="cp-btn-ghost" href="{% url 'erp:maintenance_plans' %}"><i data-lucide="calendar-clock" width="16" height="16"></i> {% translate "Texniki xidmət planları" %}</a>
 </p>
-<div class="cp-card">
+<p class="cp-meta mb-3">{% translate "Cəmi" %}: <strong>{{ work_order_total }}</strong></p>
+<div class="cp-card" style="overflow-x:auto;">
   <table class="cp-table">
     <thead>
       <tr>
@@ -18,7 +19,7 @@
         <th>{% translate "Status" %}</th>
         <th>{% translate "Mənbə" %}</th>
         <th>{% translate "Podratçı" %}</th>
-        <th>{% translate "Ticket" %}</th>
+        <th>{% translate "Müraciət" %}</th>
         <th>{% translate "Şirkət" %}</th>
       </tr>
     </thead>
@@ -28,7 +29,7 @@
         <td><a href="{% url 'erp:work_order_detail' wo.code %}">{{ wo.code }}</a></td>
         <td>{{ wo.title }}</td>
         <td>{{ wo.get_status_display }}</td>
-        <td>{% if wo.ticket_id %}{% translate "Ticket" %}{% else %}{% translate "Facility" %}{% endif %}</td>
+        <td>{% if wo.ticket_id %}{% translate "Müraciət" %}{% else %}{% translate "Planlı" %}{% endif %}</td>
         <td>{{ wo.contractor.name|default:"—" }}</td>
         <td>{% if wo.can_view_ticket_link %}<a href="{% url 'erp:ticket_detail' wo.ticket.code %}">{{ wo.ticket.code }}</a>{% elif wo.ticket_id %}{{ wo.ticket.code }}{% else %}—{% endif %}</td>
         <td>{{ wo.ticket.company.name|default:"—" }}</td>
@@ -39,4 +40,15 @@
     </tbody>
   </table>
 </div>
+{% if page_obj and page_obj.paginator.num_pages > 1 %}
+<nav class="flex gap-2 mt-4" style="flex-wrap:wrap;align-items:center;" aria-label="{% translate 'Səhifələmə' %}">
+  {% if page_obj.has_previous %}
+  <a class="cp-btn-ghost" href="?page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if wait_filter %}&wait={{ wait_filter }}{% endif %}">{% translate "Əvvəlki" %}</a>
+  {% endif %}
+  <span class="cp-meta">{% blocktranslate with page=page_obj.number pages=page_obj.paginator.num_pages %}Səhifə {{ page }} / {{ pages }}{% endblocktranslate %}</span>
+  {% if page_obj.has_next %}
+  <a class="cp-btn-ghost" href="?page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if wait_filter %}&wait={{ wait_filter }}{% endif %}">{% translate "Növbəti" %}</a>
+  {% endif %}
+</nav>
+{% endif %}
 {% endblock %}

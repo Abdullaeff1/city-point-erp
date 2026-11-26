@@ -1,0 +1,40 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Təsdiqlənib sifarişə hazır olan alışlar" %}{% endblock %}
+{% block breadcrumb_current %}{% translate "Sifarişə hazır öhdəliklər" %}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3">
+  {% translate "Yalnız Rəhbərliyin təsdiqlədiyi, istifadə olunmamış və cari şərtlərə uyğun podratçı öhdəlikləri. Bir PR-də bir neçə podratçı varsa, hər öhdəlik ayrı sətir kimi sayılır." %}
+  · {% blocktranslate with n=ready_total %}Cəmi: {{ n }}{% endblocktranslate %}
+</p>
+<div class="cp-card p-card">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Öhdəlik" %}</th>
+        <th>{% translate "Sorğu" %}</th>
+        <th>{% translate "Təsdiq" %}</th>
+        <th>{% translate "Detal" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for req in ready %}
+      <tr data-approval-id="{{ req.pk }}">
+        <td>#{{ req.pk }}</td>
+        <td>{{ req.requested_by|default:"—" }}</td>
+        <td class="cp-meta">{{ req.decided_at|default:"—" }}</td>
+        <td>{{ req.detail_bits|default:"—" }}</td>
+        <td>
+          {% if req.view_url %}
+          <a class="cp-btn" href="{{ req.view_url }}">{{ req.view_label }}</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta">{% translate "Sifarişə hazır öhdəlik yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

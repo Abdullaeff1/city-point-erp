@@ -11,7 +11,7 @@ from apps.accounts.models import Role
 from apps.audit.models import AuditLog
 from apps.maintenance.models import Inspection, MaintenancePlan, PlanFrequency, WorkOrder
 from apps.property.models import BuildingAsset, BuildingAssetKind
-from apps.rbac.services import seed_rbac_catalog
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 
 User = get_user_model()
 
@@ -27,6 +27,7 @@ class MaintenancePlanUiTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.desk = User.objects.create_user(
             username="desk-pm",
             email="desk-pm@test.az",
@@ -109,9 +110,25 @@ class MaintenancePlanUiTests(TestCase):
     def test_unauthorized_cannot_create_or_generate(self):
         self.client.force_login(self.desk)
         resp = self.client.get(reverse("erp:maintenance_plans"))
-        # Helpdesk may lack facility role — soft-deny or 403/302.
-        self.assertIn(resp.status_code, (302, 403))
+        # Ordinary desk (no supply.head) may only read the list; no manage controls.
+        self.assertIn(resp.status_code, (200, 302, 403))
+        if resp.status_code == 200:
+            self.assertNotContains(resp, reverse("erp:maintenance_plan_create"))
+        gen = self.client.post(reverse("erp:maintenance_plans"), {"action": "generate"})
+        self.assertIn(gen.status_code, (302, 403))
+        create_denied = self.client.post(
+            reverse("erp:maintenance_plan_create"),
+            {
+                "name": "Desk plan",
+                "frequency": PlanFrequency.WEEKLY,
+                "next_due": timezone.localdate().isoformat(),
+                "building_asset": str(self.asset.pk),
+                "is_active": "1",
+            },
+        )
+        self.assertIn(create_denied.status_code, (302, 403))
         self.assertFalse(MaintenancePlan.objects.exists())
+        self.assertFalse(WorkOrder.objects.exists())
 
         self.client.force_login(self.mgmt)
         page = self.client.get(reverse("erp:maintenance_plans"))

@@ -8,14 +8,14 @@ from apps.rbac.services import user_has_permission
 
 
 def user_can_manage_resident_profile(user) -> bool:
-    """Admin / Management / Təchizat — profil + hüquqi/bank + sənəd CRUD."""
+    """Profil + hüquqi/bank + sənəd CRUD — ``resident.edit`` (Admin / Management / explicit)."""
     if not user or not getattr(user, "is_authenticated", False):
         return False
-    return user.role in {Role.ADMIN, Role.MANAGEMENT, Role.SERVICE_DESK}
+    return user_has_permission(user, "resident.edit")
 
 
 def user_can_view_resident_legal_docs(user) -> bool:
-    """ERP: hüquqi/bank/müqavilə/sənəd oxuma — eyni rollar."""
+    """ERP: hüquqi/bank/müqavilə/sənəd oxuma — eyni qrant."""
     return user_can_manage_resident_profile(user)
 
 

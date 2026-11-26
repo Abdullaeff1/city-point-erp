@@ -162,11 +162,14 @@ def build_nav_flags(user) -> dict:
     }:
         flags["nav_reception"] = False
 
-    # Supply portal operators do not need lease management in the sidebar.
+    # Supply portal: leases off; prefer RO resident directory over full Rezidentlər CRUD.
     from apps.accounts.supply import is_supply_portal_user
+    from apps.residents.permissions import user_can_manage_resident_profile
 
-    if flags.get("nav_leases") and is_supply_portal_user(user):
+    if is_supply_portal_user(user):
         flags["nav_leases"] = False
+        if flags.get("nav_residents") and not user_can_manage_resident_profile(user):
+            flags["nav_residents"] = False
 
     flags["nav_workspaces"] = []
     flags["nav_show_workspace_switcher"] = False

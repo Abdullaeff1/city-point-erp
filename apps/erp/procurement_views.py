@@ -85,6 +85,12 @@ class ProcurementListView(PermissionRequiredMixin, StaffRequiredMixin, TemplateV
         q = (request.GET.get("q") or "").strip()
         source = (request.GET.get("source") or "").strip()
         status = (request.GET.get("status") or "").strip()
+        po_status = (request.GET.get("po_status") or "").strip()
+        # Legacy dashboard links used ?status=partial for POs — map known PO statuses.
+        if not po_status and status in {c.value for c in POStatus}:
+            po_status = status
+            if status not in {c.value for c in PRStatus}:
+                status = ""
         pr_page = request.GET.get("pr_page") or "1"
         po_page = request.GET.get("po_page") or "1"
 
@@ -108,12 +114,15 @@ class ProcurementListView(PermissionRequiredMixin, StaffRequiredMixin, TemplateV
             pr_qs = pr_qs.filter(source=source)
         if status in {c.value for c in PRStatus}:
             pr_qs = pr_qs.filter(status=status)
+        if po_status in {c.value for c in POStatus}:
+            po_qs = po_qs.filter(status=po_status)
 
         ctx.update(
             {
                 "q": q,
                 "source": source,
                 "status": status,
+                "po_status": po_status,
                 "prs_page": Paginator(pr_qs, PAGE_SIZE).get_page(pr_page),
                 "pos_page": Paginator(po_qs, PAGE_SIZE).get_page(po_page),
                 "warehouses": Warehouse.objects.order_by("code"),
@@ -874,3 +883,93 @@ class ProcurementRFQDetailView(PermissionRequiredMixin, StaffRequiredMixin, Temp
         except DomainError as exc:
             messages.info(request, str(exc))
         return redirect("erp:procurement_rfq_detail", code=rfq.code)
+
+
+def _annotate_procurement_approval_links(rows):
+    """Attach PR/RFQ deep links for Supply RO / ready queues (no decide actions)."""
+    from apps.procurement.models import RFQQuote
+    from apps.procurement.services import WF_PROCUREMENT_COMMITMENT, WF_PROCUREMENT_PR
+
+    for req in rows:
+        payload = req.payload or {}
+        code = payload.get("code") or ""
+        req.view_url = (
+            reverse("erp:procurement_pr_detail", kwargs={"code": code})
+            if code
+            else reverse("erp:procurement")
+        )
+        req.view_label = _("PR-ə bax")
+        req.kind_label = (
+            _("Satınalma öhdəlik")
+            if req.workflow_code == WF_PROCUREMENT_COMMITMENT
+            else _("Satınalma PR")
+        )
+        if req.workflow_code == WF_PROCUREMENT_COMMITMENT and payload.get("quote_id"):
+            quote = (
+                RFQQuote.objects.select_related("rfq")
+                .filter(pk=payload.get("quote_id"))
+                .first()
+            )
+            if quote and quote.rfq_id:
+                req.view_url = reverse(
+                    "erp:procurement_rfq_detail", kwargs={"code": quote.rfq.code}
+                )
+                req.view_label = _("Təklifə bax")
+        bits = [code or f"#{req.entity_id}"]
+        if payload.get("amount") not in (None, ""):
+            bits.append(f"{payload.get('amount')} {payload.get('currency') or 'AZN'}")
+        if payload.get("unit_price"):
+            bits.append(f"qiymət {payload.get('unit_price')}")
+        if payload.get("supplier_id"):
+            bits.append(f"podratçı #{payload.get('supplier_id')}")
+        req.detail_bits = " · ".join(bits)
+    return rows
+
+
+class ProcurementPendingApprovalsView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    """Supply read-only inbox of pending PR / commitment approvals (no decide)."""
+
+    template_name = "erp/procurement_pending_approvals.html"
+    permission_required = "procurement.view"
+    permission_denied_message = "Satınalmaya baxış icazəniz yoxdur."
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        kind = (self.request.GET.get("kind") or "all").strip().lower()
+        if kind not in {"all", "pr", "commitment"}:
+            kind = "all"
+        rows = ProcurementService.list_pending_procurement_approvals(kind=kind)
+        _annotate_procurement_approval_links(rows)
+        ctx.update(
+            {
+                "pending": rows,
+                "pending_total": len(rows),
+                "kind": kind,
+                "can_decide": False,
+                "page_title": _("Rəhbər təsdiqini gözləyən alışlar"),
+            }
+        )
+        return ctx
+
+
+class ProcurementReadyToIssueView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    """Issuable Management commitments — same selector as the Supply dashboard card."""
+
+    template_name = "erp/procurement_ready_to_issue.html"
+    permission_required = "procurement.view"
+    permission_denied_message = "Satınalmaya baxış icazəniz yoxdur."
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        rows = ProcurementService.list_issuable_commitments()
+        _annotate_procurement_approval_links(rows)
+        ctx.update(
+            {
+                "ready": rows,
+                "ready_total": len(rows),
+                "ready_ids": [r.pk for r in rows],
+                "page_title": _("Təsdiqlənib sifarişə hazır olan alışlar"),
+                "can_edit_procurement": _can_edit(self.request.user),
+            }
+        )
+        return ctx

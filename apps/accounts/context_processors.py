@@ -28,6 +28,11 @@ def role_context(request):
     role = getattr(user, "role", None) if user and user.is_authenticated else None
     is_adminish = role == Role.ADMIN
     is_management = role == Role.MANAGEMENT
+    is_supply_portal = False
+    if user and user.is_authenticated:
+        from apps.accounts.supply import is_supply_portal_user
+
+        is_supply_portal = is_supply_portal_user(user)
 
     nav_flags = build_nav_flags(user) if user and user.is_authenticated else build_nav_flags(None)
 
@@ -94,6 +99,7 @@ def role_context(request):
         **nav_flags,
         "is_management": is_management,
         "is_adminish": is_adminish,
+        "is_supply_portal": is_supply_portal,
         "mgmt_nav_groups": mgmt_nav_groups,
         "nav_role_switch": can_switch,
         "role_switch_targets": role_targets,

@@ -4,7 +4,7 @@
 {% block extra_head %}{% endblock %}
 {% block body %}
 {% with url_name=request.resolver_match.url_name %}
-<div class="cp-shell cp-erp{% if user.role == 'management' %} cp-theme-mgmt{% elif user.role == 'sales' %} cp-theme-crm{% endif %}">
+<div class="cp-shell cp-erp{% if user.role == 'management' %} cp-theme-mgmt{% elif user.role == 'sales' %} cp-theme-crm{% elif is_supply_portal %} cp-theme-supply{% endif %}">
   {% if user.role != "management" %}
   <div class="erp-mobile-bar">
     <button class="erp-menu-toggle" type="button" aria-controls="erp-sidebar" aria-expanded="true" hidden>
@@ -80,7 +80,7 @@
       {% if nav_reception %}<a class="{% nav_active 'reception' %}" href="{% url 'erp:reception' %}"><i data-lucide="door-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Qəbul" %}</span></a>{% endif %}
       {% if nav_tickets %}
       <div class="cp-nav-label">{% translate "ƏMƏLİYYAT" %}</div>
-      <a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'erp:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Ticketlər" %}</span></a>
+      <a class="{% nav_active 'tickets' 'ticket_detail' 'ticket_create' %}" href="{% url 'erp:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Müraciətlər" %}</span></a>
       {% endif %}
       <a class="{% nav_active 'alerts' %}" href="{% url 'erp:alerts' %}"><i data-lucide="bell" width="18" height="18"></i><span class="cp-nav-text">{% translate "Bildirişlər" %}</span>{% if unread_alerts %}<span class="badge badge-muted" style="margin-left:auto;background:var(--cp-accent);color:var(--cp-primary-dark);">{{ unread_alerts }}</span>{% endif %}</a>
       {% if nav_property or nav_residents or nav_parties or nav_leases or nav_building_assets %}
@@ -122,7 +122,7 @@
       {% if nav_reception or nav_tickets or nav_work_orders %}
       <div class="cp-nav-label">{% translate "ƏMƏLİYYAT" %}</div>
       {% if nav_reception %}<a class="{% nav_active 'reception' %}" href="{% url 'erp:reception' %}"><i data-lucide="door-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Qəbul" %}</span></a>{% endif %}
-      {% if nav_tickets %}<a class="{% nav_active 'tickets' 'ticket_detail' %}" href="{% url 'erp:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Ticketlər" %}</span></a>{% endif %}
+      {% if nav_tickets %}<a class="{% nav_active 'tickets' 'ticket_detail' 'ticket_create' %}" href="{% url 'erp:tickets' %}"><i data-lucide="ticket" width="18" height="18"></i><span class="cp-nav-text">{% translate "Müraciətlər" %}</span></a>{% endif %}
       <a class="{% nav_active 'alerts' %}" href="{% url 'erp:alerts' %}"><i data-lucide="bell" width="18" height="18"></i><span class="cp-nav-text">{% translate "Bildirişlər" %}</span>{% if unread_alerts %}<span class="badge badge-muted" style="margin-left:auto;background:var(--cp-accent);color:var(--cp-primary-dark);">{{ unread_alerts }}</span>{% endif %}</a>
       {% if nav_work_orders %}<a class="{% nav_active 'work_orders' 'work_order_detail' 'work_order_create' 'maintenance_plans' 'maintenance_plan_create' 'maintenance_plan_edit' %}" href="{% url 'erp:work_orders' %}"><i data-lucide="wrench" width="18" height="18"></i><span class="cp-nav-text">{% translate "İş sifarişləri" %}</span></a>{% endif %}
       {% endif %}
@@ -163,7 +163,7 @@
       <a class="{% nav_active 'accounting' %}" href="{% url 'erp:accounting' %}"><i data-lucide="book-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Mühasibat" %}</span></a>
       {% endif %}
       {% if nav_docs %}
-      <a class="{% nav_active 'documents' 'correspondence_list' 'correspondence_detail' %}" href="{% url 'erp:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sənədlər" %}</span></a>
+      <a class="{% nav_active 'documents' %}" href="{% url 'erp:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sənədlər" %}</span></a>
       <a class="{% nav_active 'correspondence_list' 'correspondence_detail' %}" href="{% url 'erp:correspondence_list' %}"><i data-lucide="mail" width="18" height="18"></i><span class="cp-nav-text">{% translate "Kargüzarlıq" %}</span></a>
       {% endif %}
       {% if nav_docs %}<a class="{% nav_active 'building_procedures' 'building_procedure_create' 'building_procedure_edit' %}" href="{% url 'erp:building_procedures' %}"><i data-lucide="book-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Daxili prosedurlar" %}</span></a>{% endif %}
@@ -217,7 +217,7 @@
       <div class="cp-mgmt-header-right">
         <a class="mgmt-notif-btn" href="{% url 'erp:alerts' %}" title="{% translate 'Bildirişlər' %}">
           <i data-lucide="bell" width="18" height="18" aria-hidden="true"></i>
-          {% if unread_alerts %}<span class="badge badge-muted" style="background:var(--mgmt-accent);color:#111;">{{ unread_alerts }}</span>{% endif %}
+          {% if unread_alerts %}<span class="badge badge-muted" style="background:var(--cp-kpi-risk);color:#fff;">{{ unread_alerts }}</span>{% endif %}
         </a>
         <form action="{% url 'set_language' %}" method="post" class="cp-lang">
           {% csrf_token %}
@@ -252,12 +252,12 @@
         <span>{% block breadcrumb_current %}{% endblock %}</span>
       </nav>
       {% endif %}
-      {% if user.role == "reception" and url_name != 'reception' or user.role == "service_desk" and url_name != 'tickets' or user.role != "reception" and user.role != "service_desk" and user.role != "management" and url_name != 'dashboard' %}
+      {% if user.role == "reception" and url_name != 'reception' or user.role == "service_desk" and url_name != 'supply_dashboard' or user.role != "reception" and user.role != "service_desk" and user.role != "management" and url_name != 'dashboard' %}
       <p class="cp-meta mb-3" style="margin-top:-8px;">
         {% if user.role == "reception" %}
         <a href="{% url 'erp:reception' %}">← {% translate "Qəbul" %}</a>
         {% elif user.role == "service_desk" %}
-        <a href="{% url 'erp:tickets' %}">← {% translate "Ticketlər" %}</a>
+        <a href="{% url 'erp:supply_dashboard' %}">← {% translate "Təchizat şöbəsi" %}</a>
         {% else %}
         <a href="{% url 'erp:dashboard' %}">← {% if user.role == "sales" %}{% translate "Satış paneli" %}{% else %}{% translate "İdarə paneli" %}{% endif %}</a>
         {% endif %}

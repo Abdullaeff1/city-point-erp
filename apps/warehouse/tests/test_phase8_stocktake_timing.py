@@ -10,7 +10,7 @@ from django.test import TestCase
 from apps.accounts.models import Role
 from apps.core.services import DomainError
 from apps.maintenance.models import WorkOrder, WorkOrderPriority, WorkOrderStatus
-from apps.rbac.services import seed_rbac_catalog
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.warehouse.models import SKU, Stock, Warehouse
 from apps.warehouse.services import confirm_issue, request_issue_line
 from apps.warehouse.stocktake import (
@@ -35,6 +35,7 @@ class Phase8StocktakeTimingBoundaryTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.wh = Warehouse.objects.create(code="ST8T", name="Timing WH")
         self.filter = SKU.objects.create(code="ST8T-F", name="Filter", unit="pcs")
         Stock.objects.create(sku=self.filter, warehouse=self.wh, quantity=Decimal("10"))

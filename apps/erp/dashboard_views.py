@@ -21,10 +21,14 @@ class _DeptDashboardView(PermissionRequiredMixin, StaffRequiredMixin, TemplateVi
     dashboard_title = ""
     builder = None
 
+    def get_dashboard_title(self) -> str:
+        # Evaluate gettext at request time — class-body _("…") freezes the active language.
+        return str(self.dashboard_title) if self.dashboard_title else ""
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         board = self.builder(self.request.user) if self.builder else {}
-        ctx["dashboard_title"] = self.dashboard_title
+        ctx["dashboard_title"] = self.get_dashboard_title()
         ctx.update(board)
         return ctx
 
@@ -34,8 +38,10 @@ class SupplyDashboardView(_DeptDashboardView):
 
     permission_required = ("ticket.view", "work_order.view")
     permission_denied_message = "Təchizat şöbəsi panelinə baxış icazəniz yoxdur."
-    dashboard_title = _("Təchizat şöbəsi")
     builder = staticmethod(build_supply_dashboard)
+
+    def get_dashboard_title(self) -> str:
+        return _("Təchizat şöbəsi")
 
 
 class FacilityDashboardView(StaffRequiredMixin, TemplateView):
@@ -59,8 +65,10 @@ class HelpdeskDashboardView(StaffRequiredMixin, TemplateView):
 class HrDashboardView(_DeptDashboardView):
     permission_required = "hr.view"
     permission_denied_message = "HR panelinə baxış icazəniz yoxdur."
-    dashboard_title = _("HR & Employees")
     builder = staticmethod(build_hr_dashboard)
+
+    def get_dashboard_title(self) -> str:
+        return _("HR & Employees")
 
 
 class ProcurementDashboardView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):

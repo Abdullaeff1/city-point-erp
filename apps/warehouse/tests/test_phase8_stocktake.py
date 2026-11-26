@@ -15,7 +15,7 @@ from apps.accounts.models import Role
 from apps.audit.models import AuditLog
 from apps.core.services import DomainError
 from apps.maintenance.models import WorkOrder, WorkOrderPriority, WorkOrderStatus
-from apps.rbac.services import seed_rbac_catalog
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.warehouse.models import (
     SKU,
     Stock,
@@ -53,6 +53,7 @@ class Phase8StocktakeBase(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.mgmt = User.objects.create_user(
             username="st8-mgmt",
             email="st8-mgmt@test.az",
@@ -338,6 +339,7 @@ class Phase8StocktakeConcurrentPost(TransactionTestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.wh = Warehouse.objects.create(code="ST8C", name="Concurrent WH")
         self.sku = SKU.objects.create(code="ST8-CONC", name="Bolt", unit="pcs")
         Stock.objects.create(sku=self.sku, warehouse=self.wh, quantity=Decimal("10"))

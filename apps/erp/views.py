@@ -796,7 +796,15 @@ class TicketListView(RoleRequiredMixin, ListView):
         if tab == "open":
             qs = qs.filter(status__in=OPEN_STATUSES)
         elif tab == "sla":
-            ids = [t.id for t in qs.filter(status__in=OPEN_STATUSES) if t.sla_risk]
+            # At-risk ∪ breached (same evaluation rules as Supply dashboard KPI).
+            from apps.erp.department_dashboards import _sla_flags_at
+
+            now = timezone.now()
+            ids = [
+                t.id
+                for t in qs.filter(status__in=OPEN_STATUSES)
+                if any(_sla_flags_at(t, now=now))
+            ]
             qs = qs.filter(id__in=ids)
         elif tab == "mine":
             # User assignee (Security) OR City Point employee matching this user's name (Service Desk).
@@ -1067,10 +1075,12 @@ class TicketDetailView(RoleRequiredMixin, TemplateView):
         return redirect("erp:ticket_detail", code=ticket.code)
 
 
-class SpaceListView(PermissionRequiredMixin, StaffRequiredMixin, ListView):
+class SpaceListView(PermissionRequiredMixin, RoleRequiredMixin, ListView):
     template_name = "erp/spaces.html"
     queryset = Space.objects.select_related("floor", "resident")
     context_object_name = "spaces"
+    # Təchizat (service_desk) owns facility spaces after Property FM retirement.
+    allowed_roles = (Role.SERVICE_DESK,)
     permission_required = "space.view"
     permission_denied_message = "Sahələrə baxış icazəniz yoxdur."
 
@@ -1490,8 +1500,9 @@ class BuildingInventoryListView(BuildingAssetListView):
     list_url_name = "erp:building_inventory"
 
 
-class SpaceDetailView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+class SpaceDetailView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
     template_name = "erp/space_detail.html"
+    allowed_roles = (Role.SERVICE_DESK,)
     permission_required = "space.view"
     permission_denied_message = "Sahələrə baxış icazəniz yoxdur."
 
@@ -1507,6 +1518,7 @@ class SpaceDetailView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView)
             tab = "overview"
         ctx["space"] = space
         ctx["tab"] = tab
+        ctx["can_manage_spaces"] = user_has_permission(self.request.user, "space.edit")
         ctx["can_manage_drawings"] = can_drawings
         visible_space = tickets_visible_to(self.request.user).filter(space=space)
         ctx["open_tickets"] = visible_space.filter(status__in=OPEN_STATUSES)
@@ -1562,6 +1574,19 @@ def _can_view_resident_ticket_counts(user) -> bool:
 class ResidentListView(StaffRequiredMixin, ListView):
     template_name = "erp/residents.html"
     context_object_name = "companies"
+
+    def dispatch(self, request, *args, **kwargs):
+        # Supply operators without resident.edit use the RO directory surface.
+        from apps.accounts.supply import is_supply_portal_user
+        from apps.residents.permissions import user_can_manage_resident_profile
+
+        if (
+            request.user.is_authenticated
+            and is_supply_portal_user(request.user)
+            and not user_can_manage_resident_profile(request.user)
+        ):
+            return redirect("erp:resident_directory")
+        return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
         from apps.core.search import filter_text_search
@@ -1663,6 +1688,21 @@ def resident_guest_period(company, request):
 
 class ResidentDetailView(StaffRequiredMixin, TemplateView):
     template_name = "erp/resident_detail.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        from apps.accounts.supply import is_supply_portal_user
+        from apps.residents.permissions import user_can_manage_resident_profile
+
+        if (
+            request.user.is_authenticated
+            and is_supply_portal_user(request.user)
+            and not user_can_manage_resident_profile(request.user)
+        ):
+            return redirect(
+                "erp:resident_directory_detail",
+                slug=kwargs.get("slug"),
+            )
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         from apps.erp.resident_views import enrich_resident_detail_context

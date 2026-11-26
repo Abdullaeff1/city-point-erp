@@ -12,6 +12,8 @@ from apps.billing.models import Charge, ChargeSource
 from apps.maintenance.models import CostLineKind, CostLineSource, WorkOrder, WorkOrderCostLine
 from apps.procurement.models import PurchaseRequest
 from apps.procurement.services import ProcurementService
+from apps.procurement.tests.support import approve_pr_via_management
+from apps.rbac.services import grant_user_permission
 from apps.property.models import Contractor
 from apps.residents.models import ResidentCompany
 from apps.tickets.models import TicketCategory, TicketStatus, TicketSubcategory, TicketType
@@ -36,6 +38,15 @@ class WorkOrderRestoreTests(TestCase):
             role=Role.SERVICE_DESK,
             ticket_department_id=self._dept("servicedesk").pk,
         )
+        # Designated Təchizat head: the only SERVICE_DESK operator with warehouse/procurement mutate.
+        self.head = User.objects.create_user(
+            username="head-wo",
+            email="head-wo@test.az",
+            password="Pass12345!",
+            role=Role.SERVICE_DESK,
+            ticket_department_id=self._dept("servicedesk").pk,
+        )
+        grant_user_permission(self.head, "supply.head")
         self.reception = User.objects.create_user(
             username="reception-wo",
             email="reception-wo@test.az",
@@ -116,6 +127,7 @@ class WorkOrderRestoreTests(TestCase):
             quantity=Decimal("5"),
         )
         detail = reverse("erp:work_order_detail", args=[wo.code])
+        self.client.force_login(self.head)
         self.client.post(
             detail,
             {"action": "issue", "sku": sku.pk, "warehouse": warehouse.pk, "quantity": "2"},
@@ -147,10 +159,10 @@ class WorkOrderRestoreTests(TestCase):
         stock_line = WorkOrderCostLine.objects.get(work_order=wo, source=CostLineSource.WAREHOUSE)
         self.assertEqual(stock_line.amount, Decimal("8.00"))
 
-        self.client.force_login(self.desk)
+        self.client.force_login(self.head)
         self.client.post(detail, {"action": "purchase", "description": "Ehtiyat nasos", "qty": "2"})
         pr = PurchaseRequest.objects.get(work_order=wo)
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        approve_pr_via_management(pr, actor=self.admin)
         from apps.parties.models import Party, PartyRole, PartyRoleCode
 
         supplier = Party.objects.create(legal_name="WO Test Supplier")

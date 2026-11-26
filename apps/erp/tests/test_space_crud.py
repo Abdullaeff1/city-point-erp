@@ -38,11 +38,18 @@ class SpaceCrudTests(TestCase):
         self.client = Client()
 
     def test_list_has_create_controls(self):
-        self.client.force_login(self.fm)
+        self.client.force_login(self.admin)
         resp = self.client.get(reverse("erp:spaces"))
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, reverse("erp:space_create"))
         self.assertContains(resp, "Mərtəbə əlavə et")
+
+    def test_supply_list_is_read_only(self):
+        self.client.force_login(self.fm)
+        resp = self.client.get(reverse("erp:spaces"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, reverse("erp:space_create"))
+        self.assertNotContains(resp, "Mərtəbə əlavə et")
 
     def test_create_floor_and_space(self):
         self.client.force_login(self.admin)
@@ -84,7 +91,7 @@ class SpaceCrudTests(TestCase):
             area_m2="50",
             occupancy=Occupancy.VACANT,
         )
-        self.client.force_login(self.fm)
+        self.client.force_login(self.admin)
         edit = self.client.post(
             reverse("erp:space_edit", args=[space.code]),
             {

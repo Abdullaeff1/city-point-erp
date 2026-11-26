@@ -13,7 +13,11 @@ from apps.core.services import DomainError
 from apps.parties.models import Party, PartyRole, PartyRoleCode
 from apps.procurement.models import POStatus, PRStatus, PurchaseApprovalLimit
 from apps.procurement.services import ProcurementService
-from apps.rbac.services import seed_rbac_catalog
+from apps.procurement.tests.support import (
+    approve_pr_via_management,
+    issue_quote_po,
+)
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.warehouse.models import SKU, Stock, StockMovement, StockMovementType, Warehouse
 
 User = get_user_model()
@@ -33,6 +37,7 @@ class Phase9ProcurementAcceptanceTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.mgmt = User.objects.create_user(
             username="p9-mgmt",
             email="p9-mgmt@test.az",
@@ -68,7 +73,7 @@ class Phase9ProcurementAcceptanceTests(TestCase):
             title="P9 empty price",
             lines=[{"sku_id": self.sku_a.pk, "description": "Filter", "qty": "10", "unit": "pcs"}],
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        approve_pr_via_management(pr, actor=self.admin)
         rfq = ProcurementService.create_rfq_from_pr(pr, actor=self.fm)
         with self.assertRaises(DomainError) as ctx:
             ProcurementService.add_rfq_quote(
@@ -82,13 +87,14 @@ class Phase9ProcurementAcceptanceTests(TestCase):
             title="P9 qty 10",
             lines=[{"sku_id": self.sku_a.pk, "description": "Filter", "qty": "10", "unit": "pcs"}],
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        approve_pr_via_management(pr, actor=self.admin)
         line_id = pr.lines.get().pk
+        # Qty-split accounting is independent of money: use unpriced (draft) tranches.
+        # Priced issue needs a Management commitment per tranche and is covered elsewhere.
         po1 = ProcurementService.create_po_from_pr(
             pr,
             supplier_party=self.sup_a,
             actor=self.fm,
-            unit_price="10",
             line_qtys={line_id: "6"},
         )
         self.assertEqual(po1.lines.get().qty, Decimal("6"))
@@ -99,7 +105,6 @@ class Phase9ProcurementAcceptanceTests(TestCase):
             pr,
             supplier_party=self.sup_b,
             actor=self.fm,
-            unit_price="11",
             line_qtys={line_id: "4"},
         )
         self.assertEqual(po2.lines.get().qty, Decimal("4"))
@@ -111,11 +116,9 @@ class Phase9ProcurementAcceptanceTests(TestCase):
                 pr,
                 supplier_party=self.sup_a,
                 actor=self.fm,
-                unit_price="10",
                 line_qtys={line_id: "1"},
             )
         self.assertIn("qalan", str(ctx.exception).lower())
-
     def test_two_supplier_comparison_totals(self):
         """Scenario P9-A (comparison only): 10 filters + 5 L oil — not the receipt journey PR."""
         pr = ProcurementService.create_manual_pr(
@@ -126,7 +129,7 @@ class Phase9ProcurementAcceptanceTests(TestCase):
                 {"sku_id": self.sku_b.pk, "description": "Oil", "qty": "5", "unit": "L"},
             ],
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        approve_pr_via_management(pr, actor=self.admin)
         rfq = ProcurementService.create_rfq_from_pr(pr, actor=self.fm)
         q_hi = ProcurementService.add_rfq_quote(
             rfq, supplier_party=self.sup_a, unit_price="20", actor=self.fm
@@ -159,7 +162,7 @@ class Phase9ProcurementAcceptanceTests(TestCase):
                 {"sku_id": self.sku_b.pk, "description": "Oil", "qty": "4", "unit": "L"},
             ],
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        approve_pr_via_management(pr, actor=self.admin)
         self.assertEqual(pr.status, PRStatus.APPROVED)
 
         rfq = ProcurementService.create_rfq_from_pr(pr, actor=self.fm)
@@ -173,7 +176,7 @@ class Phase9ProcurementAcceptanceTests(TestCase):
         # 10*(10+4)=140
         self.assertEqual(assessed.amount, Decimal("140.00"))
 
-        po = ProcurementService.select_rfq_quote_and_create_po(q_win, actor=self.fm)
+        po = issue_quote_po(q_win, actor=self.fm)
         self.assertEqual(po.supplier_party_id, self.sup_b.pk)
         self.assertEqual(po.lines.count(), 2)
         self.assertEqual(sum(ln.qty for ln in po.lines.all()), Decimal("14"))

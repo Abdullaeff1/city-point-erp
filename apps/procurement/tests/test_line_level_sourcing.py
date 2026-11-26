@@ -25,7 +25,13 @@ from apps.procurement.services import (
     WF_PROCUREMENT_COMMITMENT,
     ProcurementService,
 )
-from apps.rbac.services import seed_rbac_catalog
+from apps.procurement.tests.support import (
+    approve_all_pending_commitments,
+    approve_pending_commitment,
+    approve_pr_via_management,
+    issue_quote_po,
+)
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.warehouse.models import SKU, Stock, Warehouse
 from apps.workflows.models import ApprovalRequest, ApprovalStatus
 from apps.workflows.services import ApprovalService
@@ -48,6 +54,7 @@ class LineLevelSourcingAcceptanceTests(TestCase):
             role=Role.SERVICE_DESK,
             is_staff=True,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.mgmt = User.objects.create_user(
             username="lls-mgmt",
             email="lls-mgmt@test.az",
@@ -94,7 +101,7 @@ class LineLevelSourcingAcceptanceTests(TestCase):
         pr = ProcurementService.create_manual_pr(
             actor=self.fm, title="LLS 10-line", lines=lines
         )
-        ProcurementService.approve_pr(pr, actor=self.admin)
+        approve_pr_via_management(pr, actor=self.admin)
         return pr
 
     def _invite_scopes(self, rfq, pr):
@@ -316,6 +323,10 @@ class LineLevelSourcingAcceptanceTests(TestCase):
         ]
         awards = ProcurementService.award_pr_lines(pr, selections, actor=self.fm)
         self.assertEqual(len(awards), 10)
+        # Mandatory Management approval: nothing issues until commitments are approved.
+        first = ProcurementService.create_pos_from_awards(pr, actor=self.admin)
+        self.assertTrue(all(o.status == "awaiting_financial_approval" for o in first))
+        approve_all_pending_commitments(pr)
         outcomes = ProcurementService.create_pos_from_awards(pr, actor=self.admin)
         by_status = {o.supplier_id: o for o in outcomes}
         self.assertEqual(by_status[self.sup_b.pk].status, "issued")
@@ -460,6 +471,23 @@ class LineLevelSourcingAcceptanceTests(TestCase):
             ],
             actor=self.fm,
         )
+        # Mandatory Management approval: first pass escalates both suppliers.
+        first = ProcurementService.create_pos_from_awards(pr, actor=self.fm)
+        self.assertTrue(all(o.status == "awaiting_financial_approval" for o in first))
+        # Management approves only B's commitment (C stays pending).
+        pending_b = [
+            r
+            for r in ApprovalRequest.objects.filter(
+                workflow_code=WF_PROCUREMENT_COMMITMENT,
+                status=ApprovalStatus.PENDING,
+                entity_id=pr.pk,
+            )
+            if (r.payload or {}).get("supplier_id") == self.sup_b.pk
+        ]
+        self.assertEqual(len(pending_b), 1)
+        ApprovalService.decide(
+            pending_b[0], approved=True, decided_by=self.mgmt, comment="B ok"
+        )
         outcomes = ProcurementService.create_pos_from_awards(pr, actor=self.fm)
         by_sup = {o.supplier_id: o for o in outcomes}
         self.assertEqual(by_sup[self.sup_b.pk].status, "issued")
@@ -538,14 +566,14 @@ class LineLevelSourcingAcceptanceTests(TestCase):
                 }
             ],
         )
-        ProcurementService.approve_pr(pr2, actor=self.admin)
+        approve_pr_via_management(pr2, actor=self.admin)
         rfq2 = ProcurementService.create_rfq_from_pr(pr2, actor=self.fm)
         q = ProcurementService.add_rfq_quote(
             rfq2, supplier_party=self.sup_a, unit_price="10", actor=self.fm
         )
         assessed = ProcurementService.assess_quote_amount(q, pr2)
         self.assertEqual(assessed.amount, Decimal("50.00"))
-        po = ProcurementService.select_rfq_quote_and_create_po(q, actor=self.admin)
+        po = issue_quote_po(q, actor=self.admin)
         self.assertEqual(po.status, POStatus.SENT)
 
         # With active awards, header select blocked
@@ -557,6 +585,10 @@ class LineLevelSourcingAcceptanceTests(TestCase):
         header_q = ProcurementService.add_rfq_quote(
             rfq, supplier_party=self.sup_a, unit_price="1", actor=self.fm
         )
+        # Management commitment is checked first; once approved, awards still block header select.
+        with self.assertRaises(DomainError):
+            ProcurementService.select_rfq_quote_and_create_po(header_q, actor=self.admin)
+        approve_pending_commitment(pr, mgmt=self.mgmt)
         with self.assertRaises(DomainError) as ctx2:
             ProcurementService.select_rfq_quote_and_create_po(header_q, actor=self.admin)
         self.assertIn("mükafat", str(ctx2.exception).lower())
@@ -602,6 +634,11 @@ class LineLevelSourcingAcceptanceTests(TestCase):
             ],
             actor=self.fm,
         )
+        first = ProcurementService.create_pos_from_awards(
+            pr, actor=self.admin, supplier_ids=[self.sup_b.pk]
+        )
+        self.assertEqual(first[0].status, "awaiting_financial_approval")
+        approve_all_pending_commitments(pr)
         outcomes = ProcurementService.create_pos_from_awards(
             pr, actor=self.admin, supplier_ids=[self.sup_b.pk]
         )

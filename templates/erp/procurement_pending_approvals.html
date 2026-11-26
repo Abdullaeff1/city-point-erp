@@ -1,0 +1,45 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "Rəhbər təsdiqini gözləyən alışlar" %}{% endblock %}
+{% block breadcrumb_current %}{% translate "Gözləyən alış təsdiqləri" %}{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3">
+  {% translate "Oxuma rejimində: Təchizat gözləyən satınalma təsdiqlərini görür; qərar Rəhbərliyə məxsusdur." %}
+  · {% blocktranslate with n=pending_total %}Cəmi: {{ n }}{% endblocktranslate %}
+</p>
+<nav class="cp-filter-chips" aria-label="{% translate 'Növ' %}">
+  <a href="{% url 'erp:procurement_pending_approvals' %}" class="{% if kind == 'all' %}is-active{% endif %}">{% translate "Hamısı" %}</a>
+  <a href="{% url 'erp:procurement_pending_approvals' %}?kind=pr" class="{% if kind == 'pr' %}is-active{% endif %}">{% translate "PR proses" %}</a>
+  <a href="{% url 'erp:procurement_pending_approvals' %}?kind=commitment" class="{% if kind == 'commitment' %}is-active{% endif %}">{% translate "Podratçı öhdəliyi" %}</a>
+</nav>
+<div class="cp-card p-card">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Növ" %}</th>
+        <th>{% translate "Sorğu" %}</th>
+        <th>{% translate "Tarix" %}</th>
+        <th>{% translate "Detal" %}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for req in pending %}
+      <tr data-approval-id="{{ req.pk }}">
+        <td>{{ req.kind_label }}</td>
+        <td>{{ req.requested_by|default:"—" }}</td>
+        <td>{{ req.created_at }}</td>
+        <td>{{ req.detail_bits|default:"—" }}</td>
+        <td>
+          {% if req.view_url %}
+          <a class="cp-btn" href="{{ req.view_url }}">{{ req.view_label }}</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="cp-meta">{% translate "Gözləyən təsdiq yoxdur." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

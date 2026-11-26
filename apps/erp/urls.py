@@ -35,6 +35,8 @@ from apps.erp.procurement_views import (
     ProcurementPODetailView,
     ProcurementPRCreateView,
     ProcurementPRDetailView,
+    ProcurementPendingApprovalsView,
+    ProcurementReadyToIssueView,
     ProcurementRFQDetailView,
     ProcurementSupplierDetailView,
     ProcurementSupplierFormView,
@@ -345,6 +347,16 @@ urlpatterns = [
         name="stocktake_detail",
     ),
     path("procurement/", ProcurementListView.as_view(), name="procurement"),
+    path(
+        "procurement/pending-approvals/",
+        ProcurementPendingApprovalsView.as_view(),
+        name="procurement_pending_approvals",
+    ),
+    path(
+        "procurement/ready-to-issue/",
+        ProcurementReadyToIssueView.as_view(),
+        name="procurement_ready_to_issue",
+    ),
     path("procurement/prs/new/", ProcurementPRCreateView.as_view(), name="procurement_pr_create"),
     path(
         "procurement/prs/<str:code>/",

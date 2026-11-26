@@ -21,7 +21,7 @@
   </section>
   <section class="login-form-wrap">
     <div class="cp-card login-card">
-      <form action="{% url 'set_language' %}" method="post" class="cp-lang" style="margin-bottom:16px;justify-content:flex-end;">
+      <form id="cp-login-lang" action="{% url 'set_language' %}" method="post" class="cp-lang" style="margin-bottom:16px;justify-content:flex-end;">
         {% csrf_token %}
         <input name="next" type="hidden" value="{{ request.get_full_path }}">
         <select name="language" onchange="this.form.submit()" aria-label="{% translate 'Dil' %}" style="border:0;background:transparent;font:inherit;color:inherit;cursor:pointer;">
@@ -37,15 +37,16 @@
       {% if error %}
         <div class="mt-4 badge badge-urgent" style="display:block;border-radius:10px;padding:10px 12px;">{{ error }}</div>
       {% endif %}
-      <form method="post" class="mt-6 flex-col gap-3">
+      {# Login must be the credentials form — language form is separate (#cp-login-lang). #}
+      <form id="cp-login-form" method="post" action="{% url 'login' %}" class="mt-6 flex-col gap-3">
         {% csrf_token %}
         <label>
           <span class="cp-meta">{% translate "E-poçt" %}</span>
-          <input class="cp-input mt-1" type="email" name="email" required placeholder="office@asbc.az">
+          <input class="cp-input mt-1" type="email" name="email" autocomplete="username" required placeholder="office@asbc.az">
         </label>
         <label>
           <span class="cp-meta">{% translate "Şifrə" %}</span>
-          <input class="cp-input mt-1" type="password" name="password" required>
+          <input class="cp-input mt-1" type="password" name="password" autocomplete="current-password" required>
         </label>
         <button class="cp-btn w-full mt-2" type="submit">{% translate "Daxil ol" %}</button>
         <p class="cp-meta mt-3" style="text-align:center;">

@@ -1,4 +1,4 @@
-{% extends "erp/base.html" %}
+﻿{% extends "erp/base.html" %}
 {% load i18n l10n %}
 {% block page_title %}{{ rfq.code }}{% endblock %}
 {% block heading %}{{ rfq.code }}{% endblock %}
@@ -11,7 +11,7 @@
   <h2 class="cp-section">{{ rfq.title }}</h2>
   <p class="cp-meta">{% if rfq.pr_id %}PR: {{ rfq.pr.code }} · {{ rfq.pr.get_status_display }}{% endif %}</p>
   <p class="cp-meta">
-    {% translate "Sətir səviyyəsi: dəvət əhatəsi, cavab statusları (NOT_INVITED / INVITED_UNANSWERED / QUOTED — sıfır qiymət də QUOTED), bütöv sətir mükafatı. Bir PR sətrinin podratçılar arasında bölünməsi City Point təsdiqini gözləyir. 18% yalnız test/sintetik; canlı maliyyə bazası Finance qaydasıdır." %}
+    {% translate "Sətir səviyyəsi: dəvət əhatəsi, cavab statusları (NOT_INVITED / INVITED_UNANSWERED / QUOTED — sıfır qiymət də QUOTED), bütöv sətir mükafatı. Bir PR sətrinin Təchizatçılar arasında bölünməsi City Point təsdiqini gözləyir. 18% yalnız test/sintetik; canlı maliyyə bazası Finance qaydasıdır." %}
   </p>
   {% if pending_commitments %}
   <div class="badge badge-urgent" style="display:block;padding:10px 12px;border-radius:10px;margin-top:12px;">
@@ -70,14 +70,14 @@
 
 {% if can_edit_procurement and pr_lines %}
 <div class="cp-card p-card mb-4">
-  <h3 class="cp-section">{% translate "Podratçı dəvəti (sətir əhatəsi)" %}</h3>
+  <h3 class="cp-section">{% translate "Təchizatçı dəvəti (sətir əhatəsi)" %}</h3>
   <form method="post">
     {% csrf_token %}
     <input type="hidden" name="action" value="invite_supplier">
     <input type="hidden" name="submit_token" value="{{ submit_token }}">
     <div class="grid-2 gap-2 mb-2">
       <label>
-        <span class="cp-meta">{% translate "Podratçı" %}</span>
+        <span class="cp-meta">{% translate "Təchizatçı" %}</span>
         <select class="cp-input" name="supplier_party_id" required>
           <option value="">—</option>
           {% for s in suppliers %}<option value="{{ s.id }}">{{ s.display_name }}</option>{% endfor %}
@@ -135,7 +135,7 @@
   <table class="cp-table">
     <thead>
       <tr>
-        <th>{% translate "Podratçı" %}</th>
+        <th>{% translate "Təchizatçı" %}</th>
         <th>{% translate "Status" %}</th>
         <th>{% translate "Kanal" %}</th>
         <th>{% translate "Sətirlər" %}</th>
@@ -170,7 +170,7 @@
     <input type="hidden" name="submit_token" value="{{ submit_token }}">
     <div class="grid-2 gap-2 mb-2">
       <label>
-        <span class="cp-meta">{% translate "Podratçı (aktiv dəvət)" %}</span>
+        <span class="cp-meta">{% translate "Təchizatçı (aktiv dəvət)" %}</span>
         <select class="cp-input" name="supplier_party_id" required id="line-quote-supplier">
           <option value="">—</option>
           {% for s in line_comparison.suppliers %}
@@ -179,7 +179,7 @@
         </select>
       </label>
       <label>
-        <span class="cp-meta">{% translate "Podratçı ref" %}</span>
+        <span class="cp-meta">{% translate "Təchizatçı ref" %}</span>
         <input class="cp-input" name="supplier_reference">
       </label>
     </div>
@@ -304,7 +304,7 @@
     <thead>
       <tr>
         <th>{% translate "Sətir" %}</th>
-        <th>{% translate "Podratçı" %}</th>
+        <th>{% translate "Təchizatçı" %}</th>
         <th>{% translate "Miqdar" %}</th>
         <th>{% translate "Qiymət" %}</th>
         <th>PO</th>
@@ -327,7 +327,7 @@
     {% csrf_token %}
     <input type="hidden" name="action" value="create_pos_from_awards">
     <input type="hidden" name="submit_token" value="{{ submit_token }}">
-    <button class="cp-btn" type="submit">{% translate "Mükafatlardan PO yarat (podratçı üzrə)" %}</button>
+    <button class="cp-btn" type="submit">{% translate "Mükafatlardan PO yarat (Təchizatçı üzrə)" %}</button>
   </form>
   {% endif %}
 </div>
@@ -339,7 +339,7 @@
   <table class="cp-table">
     <thead>
       <tr>
-        <th>{% translate "Podratçı" %}</th>
+        <th>{% translate "Təchizatçı" %}</th>
         <th>{% translate "Vahid qiymət" %}</th>
         <th>{% translate "Valyuta" %}</th>
         <th>{% translate "Müqayisə cəmi" %}</th>
@@ -390,7 +390,7 @@
     <input type="hidden" name="action" value="add_quote">
     <input type="hidden" name="submit_token" value="{{ submit_token }}">
     <label>
-      <span class="cp-meta">{% translate "Podratçı" %}</span>
+      <span class="cp-meta">{% translate "Təchizatçı" %}</span>
       <select class="cp-input" name="supplier_party_id" required>
         <option value="">—</option>
         {% for s in suppliers %}<option value="{{ s.id }}">{{ s.display_name }}</option>{% endfor %}

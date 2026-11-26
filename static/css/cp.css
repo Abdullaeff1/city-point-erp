@@ -439,26 +439,27 @@ a.cp-card-link:hover { text-decoration: none; box-shadow: 0 2px 10px rgba(12, 39
   border-radius: 99px;
   background: currentColor;
 }
-.badge-sent { background: #e8f1fa; color: var(--cp-info); }
-.badge-assigned { background: #e8f1fa; color: var(--cp-info); }
-.badge-accepted { background: #eeebfa; color: var(--cp-accepted); }
-.badge-progress { background: #f8eee6; color: var(--cp-warning); }
-.badge-waiting { background: #f8eee6; color: var(--cp-warning); }
-.badge-resolved { background: #e7f6ee; color: var(--cp-success); }
-.badge-closed { background: #e7f6ee; color: var(--cp-success); }
-.badge-cancelled { background: #eef2f5; color: var(--cp-muted); }
-.badge-reopened { background: #fdecec; color: var(--cp-danger); }
-.badge-urgent { background: #fdecec; color: var(--cp-danger); }
-.badge-muted { background: #eef2f5; color: var(--cp-muted); }
-.badge-warn { background: #f8eee6; color: var(--cp-warning); }
-.badge-danger { background: #fdecec; color: var(--cp-danger); }
-.badge-critical { background: #fdecec; color: var(--cp-danger); }
+.badge-sent { background: var(--cp-primary-soft); color: #3d4f63; }
+.badge-assigned { background: var(--cp-primary-soft); color: #3d4f63; }
+.badge-accepted { background: var(--cp-badge-approval-bg, #ebe9f3); color: var(--cp-badge-approval-fg, #4f4a66); }
+.badge-progress { background: var(--cp-badge-wait-bg, #f5efe3); color: var(--cp-badge-wait-fg, #7a6438); }
+.badge-waiting { background: var(--cp-badge-wait-bg, #f5efe3); color: var(--cp-badge-wait-fg, #7a6438); }
+.badge-resolved { background: var(--cp-badge-ok-bg, #e0f0e6); color: var(--cp-badge-ok-fg, #2f5d48); }
+.badge-closed { background: var(--cp-badge-ok-bg, #e0f0e6); color: var(--cp-badge-ok-fg, #2f5d48); }
+.badge-cancelled { background: #eef1f4; color: var(--cp-muted); }
+.badge-reopened { background: var(--cp-badge-overdue-bg, #f8dfdb); color: var(--cp-badge-overdue-fg, #7a3d34); }
+.badge-urgent { background: var(--cp-badge-overdue-bg, #f8dfdb); color: var(--cp-badge-overdue-fg, #7a3d34); }
+.badge-muted { background: #eef1f4; color: var(--cp-muted); }
+.badge-warn { background: var(--cp-badge-wait-bg, #f5efe3); color: var(--cp-badge-wait-fg, #7a6438); }
+.badge-danger { background: var(--cp-badge-overdue-bg, #f8dfdb); color: var(--cp-badge-overdue-fg, #7a3d34); }
+.badge-critical { background: var(--cp-badge-overdue-bg, #f8dfdb); color: var(--cp-badge-overdue-fg, #7a3d34); }
+.badge-success { background: var(--cp-badge-ok-bg, #e0f0e6); color: var(--cp-badge-ok-fg, #2f5d48); }
 
 .cp-shell { min-height: 100vh; display: flex; }
 .cp-sidebar {
   width: var(--cp-sidebar);
-  background: var(--cp-primary-dark);
-  color: #fff;
+  background: var(--cp-sidebar-bg, var(--cp-primary-dark));
+  color: var(--cp-sidebar-text, #fff);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -929,13 +930,13 @@ dialog.announcement-dialog[open] {
 .cp-progress {
   height: 4px;
   border-radius: 99px;
-  background: var(--cp-border);
+  background: var(--cp-progress-track, #eaeef1);
   overflow: hidden;
 }
 .cp-progress > span {
   display: block;
   height: 100%;
-  background: var(--cp-accent);
+  background: var(--cp-progress-fill, #649381);
 }
 .cp-progress.is-warn > span { background: var(--cp-warning); }
 .cp-progress.is-danger > span { background: var(--cp-danger); }
@@ -1093,9 +1094,9 @@ dialog.announcement-dialog[open] {
   inset: 0;
   background: linear-gradient(
     165deg,
-    rgba(12, 36, 58, 0.72) 0%,
-    rgba(22, 62, 99, 0.48) 45%,
-    rgba(12, 36, 58, 0.78) 100%
+    rgba(28, 36, 55, 0.78) 0%,
+    rgba(41, 53, 75, 0.55) 45%,
+    rgba(28, 36, 55, 0.82) 100%
   );
   pointer-events: none;
 }

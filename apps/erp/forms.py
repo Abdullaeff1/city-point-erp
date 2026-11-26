@@ -1166,6 +1166,8 @@ class BuildingProcedureForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         has_file = bool(self.instance and self.instance.pk and self.instance.file)
         self.fields["file"].required = not has_file
+        # Private storage has no public .url — ClearableFileInput would crash the edit form.
+        self.fields["file"].widget = forms.FileInput(attrs={"class": "cp-input"})
         self.fields["description"].required = False
         self.fields["published_at"].required = False
         self.fields["sort_order"].required = False
