@@ -1,0 +1,204 @@
+{% extends "erp/base.html" %}
+{% load i18n l10n %}
+{% block page_title %}{% translate "Təkrar alış" %}{% endblock %}
+{% block heading %}{% translate "Bu sifariş əsasında yenisini yarat" %}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:procurement' %}">{% translate "Satınalma" %}</a>
+ · <a href="{% url 'erp:procurement_po_detail' po.code %}">{{ po.code }}</a>
+{% endblock %}
+{% block content %}
+<div class="cp-card p-card mb-4" style="max-width:960px;">
+  <p class="cp-meta mb-2">
+    {% translate "Mənbə PO" %}: <strong>{{ po.code }}</strong>
+    · {% translate "Təchizatçı" %}:
+    {% if po.supplier_party_id %}{{ po.supplier_party.display_name }}{% else %}—{% endif %}
+    · {% translate "Valyuta" %}: {{ currency }}
+  </p>
+  <p class="cp-meta mb-3">{% translate "Formanı açmaq və ya ləğv etmək yeni alış yaratmır. Saxlandıqda yeni müstəqil PR yaranır; köhnə PR qalığı dəyişmir." %}</p>
+
+  <form method="post" id="reorder-form" class="flex-col gap-3">
+    {% csrf_token %}
+    <input type="hidden" name="submit_token" value="{{ submit_token }}">
+    <label>
+      <span class="cp-meta">{% translate "Başlıq" %} *</span>
+      <input class="cp-input mt-1" name="title" required maxlength="200"
+             value="{{ request.POST.title|default:title_default }}">
+    </label>
+    <label>
+      <span class="cp-meta">{% translate "Qeyd" %}</span>
+      <textarea class="cp-input mt-1" name="notes" rows="2">{{ request.POST.notes|default:'' }}</textarea>
+    </label>
+
+    <div class="flex gap-2" style="align-items:center;flex-wrap:wrap;">
+      <h3 class="cp-section" style="margin:0;">{% translate "Sətirlər" %}</h3>
+      <button class="cp-btn-ghost" type="button" id="apply-last-prices">{% translate "Bütün son alış qiymətlərini tətbiq et" %}</button>
+      <button class="cp-btn-ghost" type="button" id="add-row">{% translate "Sətir əlavə et" %}</button>
+    </div>
+
+    <table class="cp-table" id="reorder-lines">
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>{% translate "Təsvir" %}</th>
+          <th>{% translate "Vahid" %}</th>
+          <th>{% translate "Miqdar" %}</th>
+          <th>{% translate "Son alış qiyməti" %}</th>
+          <th>{% translate "Cari qiymət" %}</th>
+          <th>{% translate "Məbləğ" %}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="reorder-row{% if r.needs_fix %} is-warn{% endif %}" data-last-price="{% if r.last_unit_price is not None %}{{ r.last_unit_price|unlocalize }}{% endif %}">
+          <td>
+            <input type="hidden" name="line_{{ forloop.counter0 }}_source_po_line_id" value="{{ r.source_po_line_id|default:'' }}">
+            <select class="cp-input" name="line_{{ forloop.counter0 }}_sku_id">
+              <option value="">—</option>
+              {% for sku in skus %}
+              <option value="{{ sku.id }}" {% if r.sku_id == sku.id %}selected{% endif %}>{{ sku.code }}</option>
+              {% endfor %}
+            </select>
+            {% if r.needs_fix %}<div class="cp-meta" style="color:var(--cp-danger, #b45309);">{{ r.issues|join:", " }}</div>{% endif %}
+          </td>
+          <td><input class="cp-input" name="line_{{ forloop.counter0 }}_description" value="{{ r.description }}" maxlength="255"></td>
+          <td><input class="cp-input" name="line_{{ forloop.counter0 }}_unit" value="{{ r.unit }}" maxlength="16" style="width:4.5rem;"></td>
+          <td><input class="cp-input line-qty" name="line_{{ forloop.counter0 }}_qty" value="{{ r.qty|unlocalize }}" inputmode="decimal" style="width:5.5rem;"></td>
+          <td class="cp-meta">{% if r.last_unit_price is not None %}{{ r.last_unit_price }}{% else %}—{% endif %}</td>
+          <td>
+            <input class="cp-input line-price" name="line_{{ forloop.counter0 }}_unit_price"
+                   value="{% if r.unit_price is not None %}{{ r.unit_price|unlocalize }}{% endif %}"
+                   placeholder="{% if r.price_known %}{% else %}{% translate "naməlum" %}{% endif %}"
+                   inputmode="decimal" style="width:6rem;">
+          </td>
+          <td class="line-amount cp-meta">—</td>
+          <td><button class="cp-btn-ghost remove-row" type="button" title="{% translate "Sil" %}">×</button></td>
+        </tr>
+        {% empty %}
+        <tr class="reorder-row" data-last-price="">
+          <td>
+            <input type="hidden" name="line_0_source_po_line_id" value="">
+            <select class="cp-input" name="line_0_sku_id">
+              <option value="">—</option>
+              {% for sku in skus %}
+              <option value="{{ sku.id }}">{{ sku.code }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td><input class="cp-input" name="line_0_description" maxlength="255"></td>
+          <td><input class="cp-input" name="line_0_unit" value="pcs" maxlength="16" style="width:4.5rem;"></td>
+          <td><input class="cp-input line-qty" name="line_0_qty" inputmode="decimal" style="width:5.5rem;"></td>
+          <td class="cp-meta">—</td>
+          <td><input class="cp-input line-price" name="line_0_unit_price" inputmode="decimal" style="width:6rem;"></td>
+          <td class="line-amount cp-meta">—</td>
+          <td><button class="cp-btn-ghost remove-row" type="button">×</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <p class="cp-meta">
+      {% translate "Yekun (cari qiymətlərlə)" %}:
+      <strong id="reorder-total">{{ line_total }}</strong> {{ currency }}
+      · {% translate "ƏDV: mövcud satınalma qaydaları (öhdəlik təsdiqində)" %}
+    </p>
+
+    <div class="flex gap-2">
+      <button class="cp-btn" type="submit">{% translate "Saxla — yeni alış yarat" %}</button>
+      <a class="cp-btn-ghost" href="{% url 'erp:procurement_po_detail' po.code %}">{% translate "Ləğv et" %}</a>
+    </div>
+  </form>
+</div>
+<template id="reorder-row-template">
+  <tr class="reorder-row" data-last-price="">
+    <td>
+      <input type="hidden" name="__SRC__" value="">
+      <select class="cp-input" name="__SKU__">
+        <option value="">—</option>
+        {% for sku in skus %}
+        <option value="{{ sku.id }}">{{ sku.code }}</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td><input class="cp-input" name="__DESC__" maxlength="255"></td>
+    <td><input class="cp-input" name="__UNIT__" value="pcs" maxlength="16" style="width:4.5rem;"></td>
+    <td><input class="cp-input line-qty" name="__QTY__" inputmode="decimal" style="width:5.5rem;"></td>
+    <td class="cp-meta">—</td>
+    <td><input class="cp-input line-price" name="__PRICE__" inputmode="decimal" style="width:6rem;"></td>
+    <td class="line-amount cp-meta">—</td>
+    <td><button class="cp-btn-ghost remove-row" type="button">×</button></td>
+  </tr>
+</template>
+<script>
+(function () {
+  var tbody = document.querySelector('#reorder-lines tbody');
+  var totalEl = document.getElementById('reorder-total');
+  var tpl = document.getElementById('reorder-row-template');
+  function parseNum(v) {
+    if (v == null || String(v).trim() === '') return null;
+    var n = Number(String(v).replace(',', '.'));
+    return isFinite(n) ? n : null;
+  }
+  function reindex() {
+    Array.prototype.forEach.call(tbody.querySelectorAll('tr.reorder-row'), function (tr, i) {
+      tr.querySelectorAll('[name]').forEach(function (el) {
+        var n = el.getAttribute('name') || '';
+        el.setAttribute('name', n.replace(/line_\d+_/, 'line_' + i + '_'));
+      });
+    });
+  }
+  function recalc() {
+    var sum = 0;
+    Array.prototype.forEach.call(tbody.querySelectorAll('tr.reorder-row'), function (tr) {
+      var qty = parseNum((tr.querySelector('.line-qty') || {}).value);
+      var price = parseNum((tr.querySelector('.line-price') || {}).value);
+      var cell = tr.querySelector('.line-amount');
+      if (qty != null && price != null) {
+        var amt = Math.round(qty * price * 100) / 100;
+        sum += amt;
+        if (cell) cell.textContent = amt.toFixed(2);
+      } else if (cell) {
+        cell.textContent = '—';
+      }
+    });
+    if (totalEl) totalEl.textContent = sum.toFixed(2);
+  }
+  document.getElementById('apply-last-prices').addEventListener('click', function () {
+    Array.prototype.forEach.call(tbody.querySelectorAll('tr.reorder-row'), function (tr) {
+      var last = tr.getAttribute('data-last-price');
+      var inp = tr.querySelector('.line-price');
+      if (inp && last !== null && last !== '') inp.value = last;
+    });
+    recalc();
+  });
+  document.getElementById('add-row').addEventListener('click', function () {
+    var html = tpl.innerHTML
+      .replace('__SRC__', 'line_0_source_po_line_id')
+      .replace('__SKU__', 'line_0_sku_id')
+      .replace('__DESC__', 'line_0_description')
+      .replace('__UNIT__', 'line_0_unit')
+      .replace('__QTY__', 'line_0_qty')
+      .replace('__PRICE__', 'line_0_unit_price');
+    tbody.insertAdjacentHTML('beforeend', html);
+    reindex();
+    recalc();
+  });
+  tbody.addEventListener('click', function (e) {
+    if (e.target && e.target.classList.contains('remove-row')) {
+      var tr = e.target.closest('tr');
+      if (tr && tbody.querySelectorAll('tr.reorder-row').length > 1) {
+        tr.remove();
+        reindex();
+        recalc();
+      }
+    }
+  });
+  tbody.addEventListener('input', function (e) {
+    if (e.target && (e.target.classList.contains('line-qty') || e.target.classList.contains('line-price'))) {
+      recalc();
+    }
+  });
+  recalc();
+})();
+</script>
+{% endblock %}

@@ -86,7 +86,6 @@
       {% if nav_property or nav_residents or nav_parties or nav_leases or nav_building_assets %}
       <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
-      {% if user.role == "admin" or user.role == "service_desk" %}<a class="{% nav_active 'drawing_access_queue' %}" href="{% url 'erp:drawing_access_queue' %}"><i data-lucide="file-key" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rəsm icazələri" %}</span></a>{% endif %}
       {% if nav_building_assets %}
       <a class="{% nav_active 'building_equipment' 'building_assets' %}" href="{% url 'erp:building_equipment' %}"><i data-lucide="cpu" width="18" height="18"></i><span class="cp-nav-text">{% translate "Avadanlıqlar" %}</span></a>
       <a class="{% nav_active 'building_inventory' %}" href="{% url 'erp:building_inventory' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "İnventarlar" %}</span></a>
@@ -130,7 +129,6 @@
       {% if nav_property or nav_residents or nav_resident_directory or nav_leases or nav_building_assets %}
       <div class="cp-nav-label">{% translate "ƏMLAK" %}</div>
       {% if nav_property %}<a class="{% nav_active 'spaces' 'space_detail' %}" href="{% url 'erp:spaces' %}"><i data-lucide="building-2" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sahələr" %}</span></a>{% endif %}
-      {% if user.role == "admin" or user.role == "service_desk" %}<a class="{% nav_active 'drawing_access_queue' %}" href="{% url 'erp:drawing_access_queue' %}"><i data-lucide="file-key" width="18" height="18"></i><span class="cp-nav-text">{% translate "Rəsm icazələri" %}</span></a>{% endif %}
       {% if nav_building_assets %}
       <a class="{% nav_active 'building_equipment' 'building_assets' %}" href="{% url 'erp:building_equipment' %}"><i data-lucide="cpu" width="18" height="18"></i><span class="cp-nav-text">{% translate "Avadanlıqlar" %}</span></a>
       <a class="{% nav_active 'building_inventory' %}" href="{% url 'erp:building_inventory' %}"><i data-lucide="boxes" width="18" height="18"></i><span class="cp-nav-text">{% translate "İnventarlar" %}</span></a>
@@ -153,7 +151,7 @@
       {% if nav_supply %}
       <div class="cp-nav-label">{% translate "TƏCHİZAT" %}</div>
       <a class="{% nav_active 'warehouse' 'warehouse_sku_detail' 'warehouse_sku_create' 'stocktake_list' 'stocktake_detail' %}" href="{% url 'erp:warehouse' %}"><i data-lucide="warehouse" width="18" height="18"></i><span class="cp-nav-text">{% translate "Anbar" %}</span></a>
-      <a class="{% nav_active 'procurement' 'procurement_pr_create' 'procurement_pr_detail' 'procurement_po_detail' 'procurement_suppliers' 'procurement_supplier_detail' 'procurement_rfq_detail' %}" href="{% url 'erp:procurement' %}"><i data-lucide="shopping-cart" width="18" height="18"></i><span class="cp-nav-text">{% translate "Satınalma" %}</span></a>
+      <a class="{% nav_active 'procurement' 'procurement_pr_create' 'procurement_pr_detail' 'procurement_po_detail' 'procurement_po_reorder' 'procurement_suppliers' 'procurement_supplier_detail' 'procurement_rfq_detail' %}" href="{% url 'erp:procurement' %}"><i data-lucide="shopping-cart" width="18" height="18"></i><span class="cp-nav-text">{% translate "Satınalma" %}</span></a>
       {% endif %}
 
       {% if nav_finance or nav_docs or nav_announcements %}
@@ -163,7 +161,7 @@
       <a class="{% nav_active 'accounting' %}" href="{% url 'erp:accounting' %}"><i data-lucide="book-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Mühasibat" %}</span></a>
       {% endif %}
       {% if nav_docs %}
-      <a class="{% nav_active 'documents' %}" href="{% url 'erp:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sənədlər" %}</span></a>
+      {% if is_management or is_adminish %}<a class="{% nav_active 'documents' %}" href="{% url 'erp:documents' %}"><i data-lucide="file-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Sənədlər" %}</span></a>{% endif %}
       <a class="{% nav_active 'correspondence_list' 'correspondence_detail' %}" href="{% url 'erp:correspondence_list' %}"><i data-lucide="mail" width="18" height="18"></i><span class="cp-nav-text">{% translate "Kargüzarlıq" %}</span></a>
       {% endif %}
       {% if nav_docs %}<a class="{% nav_active 'building_procedures' 'building_procedure_create' 'building_procedure_edit' %}" href="{% url 'erp:building_procedures' %}"><i data-lucide="book-open" width="18" height="18"></i><span class="cp-nav-text">{% translate "Daxili prosedurlar" %}</span></a>{% endif %}

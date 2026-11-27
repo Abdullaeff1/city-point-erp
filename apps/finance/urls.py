@@ -11,6 +11,16 @@ urlpatterns = [
     path("invoices/export.xlsx", views.InvoiceExportView.as_view(), name="invoices_export"),
     path("invoices/<str:code>/", views.InvoiceDetailView.as_view(), name="invoice_detail"),
     path("payments/", views.PaymentsView.as_view(), name="payments"),
+    path(
+        "payment-evidence/",
+        views.PaymentEvidenceQueueView.as_view(),
+        name="payment_evidence",
+    ),
+    path(
+        "documents/<int:pk>/download/",
+        views.FinanceDocumentDownloadView.as_view(),
+        name="document_download",
+    ),
     path("payables/", views.PayablesView.as_view(), name="payables"),
     path("payables/new/", views.PayableCreateView.as_view(), name="payable_create"),
     path("payables/<str:code>/", views.PayableDetailView.as_view(), name="payable_detail"),

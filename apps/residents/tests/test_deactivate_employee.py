@@ -28,14 +28,20 @@ class DeactivateEmployeeTests(TestCase):
             is_staff=True,
         )
 
-    def test_service_clears_card(self):
+    def test_service_retains_card_by_default(self):
+        deactivate_resident_employee(self.emp, actor=self.admin)
+        self.emp.refresh_from_db()
+        self.assertFalse(self.emp.is_active)
+        self.assertEqual(self.emp.card_number, "9999")
+        self.assertIsNotNone(self.emp.deactivated_at)
+
+    def test_service_can_clear_card_when_explicit(self):
         deactivate_resident_employee(self.emp, actor=self.admin, clear_card=True)
         self.emp.refresh_from_db()
         self.assertFalse(self.emp.is_active)
         self.assertEqual(self.emp.card_number, "")
-        self.assertIsNotNone(self.emp.deactivated_at)
 
-    def test_erp_post_deactivate(self):
+    def test_erp_post_deactivate_keeps_card(self):
         client = Client()
         client.force_login(self.admin)
         url = reverse(
@@ -46,3 +52,8 @@ class DeactivateEmployeeTests(TestCase):
         self.assertEqual(resp.status_code, 302)
         self.emp.refresh_from_db()
         self.assertFalse(self.emp.is_active)
+        self.assertEqual(self.emp.card_number, "9999")
+        self.assertContains(
+            client.get(url),
+            "9999",
+        )

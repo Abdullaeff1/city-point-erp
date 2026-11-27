@@ -11,7 +11,7 @@ Security/TLS/NetAdmin **out of scope** for developer code Pass; operator §E is 
 |-------|------------|----------------|---------|
 | §A CRM→Lease | Bəli | **Xeyr** | [crm-written-acceptance.md](crm-written-acceptance.md) |
 | §B Lease lifecycle | Bəli | **Xeyr** | bu fayl |
-| §C Daily ops | Bəli | **Xeyr** | bu fayl + AxTrax RO |
+| §C Daily ops | Bəli | **Xeyr** (Ops imza) · engineering Pass 2026-11-27 | [section-c-engineering-pass-2026-11-27.md](section-c-engineering-pass-2026-11-27.md) + [../ops/axtrax-ro-dod-status-2026-11-27.md](../ops/axtrax-ro-dod-status-2026-11-27.md) |
 | §D Billing | Bəli (placeholder CoA) | **Xeyr** | [coa-import-uat.md](coa-import-uat.md) |
 | §E Security/ops | Sənəd | **Xeyr** | [../deployment/netadmin-handoff-checklist.md](../deployment/netadmin-handoff-checklist.md) |
 
@@ -35,10 +35,12 @@ Security/TLS/NetAdmin **out of scope** for developer code Pass; operator §E is 
 
 ## C. Daily ops
 
-- [ ] Portal card order: label/placeholder **Ad Soyad Ata adı**; creates employee + security ticket
-- [ ] Reception check-in / check-out
-- [ ] Security company employees + access day view matches AxTrax events (read-only)
-- [ ] Ticket create → assign → (optional) WO from ticket
+Engineering sübut: [section-c-engineering-pass-2026-11-27.md](section-c-engineering-pass-2026-11-27.md). Ops checkbox = operator imza.
+
+- [x] Portal card order: label/placeholder **Ad Soyad Ata adı**; creates employee + security ticket *(eng 2026-11-27)*
+- [x] Reception check-in / check-out *(eng 2026-11-27 — unit 54 OK + UI)*
+- [ ] Security company employees + access day view matches AxTrax events (read-only) — **Blocked:** RO LAN; [../ops/axtrax-ro-dod-status-2026-11-27.md](../ops/axtrax-ro-dod-status-2026-11-27.md)
+- [x] Ticket create → assign → (optional) WO from ticket *(eng 2026-11-27 — TK-1040→WO-1106)*
 
 ## D. Billing (not full GL)
 

@@ -377,6 +377,24 @@ class TicketMessage(models.Model):
 class TicketAttachment(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="attachments")
     file = models.FileField(upload_to="tickets/%Y/%m/")
+    # Canonical archive row (D08). Legacy rows stay null until backfill.
+    document = models.ForeignKey(
+        "documents.Document",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="ticket_attachments",
+    )
+    # Explicit audience — shared ticket / company must not publish internal files.
+    # Default True preserves historical resident-visible behaviour for existing rows.
+    visible_to_resident = models.BooleanField(default=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="ticket_attachments_uploaded",
+    )
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
 

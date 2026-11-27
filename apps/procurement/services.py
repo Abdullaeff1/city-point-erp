@@ -47,6 +47,7 @@ VERIFIED_MONETARY_BASES = frozenset(
         "rfq_quote_unit_price_x_pr_qty",
         "priced_po_unit_price_x_pr_qty",
         "rfq_quote_lines_gross",
+        "reorder_line_prices_x_qty",
     }
 )
 
@@ -287,6 +288,251 @@ class ProcurementService(Service):
         return pr
 
     @classmethod
+    def po_created_by(cls, po: PurchaseOrder):
+        """Creator from audit ``procurement.po.create*``, else linked PR requester."""
+        from apps.audit.models import AuditLog
+
+        ct = ContentType.objects.get_for_model(PurchaseOrder)
+        log = (
+            AuditLog.objects.filter(
+                entity_type=ct,
+                entity_id=po.pk,
+                action__startswith="procurement.po.create",
+            )
+            .select_related("actor")
+            .order_by("id")
+            .first()
+        )
+        if log and log.actor_id:
+            return log.actor
+        if po.pr_id and po.pr.requested_by_id:
+            return po.pr.requested_by
+        return None
+
+    @classmethod
+    def assert_can_reorder_po(cls, actor, po: PurchaseOrder) -> None:
+        """supply.head (or Admin) + ownership of the source PO."""
+        from apps.accounts.models import Role
+        from apps.rbac.services import user_has_permission
+
+        cls.assert_can_edit_procurement(actor)
+        if getattr(actor, "role", None) != Role.ADMIN:
+            if not user_has_permission(actor, "supply.head"):
+                raise DomainError("Təkrar alış yalnız Təchizat rəhbəri üçündür.")
+            creator = cls.po_created_by(po)
+            if creator is None or creator.pk != actor.pk:
+                raise DomainError(
+                    "Yalnız öz yaratdığınız sifariş əsasında təkrar alış edə bilərsiniz."
+                )
+        if not po.supplier_party_id:
+            raise DomainError("Mənbə sifarişdə təchizatçı yoxdur.")
+        if not po.lines.exists():
+            raise DomainError("Mənbə sifarişdə sətir yoxdur.")
+
+    @classmethod
+    def reorder_form_rows(cls, po: PurchaseOrder) -> list[dict]:
+        """Prefill rows from this PO only (split awards on other POs excluded)."""
+        from apps.parties.models import PartyStatus
+
+        supplier = po.supplier_party
+        supplier_ok = bool(
+            supplier
+            and getattr(supplier, "status", PartyStatus.ACTIVE) == PartyStatus.ACTIVE
+        )
+        rows = []
+        for line in po.lines.select_related("sku", "pr_line").order_by("id"):
+            unit = ""
+            if line.pr_line_id and line.pr_line.unit:
+                unit = line.pr_line.unit
+            elif line.sku_id and line.sku.unit:
+                unit = line.sku.unit
+            else:
+                unit = "pcs"
+            price = line.unit_price
+            price_known = price is not None and Decimal(str(price)) > 0
+            issues = []
+            if not supplier_ok:
+                issues.append("təchizatçı qeyri-aktiv")
+            if line.sku_id is None and not (line.description or "").strip():
+                issues.append("məhsul düzəlişi lazımdır")
+            rows.append(
+                {
+                    "source_po_line_id": line.pk,
+                    "sku_id": line.sku_id,
+                    "sku_code": line.sku.code if line.sku_id else "",
+                    "description": line.description or "",
+                    "qty": line.qty,
+                    "unit": unit,
+                    "unit_price": price if price_known else None,
+                    "last_unit_price": price if price_known else None,
+                    "price_known": price_known,
+                    "issues": issues,
+                    "needs_fix": bool(issues),
+                }
+            )
+        return rows
+
+    @classmethod
+    @transaction.atomic
+    def reorder_from_po(
+        cls,
+        source_po: PurchaseOrder,
+        *,
+        actor,
+        lines: list[dict],
+        title: str = "",
+        notes: str = "",
+    ) -> PurchaseRequest:
+        """Yeni müstəqil PR — köhnə PR qalığını istifadə etmir; mənbə PO əlaqəsi saxlanılır."""
+        from apps.audit.services import log_action
+        from apps.parties.models import PartyStatus
+        from apps.warehouse.models import SKU
+
+        cls.assert_can_reorder_po(actor, source_po)
+        supplier = source_po.supplier_party
+        if getattr(supplier, "status", None) == PartyStatus.INACTIVE:
+            raise DomainError("Təchizatçı qeyri-aktivdir — əvvəl düzəldin.")
+
+        cleaned: list[dict] = []
+        snapshot_lines: list[dict] = []
+        for raw in lines or []:
+            desc = (raw.get("description") or "").strip()
+            sku = None
+            sku_id = raw.get("sku_id") or None
+            if sku_id:
+                sku = SKU.objects.filter(pk=sku_id).first()
+                if sku is None:
+                    raise DomainError("SKU tapılmadı.")
+                if not desc:
+                    desc = sku.name or sku.code
+            if not desc and not sku:
+                continue
+            qty = Decimal(str(raw.get("qty") or "0"))
+            cls.require(qty > 0, "Hər sətir üçün miqdar sıfırdan böyük olmalıdır.")
+            unit = ((raw.get("unit") or (sku.unit if sku else "pcs")) or "pcs")[:16]
+            raw_price = raw.get("unit_price", raw.get("last_unit_price"))
+            price_known = raw_price is not None and str(raw_price).strip() != ""
+            unit_price = None
+            if price_known:
+                unit_price = _quantize_money(Decimal(str(raw_price)))
+                # Naməlum qiyməti sıfıra çevirmə — operator boş buraxıbsa None qalır
+                if unit_price <= 0 and not raw.get("price_forced"):
+                    # explicit 0 from operator is allowed only if they typed it;
+                    # treat literal 0 as known zero price
+                    pass
+            cleaned.append(
+                {
+                    "description": desc[:255],
+                    "qty": qty,
+                    "unit": unit,
+                    "sku": sku,
+                    "unit_price": unit_price,
+                    "price_known": price_known,
+                    "source_po_line_id": raw.get("source_po_line_id"),
+                }
+            )
+            snapshot_lines.append(
+                {
+                    "description": desc[:255],
+                    "qty": format(qty, "f"),
+                    "unit": unit,
+                    "sku_id": sku.pk if sku else None,
+                    "unit_price": format(unit_price, "f") if unit_price is not None else None,
+                    "source_po_line_id": raw.get("source_po_line_id"),
+                }
+            )
+        cls.require(cleaned, "Ən azı bir sətir tələb olunur.")
+
+        title = (title or "").strip() or f"Təkrar alış — {source_po.code}"
+        note_bits = [(notes or "").strip()]
+        note_bits.append(f"Əvvəlki sifariş: {source_po.code}")
+        pr = PurchaseRequest.objects.create(
+            code=_next_code("PR", PurchaseRequest),
+            title=title[:200],
+            status=PRStatus.SUBMITTED,
+            requested_by=actor,
+            source=PRSource.MANUAL,
+            notes="\n".join(b for b in note_bits if b),
+            source_po=source_po,
+            reorder_snapshot={
+                "source_po_id": source_po.pk,
+                "source_po_code": source_po.code,
+                "supplier_id": supplier.pk,
+                "supplier_name": supplier.display_name,
+                "currency": _SUPPORTED_CURRENCY,
+                "lines": snapshot_lines,
+            },
+        )
+        for row in cleaned:
+            PRLine.objects.create(
+                pr=pr,
+                sku=row["sku"],
+                description=row["description"],
+                qty=row["qty"],
+                unit=row["unit"],
+            )
+        # Re-bind snapshot with new PR line ids (order matches)
+        pr_lines = list(pr.lines.order_by("id"))
+        for i, pl in enumerate(pr_lines):
+            if i < len(snapshot_lines):
+                snapshot_lines[i]["pr_line_id"] = pl.pk
+        pr.reorder_snapshot = {
+            **pr.reorder_snapshot,
+            "lines": snapshot_lines,
+        }
+        pr.save(update_fields=["reorder_snapshot"])
+
+        log_action(
+            action="procurement.pr.reorder_from_po",
+            actor=actor,
+            entity=pr,
+            new_values={
+                "code": pr.code,
+                "source_po": source_po.code,
+                "lines": len(cleaned),
+            },
+        )
+        return pr
+
+    @classmethod
+    def reorder_line_unit_prices(cls, pr: PurchaseRequest) -> dict[int, Decimal]:
+        """Map PR line id → unit price from reorder snapshot (known prices only)."""
+        snap = pr.reorder_snapshot or {}
+        out: dict[int, Decimal] = {}
+        for row in snap.get("lines") or []:
+            lid = row.get("pr_line_id")
+            price = row.get("unit_price")
+            if lid and price is not None and str(price).strip() != "":
+                out[int(lid)] = _quantize_money(Decimal(str(price)))
+        return out
+
+    @classmethod
+    def _priced_assessment_line_prices(
+        cls,
+        pr: PurchaseRequest,
+        line_unit_prices: dict,
+        line_qtys: dict | None = None,
+    ) -> AmountAssessment:
+        resolved = cls.resolve_po_line_qtys(pr, line_qtys)
+        total = Decimal("0")
+        for line_id, qty in resolved.items():
+            price = line_unit_prices.get(line_id)
+            if price is None:
+                return AmountAssessment(
+                    None,
+                    _SUPPORTED_CURRENCY,
+                    "unknown",
+                    "reorder_price_missing",
+                )
+            total += qty * _quantize_money(Decimal(str(price)))
+        return AmountAssessment(
+            _quantize_money(total),
+            _SUPPORTED_CURRENCY,
+            "ok",
+            "reorder_line_prices_x_qty",
+        )
+
+    @classmethod
     @transaction.atomic
     def create_or_update_supplier(
         cls,
@@ -433,24 +679,67 @@ class ProcurementService(Service):
         return total
 
     @classmethod
+    def pr_line_awarded_unissued_qty(cls, pr_line: PRLine) -> Decimal:
+        """Active awards not yet converted to a PO line (reserved allocation)."""
+        from apps.procurement.models import PRLineAward
+
+        total = Decimal("0")
+        for qty in (
+            PRLineAward.objects.filter(
+                pr_line=pr_line, is_active=True, po_line__isnull=True
+            ).values_list("qty", flat=True)
+        ):
+            total += Decimal(str(qty or 0))
+        return total
+
+    @classmethod
+    def pr_line_free_to_allocate_qty(cls, pr_line: PRLine) -> Decimal:
+        """Requested − ordered − active unissued awards (Decision 03)."""
+        free = (
+            Decimal(str(pr_line.qty or 0))
+            - cls.pr_line_ordered_qty(pr_line)
+            - cls.pr_line_awarded_unissued_qty(pr_line)
+        )
+        return free if free > 0 else Decimal("0")
+
+    @classmethod
     def pr_line_remaining_qty(cls, pr_line: PRLine) -> Decimal:
-        remaining = Decimal(str(pr_line.qty or 0)) - cls.pr_line_ordered_qty(pr_line)
-        return remaining if remaining > 0 else Decimal("0")
+        """Free to allocate (alias). Ordered and unissued awards are disjoint."""
+        return cls.pr_line_free_to_allocate_qty(pr_line)
+
+    @classmethod
+    def quote_line_awarded_qty(
+        cls, quote_line, *, exclude_award_ids: set[int] | None = None
+    ) -> Decimal:
+        """Cumulative active award qty against a supplier quote line."""
+        from apps.procurement.models import PRLineAward
+
+        qs = PRLineAward.objects.filter(quote_line=quote_line, is_active=True)
+        if exclude_award_ids:
+            qs = qs.exclude(pk__in=exclude_award_ids)
+        total = Decimal("0")
+        for qty in qs.values_list("qty", flat=True):
+            total += Decimal(str(qty or 0))
+        return total
 
     @classmethod
     def pr_qty_progress(cls, pr: PurchaseRequest) -> list[dict]:
-        """Operator-visible requested / ordered / received / outstanding per PR line."""
+        """Operator-visible requested / allocated / ordered / received per PR line."""
         rows = []
         for line in pr.lines.select_related("sku").all():
             requested = Decimal(str(line.qty or 0))
             ordered = cls.pr_line_ordered_qty(line)
             received = cls.pr_line_received_qty(line)
+            allocated = cls.pr_line_awarded_unissued_qty(line)
+            free = cls.pr_line_free_to_allocate_qty(line)
             rows.append(
                 {
                     "line": line,
                     "requested": requested,
                     "ordered": ordered,
                     "received": received,
+                    "allocated_unissued": allocated,
+                    "free_to_allocate": free,
                     "outstanding_order": max(requested - ordered, Decimal("0")),
                     "outstanding_receipt": max(ordered - received, Decimal("0")),
                 }
@@ -461,12 +750,12 @@ class ProcurementService(Service):
     def resolve_po_line_qtys(
         cls, pr: PurchaseRequest, line_qtys: dict | None = None
     ) -> dict[int, Decimal]:
-        """Map PR line id → qty to order. Default = all remaining. Never exceed remaining."""
+        """Map PR line id → qty to order. Never consume qty reserved by unissued awards."""
         resolved: dict[int, Decimal] = {}
         for line in pr.lines.all():
-            remaining = cls.pr_line_remaining_qty(line)
+            free = cls.pr_line_free_to_allocate_qty(line)
             if line_qtys is None:
-                take = remaining
+                take = free
             else:
                 raw = line_qtys.get(line.pk, line_qtys.get(str(line.pk)))
                 if raw is None or str(raw).strip() == "":
@@ -475,10 +764,10 @@ class ProcurementService(Service):
                     take = _quantize_qty(raw)
             if take < 0:
                 raise DomainError("Sifariş miqdarı mənfi ola bilməz.")
-            if take > remaining:
+            if take > free:
                 raise DomainError(
-                    f"{line.description}: qalan {remaining}, tələb olunan {take}. "
-                    "Əlavə sifariş üçün yenilənmiş PR / təsdiq tələb olunur."
+                    f"{line.description}: sərbəst {free}, tələb olunan {take}. "
+                    "Aktiv mükafat ehtiyatı və ya mövcud PO sərbəst miqdarı azaldır."
                 )
             if take > 0:
                 resolved[line.pk] = take
@@ -695,11 +984,18 @@ class ProcurementService(Service):
         currency: str = _SUPPORTED_CURRENCY,
         supplier_id=None,
         quote_id=None,
+        line_unit_prices: dict | None = None,
     ) -> str:
         lines = [
             [line.pk, format(Decimal(str(line.qty or 0)), "f"), line.sku_id]
             for line in pr.lines.order_by("id")
         ]
+        price_rows = None
+        if line_unit_prices:
+            price_rows = [
+                [int(lid), format(_quantize_money(Decimal(str(p))), "f")]
+                for lid, p in sorted(line_unit_prices.items(), key=lambda x: int(x[0]))
+            ]
         blob = json.dumps(
             {
                 "pr_id": pr.pk,
@@ -708,7 +1004,8 @@ class ProcurementService(Service):
                 "unit_price": format(_quantize_money(Decimal(str(unit_price))), "f"),
                 "currency": (currency or _SUPPORTED_CURRENCY).upper(),
                 "lines": lines,
-                "tax_basis": "unspecified",
+                "line_unit_prices": price_rows,
+                "tax_basis": "unspecified" if not price_rows else "per_line",
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -1018,6 +1315,7 @@ class ProcurementService(Service):
         unit_price=None,
         supplier_id=None,
         reason: str = "over_limit",
+        line_unit_prices: dict | None = None,
     ) -> ApprovalRequest:
         """Submit a priced commitment for Management financial approval (idempotent)."""
         cls.require(assessed.is_known, "Qiymətli öhdəlik üçün məbləğ tələb olunur.")
@@ -1033,6 +1331,7 @@ class ProcurementService(Service):
             currency=assessed.currency,
             supplier_id=supplier_id,
             quote_id=quote_id,
+            line_unit_prices=line_unit_prices,
         )
         existing_pending = cls.find_matching_commitment(
             pr, fingerprint=fingerprint, status=ApprovalStatus.PENDING
@@ -1041,37 +1340,49 @@ class ProcurementService(Service):
             return existing_pending
 
         limit = cls.approval_limit_for(actor)
-        line_rows = [
-            {
+        snap = pr.reorder_snapshot or {}
+        line_rows = []
+        for line in pr.lines.order_by("id"):
+            row = {
                 "line_id": line.pk,
                 "description": line.description,
                 "qty": format(Decimal(str(line.qty or 0)), "f"),
                 "sku_id": line.sku_id,
             }
-            for line in pr.lines.order_by("id")
-        ]
+            if line_unit_prices and line.pk in line_unit_prices:
+                row["unit_price"] = format(
+                    _quantize_money(Decimal(str(line_unit_prices[line.pk]))), "f"
+                )
+            line_rows.append(row)
+        payload = {
+            "pr_id": pr.pk,
+            "code": pr.code,
+            "quote_id": quote_id,
+            "supplier_id": supplier_id,
+            "unit_price": format(_quantize_money(Decimal(str(price))), "f"),
+            "amount": str(assessed.amount),
+            "currency": assessed.currency,
+            "amount_basis": assessed.basis,
+            "decision_scope": "process_and_amount",
+            "tax_basis": "per_line" if line_unit_prices else "unspecified",
+            "fingerprint": fingerprint,
+            "lines": line_rows,
+            "escalation_reason": reason,
+            "limit_amount": str(limit.max_amount) if limit else "",
+            "limit_currency": _SUPPORTED_CURRENCY if limit else "",
+            "source": pr.source,
+        }
+        if pr.source_po_id:
+            payload["source_po_id"] = pr.source_po_id
+            payload["source_po_code"] = snap.get("source_po_code") or (
+                pr.source_po.code if pr.source_po_id else ""
+            )
+            payload["supplier_name"] = snap.get("supplier_name") or ""
         return ApprovalService.request(
             workflow_code=WF_PROCUREMENT_COMMITMENT,
             requested_by=actor,
             entity=pr,
-            payload={
-                "pr_id": pr.pk,
-                "code": pr.code,
-                "quote_id": quote_id,
-                "supplier_id": supplier_id,
-                "unit_price": format(_quantize_money(Decimal(str(price))), "f"),
-                "amount": str(assessed.amount),
-                "currency": assessed.currency,
-                "amount_basis": assessed.basis,
-                "decision_scope": "process_and_amount",
-                "tax_basis": "unspecified",
-                "fingerprint": fingerprint,
-                "lines": line_rows,
-                "escalation_reason": reason,
-                "limit_amount": str(limit.max_amount) if limit else "",
-                "limit_currency": _SUPPORTED_CURRENCY if limit else "",
-                "source": pr.source,
-            },
+            payload=payload,
         )
 
     @classmethod
@@ -1104,6 +1415,7 @@ class ProcurementService(Service):
         unit_price=None,
         supplier_id=None,
         escalate: bool = True,
+        line_unit_prices: dict | None = None,
     ) -> ApprovalRequest | None:
         """Enforce monetary commitment when a comparable amount exists.
 
@@ -1145,6 +1457,7 @@ class ProcurementService(Service):
             currency=additional.currency,
             supplier_id=supplier_id,
             quote_id=quote_id,
+            line_unit_prices=line_unit_prices,
         )
         matched = cls.find_matching_commitment(
             pr, fingerprint=fingerprint, status=ApprovalStatus.APPROVED
@@ -1206,6 +1519,7 @@ class ProcurementService(Service):
                     unit_price=price,
                     supplier_id=supplier_id,
                     reason=reason,
+                    line_unit_prices=line_unit_prices,
                 )
             raise DomainError(
                 f"{cls._escalation_message(reason)} "
@@ -1359,6 +1673,7 @@ class ProcurementService(Service):
         quote: RFQQuote | None = None,
         unit_price=None,
         supplier_id=None,
+        line_unit_prices: dict | None = None,
     ) -> None:
         """Commit a Management commitment request, then raise (must run outside write txn)."""
         cls.assert_commitment_allowed(
@@ -1369,6 +1684,7 @@ class ProcurementService(Service):
             unit_price=unit_price,
             supplier_id=supplier_id,
             escalate=True,
+            line_unit_prices=line_unit_prices,
         )
 
     @classmethod
@@ -1454,6 +1770,7 @@ class ProcurementService(Service):
         skip_commitment_check: bool = False,
         commitment: ApprovalRequest | None = None,
         line_qtys: dict | None = None,
+        line_unit_prices: dict | None = None,
     ) -> PurchaseOrder:
         from apps.audit.services import log_action
         from apps.parties.models import PartyRoleCode
@@ -1464,7 +1781,13 @@ class ProcurementService(Service):
         if not supplier_party.roles.filter(role=PartyRoleCode.SUPPLIER).exists():
             raise DomainError("Seçilmiş party podratçı deyil.")
 
-        priced = unit_price is not None
+        # Prefer explicit per-line prices (reorder); else single unit_price for all lines.
+        if line_unit_prices is None and pr.source_po_id and unit_price is None:
+            snap_prices = cls.reorder_line_unit_prices(pr)
+            if snap_prices:
+                line_unit_prices = snap_prices
+
+        priced = unit_price is not None or bool(line_unit_prices)
         matched = commitment
         pr_id = pr.pk
 
@@ -1483,15 +1806,32 @@ class ProcurementService(Service):
                         "mükafatlardan PO yaradın."
                     )
                 if priced and not skip_commitment_check:
-                    assessed = cls._priced_assessment(locked, unit_price, line_qtys=line_qtys)
-                    matched = cls.assert_commitment_allowed(
-                        locked,
-                        additional=assessed,
-                        actor=actor,
-                        unit_price=unit_price,
-                        supplier_id=getattr(supplier_party, "pk", None),
-                        escalate=False,
-                    )
+                    if line_unit_prices:
+                        assessed = cls._priced_assessment_line_prices(
+                            locked, line_unit_prices, line_qtys=line_qtys
+                        )
+                        # Representative unit_price for legacy fingerprint field = total/qty
+                        total_qty = sum(resolved_qtys.values(), Decimal("0")) or Decimal("1")
+                        rep_price = _quantize_money(assessed.amount / total_qty) if assessed.is_known else Decimal("0")
+                        matched = cls.assert_commitment_allowed(
+                            locked,
+                            additional=assessed,
+                            actor=actor,
+                            unit_price=rep_price,
+                            supplier_id=getattr(supplier_party, "pk", None),
+                            escalate=False,
+                            line_unit_prices=line_unit_prices,
+                        )
+                    else:
+                        assessed = cls._priced_assessment(locked, unit_price, line_qtys=line_qtys)
+                        matched = cls.assert_commitment_allowed(
+                            locked,
+                            additional=assessed,
+                            actor=actor,
+                            unit_price=unit_price,
+                            supplier_id=getattr(supplier_party, "pk", None),
+                            escalate=False,
+                        )
                     if matched is None:
                         raise DomainError(
                             "Qiymətli PO üçün Management öhdəlik təsdiqi tələb olunur."
@@ -1511,20 +1851,28 @@ class ProcurementService(Service):
                     supplier_party=supplier_party,
                     status=po_status,
                     pr=locked,
+                    source_po_id=locked.source_po_id,
                     ordered_at=timezone.localdate() if priced else None,
                 )
                 price_value = (
-                    _quantize_money(Decimal(str(unit_price))) if priced else None
+                    _quantize_money(Decimal(str(unit_price))) if unit_price is not None else None
                 )
                 lines_by_id = {ln.pk: ln for ln in locked.lines.all()}
                 for line_id, qty in resolved_qtys.items():
                     line = lines_by_id[line_id]
+                    if line_unit_prices and line_id in line_unit_prices:
+                        line_price = _quantize_money(Decimal(str(line_unit_prices[line_id])))
+                    elif price_value is not None:
+                        line_price = price_value
+                    else:
+                        line_price = Decimal("0")
                     POLine.objects.create(
                         po=po,
                         description=line.description,
                         sku=line.sku,
                         qty=qty,
-                        unit_price=price_value if price_value is not None else Decimal("0"),
+                        unit_price=line_price,
+                        pr_line=line,
                     )
                 if priced and locked.status == PRStatus.APPROVED:
                     locked.status = PRStatus.ORDERED
@@ -1541,6 +1889,7 @@ class ProcurementService(Service):
                         "supplier": str(supplier_party),
                         "unit_price": str(price_value) if price_value is not None else "",
                         "commitment_id": matched.pk if matched else None,
+                        "source_po": locked.source_po.code if locked.source_po_id else "",
                     },
                 )
                 if locked.requested_by_id:
@@ -1562,14 +1911,38 @@ class ProcurementService(Service):
                 msg = str(exc)
                 if "limit" in msg.lower() or "öhdəlik" in msg.lower() or "Management" in msg:
                     locked = PurchaseRequest.objects.get(pk=pr_id)
-                    assessed = cls._priced_assessment(locked, unit_price, line_qtys=line_qtys)
-                    cls._escalate_priced_block(
-                        locked,
-                        assessed=assessed,
-                        actor=actor,
-                        unit_price=unit_price,
-                        supplier_id=getattr(supplier_party, "pk", None),
-                    )
+                    if line_unit_prices:
+                        assessed = cls._priced_assessment_line_prices(
+                            locked, line_unit_prices, line_qtys=line_qtys
+                        )
+                        total_qty = sum(
+                            (cls.resolve_po_line_qtys(locked, line_qtys) or {}).values(),
+                            Decimal("0"),
+                        ) or Decimal("1")
+                        rep = (
+                            _quantize_money(assessed.amount / total_qty)
+                            if assessed.is_known
+                            else Decimal("0")
+                        )
+                        cls._escalate_priced_block(
+                            locked,
+                            assessed=assessed,
+                            actor=actor,
+                            unit_price=rep,
+                            supplier_id=getattr(supplier_party, "pk", None),
+                            line_unit_prices=line_unit_prices,
+                        )
+                    else:
+                        assessed = cls._priced_assessment(
+                            locked, unit_price, line_qtys=line_qtys
+                        )
+                        cls._escalate_priced_block(
+                            locked,
+                            assessed=assessed,
+                            actor=actor,
+                            unit_price=unit_price,
+                            supplier_id=getattr(supplier_party, "pk", None),
+                        )
             raise
 
     @classmethod

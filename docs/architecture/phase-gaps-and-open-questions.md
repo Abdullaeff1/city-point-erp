@@ -1,8 +1,8 @@
 # Mərhələ boşluqları və cavab gözləyən suallar
 
-**Yenilənib:** 2026-11-18  
+**Yenilənib:** 2026-11-27  
 **Qayda:** M1–M12 Todoist **kod + lokal test** ilə bağlanıb. Bu sənəd production/pilot DoD boşluqlarını və kimdən cavab gözləndiyini izləyir.  
-**Əlaqəli:** [finish-requirements.md](finish-requirements.md) · [phase0-module-status.md](phase0-module-status.md) · [../uat/functional-readiness-checklist.md](../uat/functional-readiness-checklist.md)
+**Əlaqəli:** [finish-requirements.md](finish-requirements.md) · [phase0-module-status.md](phase0-module-status.md) · [../uat/functional-readiness-checklist.md](../uat/functional-readiness-checklist.md) · [portal-reception-ticket-backlog-2026-11-27.md](portal-reception-ticket-backlog-2026-11-27.md)
 
 ---
 
@@ -40,8 +40,8 @@ flowchart LR
 | M2 İcazələr | scope/ACL | RBAC hər yerdə enforce olunmur | Dev |
 | M3 Lease | lifecycle | Avto terminate-after-end; formal renewal | Biznes + Dev |
 | M4 CRM | hunisi | **Prod gate**; website lid; Meeting Room | **Satış** + UAT |
-| M5 Portal/Reception | ops UI | AxTrax **write**; temp guest card mock | Vendor + NetAdmin |
-| M6 Tickets | SLA/WO | Commercial→CRM polish; material UAT | Ops + FM |
+| M5 Portal/Reception | ops UI | AxTrax **RO** LAN/poller DoD; Party cutover backlog. ~~Write~~ scope-dan çıxarılıb | NetAdmin + Ops |
+| M6 Tickets | SLA/WO | Commercial→CRM polish; material UAT (backlog) | Ops + FM |
 | M7 FM | PM→WO | Inventar sayımı UAT | FM |
 | M8 Anbar/Satınalma | PR/PO | Tam RFQ UI; PO↔invoice | Procurement |
 | M9 Sənəd/bildiriş | ACL/outbox | Hüquqi retention; Outlook/Zoho şəbəkə qərarı | Hüquq + NetAdmin |
@@ -62,7 +62,7 @@ Operator checklist: [../uat/functional-readiness-checklist.md](../uat/functional
 |-------|------------|----------------|------|
 | §A CRM→Lease | Bəli (testlər) | **Xeyr** | CRM prod deploy |
 | §B Lease lifecycle | Bəli | **Xeyr** | Pilot commercial |
-| §C Daily ops | Bəli (AxTrax RO LAN) | **Xeyr** | Gündəlik istifadə |
+| §C Daily ops | Bəli — [../uat/section-c-engineering-pass-2026-11-27.md](../uat/section-c-engineering-pass-2026-11-27.md) | **Xeyr** (Ops imza) | Gündəlik istifadə; RO LAN [../ops/axtrax-ro-dod-status-2026-11-27.md](../ops/axtrax-ro-dod-status-2026-11-27.md) |
 | §D Billing | Bəli (placeholder CoA) | **Xeyr** — statutory imza yox | Finance |
 | §E Security/ops | Sənəd | **Xeyr** | Go-live |
 
@@ -108,4 +108,4 @@ CRM yazılı qəbul şablonu: [../uat/crm-written-acceptance.md](../uat/crm-writ
 2. Ops: [p0-go-live-answers.md](../ops/p0-go-live-answers.md) P0 cavabları.
 3. Mühasib: CoA faylı + [coa-import-uat.md](../uat/coa-import-uat.md).
 4. NetAdmin: 9 maddə checklist — developer gözləməsin.
-5. AxTrax write / Party cutover / website — backlog; sprint DoD-una daxil etmə.
+5. AxTrax write / Party cutover / website / material UAT / commercial→lid — backlog; sprint DoD-una daxil etmə — [portal-reception-ticket-backlog-2026-11-27.md](portal-reception-ticket-backlog-2026-11-27.md).

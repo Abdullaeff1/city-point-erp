@@ -151,7 +151,10 @@ class WorkflowEDocumentTests(TestCase):
         notes = Notification.objects.filter(user=self.fm)
         self.assertTrue(notes.filter(message__icontains="təsdiqləndi").exists())
 
+        # Decision 08: the global archive list is Management/Admin only.
         self.client.force_login(self.fm)
+        self.assertEqual(self.client.get(reverse("erp:documents")).status_code, 302)
+        self.client.force_login(self.mgmt)
         listing = self.client.get(reverse("erp:documents"))
         self.assertEqual(listing.status_code, 200)
         self.assertContains(listing, "Təsdiqlənib")
@@ -167,7 +170,7 @@ class WorkflowEDocumentTests(TestCase):
         req.refresh_from_db()
         self.assertEqual(req.status, ApprovalStatus.REJECTED)
 
-        self.client.force_login(self.fm)
+        self.client.force_login(self.mgmt)
         page = self.client.get(reverse("erp:documents"))
         self.assertContains(page, "imza çatışmır")
         self.assertContains(page, "Rədd")

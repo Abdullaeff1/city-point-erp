@@ -84,7 +84,7 @@
           {% endif %}
         </td>
         <td class="cp-code">
-          {{ e.card_number|default:"—" }}
+          {{ e.card_number|default:employee.card_number|default:"—" }}
           {% if e.card_number and employee.card_number and e.card_number != employee.card_number %}
           <span class="badge badge-muted" title="{% translate 'Cari kartdan fərqli' %}">{% translate "digər kart" %}</span>
           {% endif %}

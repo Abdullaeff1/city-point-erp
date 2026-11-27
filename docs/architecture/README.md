@@ -10,6 +10,8 @@ City Point ERP follows the **Final Master Implementation Plan** (Phases 0–13).
 
 Start here: **[phase0-README.md](./phase0-README.md)** — ten audit artifacts, preserve/extend/migrate decisions, next = Phase 1.
 
+**Full-system refresh (2026-11-27):** [system-architecture-audit-2026-11-27.md](./system-architecture-audit-2026-11-27.md) — modules, routes, RBAC, Supply/AP deltas, debts, recommended sequence (read-only).
+
 ## Department architecture (Phase 1)
 
 **[department-based-architecture-blueprint.md](./department-based-architecture-blueprint.md)** — nine departments mapped to roles/portals/shared domains; RBAC/nav/dashboard roadmap; no duplicate entities.

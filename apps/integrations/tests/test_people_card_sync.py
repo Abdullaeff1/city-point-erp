@@ -101,11 +101,17 @@ class AxTraxPeopleCardSyncTests(TestCase):
         ali.refresh_from_db()
         namik.refresh_from_db()
         self.assertFalse(ali.is_active)
-        self.assertEqual(ali.card_number, "")
+        # Köhnə əməkdaşda istifadə etdiyi kart saxlanılır
+        self.assertEqual(ali.card_number, "006001")
         self.assertTrue(namik.is_active)
         self.assertEqual(namik.card_number, "006001")
+        # Aktiv sahibi 1; köhnə də eyni tarixçə kartını saxlaya bilər
         self.assertEqual(
-            ResidentEmployee.objects.filter(card_number="006001").count(),
+            ResidentEmployee.objects.filter(card_number="006001", is_active=True).count(),
+            1,
+        )
+        self.assertEqual(
+            ResidentEmployee.objects.filter(card_number="006001", is_active=False).count(),
             1,
         )
 
@@ -137,10 +143,10 @@ class AxTraxPeopleCardSyncTests(TestCase):
         ali = ResidentEmployee.objects.get(full_name="Əli Cumayev")
         namik = ResidentEmployee.objects.get(full_name="Namik Məhəmmədov")
         self.assertEqual(namik.card_number, "006001")
-        self.assertEqual(ali.card_number, "")
+        self.assertEqual(ali.card_number, "006001")
         self.assertFalse(ali.is_active)
 
-    def test_missing_from_export_deactivates_and_clears_card(self):
+    def test_missing_from_export_deactivates_keeps_card(self):
         sync_people_from_payload(
             _payload(
                 [
@@ -190,7 +196,7 @@ class AxTraxPeopleCardSyncTests(TestCase):
         namik = ResidentEmployee.objects.get(full_name="Namik Məhəmmədov")
         self.assertFalse(ali.is_active)
         self.assertIsNotNone(ali.deactivated_at)
-        self.assertEqual(ali.card_number, "")
+        self.assertEqual(ali.card_number, "006001")
         self.assertEqual(namik.card_number, "006001")
         # Soft-archive only: row + punch history must remain in ERP
         self.assertTrue(ResidentEmployee.objects.filter(pk=ali.pk).exists())

@@ -476,6 +476,32 @@ class SupplierInvoiceService(Service):
             payload__supplier_invoice_id=inv.pk,
         ).exists()
         cls.require(not exists, _("Gözləyən podratçı ödəniş sorğusu artıq var."))
+        liability = supplier_invoice_gross(inv)
+        prior_settled = (liability - payable_balance(inv)).quantize(Decimal("0.01"))
+        # Current request not yet in open_payment_authorization_amount
+        reserved = open_payment_authorization_amount(inv)
+        expected_remainder = (liability - prior_settled - reserved - amt).quantize(
+            Decimal("0.01")
+        )
+        if expected_remainder < 0:
+            expected_remainder = Decimal("0.00")
+        po_codes: list[str] = []
+        pr_codes: list[str] = []
+        net_sum = Decimal("0.00")
+        vat_sum = Decimal("0.00")
+        tax_known = True
+        for line in inv.lines.select_related("po_line", "po_line__po", "po_line__po__pr"):
+            net_sum += line.line_net
+            vat_sum += line.line_vat
+            if line.tax_rate is None:
+                tax_known = False
+            po = getattr(line.po_line, "po", None) if line.po_line_id else None
+            if po is not None:
+                if po.code and po.code not in po_codes:
+                    po_codes.append(po.code)
+                pr = getattr(po, "pr", None)
+                if pr is not None and pr.code and pr.code not in pr_codes:
+                    pr_codes.append(pr.code)
         return ApprovalService.request(
             workflow_code=WF_SUPPLIER_PAYMENT,
             requested_by=actor,
@@ -487,6 +513,25 @@ class SupplierInvoiceService(Service):
                 "method": method or "bank",
                 "reference": reference or "",
                 "currency": inv.currency or "AZN",
+                # Decision 04 — Management decision context (exact terms)
+                "payee_id": inv.supplier_party_id,
+                "payee_name": (
+                    inv.supplier_party.display_name if inv.supplier_party_id else ""
+                ),
+                "purpose": (inv.notes or inv.supplier_invoice_no or inv.code or "")[:255],
+                "requesting_department": "finance",
+                "requested_by_id": getattr(actor, "pk", None),
+                "po_code": ", ".join(po_codes),
+                "pr_code": ", ".join(pr_codes),
+                "match_status": inv.status,
+                "liability_gross": str(liability),
+                "prior_settled": str(prior_settled),
+                "pending_reservations": str(reserved),
+                "amount_requested_now": str(amt),
+                "expected_remainder": str(expected_remainder),
+                "net_amount": str(net_sum),
+                "vat_amount": str(vat_sum) if tax_known else "",
+                "tax_known": tax_known,
             },
         )
 

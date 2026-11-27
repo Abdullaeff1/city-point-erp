@@ -83,4 +83,31 @@
     </tbody>
   </table>
 </div>
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-section" style="font-size:16px;">{% translate "Ödəniş sənədi göndər" %}</div>
+  <p class="cp-meta mt-2">{% translate "Bank qəbzi / ödəniş tapşırığını yükləyin. Sənəd mühasib tərəfindən yoxlanılır; yoxlama bitənə qədər faktura qalığı dəyişmir." %}</p>
+  {% if can_upload_payment_instruction %}
+  <form method="post" enctype="multipart/form-data" class="flex gap-2 mt-2" style="flex-wrap:wrap;align-items:end;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="upload_payment_instruction">
+    <label>{% translate "Fayl" %}<input class="cp-input mt-1" type="file" name="file" required></label>
+    <button class="cp-btn" type="submit">{% translate "Göndər" %}</button>
+  </form>
+  {% endif %}
+  {% if payment_evidence %}
+  <table class="cp-table mt-3" style="width:100%;">
+    <thead><tr><th>{% translate "Tarix" %}</th><th>{% translate "Status" %}</th><th>{% translate "Qeyd" %}</th></tr></thead>
+    <tbody>
+      {% for ev in payment_evidence %}
+      <tr>
+        <td>{{ ev.created_at|date:"d.m.Y H:i" }}</td>
+        <td>{{ ev.get_status_display }}</td>
+        <td class="cp-meta">{{ ev.note|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
 {% endblock %}

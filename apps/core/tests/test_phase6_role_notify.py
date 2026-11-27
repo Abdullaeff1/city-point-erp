@@ -21,7 +21,7 @@ from apps.maintenance.models import WorkOrder, WorkOrderPriority, WorkOrderStatu
 from apps.maintenance.services import WorkOrderService, next_wo_code
 from apps.procurement.models import PurchaseApprovalLimit
 from apps.procurement.services import ProcurementService
-from apps.rbac.services import seed_rbac_catalog
+from apps.rbac.services import grant_user_permission, seed_rbac_catalog
 from apps.residents.models import ResidentCompany
 from apps.tickets.models import TicketDepartment, TicketStatus, TicketSubcategory, TicketType
 from apps.tickets.seed_taxonomy import seed_ticket_taxonomy
@@ -64,6 +64,7 @@ class Phase6NotifyLinkAcceptanceTests(TestCase):
             username="p6-fm", email="p6-fm@test.az", password="x",
             role=Role.SERVICE_DESK, is_staff=True, ticket_department=self.fm_dept,
         )
+        grant_user_permission(self.fm, "supply.head")
         self.desk = User.objects.create_user(
             username="p6-desk", email="p6-desk@test.az", password="x",
             role=Role.SERVICE_DESK, is_staff=True, ticket_department=self.desk_dept,
@@ -121,12 +122,16 @@ class Phase6NotifyLinkAcceptanceTests(TestCase):
         note = Notification.objects.filter(
             user=self.fm, event_key__startswith=f"approval.decided.{req.pk}."
         ).latest("id")
+        # Decision 08: department users have no global archive — no dead link for them.
         url = notification_target_url(note, None, self.fm, "erp")
-        self.assertEqual(url, reverse("erp:documents"))
-        self.client.force_login(self.fm)
-        page = self.client.get(url)
+        self.assertEqual(url, "")
+        mgmt_url = notification_target_url(note, None, self.mgmt, "erp")
+        self.assertEqual(mgmt_url, reverse("erp:documents"))
+        self.client.force_login(self.mgmt)
+        page = self.client.get(mgmt_url)
         self.assertEqual(page.status_code, 200)
         self.assertContains(page, "P6 Doc")
+        self.client.force_login(self.fm)
         # FM cannot open decide action on other pending approvals via hub decision
         hub = self.client.get(reverse("erp:approvals"))
         self.assertIn(hub.status_code, (200, 302, 403))

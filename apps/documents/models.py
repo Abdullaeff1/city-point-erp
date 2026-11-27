@@ -229,11 +229,29 @@ class Document(models.Model):
         on_delete=models.SET_NULL,
         related_name="documents",
     )
+    offer = models.ForeignKey(
+        "crm.Offer",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="documents",
+        verbose_name=_("CRM təklif"),
+    )
     published_at = models.DateField()
     document_date = models.DateField(null=True, blank=True, verbose_name=_("Sənəd tarixi"))
     visible_to_resident = models.BooleanField(
         default=False,
         verbose_name=_("Portala görünən"),
+    )
+    # Explicit version shared with the resident company (Decision 05).
+    # Draft replacements do not auto-promote; Accountant must share again.
+    portal_shared_version = models.ForeignKey(
+        "DocumentVersion",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="shared_as_portal_for",
+        verbose_name=_("Portala paylaşılmış versiya"),
     )
     created_at = models.DateTimeField(auto_now_add=True, null=True)
     updated_at = models.DateTimeField(auto_now=True, null=True)

@@ -8,7 +8,17 @@
   <a href="{% url 'erp:payment_approvals' %}?queue=ar" class="{% if queue == 'ar' %}is-active{% endif %}">{% translate "Debitor (AR)" %}</a>
   <a href="{% url 'erp:payment_approvals' %}?queue=ap" class="{% if queue == 'ap' %}is-active{% endif %}">{% translate "Kreditor (AP)" %}</a>
 </nav>
-<p class="cp-meta mb-3">{% translate "AR təsdiqi ödənişi qeydə alır; AP təsdiqi yalnız icazədir — settlement Mühasibdədir." %}</p>
+{% if money_totals %}
+<div class="cp-card p-card mb-3" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:12px;">
+  <div><div class="cp-meta">{% translate "AR gözləyən (köhnə)" %}</div><strong>{{ money_totals.ar_pending_legacy }} {{ money_totals.currency }}</strong></div>
+  <div><div class="cp-meta">{% translate "AR qeydə alınmış" %}</div><strong>{{ money_totals.ar_settled }} {{ money_totals.currency }}</strong></div>
+  <div><div class="cp-meta">{% translate "AP gözləyən təsdiq" %}</div><strong>{{ money_totals.ap_pending }} {{ money_totals.currency }}</strong></div>
+  <div><div class="cp-meta">{% translate "AP təsdiqli, settlement yox" %}</div><strong>{{ money_totals.ap_approved_unsettled }} {{ money_totals.currency }}</strong></div>
+  <div><div class="cp-meta">{% translate "AP settlement" %}</div><strong>{{ money_totals.ap_settled }} {{ money_totals.currency }}</strong></div>
+  <div><div class="cp-meta">{% translate "Sübut növbəsi" %}</div><strong>{{ money_totals.evidence_pending_count }}</strong></div>
+</div>
+{% endif %}
+<p class="cp-meta mb-3">{{ ar_primary_path_note }} {% translate "AP təsdiqi yalnız icazədir — settlement Mühasibdədir; kiçik məbləğ istisnası yoxdur." %}</p>
 {% if show_ar and pending %}
 <div class="cp-card p-card mb-4" id="queue-ar">
   <div class="cp-section">{% translate "Kiracı ödənişləri (AR)" %}</div>
@@ -63,8 +73,29 @@
     <tbody>
       {% for req in pending_supplier %}
       <tr>
-        <td>{{ req.payload.supplier_invoice_code|default:"—" }}</td>
-        <td>{{ req.payload.amount }} · {{ req.payload.method }}</td>
+        <td>
+          {% if req.decision_ctx.invoice_url %}<a href="{{ req.decision_ctx.invoice_url }}">{% endif %}
+          {{ req.payload.supplier_invoice_code|default:"—" }}
+          {% if req.decision_ctx.invoice_url %}</a>{% endif %}
+          <div class="cp-meta">
+            {% translate "Alıcı" %}: {{ req.decision_ctx.payee }} ·
+            {% translate "Məqsəd" %}: {{ req.decision_ctx.purpose }}
+          </div>
+          <div class="cp-meta">
+            PO {{ req.decision_ctx.po_code }} · PR {{ req.decision_ctx.pr_code }} ·
+            {% translate "Uyğunluq" %}: {{ req.decision_ctx.match_status }}
+          </div>
+          <div class="cp-meta">
+            {% translate "Öhdəlik" %}: {{ req.decision_ctx.liability }} ·
+            {% translate "Əvvəlki settlement" %}: {{ req.decision_ctx.prior_settled }} ·
+            {% translate "Rezerv" %}: {{ req.decision_ctx.pending_reservations }} ·
+            {% translate "Qalan (gözlənilən)" %}: {{ req.decision_ctx.remainder }}
+          </div>
+          <div class="cp-meta">
+            net {{ req.decision_ctx.net }} · ƏDV {{ req.decision_ctx.vat }} · {{ req.decision_ctx.currency }}
+          </div>
+        </td>
+        <td>{{ req.decision_ctx.amount_now }} {{ req.decision_ctx.currency }} · {{ req.payload.method }}</td>
         <td>{{ req.requested_by }} · {{ req.created_at }}</td>
         <td>
           {% if can_approve %}

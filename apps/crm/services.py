@@ -475,7 +475,7 @@ class CrmOfferService(Service):
         from apps.crm.pdf import ensure_offer_version_pdf
 
         version = OfferVersion.objects.select_for_update().get(pk=version.pk)
-        ensure_offer_version_pdf(version, force=force)
+        ensure_offer_version_pdf(version, force=force, actor=actor)
         if actor:
             log_action(
                 actor=actor,
@@ -504,6 +504,13 @@ class CrmOfferService(Service):
         # PDF hazır olsun (göndərmə = status + PDF + email stub/log)
         cls.generate_pdf(version, actor=actor)
         version.refresh_from_db()
+        # Pin portal shared version to the sent PDF when a resident company is linked.
+        try:
+            from apps.documents.crm_bridge import share_offer_version_with_resident
+
+            share_offer_version_with_resident(version, actor=actor)
+        except DomainError:
+            pass
         # Versiya təsdiqlidirsə offer statusu geridə qalıbsa düzəlt (köhnə uyğunsuzluq)
         if offer.status not in (OfferStatus.APPROVED, OfferStatus.SENT):
             offer.status = OfferStatus.APPROVED

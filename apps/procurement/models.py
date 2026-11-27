@@ -48,6 +48,19 @@ class PurchaseRequest(models.Model):
         on_delete=models.SET_NULL,
         related_name="purchase_requests",
     )
+    source_po = models.ForeignKey(
+        "PurchaseOrder",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reorder_prs",
+        help_text=_("Təkrar alışın mənbə satınalma sifarişi"),
+    )
+    reorder_snapshot = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Təkrar alış forması: təchizatçı, sətir qiymətləri, valyuta"),
+    )
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 
     class Meta:
@@ -90,6 +103,14 @@ class PurchaseOrder(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
         related_name="purchase_orders",
+    )
+    source_po = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reorders",
+        help_text=_("Təkrar alışın mənbə sifarişi"),
     )
     ordered_at = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True)
@@ -304,7 +325,12 @@ class RFQQuoteLine(models.Model):
 
 
 class PRLineAward(models.Model):
-    """Whole-line award of remaining PR qty to one supplier (no line split)."""
+    """Portion of a PR line awarded to one supplier (may split across suppliers).
+
+    Active + ``po_line`` null = reserved (unissued). Issuing a PO consumes the
+    award atomically (sets ``po_line``). Deactivate to release unused allocation
+    while preserving history.
+    """
 
     pr = models.ForeignKey(
         PurchaseRequest, on_delete=models.CASCADE, related_name="line_awards"
@@ -350,15 +376,17 @@ class PRLineAward(models.Model):
     class Meta:
         ordering = ["-created_at", "-id"]
         constraints = [
+            # One active unissued award per (line, supplier); portions to
+            # different suppliers are allowed. Issued awards keep history.
             models.UniqueConstraint(
-                fields=["pr_line"],
-                condition=models.Q(is_active=True),
-                name="uniq_active_pr_line_award",
+                fields=["pr_line", "supplier_party"],
+                condition=models.Q(is_active=True, po_line__isnull=True),
+                name="uniq_active_unissued_pr_line_supplier_award",
             )
         ]
 
     def __str__(self):
-        return f"{self.pr_line_id}->{self.supplier_party_id}"
+        return f"{self.pr_line_id}->{self.supplier_party_id}:{self.qty}"
 
 
 class PurchaseApprovalLimit(models.Model):

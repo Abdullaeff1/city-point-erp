@@ -216,7 +216,7 @@ class Command(BaseCommand):
             # uname: email, first_name, role, password, ticket_department_code|None
             "admin": ("admin@citypoint.az", "Admin", Role.ADMIN, "admin123", None),
             "reception": ("reception@citypoint.az", "Reception", Role.RECEPTION, "reception123", None),
-            "desk": ("desk@citypoint.az", "Təchizat", Role.SERVICE_DESK, "desk123", "webservis"),
+            "desk": ("desk@citypoint.az", "Təchizat", Role.SERVICE_DESK, "desk123", "servicedesk"),
             "manager": ("manager@citypoint.az", "Rəhbərlik", Role.MANAGEMENT, "manager123", None),
             "security": ("security@citypoint.az", "Təhlükəsizlik", Role.SECURITY, "security123", "security"),
             "accountant": ("accountant@citypoint.az", "Mühasib", Role.ACCOUNTANT, "accountant123", None),

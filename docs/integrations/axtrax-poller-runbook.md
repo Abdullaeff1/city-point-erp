@@ -36,14 +36,21 @@ powershell -File bin/dev/export_axtrax_people.ps1
 docker compose exec web python manage.py sync_axtrax_people --file=var/axtrax_people.json
 ```
 
+## Səhifə açılışında sync
+
+Davamiyyət / CP işçilər / «Binada olanlar» səhifələri açılarkən ERP bir dövrə **oxu-only** sync cəhd edir (`AXTRAX_SYNC_ON_VIEW=1`, throttle: `AXTRAX_SYNC_ON_VIEW_INTERVAL`, default 30s). Mesaj Azərbaycan dilində göstərilir. AxTrax offline olsa səhifə yenə açılır (lokal məlumat).
+
+Bu, daimi pollerin əvəzi deyil — yalnız açılışda təzələmə / boşluq bağlama.
+
 ## Production expectation
 
-1. Run poller as a **Windows Scheduled Task** or service that restarts on failure (do not rely on an interactive terminal).
-2. Monitor health:
+1. Container start: `AXTRAX_POLL_ON_START=1` + `TURNSTILE_MSSQL_PASSWORD` → `poll_axtrax` fon prosesi **daim** işləyir (`AXTRAX_POLL_RESTART=1` qəfil çıxışda yenidən başlayır).
+2. Alternativ: Windows Scheduled Task / systemd — failure-da restart (interaktiv terminalə etibar etməyin).
+3. Monitor health:
    - ERP dashboard (Admin / Management): AxTrax sync card
    - CLI: `python manage.py axtrax_sync_status`
-3. If AxTrax is down: Reception, tickets, and portal continue; access data becomes stale until sync resumes.
-4. Never reset the events cursor without an explicit ops decision.
+4. If AxTrax is down: Reception, tickets, and portal continue; access data becomes stale until sync resumes.
+5. Never reset the events cursor without an explicit ops decision.
 
 ## Manual catch-up
 

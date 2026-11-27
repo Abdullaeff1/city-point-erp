@@ -9,7 +9,7 @@ from django.utils.translation import gettext as _
 
 from apps.parties.services import PartyService
 from apps.residents.models import AccessLevel, CardOrderStatus, ResidentEmployee
-from apps.tickets.models import TicketAttachment, TicketSubcategory, TicketType
+from apps.tickets.models import TicketSubcategory, TicketType
 from apps.tickets.services import create_ticket_from_portal
 
 # Blank Word template is filled by the company and uploaded (docx) or scanned (pdf/image).
@@ -117,18 +117,33 @@ def create_employee_card_order(
         space=space,
         related_employee=employee,
     )
-    TicketAttachment.objects.create(ticket=ticket, file=ContentFile(content, name=raw_name))
+    from apps.documents.ticket_bridge import register_ticket_attachment
+
+    register_ticket_attachment(
+        ticket=ticket,
+        upload=ContentFile(content, name=raw_name),
+        actor=requester,
+        visible_to_resident=True,
+        title=f"{ticket.code} — şəxsiyyət sənədi",
+    )
     return employee, ticket
 
 
 @transaction.atomic
-def deactivate_resident_employee(employee: ResidentEmployee, *, actor=None, clear_card: bool = True) -> ResidentEmployee:
-    """Soft-deactivate employee (ERP manual) — AxTrax write is out of scope."""
+def deactivate_resident_employee(
+    employee: ResidentEmployee, *, actor=None, clear_card: bool = False
+) -> ResidentEmployee:
+    """Soft-deactivate employee (ERP manual) — AxTrax write is out of scope.
+
+    Kart nömrəsi köhnə əməkdaş arxivində qalır (``clear_card`` default False).
+    """
     from apps.audit.services import log_action
 
-    if not employee.is_active and not employee.card_number:
+    if not employee.is_active:
         return employee
+    kept_card = (employee.card_number or "").strip()
     employee.mark_inactive()
+    # Yalnız açıq tələblə silinir; default — saxlanılır.
     if clear_card and employee.card_number:
         employee.card_number = ""
         employee.save(update_fields=["card_number"])
@@ -137,7 +152,11 @@ def deactivate_resident_employee(employee: ResidentEmployee, *, actor=None, clea
         action="resident_employee.deactivated",
         actor=actor,
         entity=employee,
-        new_values={"company_id": employee.company_id, "clear_card": clear_card},
+        new_values={
+            "company_id": employee.company_id,
+            "clear_card": clear_card,
+            "card_number_retained": kept_card if not clear_card else "",
+        },
         source="erp",
     )
     return employee

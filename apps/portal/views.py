@@ -12,6 +12,7 @@ from django.utils.translation import gettext as _
 from django.views import View
 from django.views.generic import FormView, ListView, TemplateView
 from apps.accounts.mixins import ResidentChooserMixin, ResidentPortalMixin
+from apps.accounts.models import Role
 from apps.accounts.portal_scope import (
     MODE_ALL,
     MODE_SINGLE,
@@ -42,7 +43,7 @@ from apps.property.models import Space
 from apps.residents.models import ResidentCompany, ResidentEmployee
 from apps.residents.services import create_employee_card_order
 from apps.tickets.access import can_delete_ticket
-from apps.tickets.models import CLOSED_STATUSES, OPEN_STATUSES, Ticket, TicketAttachment, TicketSubcategory
+from apps.tickets.models import CLOSED_STATUSES, OPEN_STATUSES, Ticket, TicketSubcategory
 from apps.tickets.services import add_message, create_ticket_from_portal, delete_ticket
 
 
@@ -453,7 +454,14 @@ class RequestCreateView(ResidentPortalMixin, FormView):
         )
         photo = form.cleaned_data.get("photo")
         if photo:
-            TicketAttachment.objects.create(ticket=ticket, file=photo)
+            from apps.documents.ticket_bridge import register_ticket_attachment
+
+            register_ticket_attachment(
+                ticket=ticket,
+                upload=photo,
+                actor=self.request.user,
+                visible_to_resident=True,
+            )
         return redirect("portal:request_detail", code=ticket.code)
 
 
@@ -907,8 +915,21 @@ def _portal_invoice_qs(request):
     return Invoice.objects.filter(party__in=parties, status__in=mark_statuses)
 
 
+def _portal_document_file(document):
+    """File a resident may download: the explicitly shared version.
+
+    Documents created before explicit sharing (no ``portal_shared_version``) keep serving their
+    current file; once a version is shared, draft replacements are never exposed.
+    """
+    from apps.documents.services import DocumentService
+
+    if document.portal_shared_version_id:
+        return DocumentService.current_portal_file(document)
+    return document.file or None
+
+
 def _official_invoice_document(invoice, company_ids: list[int]):
-    """Portal-visible document attached to an issued invoice (Finance-uploaded PDF)."""
+    """Portal-visible document attached to an issued invoice (Finance-shared version)."""
     from apps.documents.models import Document, DocumentSensitivity
 
     inv_company = getattr(
@@ -916,16 +937,20 @@ def _official_invoice_document(invoice, company_ids: list[int]):
     )
     if inv_company not in company_ids:
         return None
-    return (
+    candidates = (
         Document.objects.filter(
             invoice=invoice,
             visible_to_resident=True,
             sensitivity=DocumentSensitivity.PUBLIC_RESIDENT,
         )
-        .exclude(file="")
+        .exclude(document_type__code="payment_instruction")
+        .select_related("portal_shared_version")
         .order_by("-published_at", "-id")
-        .first()
     )
+    for doc in candidates:
+        if _portal_document_file(doc):
+            return doc
+    return None
 
 
 class InvoicesView(ResidentPortalMixin, TemplateView):
@@ -1011,6 +1036,7 @@ class InvoiceDetailView(ResidentPortalMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         inv = self.get_invoice()
         official = _official_invoice_document(inv, _scope_ids(self.request))
+        company_id = getattr(inv.party, "legacy_resident_company_id", None)
         ctx.update(
             {
                 "invoice": inv,
@@ -1018,9 +1044,47 @@ class InvoiceDetailView(ResidentPortalMixin, TemplateView):
                 "vat_summary": invoice_vat_summary(inv),
                 "official_document": official,
                 "has_official_pdf": official is not None,
+                "payment_evidence": inv.payment_evidence.filter(
+                    company_id__in=_scope_ids(self.request)
+                ).select_related("payment"),
+                "can_upload_payment_instruction": bool(
+                    company_id
+                    and self.request.user.role == Role.RESIDENT_USER
+                    and inv.status in ("issued", "overdue")
+                ),
             }
         )
         return ctx
+
+    def post(self, request, *args, **kwargs):
+        """Resident uploads a payment instruction — an evidence claim, never a payment."""
+        from apps.accounts.portal_scope import company_in_scope
+        from apps.billing.evidence_services import resident_upload_payment_instruction
+
+        inv = self.get_invoice()
+        if request.POST.get("action") != "upload_payment_instruction":
+            messages.error(request, _("Naməlum əməliyyat."))
+            return redirect("portal:invoice_detail", code=inv.code)
+        company_id = getattr(inv.party, "legacy_resident_company_id", None)
+        upload = request.FILES.get("file")
+        if not upload:
+            messages.error(request, _("Fayl seçin."))
+        elif not company_in_scope(request, company_id):
+            messages.error(request, _("Bu şirkətə icazəniz yoxdur."))
+        else:
+            company = ResidentCompany.objects.filter(pk=company_id).first()
+            try:
+                resident_upload_payment_instruction(inv, upload, request.user, company)
+                messages.success(
+                    request,
+                    _("Ödəniş sənədi göndərildi. Mühasib yoxlayana qədər faktura qalığı dəyişmir."),
+                )
+            except (DomainError, ValidationError) as exc:
+                messages.error(
+                    request,
+                    "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc),
+                )
+        return redirect("portal:invoice_detail", code=inv.code)
 
 
 class InvoiceOfficialDownloadView(ResidentPortalMixin, View):
@@ -1033,16 +1097,17 @@ class InvoiceOfficialDownloadView(ResidentPortalMixin, View):
 
         inv = get_object_or_404(_portal_invoice_qs(request), code=code)
         doc = _official_invoice_document(inv, _scope_ids(request))
-        if doc is None or not doc.file:
+        file_field = _portal_document_file(doc) if doc is not None else None
+        if not file_field:
             raise Http404(_("Rəsmi faktura PDF əlavə olunmayıb."))
-        filename = doc.file.name.rsplit("/", 1)[-1]
+        filename = file_field.name.rsplit("/", 1)[-1]
         content_type = (
-            doc.content_type
-            or mimetypes.guess_type(filename)[0]
+            mimetypes.guess_type(filename)[0]
+            or doc.content_type
             or "application/pdf"
         )
         return FileResponse(
-            doc.file.open("rb"),
+            file_field.open("rb"),
             as_attachment=True,
             filename=filename,
             content_type=content_type,
@@ -1066,14 +1131,17 @@ class DocumentDownloadView(ResidentPortalMixin, View):
         sens = document.sensitivity or DocumentSensitivity.CONFIDENTIAL
         if sens != DocumentSensitivity.PUBLIC_RESIDENT or not document.visible_to_resident:
             raise PermissionDenied(_("Bu sənədin məxfilik səviyyəsinə görə endirmə icazəniz yoxdur."))
-        if not document.file:
+        file_field = _portal_document_file(document)
+        if not file_field:
             raise Http404()
-        filename = document.file.name.rsplit("/", 1)[-1]
+        filename = file_field.name.rsplit("/", 1)[-1]
         content_type = (
-            getattr(document, "content_type", "") or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+            mimetypes.guess_type(filename)[0]
+            or getattr(document, "content_type", "")
+            or "application/octet-stream"
         )
         return FileResponse(
-            document.file.open("rb"),
+            file_field.open("rb"),
             as_attachment=True,
             filename=filename,
             content_type=content_type,

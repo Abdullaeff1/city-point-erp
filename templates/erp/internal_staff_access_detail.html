@@ -3,7 +3,7 @@
 {% block heading %}{{ employee.full_name }}{% endblock %}
 {% block back_trail %}
  · <a href="{% url 'erp:hr_dashboard' %}">{% translate "HR" %}</a>
- · <a href="{% url 'erp:internal_staff_access' %}?roster={% if employee.is_active %}active{% else %}former{% endif %}&date={{ date_from|date:'Y-m-d' }}">{% translate "CP İşçilər" %}</a>
+ · <a href="{{ back_to_list_url }}">{% if return_late %}{% translate "Siyahıya qayıt" %}{% else %}{% translate "CP İşçilər" %}{% endif %}</a>
  · {% translate "Kart" %}: {{ employee.card_number|default:"—" }}
  {% if not employee.is_active %}
  · <strong>{% translate "Keçmiş işçi" %}</strong>{% if employee.deactivated_at %} · {% translate "çıxış" %}: {{ employee.deactivated_at|date:"d.m.Y" }}{% endif %}
@@ -11,43 +11,161 @@
 {% endblock %}
 {% block content %}
 
+<p class="cp-meta mb-3">{{ schedule_note }}</p>
+{% if axtrax_refresh and axtrax_refresh.message %}
+<p class="cp-card p-card-sm mb-3"{% if axtrax_refresh.error %} style="border-color:var(--cp-danger,#b91c1c);"{% endif %}>
+  {% translate "AxTrax" %}: {{ axtrax_refresh.message }}
+</p>
+{% endif %}
+{% if not employee.is_active %}
+<p class="cp-card p-card-sm mb-3"><strong>{% translate "Keçmiş işçi" %}</strong>{% if employee.deactivated_at %} · {% translate "çıxış" %}: {{ employee.deactivated_at|date:"d.m.Y" }}{% endif %}</p>
+{% endif %}
+
 <div class="cp-card p-card mb-4">
-  <div class="cp-tabs" style="margin-bottom:12px;">
-    <a class="cp-tab {% if preset == 'today' %}is-active{% endif %}" href="?range=today&date={% if single_day %}{{ date_from|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}">{% translate "Günlük" %}</a>
-    <a class="cp-tab {% if preset == 'week' %}is-active{% endif %}" href="?range=week">{% translate "Bu həftə" %}</a>
-    <a class="cp-tab {% if preset == 'month' %}is-active{% endif %}" href="?range=month">{% translate "Bu ay" %}</a>
-    <a class="cp-tab {% if preset == 'year' %}is-active{% endif %}" href="?range=year&year={{ today.year }}">{% translate "Bu il" %}</a>
-    <a class="cp-tab {% if preset == 'custom' %}is-active{% endif %}" href="?range=custom">{% translate "Tarix aralığı" %}</a>
-  </div>
-  {% if preset == 'custom' %}
-  <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;">
-    <input type="hidden" name="range" value="custom">
-    <label><span class="cp-meta">{% translate "Başlanğıc" %}</span><input class="cp-input mt-1" type="date" name="from" value="{{ date_from|date:'Y-m-d' }}" required></label>
-    <label><span class="cp-meta">{% translate "Son" %}</span><input class="cp-input mt-1" type="date" name="to" value="{{ date_to|date:'Y-m-d' }}" required></label>
-    <button class="cp-btn" type="submit">{% translate "Göstər" %}</button>
-  </form>
-  {% elif single_day %}
-  <form method="get" class="flex gap-2" style="flex-wrap:wrap;align-items:end;">
-    <input type="hidden" name="range" value="today">
-    <label>
-      <span class="cp-meta">{% translate "Tarix" %}</span>
-      <input class="cp-input mt-1" type="date" name="date" value="{{ date_from|date:'Y-m-d' }}" onchange="this.form.submit()">
-    </label>
-  </form>
-  {% else %}
-  <p class="cp-meta">{{ date_from|date:"d.m.Y" }}{% if date_from != date_to %} – {{ date_to|date:"d.m.Y" }}{% endif %}</p>
+  <p class="mb-2"><strong>{{ employee.full_name }}</strong>
+    <span class="cp-meta"> · {% translate "Şöbə" %}: {{ department }} · {% translate "Dövr" %}: {{ date_from|date:"d.m.Y" }}{% if date_from != date_to %} – {{ date_to|date:"d.m.Y" }}{% endif %}</span>
+  </p>
+  {% if period_error %}
+  <p class="cp-card p-card-sm mb-3" style="border-color:var(--cp-danger,#b91c1c);">{{ period_error }}</p>
   {% endif %}
-  {% if can_export_access %}
-  <div class="mt-3">
-    <a class="cp-btn" href="{% url 'erp:internal_staff_employee_export' employee.pk %}?range={{ preset }}{% if preset == 'today' %}&date={{ date_from|date:'Y-m-d' }}{% elif preset == 'year' %}&year={{ date_from.year }}{% elif preset == 'custom' %}&from={{ date_from|date:'Y-m-d' }}&to={{ date_to|date:'Y-m-d' }}{% endif %}">{% translate "Excel yüklə" %}</a>
-  </div>
-  {% endif %}
+
+  <form method="get" class="mb-3" id="attendance-period-form">
+    {% if return_late %}<input type="hidden" name="return_late" value="1">{% endif %}
+    {% if request.GET.return_roster %}<input type="hidden" name="return_roster" value="{{ request.GET.return_roster }}">{% endif %}
+    {% if request.GET.return_q %}<input type="hidden" name="return_q" value="{{ request.GET.return_q }}">{% endif %}
+    {% if request.GET.return_page %}<input type="hidden" name="return_page" value="{{ request.GET.return_page }}">{% endif %}
+    {% if request.GET.return_date %}<input type="hidden" name="return_date" value="{{ request.GET.return_date }}">{% endif %}
+
+    <div class="cp-tabs" style="margin-bottom:12px;">
+      <label class="cp-tab {% if preset == 'today' %}is-active{% endif %}"><input type="radio" name="range" value="today" {% if preset == 'today' %}checked{% endif %} style="position:absolute;opacity:0;pointer-events:none;"> {% translate "Günlük" %}</label>
+      <label class="cp-tab {% if preset == 'week' %}is-active{% endif %}"><input type="radio" name="range" value="week" {% if preset == 'week' %}checked{% endif %} style="position:absolute;opacity:0;pointer-events:none;"> {% translate "Həftəlik" %}</label>
+      <label class="cp-tab {% if preset == 'month' %}is-active{% endif %}"><input type="radio" name="range" value="month" {% if preset == 'month' %}checked{% endif %} style="position:absolute;opacity:0;pointer-events:none;"> {% translate "Aylıq" %}</label>
+      <label class="cp-tab {% if preset == 'year' %}is-active{% endif %}"><input type="radio" name="range" value="year" {% if preset == 'year' %}checked{% endif %} style="position:absolute;opacity:0;pointer-events:none;"> {% translate "İllik" %}</label>
+      <label class="cp-tab {% if preset == 'custom' %}is-active{% endif %}"><input type="radio" name="range" value="custom" {% if preset == 'custom' %}checked{% endif %} style="position:absolute;opacity:0;pointer-events:none;"> {% translate "Tarix aralığı" %}</label>
+    </div>
+
+    <div class="flex gap-3 mb-3" style="flex-wrap:wrap;align-items:end;">
+      {% if preset == 'today' %}
+      <label><span class="cp-meta">{% translate "Tarix" %}</span>
+        <input class="cp-input mt-1" type="date" name="date" value="{{ date_from|date:'Y-m-d' }}">
+      </label>
+      {% elif preset == 'week' %}
+      <label><span class="cp-meta">{% translate "Həftənin hər hansı günü" %}</span>
+        <input class="cp-input mt-1" type="date" name="week_start" value="{{ date_from|date:'Y-m-d' }}">
+      </label>
+      <span class="cp-meta">{{ date_from|date:"d.m.Y" }} – {{ date_to|date:"d.m.Y" }} ({% translate "bazar ertəsi–bazar" %})</span>
+      {% elif preset == 'month' %}
+      <label><span class="cp-meta">{% translate "İl" %}</span>
+        <input class="cp-input mt-1" type="number" name="year" min="2000" max="2100" value="{{ date_from.year }}">
+      </label>
+      <label><span class="cp-meta">{% translate "Ay" %}</span>
+        <input class="cp-input mt-1" type="number" name="month" min="1" max="12" value="{{ date_from.month }}">
+      </label>
+      {% elif preset == 'year' %}
+      <label><span class="cp-meta">{% translate "İl" %}</span>
+        <input class="cp-input mt-1" type="number" name="year" min="2000" max="2100" value="{{ date_from.year }}">
+      </label>
+      {% else %}
+      <label><span class="cp-meta">{% translate "Başlanğıc" %}</span>
+        <input class="cp-input mt-1" type="date" name="from" value="{{ date_from|date:'Y-m-d' }}" required>
+      </label>
+      <label><span class="cp-meta">{% translate "Son" %}</span>
+        <input class="cp-input mt-1" type="date" name="to" value="{{ date_to|date:'Y-m-d' }}" required>
+      </label>
+      {% endif %}
+    </div>
+
+    <div class="flex gap-3 mb-3" style="flex-wrap:wrap;align-items:center;">
+      <label class="cp-meta"><input type="radio" name="content" value="all" {% if not late_only %}checked{% endif %}> {% translate "Bütün günlər" %}</label>
+      <label class="cp-meta"><input type="radio" name="content" value="late" {% if late_only %}checked{% endif %}> {% translate "Yalnız gecikilən günlər" %}</label>
+    </div>
+
+    <div class="flex gap-2" style="flex-wrap:wrap;align-items:center;">
+      <button class="cp-btn" type="submit">{% translate "Göstər" %}</button>
+      {% if attendance_export_url %}
+      <a class="cp-btn" href="{{ attendance_export_url }}?{{ export_query }}">{% translate "Excel yüklə" %}</a>
+      {% endif %}
+      {% if preset == 'week' and whatsapp_preview_url %}
+      <a class="cp-btn-ghost" href="{{ whatsapp_preview_url }}?week_start={{ date_from|date:'Y-m-d' }}">{% translate "WhatsApp önizləmə" %}</a>
+      {% endif %}
+    </div>
+  </form>
+  <script>
+  (function () {
+    var form = document.getElementById('attendance-period-form');
+    if (!form) return;
+    form.querySelectorAll('input[name="range"]').forEach(function (el) {
+      el.addEventListener('change', function () { form.submit(); });
+    });
+  })();
+  </script>
 </div>
 
-{% if single_day %}
+{% if attendance_report %}
 <div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
-  <div class="cp-card p-card-sm">{% translate "Giriş" %} <strong>{{ in_count }}</strong></div>
-  <div class="cp-card p-card-sm">{% translate "Çıxış" %} <strong>{{ out_count }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Gecikilən günlər" %} <strong>{{ attendance_report.summary.late_days }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Cəmi gecikmə" %} <strong>{{ attendance_report.summary_late_label }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Giriş olan günlər" %} <strong>{{ attendance_report.summary.days_with_entry }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Binada olma (təsdiqli)" %} <strong>{{ attendance_report.summary_presence_label }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Natamam günlər" %} <strong>{{ attendance_report.summary.incomplete_days }}</strong></div>
+</div>
+<p class="cp-meta mb-2">{{ attendance_report.presence_scope_label }}</p>
+{% if attendance_report.no_late_message %}
+<p class="cp-card p-card-sm mb-3">{{ attendance_report.no_late_message }}</p>
+{% endif %}
+
+<div class="cp-card" style="padding:8px 0;">
+  <table class="cp-table">
+    <thead>
+      <tr>
+        <th>{% translate "Tarix" %}</th>
+        <th>{% translate "Həftənin günü" %}</th>
+        <th>{% translate "Gözlənilən giriş" %}</th>
+        <th>{% translate "İlk giriş" %}</th>
+        <th>{% translate "Son çıxış" %}</th>
+        <th>{% translate "Binada olduğu müddət" %}</th>
+        <th>{% translate "Gecikmə" %}</th>
+        <th>{% translate "Qeydin vəziyyəti" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in attendance_report.rows %}
+      <tr>
+        <td>
+          <a href="?range=today&date={{ d.day|date:'Y-m-d' }}&content={% if late_only %}late{% else %}all{% endif %}{% if return_late %}&return_late=1{% endif %}{% if request.GET.return_roster %}&return_roster={{ request.GET.return_roster }}{% endif %}{% if request.GET.return_date %}&return_date={{ request.GET.return_date }}{% endif %}{% if request.GET.return_q %}&return_q={{ request.GET.return_q|urlencode }}{% endif %}{% if request.GET.return_page %}&return_page={{ request.GET.return_page }}{% endif %}&from_range={{ preset }}&from_week_start={{ date_from|date:'Y-m-d' }}&from_year={{ date_from.year }}&from_month={{ date_from.month }}&from_from={{ date_from|date:'Y-m-d' }}&from_to={{ date_to|date:'Y-m-d' }}">{{ d.day|date:"d.m.Y" }}</a>
+        </td>
+        <td>{{ d.weekday_label }}</td>
+        <td>{{ d.expected_start|time:"H:i" }}</td>
+        <td>{% if d.first_in %}{{ d.first_in|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if d.last_out %}{{ d.last_out|time:"H:i" }}{% else %}—{% endif %}</td>
+        <td>{{ d.presence_label }}</td>
+        <td>{% if d.is_late %}<strong>{{ d.late_label }}</strong>{% else %}{{ d.late_label }}{% endif %}</td>
+        <td>{{ d.status }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8" class="cp-meta empty-pad">
+        {% if late_only and attendance_report.no_late_message %}
+          {{ attendance_report.no_late_message }}
+        {% else %}
+          {% translate "Seçilmiş dövr üçün məlumat yoxdur." %}
+        {% endif %}
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if single_day %}
+<div class="mt-4 mb-3" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;">
+  <strong>{% blocktranslate with d=date_from|date:"d.m.Y" %}{{ d }} — bütün giriş/çıxışlar{% endblocktranslate %}</strong>
+  {% if period_back_url %}
+  <a class="cp-btn-ghost" href="{{ period_back_url }}">{% translate "Dövr hesabatına qayıt" %}</a>
+  {% endif %}
+</div>
+<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
+  <div class="cp-card p-card-sm">{% translate "Giriş hadisələri" %} <strong>{{ in_count }}</strong></div>
+  <div class="cp-card p-card-sm">{% translate "Çıxış hadisələri" %} <strong>{{ out_count }}</strong></div>
   <div class="cp-card p-card-sm">{% translate "Cəmi" %} <strong>{{ flaps|length }}</strong></div>
 </div>
 <div class="cp-card" style="padding:8px 0;">
@@ -78,40 +196,6 @@
       </tr>
       {% empty %}
       <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Bu gün üçün giriş/çıxış yoxdur." %}</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% else %}
-<div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
-  <div class="cp-card p-card-sm">{% translate "Gələn günlər" %} <strong>{{ present_days }}</strong></div>
-</div>
-<div class="cp-card" style="padding:8px 0;">
-  <table class="cp-table">
-    <thead>
-      <tr>
-        <th>{% translate "Tarix" %}</th>
-        <th>{% translate "İşə gəliş" %}</th>
-        <th>{% translate "İşdən çıxış" %}</th>
-        <th>{% translate "Kart" %}</th>
-        <th>{% translate "Status" %}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for d in days %}
-      <tr class="is-clickable" onclick="window.location='?range=today&date={{ d.date|date:'Y-m-d' }}'" {% if d.has_other_card %}style="background:rgba(180,120,40,0.08);"{% endif %}>
-        <td><a href="?range=today&date={{ d.date|date:'Y-m-d' }}">{{ d.date|date:"d.m.Y" }}</a></td>
-        <td>{% if d.in_at %}{{ d.in_at|time:"H:i" }}{% else %}—{% endif %}</td>
-        <td>{% if d.out_at %}{{ d.out_at|time:"H:i" }}{% else %}—{% endif %}</td>
-        <td class="cp-code">
-          {{ d.cards_label }}
-          {% if d.has_other_card %}<span class="badge badge-muted">{% translate "digər kart" %}</span>{% endif %}
-          {% if d.has_denied %}<span class="badge badge-muted">{% translate "uğursuz" %}</span>{% endif %}
-        </td>
-        <td>{{ d.status }}</td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="5" class="cp-meta empty-pad">{% translate "Seçilmiş dövr üçün işə gəliş/çıxış yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -342,18 +342,20 @@ def _find_employee_by_name_in_company(company: ResidentCompany, full_name: str):
 
 
 def _reclaim_card_number(owner: ResidentEmployee, badge: str, stats: dict) -> None:
-    """Ensure only ``owner`` holds this printed badge in ERP."""
+    """Aktiv digər sahiblərdən badge götür; köhnə (deaktiv) əməkdaşlarda kart qalır."""
     badge = normalize_identification(badge)
     if not badge or not owner.pk:
         return
-    others = ResidentEmployee.objects.filter(card_number=badge).exclude(pk=owner.pk)
+    others = ResidentEmployee.objects.filter(
+        card_number=badge, is_active=True
+    ).exclude(pk=owner.pk)
     cleared = others.update(card_number="")
     if cleared:
         stats["cards_reclaimed"] = stats.get("cards_reclaimed", 0) + cleared
 
 
-def _deactivate_employee(employee: ResidentEmployee, *, clear_card: bool = True) -> bool:
-    """Soft-deactivate; clear badge so former staff cannot keep a reassigned card."""
+def _deactivate_employee(employee: ResidentEmployee, *, clear_card: bool = False) -> bool:
+    """Soft-deactivate. Kart nömrəsi default olaraq arxivdə saxlanılır."""
     fields = []
     changed = False
     if employee.is_active:
@@ -394,6 +396,38 @@ def sync_people_from_payload(payload: dict) -> dict:
     return _sync_people_payload(payload)
 
 
+def _collect_seen_emp_ids(departments: dict) -> set[int]:
+    seen: set[int] = set()
+    for dept in departments.values():
+        for emp in dept["employees"].values():
+            raw_emp_id = int(emp["employee_id"])
+            seen.add(raw_emp_id)
+            seen.add(AXTRAX_EMP_ALIASES.get(raw_emp_id, raw_emp_id))
+    return seen
+
+
+def _deactivate_missing_axtrax_employees(seen_emp_ids: set[int], stats: dict) -> None:
+    """AxTrax exportunda olmayan bağlı işçiləri soft-deaktiv et; kart saxlanılır."""
+    ct = ContentType.objects.get_for_model(ResidentEmployee)
+    linked = ExternalIdentity.objects.filter(
+        system=AXTRAX_SYSTEM,
+        external_id__startswith="emp:",
+        entity_type=ct,
+    )
+    for ident in linked:
+        try:
+            ax_id = int(str(ident.external_id).split(":", 1)[1])
+        except (IndexError, ValueError):
+            continue
+        if ax_id in seen_emp_ids:
+            continue
+        employee = ResidentEmployee.objects.filter(pk=ident.entity_id).first()
+        if not employee:
+            continue
+        if _deactivate_employee(employee, clear_card=False):
+            stats["employees_deactivated"] += 1
+
+
 @transaction.atomic
 def _sync_people_payload(payload: dict) -> dict:
     rows = payload.get("rows") or []
@@ -406,7 +440,9 @@ def _sync_people_payload(payload: dict) -> dict:
     stats["employee_rows_in_file"] = len(rows)
     stats["access_groups_in_file"] = len(group_lookup)
 
-    seen_emp_ids: set[int] = set()
+    # Əvvəl eksportda olmayanları deaktiv et ki, kart reclaim yalnız aktivlərdə işləsin.
+    seen_emp_ids = _collect_seen_emp_ids(departments)
+    _deactivate_missing_axtrax_employees(seen_emp_ids, stats)
 
     for dept in departments.values():
         company, created = _resolve_company(dept["department_id"], dept["department_name"])
@@ -450,18 +486,16 @@ def _sync_people_payload(payload: dict) -> dict:
 
             level = resolve_access_level_for_row(emp, group_lookup)
             badge = normalize_identification(emp.get("badge_number") or "")
-            # If another AxTrax person owns this badge in this export, do not keep it here.
-            # Alias rows: badge winner is keyed by raw id; allow badge when winner is alias or canonical.
+            now_active = bool(emp["is_enabled"])
+            # Aktiv qalib olmayan şəxsdən badge götürülür; deaktiv/köhnə arxiv üçün saxlanır.
             badge_owner = badge_winners.get(badge) if badge else None
             if badge and badge_owner not in (None, raw_emp_id, canonical_emp_id):
-                # Also allow if this raw id aliases to the winner
                 if AXTRAX_EMP_ALIASES.get(raw_emp_id) != badge_owner and AXTRAX_EMP_ALIASES.get(
                     badge_owner
                 ) != raw_emp_id:
-                    badge = ""
-                    stats["badge_conflicts_skipped"] += 1
-
-            now_active = bool(emp["is_enabled"])
+                    if now_active:
+                        badge = ""
+                        stats["badge_conflicts_skipped"] += 1
 
             if (
                 employee
@@ -472,10 +506,10 @@ def _sync_people_payload(payload: dict) -> dict:
             ):
                 # AxTrax reused this emp id for a different person — do not rename
                 # the old ResidentEmployee (that would glue two people's access history).
-                if employee.card_number:
-                    employee.card_number = ""
-                    employee.save(update_fields=["card_number"])
-                    stats["cards_cleared_identity_split"] += 1
+                # Köhnə sətirin kartı arxiv üçün saxlanılır; yeni şəxs ayrıca yaradılacaq.
+                if employee.is_active:
+                    _deactivate_employee(employee, clear_card=False)
+                    stats["employees_deactivated"] += 1
                 stats["identity_splits"] += 1
                 employee = None
 
@@ -495,9 +529,7 @@ def _sync_people_payload(payload: dict) -> dict:
                     employee.deactivated_at = None
                 elif (not now_active) and was_active and employee.deactivated_at is None:
                     employee.deactivated_at = timezone.now()
-                if not now_active and employee.card_number:
-                    employee.card_number = ""
-                    stats["cards_cleared_inactive"] += 1
+                # Deaktiv olanda kart silinmir — köhnə əməkdaş arxivində qalır.
                 if level is not None and employee.access_level != level:
                     employee.access_level = level
                     stats["access_levels_updated"] += 1
@@ -531,9 +563,6 @@ def _sync_people_payload(payload: dict) -> dict:
                         employee.deactivated_at = None
                     elif employee.deactivated_at is None:
                         employee.deactivated_at = timezone.now()
-                    if not now_active and employee.card_number:
-                        employee.card_number = ""
-                        stats["cards_cleared_inactive"] += 1
                     if level is not None and employee.access_level != level:
                         employee.access_level = level
                         stats["access_levels_updated"] += 1
@@ -543,7 +572,7 @@ def _sync_people_payload(payload: dict) -> dict:
                     employee = ResidentEmployee.objects.create(
                         company=company,
                         full_name=full_name,
-                        card_number=badge if now_active else "",
+                        card_number=badge or "",
                         access_level=level or AccessLevel.LEVEL_1,
                         is_active=now_active,
                         deactivated_at=None if now_active else timezone.now(),
@@ -564,26 +593,6 @@ def _sync_people_payload(payload: dict) -> dict:
             if is_alias_row:
                 _upsert_external(AXTRAX_SYSTEM, ext_canonical, employee)
             PartyService.upsert_person_from_employee(employee)
-
-    # Soft-deactivate all AxTrax-linked employees missing from the full export (any company).
-    ct = ContentType.objects.get_for_model(ResidentEmployee)
-    linked = ExternalIdentity.objects.filter(
-        system=AXTRAX_SYSTEM,
-        external_id__startswith="emp:",
-        entity_type=ct,
-    )
-    for ident in linked:
-        try:
-            ax_id = int(str(ident.external_id).split(":", 1)[1])
-        except (IndexError, ValueError):
-            continue
-        if ax_id in seen_emp_ids:
-            continue
-        employee = ResidentEmployee.objects.filter(pk=ident.entity_id).first()
-        if not employee:
-            continue
-        if _deactivate_employee(employee, clear_card=True):
-            stats["employees_deactivated"] += 1
 
     SyncLog.objects.create(
         system=AXTRAX_SYSTEM,

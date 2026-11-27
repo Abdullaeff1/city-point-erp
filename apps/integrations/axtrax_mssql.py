@@ -19,7 +19,7 @@ def mssql_settings() -> dict:
     }
 
 
-def connect():
+def connect(*, login_timeout: int | None = None, timeout: int | None = None):
     import pymssql
 
     cfg = mssql_settings()
@@ -29,13 +29,20 @@ def connect():
         user=cfg["user"],
         password=cfg["password"],
         database=cfg["database"],
-        login_timeout=15,
-        timeout=60,
+        login_timeout=15 if login_timeout is None else int(login_timeout),
+        timeout=60 if timeout is None else int(timeout),
         tds_version="7.4",
     )
 
 
-def fetch_granted_events(*, since_id: int, lookback_hours: int = 48, limit: int = 5000) -> list[dict]:
+def fetch_granted_events(
+    *,
+    since_id: int,
+    lookback_hours: int = 48,
+    limit: int = 5000,
+    login_timeout: int | None = None,
+    timeout: int | None = None,
+) -> list[dict]:
     """Granted (17) and denied (18, 33) rows newer than the ERP cursor."""
     sql = """
 SELECT TOP %d
@@ -56,7 +63,7 @@ WHERE e.iEventType IN (17, 18, 33)
   AND e.dtEventReal < '2100-01-01'
 ORDER BY e.IdAutoEvents
 """ % int(limit)
-    conn = connect()
+    conn = connect(login_timeout=login_timeout, timeout=timeout)
     try:
         cur = conn.cursor(as_dict=True)
         cur.execute(sql, (int(since_id), int(lookback_hours)))

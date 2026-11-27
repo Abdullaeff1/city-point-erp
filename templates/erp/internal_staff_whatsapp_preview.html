@@ -1,0 +1,14 @@
+{% extends "erp/base.html" %}
+{% load i18n %}
+{% block heading %}{% translate "WhatsApp önizləmə" %} — {{ employee.full_name }}{% endblock %}
+{% block back_trail %}
+ · <a href="{% url 'erp:hr_dashboard' %}">{% translate "HR" %}</a>
+ · <a href="{% url 'erp:internal_staff_access_detail' employee.pk %}?range=week&week_start={{ week_start|date:'Y-m-d' }}">{% translate "Davamiyyət" %}</a>
+{% endblock %}
+{% block content %}
+<p class="cp-meta mb-3">{% translate "Canlı WhatsApp göndərişi deaktivdir. Bu mətn yalnız lokal önizləmədir; «göndərildi» işarələnmir." %}</p>
+<p class="cp-meta mb-3">{% translate "Həftə" %}: {{ week_start|date:"d.m.Y" }} – {{ week_end|date:"d.m.Y" }} · {% translate "Dedup açarı" %}: <code>{{ wa.dedupe_key }}</code></p>
+<div class="cp-card p-card">
+  <pre style="white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;margin:0;">{{ wa.text }}</pre>
+</div>
+{% endblock %}

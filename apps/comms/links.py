@@ -80,7 +80,32 @@ def user_notifications(user, *, namespace: str, limit: int | None = 100, company
             ).values_list("pk", flat=True)
             visible_drawing_keys = {f"{drawing_prefix}{pk}" for pk in allowed}
 
+    shared_prefix = "document.shared."
+    visible_shared_keys = set()
+    if namespace == "portal" and company_ids is not None:
+        from apps.documents.models import Document
+
+        shared_doc_ids = {}
+        for n in notes:
+            if n.event_key.startswith(shared_prefix):
+                head = n.event_key[len(shared_prefix) :].split(".")[0]
+                if head.isdecimal():
+                    shared_doc_ids.setdefault(int(head), []).append(n.event_key)
+        if shared_doc_ids:
+            ok_ids = Document.objects.filter(
+                pk__in=list(shared_doc_ids), company_id__in=company_ids
+            ).values_list("pk", flat=True)
+            for pk in ok_ids:
+                visible_shared_keys.update(shared_doc_ids[pk])
+
     for note in notes:
+        if (
+            namespace == "portal"
+            and company_ids is not None
+            and note.event_key.startswith(shared_prefix)
+            and note.event_key not in visible_shared_keys
+        ):
+            continue
         if namespace == "portal" and company_ids is not None and note.event_key.startswith(guest_prefix) and note.event_key not in visible_guest_keys:
             continue
         if (
@@ -124,6 +149,25 @@ def notification_target_url(note, ticket, user, namespace: str, *, company_ids=N
         return ""
 
     key = (getattr(note, "event_key", None) or "").strip()
+    if key.startswith("payment.evidence.") and namespace != "portal":
+        from apps.accounts.models import Role
+
+        if getattr(user, "role", None) == Role.ACCOUNTANT:
+            return reverse("finance:payment_evidence")
+        return ""
+    if key.startswith("document.shared.") and namespace == "portal":
+        head = key[len("document.shared.") :].split(".")[0]
+        if head.isdecimal():
+            from apps.documents.models import Document
+
+            doc = (
+                Document.objects.filter(pk=int(head))
+                .select_related("invoice")
+                .first()
+            )
+            if doc is not None and doc.invoice_id:
+                return reverse("portal:invoice_detail", kwargs={"code": doc.invoice.code})
+        return reverse("portal:documents")
     if key.startswith("space_drawing_access:") and namespace == "erp":
         return reverse("erp:drawing_access_queue")
     if key.startswith("space_drawing_access_result:") and namespace == "portal":
@@ -147,7 +191,10 @@ def notification_target_url(note, ticket, user, namespace: str, *, company_ids=N
                 code = req.workflow_code or ""
                 payload = req.payload or {}
                 if code == "document.approve":
-                    return reverse("erp:documents")
+                    from apps.documents.archive import can_browse_archive
+
+                    # D08: the global archive is Management/Admin only — no dead link for departments.
+                    return reverse("erp:documents") if can_browse_archive(user) else ""
                 if code in {"procurement.pr", "procurement.commitment"}:
                     pr_code = payload.get("code")
                     if pr_code:
@@ -164,7 +211,7 @@ def notification_target_url(note, ticket, user, namespace: str, *, company_ids=N
                     return reverse("erp:crm_offers")
         if getattr(user, "role", None) in {Role.ADMIN, Role.MANAGEMENT}:
             return reverse("erp:approvals")
-        return reverse("erp:documents")
+        return ""
     if key.startswith("crm.offer.rejected.") and namespace == "erp":
         from apps.crm.access import can_view_crm
 
@@ -210,11 +257,17 @@ def notification_target_url(note, ticket, user, namespace: str, *, company_ids=N
         if visit_id:
             return f"{reverse('portal:guests')}?overdue=1"
         return reverse("portal:guests")
+    if key.startswith("visitor.id_held_overdue."):
+        # Reception owns physical ID return; Security gets operational visibility.
+        if namespace == "security":
+            return f"{reverse('security:guests')}?status=inside_overdue"
+        if namespace == "erp":
+            return f"{reverse('erp:reception')}?status=inside_overdue"
     if key.startswith("visitor.return_pending.") or key.startswith("visitor.id_returned."):
         if namespace == "security":
-            return reverse("security:guests")
+            return f"{reverse('security:guests')}?status=id_pending"
         if namespace == "erp":
-            return reverse("erp:reception")
+            return f"{reverse('erp:reception')}?status=id_pending"
 
     if namespace != "security":
         return ""

@@ -227,6 +227,15 @@ def build_management_hub(user) -> dict:
         },
     ]
 
+    from apps.residents.attendance import late_employees_for_day
+
+    _late_rows, late_staff_count, _late_note, _late_roster = late_employees_for_day(
+        day=today, roster="active"
+    )
+    late_staff_url = (
+        f"{reverse('erp:internal_staff_access')}?date={today.isoformat()}&late=1"
+    )
+
     # Secondary portfolio (expiring / AR / WO) — not the top building strip
     kpi_portfolio = [
         {
@@ -261,6 +270,17 @@ def build_management_hub(user) -> dict:
             ),
             "meta": _("as-of %(d)s · eyni qayda") % {"d": as_of.strftime("%d.%m.%Y")},
             "definition": fm.get("rule", "") if isinstance(fm.get("rule"), str) else "",
+        },
+        {
+            "label": _("Bu gün gecikənlər"),
+            "value": late_staff_count,
+            "unit": "",
+            "url": late_staff_url,
+            "meta": _("City Point · 09:00 · Asia/Baku"),
+            "definition": _(
+                "Yalnız daxili City Point işçiləri; binaya giriş oxuyucusu; "
+                "ilk etibarlı giriş − 09:00."
+            ),
         },
     ]
 
@@ -343,6 +363,16 @@ def build_management_hub(user) -> dict:
             "label": _("Excel eksport"),
             "url": reverse("erp:reports_export"),
             "icon": "download",
+        },
+        {
+            "label": _("Bu gün gecikənlər"),
+            "url": late_staff_url,
+            "icon": "clock",
+        },
+        {
+            "label": _("CP davamiyyət"),
+            "url": reverse("erp:internal_staff_access"),
+            "icon": "id-card",
         },
     ]
 

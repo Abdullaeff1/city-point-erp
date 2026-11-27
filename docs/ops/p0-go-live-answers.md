@@ -66,15 +66,17 @@ Pilot mühit: ☐ staging · ☐ production · Tarix: __________
 
 ## P0.6 — AxTrax RO + poller host
 
+**Engineering status (2026-11-27):** poller prosesi işləyir; `172.31.104.10` bu hostdan **unreachable** — [axtrax-ro-dod-status-2026-11-27.md](axtrax-ro-dod-status-2026-11-27.md). NetAdmin aşağıdakı cədvəli doldurur.
+
 | Sahə | Cavab |
 |------|-------|
-| AxTrax MS SQL host | |
-| Port | |
+| AxTrax MS SQL host | `172.31.104.10` (dev default; təsdiq: ____) |
+| Port | `1433` |
 | DB adı (`AxTrax1`?) | |
 | RO user | (parol secret store — git-ə yazma) |
 | Poller maşını (hostname) | |
-| Supervizor | ☐ Windows Task · ☐ systemd · ☐ digər: ____ |
-| Interval | |
+| Supervizor | ☐ Windows Task · ☐ systemd · ☐ digər: ____ · ☑ Docker `AXTRAX_POLL_ON_START` (dev) |
+| Interval | 15s (dev default) |
 
 Runbook: [../integrations/axtrax-poller-runbook.md](../integrations/axtrax-poller-runbook.md) · LAN: [../deployment/teammate-axtrax-lan.md](../deployment/teammate-axtrax-lan.md)
 

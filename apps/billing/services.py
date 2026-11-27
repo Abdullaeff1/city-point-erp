@@ -206,6 +206,27 @@ def record_payment(
     if existing is not None:
         return existing
 
+    pay_method = method or payload.get("method") or "bank"
+    pay_ref = reference if reference is not None else (payload.get("reference") or "")
+    payment = _apply_payment_locked(
+        invoice=invoice,
+        amount=amount,
+        method=pay_method,
+        reference=pay_ref,
+        approval_id=req.pk,
+    )
+    payload["payment_id"] = payment.pk
+    payload["consumed_at"] = timezone.now().isoformat()
+    req.payload = payload
+    req.save(update_fields=["payload", "updated_at"])
+    return payment
+
+
+def _apply_payment_locked(
+    *, invoice: Invoice, amount, method: str, reference: str, approval_id=None
+) -> Payment:
+    """Create Payment + status + event + unposted JE. Caller holds the Invoice row lock
+    inside ``transaction.atomic`` and has already authorised the payment."""
     if invoice.status not in (InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE, InvoiceStatus.PAID):
         raise DomainError("Ödəniş yalnız təsdiqlənmiş faktura üçün.")
     if invoice.status == InvoiceStatus.VOID:
@@ -217,8 +238,8 @@ def record_payment(
     if amt > bal + Decimal("0.01"):
         raise DomainError("Ödəniş qalıqdan böyük ola bilməz.")
 
-    pay_method = method or payload.get("method") or "bank"
-    pay_ref = reference if reference is not None else (payload.get("reference") or "")
+    pay_method = method or "bank"
+    pay_ref = reference or ""
     payment = Payment.objects.create(
         invoice=invoice,
         party=invoice.party,
@@ -227,10 +248,6 @@ def record_payment(
         method=pay_method,
         reference=pay_ref or "",
     )
-    payload["payment_id"] = payment.pk
-    payload["consumed_at"] = timezone.now().isoformat()
-    req.payload = payload
-    req.save(update_fields=["payload", "updated_at"])
 
     paid = sum((p.amount for p in invoice.payments.all()), Decimal("0"))
     if paid >= (invoice.total or 0):
@@ -244,7 +261,7 @@ def record_payment(
             "party_id": invoice.party_id,
             "amount": str(amt),
             "reference": pay_ref or "",
-            "approval_id": req.pk,
+            "approval_id": approval_id,
             "entity_model": "payment",
         },
         event_key=f"payment.received.{payment.pk}",
@@ -257,6 +274,84 @@ def record_payment(
         raise
     except Exception as exc:  # noqa: BLE001
         raise DomainError(f"Ödəniş jurnalı yaradılmadı: {exc}") from exc
+    return payment
+
+
+@transaction.atomic
+def record_incoming_payment_verified(
+    *,
+    invoice: Invoice,
+    amount,
+    actor,
+    method: str = "bank",
+    reference: str = "",
+    evidence=None,
+) -> Payment:
+    """Finance-verified INCOMING (resident → City Point) payment — no Management approval.
+
+    Decision 04/05 prep. Scope is strictly the receivable ``Invoice``: supplier / outgoing payments
+    stay on ``SupplierInvoiceService`` + Management approval, and ``record_payment`` keeps its
+    mandatory APPROVED ``finance.payment`` request.
+
+    * Only the Accountant may call it (``can_mutate_finance``).
+    * Optional ``evidence`` (InvoicePaymentEvidence) is linked in the same transaction; replaying a
+      call for an already-linked evidence returns the linked Payment (never a second Payment/JE).
+    * A legacy PENDING ``finance.payment`` request for the same invoice and amount is cancelled so
+      Management cannot later approve it and double-post the same cash.
+    """
+    from apps.finance.access import can_mutate_finance
+
+    if not can_mutate_finance(actor):
+        raise DomainError("Daxil olan ödənişi yalnız mühasib təsdiqləyə bilər.")
+
+    invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
+
+    if evidence is not None:
+        from apps.billing.evidence_models import EvidenceStatus, InvoicePaymentEvidence
+
+        evidence = InvoicePaymentEvidence.objects.select_for_update().get(pk=evidence.pk)
+        if evidence.invoice_id != invoice.pk:
+            raise DomainError("Sübut başqa fakturaya aiddir.")
+        if evidence.status == EvidenceStatus.LINKED and evidence.payment_id:
+            return evidence.payment
+        if evidence.status == EvidenceStatus.CANCELLED:
+            raise DomainError("Ləğv edilmiş sübut ödənişə bağlana bilməz.")
+
+    payment = _apply_payment_locked(
+        invoice=invoice,
+        amount=amount,
+        method=method or "bank",
+        reference=reference or "",
+        approval_id=None,
+    )
+
+    from apps.workflows.models import ApprovalRequest, ApprovalStatus
+    from apps.workflows.services import ApprovalService
+
+    pending = ApprovalRequest.objects.select_for_update().filter(
+        workflow_code=WF_PAYMENT,
+        status=ApprovalStatus.PENDING,
+        payload__invoice_id=invoice.pk,
+    )
+    for legacy in list(pending):
+        try:
+            legacy_amt = Decimal(str((legacy.payload or {}).get("amount") or 0)).quantize(
+                Decimal("0.01")
+            )
+        except Exception:  # noqa: BLE001
+            continue
+        if legacy_amt != payment.amount:
+            continue
+        ApprovalService.cancel(
+            legacy,
+            actor=actor,
+            comment="Mühasib ödənişi təsdiqlədi — köhnə approval sorğusu ləğv edildi.",
+        )
+
+    if evidence is not None:
+        from apps.billing.evidence_services import link_evidence_to_payment
+
+        link_evidence_to_payment(evidence, payment, actor)
     return payment
 
 

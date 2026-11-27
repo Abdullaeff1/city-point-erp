@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
-from django.db import transaction
+from django.db import models, transaction
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils.translation import gettext as _
@@ -273,6 +273,12 @@ class PaymentApprovalsView(RoleRequiredMixin, TemplateView):
     allowed_roles = (Role.MANAGEMENT,)
 
     def get_context_data(self, **kwargs):
+        from decimal import Decimal
+
+        from apps.billing.evidence_models import EvidenceStatus, InvoicePaymentEvidence
+        from apps.workflows.models import ApprovalRequest as AR
+        from apps.workflows.models import ApprovalStatus as AS
+
         ctx = super().get_context_data(**kwargs)
         queue = (self.request.GET.get("queue") or "").strip().lower()
         if queue not in {"ar", "ap", ""}:
@@ -282,20 +288,41 @@ class PaymentApprovalsView(RoleRequiredMixin, TemplateView):
         ctx["queue"] = queue or "all"
         ctx["show_ar"] = show_ar
         ctx["show_ap"] = show_ap
-        ctx["pending"] = (
+        pending_ar = list(
             ApprovalRequest.objects.filter(
                 workflow_code=WF_PAYMENT, status=ApprovalStatus.PENDING
             ).select_related("requested_by")[:50]
-            if show_ar
-            else []
-        )
-        ctx["pending_supplier"] = (
+        ) if show_ar else []
+        pending_ap = list(
             ApprovalRequest.objects.filter(
                 workflow_code=WF_SUPPLIER_PAYMENT, status=ApprovalStatus.PENDING
             ).select_related("requested_by")[:50]
-            if show_ap
-            else []
-        )
+        ) if show_ap else []
+        # Enrich AP rows with Decision 04 decision context from payload.
+        for req in pending_ap:
+            p = req.payload or {}
+            req.decision_ctx = {
+                "payee": p.get("payee_name") or "—",
+                "purpose": p.get("purpose") or "—",
+                "currency": p.get("currency") or "AZN",
+                "amount_now": p.get("amount_requested_now") or p.get("amount"),
+                "liability": p.get("liability_gross") or "—",
+                "prior_settled": p.get("prior_settled") or "0",
+                "pending_reservations": p.get("pending_reservations") or "0",
+                "remainder": p.get("expected_remainder") or "—",
+                "po_code": p.get("po_code") or "—",
+                "pr_code": p.get("pr_code") or "—",
+                "net": p.get("net_amount") or "—",
+                "vat": p.get("vat_amount") if p.get("tax_known") else "naməlum",
+                "match_status": p.get("match_status") or "—",
+                "invoice_url": (
+                    f"/finance/payables/{p.get('supplier_invoice_code')}/"
+                    if p.get("supplier_invoice_code")
+                    else ""
+                ),
+            }
+        ctx["pending"] = pending_ar
+        ctx["pending_supplier"] = pending_ap
         ctx["payments"] = (
             Payment.objects.select_related("invoice", "invoice__party")[:100] if show_ar else []
         )
@@ -307,6 +334,54 @@ class PaymentApprovalsView(RoleRequiredMixin, TemplateView):
             else []
         )
         ctx["can_approve"] = can_approve_payment(self.request.user)
+        # Management RO money strip — directions and statuses labelled (Decision 04).
+        def _sum_payload(qs):
+            total = Decimal("0.00")
+            for r in qs:
+                try:
+                    total += Decimal(str((r.payload or {}).get("amount") or 0))
+                except Exception:  # noqa: BLE001
+                    continue
+            return total.quantize(Decimal("0.01"))
+
+        ar_pending_amt = _sum_payload(
+            AR.objects.filter(workflow_code=WF_PAYMENT, status=AS.PENDING)
+        )
+        ap_pending_amt = _sum_payload(
+            AR.objects.filter(workflow_code=WF_SUPPLIER_PAYMENT, status=AS.PENDING)
+        )
+        ap_approved_unsettled = Decimal("0.00")
+        for r in AR.objects.filter(
+            workflow_code=WF_SUPPLIER_PAYMENT, status=AS.APPROVED
+        ).iterator():
+            p = r.payload or {}
+            if p.get("supplier_payment_id"):
+                continue
+            try:
+                ap_approved_unsettled += Decimal(str(p.get("amount") or 0))
+            except Exception:  # noqa: BLE001
+                continue
+        ap_approved_unsettled = ap_approved_unsettled.quantize(Decimal("0.01"))
+        ar_settled = Payment.objects.aggregate(s=models.Sum("amount"))["s"] or Decimal("0")
+        ap_settled = SupplierPayment.objects.aggregate(s=models.Sum("amount"))["s"] or Decimal(
+            "0"
+        )
+        evidence_pending = InvoicePaymentEvidence.objects.filter(
+            status=EvidenceStatus.PENDING_REVIEW
+        ).count()
+        ctx["money_totals"] = {
+            "ar_pending_legacy": ar_pending_amt,
+            "ar_settled": ar_settled.quantize(Decimal("0.01")),
+            "ap_pending": ap_pending_amt,
+            "ap_approved_unsettled": ap_approved_unsettled,
+            "ap_settled": ap_settled.quantize(Decimal("0.01")),
+            "evidence_pending_count": evidence_pending,
+            "currency": "AZN",
+        }
+        ctx["ar_primary_path_note"] = (
+            "Daxil olan (AR) ödəniş sübutu Mühasib yoxlaması ilə qeydə alınır; "
+            "aşağıdakı AR approval növbəsi yalnız köhnə sorğular üçündür."
+        )
         return ctx
 
     def post(self, request, *args, **kwargs):

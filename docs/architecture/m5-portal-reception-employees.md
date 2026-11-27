@@ -1,7 +1,7 @@
 # M5 — Portal, Reception, əməkdaşlar
 
-**Status:** icra olunub (2026-11-18)  
-**Defer:** AxTrax write, Party cutover, NetAdmin, real turnstile write-back
+**Status:** icra olunub (2026-11-18) · UAT §C engineering Pass 2026-11-27  
+**Defer:** Party cutover, NetAdmin RO LAN/TLS. ~~AxTrax write / turnstile write-back~~ — **məhsul qərarı ilə scope-dan çıxarılıb** (oxu-only kifayət).
 
 ---
 

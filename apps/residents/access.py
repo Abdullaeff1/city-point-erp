@@ -248,6 +248,15 @@ def employee_attendance_days(employee, date_from, date_to):
         day_events = by_day[day]
         arrive_at, leave_at, status = attendance_for_day(day_events)
         meta = _day_card_meta(day_events, current_card)
+        # Keçiddə kart boşdursa, işçinin saxlanmış kartını göstər (köhnə arxiv).
+        if meta["cards_label"] == "—" and current_card:
+            meta = {
+                **meta,
+                "cards": [current_card],
+                "cards_label": current_card,
+                "has_other_card": False,
+                "other_cards": [],
+            }
         days.append(
             {
                 "date": day,

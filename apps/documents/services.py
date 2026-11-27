@@ -12,7 +12,7 @@ from django.utils.translation import gettext as _
 from apps.audit.services import log_action
 from apps.core.services import Service
 from apps.documents.access import sensitivity_for_new_document
-from apps.documents.models import Document, DocumentVersion
+from apps.documents.models import Document, DocumentType, DocumentVersion
 from apps.documents.validation import validate_document_file
 
 WF_DOCUMENT_APPROVE = "document.approve"
@@ -55,17 +55,37 @@ class DocumentService(Service):
         parent_document=None,
         document_date=None,
         visible_to_resident: bool = False,
+        party=None,
+        ticket=None,
+        work_order=None,
+        purchase_request=None,
+        purchase_order=None,
+        invoice=None,
+        offer=None,
+        sensitivity=None,
+        allowed_extensions=None,
+        content_check: bool = True,
     ) -> Document:
         cls.require(bool(title.strip()), "Başlıq tələb olunur.")
-        validate_document_file(uploaded_file)
+        validate_document_file(
+            uploaded_file,
+            allowed_extensions=allowed_extensions,
+            content_check=content_check,
+        )
         size = getattr(uploaded_file, "size", 0) or 0
         from apps.documents.access import clamp_portal_visibility
+        from apps.documents.models import DocumentSensitivity
 
         today = timezone.localdate()
         content_type = getattr(uploaded_file, "content_type", "") or ""
         visible = clamp_portal_visibility(
             document_type=document_type, visible_to_resident=visible_to_resident
         )
+        sens = sensitivity or sensitivity_for_new_document(
+            document_type=document_type, visible_to_resident=visible
+        )
+        if visible and sens != DocumentSensitivity.PUBLIC_RESIDENT:
+            sens = DocumentSensitivity.PUBLIC_RESIDENT
         doc = Document(
             title=title.strip()[:200],
             document_type=document_type,
@@ -73,12 +93,17 @@ class DocumentService(Service):
             space=space,
             lease=lease,
             parent_document=parent_document,
+            party=party,
+            ticket=ticket,
+            work_order=work_order,
+            purchase_request=purchase_request,
+            purchase_order=purchase_order,
+            invoice=invoice,
+            offer=offer,
             published_at=document_date or today,
             document_date=document_date or today,
             visible_to_resident=visible,
-            sensitivity=sensitivity_for_new_document(
-                document_type=document_type, visible_to_resident=visible
-            ),
+            sensitivity=sens,
             version="1",
             size_bytes=size or None,
             size_label=f"{size // 1024} KB" if size else "",
@@ -224,6 +249,117 @@ class DocumentService(Service):
         )
         # Model.delete audits storage cleanup after DB commit
         document.delete()
+
+    @classmethod
+    def ensure_type(cls, code: str, name: str, **defaults) -> DocumentType:
+        """Get-or-create a DocumentType by code (idempotent; existing rows are not rewritten)."""
+        from apps.documents.models import DocumentSensitivity
+
+        code = (code or "").strip()
+        cls.require(bool(code), "Sənəd tipi kodu tələb olunur.")
+        defaults.setdefault("default_sensitivity", DocumentSensitivity.CONFIDENTIAL)
+        obj, _created = DocumentType.objects.get_or_create(
+            code=code, defaults={"name": (name or code)[:120], **defaults}
+        )
+        return obj
+
+    @classmethod
+    def current_portal_file(cls, document: Document):
+        """File the resident may download: the explicitly shared version, else ``None``.
+
+        Draft replacements (``add_version``) never leak — only ``portal_shared_version``.
+        """
+        version = getattr(document, "portal_shared_version", None)
+        if version is None or not version.file:
+            return None
+        return version.file
+
+    @classmethod
+    @transaction.atomic
+    def share_version_with_resident(
+        cls, document: Document, version: DocumentVersion, *, actor, company
+    ) -> Document:
+        """Publish one explicit version to the resident company (Decision 05).
+
+        Re-sharing a newer version moves the portal pointer; each (document, version)
+        notifies portal recipients once via ``document.shared.{doc}.v{version}``.
+        """
+        from apps.accounts.models import PortalCompanyMembership, Role
+        from apps.comms.services import notify_in_app
+        from apps.documents.access import is_portal_locked_document_type
+        from apps.documents.models import DocumentSensitivity
+
+        cls.require(actor is not None, "İstifadəçi tələb olunur.")
+        cls.require(company is not None, "Şirkət tələb olunur.")
+        locked = Document.objects.select_for_update().get(pk=document.pk)
+        cls.require(
+            locked.company_id is not None and locked.company_id == company.pk,
+            "Sənəd bu şirkətə aid deyil.",
+        )
+        cls.require(
+            not is_portal_locked_document_type(locked.document_type),
+            "Bu sənəd tipi portala açıla bilməz.",
+        )
+        version = DocumentVersion.objects.get(pk=version.pk)
+        cls.require(version.document_id == locked.pk, "Versiya bu sənədə aid deyil.")
+        cls.require(bool(version.file), "Versiya faylı yoxdur.")
+
+        already = (
+            locked.portal_shared_version_id == version.pk
+            and locked.visible_to_resident
+            and locked.sensitivity == DocumentSensitivity.PUBLIC_RESIDENT
+        )
+        locked.visible_to_resident = True
+        locked.sensitivity = DocumentSensitivity.PUBLIC_RESIDENT
+        locked.portal_shared_version = version
+        locked.updated_by = actor
+        locked.save(
+            update_fields=[
+                "visible_to_resident",
+                "sensitivity",
+                "portal_shared_version",
+                "updated_by",
+                "updated_at",
+            ]
+        )
+        document.visible_to_resident = locked.visible_to_resident
+        document.sensitivity = locked.sensitivity
+        document.portal_shared_version = version
+
+        if not already:
+            log_action(
+                action="document.shared_with_resident",
+                actor=actor,
+                entity=locked,
+                new_values={
+                    "version_id": version.pk,
+                    "version_label": version.version_label,
+                    "company_id": company.pk,
+                },
+                source="erp",
+            )
+        event_key = f"document.shared.{locked.pk}.v{version.pk}"
+        recipients = (
+            PortalCompanyMembership.objects.filter(
+                company_id=company.pk,
+                is_active=True,
+                user__is_active=True,
+                user__role=Role.RESIDENT_USER,
+            )
+            .select_related("user")
+            .order_by("user_id")
+        )
+        message = _("Yeni sənəd paylaşıldı: %(title)s (v%(version)s)") % {
+            "title": locked.title[:120],
+            "version": version.version_label,
+        }
+        seen = set()
+        for membership in recipients:
+            if membership.user_id in seen:
+                continue
+            seen.add(membership.user_id)
+            notify_in_app(user=membership.user, message=message[:255], event_key=event_key)
+        return locked
 
     @classmethod
     def current_version(cls, document: Document) -> DocumentVersion | None:

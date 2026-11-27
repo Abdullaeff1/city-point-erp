@@ -1,16 +1,71 @@
 {% extends "erp/base.html" %}
 {% load i18n %}
-{% block heading %}{% translate "Sənədlər" %}{% endblock %}
+{% block heading %}{% translate "Sənəd arxivi" %}{% endblock %}
 {% block content %}
 <p class="cp-meta mb-3"><a href="{% url 'erp:correspondence_list' %}">{% translate "Kargüzarlıq reyestri →" %}</a></p>
+
+<div class="cp-card p-card mb-4">
+  <form method="get" style="display:flex;flex-wrap:wrap;gap:12px;align-items:end;">
+    <label><span class="cp-meta">{% translate "Axtarış" %}</span>
+      <input class="cp-input" name="q" value="{{ filters.q }}" placeholder="{% translate 'Başlıq, şirkət, kod…' %}"></label>
+    <label><span class="cp-meta">{% translate "Sənəd tipi" %}</span>
+      <select class="cp-input" name="type">
+        <option value="">—</option>
+        {% for t in filter_types %}<option value="{{ t.code }}"{% if filters.type == t.code %} selected{% endif %}>{{ t.name }}</option>{% endfor %}
+      </select></label>
+    <label><span class="cp-meta">{% translate "Modul mənbəyi" %}</span>
+      <select class="cp-input" name="source">
+        <option value="">—</option>
+        {% for code, label in filter_sources %}<option value="{{ code }}"{% if filters.source == code %} selected{% endif %}>{% translate label %}</option>{% endfor %}
+      </select></label>
+    <label><span class="cp-meta">{% translate "Rezident şirkət" %}</span>
+      <select class="cp-input" name="company">
+        <option value="">—</option>
+        {% for c in filter_companies %}<option value="{{ c.pk }}"{% if filters.company == c.pk|stringformat:"s" %} selected{% endif %}>{{ c.name }}</option>{% endfor %}
+      </select></label>
+    <label><span class="cp-meta">{% translate "Podratçı / tərəf" %}</span>
+      <select class="cp-input" name="supplier">
+        <option value="">—</option>
+        {% for p in filter_suppliers %}<option value="{{ p.pk }}"{% if filters.supplier == p.pk|stringformat:"s" %} selected{% endif %}>{{ p.display_name }}</option>{% endfor %}
+      </select></label>
+    <label><span class="cp-meta">{% translate "Sahə" %}</span>
+      <select class="cp-input" name="space">
+        <option value="">—</option>
+        {% for s in filter_spaces %}<option value="{{ s.pk }}"{% if filters.space == s.pk|stringformat:"s" %} selected{% endif %}>{{ s.code }}</option>{% endfor %}
+      </select></label>
+    <label><span class="cp-meta">{% translate "Əlaqəli kod" %}</span>
+      <input class="cp-input" name="related" value="{{ filters.related }}" placeholder="TK-, WO-, PR-, PO-, INV-, təklif №"></label>
+    <label><span class="cp-meta">{% translate "Tarixdən" %}</span>
+      <input class="cp-input" type="date" name="date_from" value="{{ filters.date_from }}"></label>
+    <label><span class="cp-meta">{% translate "Tarixə" %}</span>
+      <input class="cp-input" type="date" name="date_to" value="{{ filters.date_to }}"></label>
+    <label><span class="cp-meta">{% translate "Görünmə" %}</span>
+      <select class="cp-input" name="visibility">
+        <option value="">—</option>
+        {% for code, label in filter_visibility %}<option value="{{ code }}"{% if filters.visibility == code %} selected{% endif %}>{% translate label %}</option>{% endfor %}
+      </select></label>
+    <label><span class="cp-meta">{% translate "Yükləyən" %}</span>
+      <select class="cp-input" name="uploader">
+        <option value="">—</option>
+        {% for u in filter_uploaders %}<option value="{{ u.pk }}"{% if filters.uploader == u.pk|stringformat:"s" %} selected{% endif %}>{{ u.display_name|default:u.username }}</option>{% endfor %}
+      </select></label>
+    <button class="cp-btn" type="submit">{% translate "Filtr et" %}</button>
+    {% if has_filters %}<a class="cp-btn-ghost" href="{% url 'erp:documents' %}">{% translate "Təmizlə" %}</a>{% endif %}
+  </form>
+  <p class="cp-meta mt-2">{% translate "İcazəli sənəd sayı" %}: <strong>{{ authorized_count }}</strong></p>
+</div>
+
 <div class="cp-card" style="padding:8px 0;">
   <table class="cp-table">
     <thead>
       <tr>
         <th>{% translate "Sənəd" %}</th>
         <th>{% translate "Tip" %}</th>
+        <th>{% translate "Mənbə" %}</th>
+        <th>{% translate "Mənbə istinadı" %}</th>
         <th>{% translate "Rezident" %} / {% translate "Sahə" %}</th>
         <th>{% translate "Versiya" %}</th>
+        <th>{% translate "Yükləyən" %}</th>
         <th>{% translate "Təsdiq" %}</th>
         <th>{% translate "Tarix" %}</th>
         <th></th>
@@ -21,8 +76,11 @@
       <tr>
         <td style="font-weight:600;">{{ d.title }}</td>
         <td>{{ d.document_type.name|default:d.file_type }}</td>
+        <td class="cp-meta">{% translate d.module_source_label %}</td>
+        <td class="cp-meta">{{ d.origin_ref|default:"—" }}</td>
         <td class="cp-meta">{% if d.company %}{{ d.company.name }}{% else %}{% translate "Ümumi" %}{% endif %}{% if d.space %} · {{ d.space.code }}{% endif %}</td>
         <td>{{ d.version|default:"—" }}</td>
+        <td class="cp-meta">{{ d.uploader_label }}</td>
         <td class="cp-meta">
           {% if d.approval_info.status == "pending" %}
             {% translate "Gözləyir" %} · v{{ d.approval_info.version_label|default:d.version }}
@@ -54,9 +112,17 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="7" class="cp-meta empty-pad">{% translate "Sənəd yoxdur." %}</td></tr>
+      <tr><td colspan="10" class="cp-meta empty-pad">{% translate "Sənəd yoxdur." %}</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+{% if is_paginated %}
+<p class="cp-meta mt-3">
+  {% if page_obj.has_previous %}<a href="?{% if filter_qs %}{{ filter_qs }}&amp;{% endif %}page={{ page_obj.previous_page_number }}">← {% translate "Əvvəlki" %}</a>{% endif %}
+  {% translate "Səhifə" %} {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}
+  {% if page_obj.has_next %}<a href="?{% if filter_qs %}{{ filter_qs }}&amp;{% endif %}page={{ page_obj.next_page_number }}">{% translate "Növbəti" %} →</a>{% endif %}
+</p>
+{% endif %}
 {% endblock %}

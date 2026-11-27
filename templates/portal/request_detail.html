@@ -20,16 +20,20 @@
       <p class="cp-body-text mt-2">{{ ticket.resolution_note }}</p>
     </div>
     {% endif %}
-    {% if ticket.attachments.all %}
+    {% with portal_files=ticket.attachments.all %}
+    {% if portal_files %}
     <div class="cp-card p-card mt-4">
       <div class="cp-meta">{% translate "Fayllar" %}</div>
       <ul class="mt-2 flex-col gap-2">
-        {% for a in ticket.attachments.all %}
+        {% for a in portal_files %}
+        {% if a.visible_to_resident %}
         <li><a href="{% url 'ticket_attachment_download' a.pk %}" target="_blank" rel="noopener">{{ a.file.name }}</a></li>
+        {% endif %}
         {% endfor %}
       </ul>
     </div>
     {% endif %}
+    {% endwith %}
     <div class="cp-card p-card mt-4">
       <div class="cp-section" style="font-size:16px;">{% translate "Söhbət" %}</div>
       <div class="flex-col gap-3 mt-3">

@@ -54,6 +54,59 @@
   </table>
 </div>
 
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Rəsmi faktura sənədi" %}</div>
+  {% for doc in official_documents %}
+  <table class="cp-table mt-2">
+    <thead><tr><th>{% translate "Versiya" %}</th><th>{% translate "Tarix" %}</th><th>{% translate "Portal" %}</th><th></th></tr></thead>
+    <tbody>
+      {% for v in doc.version_rows %}
+      <tr>
+        <td>v{{ v.version_label }}</td>
+        <td class="cp-meta">{{ v.created_at|date:"d.m.Y H:i" }}</td>
+        <td>{% if doc.portal_shared_version_id == v.pk %}{% translate "Paylaşılıb" %}{% else %}{% translate "Daxili" %}{% endif %}</td>
+        <td>
+          <a href="{% url 'finance:document_download' doc.pk %}?version={{ v.pk }}">{% translate "Aç" %}</a>
+          {% if can_mutate and doc.portal_shared_version_id != v.pk %}
+          <form method="post" style="display:inline;margin-left:0.5rem;">{% csrf_token %}
+            <input type="hidden" name="action" value="share_version">
+            <input type="hidden" name="document_id" value="{{ doc.pk }}">
+            <input type="hidden" name="version_id" value="{{ v.pk }}">
+            <button class="cp-btn" type="submit">{% translate "Rezidentə paylaş" %}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% empty %}
+  <p class="cp-meta mt-2">{% translate "Rəsmi sənəd yüklənməyib." %}</p>
+  {% endfor %}
+  {% if can_mutate and invoice.status != 'void' %}
+  <form method="post" enctype="multipart/form-data" class="flex gap-2 mt-3" style="flex-wrap:wrap;align-items:end;">{% csrf_token %}
+    <input type="hidden" name="action" value="upload_official">
+    <label>{% translate "Fayl" %}<input class="cp-input mt-1" type="file" name="file" required></label>
+    <label><input type="checkbox" name="share" value="1"> {% translate "Dərhal rezidentə paylaş" %}</label>
+    <button class="cp-btn" type="submit">{% translate "Yüklə" %}</button>
+  </form>
+  <p class="cp-meta mt-2">{% translate "Yeni yükləmə yeni versiya olur və paylaşılana qədər rezident əvvəlki paylaşılmış versiyanı görür." %}</p>
+  {% endif %}
+</div>
+
+<div class="cp-card p-card mb-4">
+  <div class="cp-section">{% translate "Rezidentin ödəniş sənədləri" %}</div>
+  {% for ev in payment_evidence %}
+  <p class="mt-2">
+    <a href="{% url 'finance:document_download' ev.document_id %}{% if ev.version_id %}?version={{ ev.version_id }}{% endif %}">{{ ev.document.title }}</a>
+    · {{ ev.get_status_display }} · <span class="cp-meta">{{ ev.created_at|date:"d.m.Y H:i" }}</span>
+  </p>
+  {% empty %}
+  <p class="cp-meta mt-2">{% translate "Ödəniş sənədi yoxdur." %}</p>
+  {% endfor %}
+  <p class="mt-2"><a href="{% url 'finance:payment_evidence' %}">{% translate "Yoxlama gözləyən ödəniş sənədləri →" %}{% if open_evidence_count %} ({{ open_evidence_count }}){% endif %}</a></p>
+</div>
+
 {% if can_mutate and invoice.status == 'draft' %}
 <div class="cp-card p-card mb-4">
   <form method="post">{% csrf_token %}

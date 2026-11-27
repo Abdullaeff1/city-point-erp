@@ -62,7 +62,10 @@
       <div class="cp-section" style="font-size:16px;">{% translate "Əlavələr" %}</div>
       <ul class="mt-3 flex-col gap-2">
         {% for a in ticket.attachments.all %}
-        <li><a href="{% url 'ticket_attachment_download' a.pk %}" target="_blank" rel="noopener">{{ a.file.name }}</a> <span class="cp-meta">{{ a.uploaded_at|date:"d.m H:i" }}</span></li>
+        <li>
+          <a href="{% url 'ticket_attachment_download' a.pk %}" target="_blank" rel="noopener">{{ a.file.name }}</a>
+          <span class="cp-meta">{{ a.uploaded_at|date:"d.m H:i" }}{% if not a.visible_to_resident %} · {% translate "daxili" %}{% endif %}</span>
+        </li>
         {% empty %}
         <li class="cp-meta">{% translate "Fayl yoxdur." %}</li>
         {% endfor %}

@@ -13,7 +13,7 @@ from apps.tickets.models import TicketAttachment
 @require_GET
 def ticket_attachment_download(request, pk):
     attachment = get_object_or_404(
-        TicketAttachment.objects.select_related("ticket"),
+        TicketAttachment.objects.select_related("ticket", "document"),
         pk=pk,
     )
     scope_ids = getattr(request, "portal_company_ids", None)
@@ -21,12 +21,19 @@ def ticket_attachment_download(request, pk):
         request.user,
         attachment.ticket,
         company_ids=scope_ids,
+        attachment=attachment,
     ):
         raise Http404()
-    if not attachment.file:
+    # Prefer canonical archive file when linked.
+    file_field = None
+    if attachment.document_id and getattr(attachment.document, "file", None):
+        file_field = attachment.document.file
+    elif attachment.file:
+        file_field = attachment.file
+    if not file_field:
         raise Http404()
     return FileResponse(
-        attachment.file.open("rb"),
+        file_field.open("rb"),
         as_attachment=True,
-        filename=attachment.file.name.rsplit("/", 1)[-1],
+        filename=file_field.name.rsplit("/", 1)[-1],
     )

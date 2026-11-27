@@ -125,11 +125,17 @@ def _wrap(text: str, width: int) -> list[str]:
     return rows or [""]
 
 
-def ensure_offer_version_pdf(version, *, force: bool = False):
-    """Generate and attach default PDF to OfferVersion.pdf_file."""
+def ensure_offer_version_pdf(version, *, force: bool = False, actor=None):
+    """Generate and attach default PDF to OfferVersion.pdf_file; mirror into Document archive."""
     if version.pdf_file and not force:
+        from apps.documents.crm_bridge import register_offer_version_pdf
+
+        register_offer_version_pdf(version, actor=actor)
         return version
     data = build_offer_pdf_bytes(version)
     name = f"offer_{version.offer_id}_v{version.version_number}.pdf"
     version.pdf_file.save(name, ContentFile(data), save=True)
+    from apps.documents.crm_bridge import register_offer_version_pdf
+
+    register_offer_version_pdf(version, actor=actor)
     return version

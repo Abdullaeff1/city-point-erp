@@ -754,13 +754,130 @@ def notify_portal_checkout_overdue(visit: GuestVisit) -> int:
 
 
 def process_portal_checkout_overdue_alerts(*, now=None) -> dict:
-    """Scheduler body: notify for each overdue cardless visit; safe to re-run."""
+    """Scheduler body: cardless portal overdue only; safe to re-run."""
     now = now or timezone.now()
     visits = list(portal_cardless_overdue_queryset(now=now))
     created = 0
     for visit in visits:
         created += notify_portal_checkout_overdue(visit)
-    return {"visits": len(visits), "notifications_created": created, "as_of": now.isoformat()}
+    return {
+        "visits": len(visits),
+        "notifications_created": created,
+        "as_of": now.isoformat(),
+        "kind": "portal_cardless",
+    }
+
+
+def is_id_held_inside_overdue(visit: GuestVisit, *, now=None) -> bool:
+    """True when visit is still INSIDE with ID held past check-in + 24h (inclusive boundary)."""
+    if visit.status != VisitStatus.INSIDE:
+        return False
+    if not visit.id_document_held:
+        return False
+    now = now or timezone.now()
+    start = visit.check_in_at or visit.created_at
+    if start is None:
+        return False
+    return start <= now - timedelta(hours=24)
+
+
+def id_held_inside_overdue_queryset(*, now=None):
+    """INSIDE visits with retained ID past the 24h check-in boundary."""
+    cutoff = (now or timezone.now()) - timedelta(hours=24)
+    return (
+        GuestVisit.objects.filter(status=VisitStatus.INSIDE, id_document_held=True)
+        .filter(
+            Q(check_in_at__lte=cutoff)
+            | Q(check_in_at__isnull=True, created_at__lte=cutoff)
+        )
+        .select_related("guest", "company")
+        .order_by("check_in_at", "id")
+    )
+
+
+ID_HELD_OVERDUE_EVENT_PREFIX = "visitor.id_held_overdue."
+
+
+def id_held_overdue_event_key(visit_id: int, user_id: int, *, role_tag: str) -> str:
+    return f"{ID_HELD_OVERDUE_EVENT_PREFIX}{visit_id}.{role_tag}.{user_id}"
+
+
+def id_held_overdue_staff_recipients():
+    """Active Reception + Security users (stable pk order). Display name only in alerts."""
+    from django.contrib.auth import get_user_model
+
+    from apps.accounts.models import Role
+
+    User = get_user_model()
+    return User.objects.filter(
+        is_active=True,
+        role__in=(Role.RECEPTION, Role.SECURITY),
+    ).order_by("pk")
+
+
+def notify_id_held_inside_overdue(visit: GuestVisit) -> int:
+    """One in-app alert per Reception/Security recipient × visit (idempotent).
+
+    Distinct from cardless portal overdue and from RETURN_PENDING (known departure).
+    Reading the alert does not close the visit or mark ID returned.
+    """
+    from apps.accounts.models import Role
+    from apps.comms.models import Notification
+    from apps.comms.services import notify_in_app
+
+    if not is_id_held_inside_overdue(visit):
+        return 0
+    label = visit.guest.display_name if visit.guest_id else str(visit.pk)
+    created = 0
+    for user in id_held_overdue_staff_recipients():
+        role_tag = "rec" if user.role == Role.RECEPTION else "sec"
+        key = id_held_overdue_event_key(visit.pk, user.pk, role_tag=role_tag)
+        existed = Notification.objects.filter(user=user, event_key=key).exists()
+        if user.role == Role.RECEPTION:
+            message = f"24 saat+ içəridə — vəsiqə hələ Reception-dadır: {label}"
+        else:
+            message = f"24 saat+ içəridə — vəsiqə saxlanılır (Security izləmə): {label}"
+        note = notify_in_app(user=user, message=message, event_key=key)
+        if note is not None and not existed:
+            created += 1
+    return created
+
+
+def process_id_held_inside_overdue_alerts(*, now=None) -> dict:
+    """Scheduler body: INSIDE + ID held past 24h → Reception/Security once each."""
+    now = now or timezone.now()
+    visits = list(id_held_inside_overdue_queryset(now=now))
+    created = 0
+    for visit in visits:
+        created += notify_id_held_inside_overdue(visit)
+    return {
+        "visits": len(visits),
+        "notifications_created": created,
+        "as_of": now.isoformat(),
+        "kind": "id_held_inside",
+    }
+
+
+def process_guest_overdue_alerts(*, now=None) -> dict:
+    """Combined poller: cardless→portal + ID-held→Reception/Security. Safe to re-run.
+
+    RETURN_PENDING (known departure, ID still held) is a separate event path —
+    not labelled as inside overdue.
+    """
+    now = now or timezone.now()
+    portal = process_portal_checkout_overdue_alerts(now=now)
+    id_held = process_id_held_inside_overdue_alerts(now=now)
+    return {
+        "as_of": now.isoformat(),
+        "portal_visits": portal["visits"],
+        "portal_notifications_created": portal["notifications_created"],
+        "id_held_visits": id_held["visits"],
+        "id_held_notifications_created": id_held["notifications_created"],
+        "visits": portal["visits"] + id_held["visits"],
+        "notifications_created": (
+            portal["notifications_created"] + id_held["notifications_created"]
+        ),
+    }
 
 
 @transaction.atomic

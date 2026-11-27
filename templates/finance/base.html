@@ -26,6 +26,7 @@
       <a class="{% nav_active 'invoices' 'invoice_detail' 'invoices_export' %}" href="{% url 'finance:invoices' %}"><i data-lucide="file-text" width="18" height="18"></i><span class="cp-nav-text">{% translate "Fakturalar" %}</span></a>
       <div class="cp-nav-label">{% translate "DEBİTORLAR" %}</div>
       <a class="{% nav_active 'payments' %}" href="{% url 'finance:payments' %}"><i data-lucide="banknote" width="18" height="18"></i><span class="cp-nav-text">{% translate "Ödənişlər" %}</span></a>
+      <a class="{% nav_active 'payment_evidence' %}" href="{% url 'finance:payment_evidence' %}"><i data-lucide="file-check" width="18" height="18"></i><span class="cp-nav-text">{% translate "Ödəniş sənədləri" %}</span></a>
       <a class="{% nav_active 'aging' 'aging_export' %}" href="{% url 'finance:aging' %}"><i data-lucide="clock" width="18" height="18"></i><span class="cp-nav-text">{% translate "Aging" %}</span></a>
       <div class="cp-nav-label">{% translate "KREDİTORLAR" %}</div>
       <a class="{% nav_active 'payables' 'payable_detail' 'payable_create' %}" href="{% url 'finance:payables' %}"><i data-lucide="receipt" width="18" height="18"></i><span class="cp-nav-text">{% translate "Podratçı fakturaları" %}</span></a>

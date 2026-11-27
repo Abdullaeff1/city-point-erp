@@ -118,7 +118,11 @@ class Phase9ProcurementAcceptanceTests(TestCase):
                 actor=self.fm,
                 line_qtys={line_id: "1"},
             )
-        self.assertIn("qalan", str(ctx.exception).lower())
+        msg = str(ctx.exception).lower()
+        self.assertTrue(
+            "sərbəst" in msg or "qalan" in msg,
+            msg=f"expected free/remaining qty block, got: {ctx.exception}",
+        )
     def test_two_supplier_comparison_totals(self):
         """Scenario P9-A (comparison only): 10 filters + 5 L oil — not the receipt journey PR."""
         pr = ProcurementService.create_manual_pr(

@@ -319,7 +319,9 @@ class ProcurementPRDetailView(PermissionRequiredMixin, StaffRequiredMixin, Templ
 
     def get_pr(self):
         return get_object_or_404(
-            PurchaseRequest.objects.select_related("work_order", "requested_by").prefetch_related(
+            PurchaseRequest.objects.select_related(
+                "work_order", "requested_by", "source_po"
+            ).prefetch_related(
                 "lines__sku", "rfqs", "purchase_orders__supplier_party"
             ),
             code=self.kwargs["code"],
@@ -386,18 +388,28 @@ class ProcurementPODetailView(PermissionRequiredMixin, StaffRequiredMixin, Templ
 
     def get_po(self):
         return get_object_or_404(
-            PurchaseOrder.objects.select_related("supplier_party", "pr").prefetch_related("lines__sku"),
+            PurchaseOrder.objects.select_related(
+                "supplier_party", "pr", "source_po"
+            ).prefetch_related("lines__sku"),
             code=self.kwargs["code"],
         )
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         po = self.get_po()
+        can_reorder = False
+        if _can_edit(self.request.user):
+            try:
+                ProcurementService.assert_can_reorder_po(self.request.user, po)
+                can_reorder = True
+            except DomainError:
+                can_reorder = False
         ctx.update(
             {
                 "po": po,
                 "warehouses": Warehouse.objects.order_by("code"),
                 "can_edit_procurement": _can_edit(self.request.user),
+                "can_reorder_from_po": can_reorder,
                 "submit_token": uuid.uuid4().hex,
                 "operation_key": uuid.uuid4().hex,
                 "can_receive": po.status in {POStatus.SENT, POStatus.PARTIAL},
@@ -465,6 +477,143 @@ class ProcurementPODetailView(PermissionRequiredMixin, StaffRequiredMixin, Templ
         except (DomainError, ValueError, InvalidOperation) as exc:
             messages.error(request, str(exc))
         return redirect("erp:procurement_po_detail", code=po.code)
+
+
+class ProcurementPOReorderView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
+    """GET: əvvəlcədən doldurulmuş forma (DB yazmır). POST: yeni müstəqil PR."""
+
+    template_name = "erp/procurement_po_reorder_form.html"
+    permission_required = "procurement.edit"
+    permission_denied_message = "Təkrar alış icazəniz yoxdur."
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and not _can_edit(request.user):
+            raise PermissionDenied(_("Təkrar alış icazəniz yoxdur."))
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_po(self):
+        return get_object_or_404(
+            PurchaseOrder.objects.select_related("supplier_party", "pr").prefetch_related(
+                "lines__sku", "lines__pr_line"
+            ),
+            code=self.kwargs["code"],
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        po = self.get_po()
+        try:
+            ProcurementService.assert_can_reorder_po(self.request.user, po)
+        except DomainError as exc:
+            raise PermissionDenied(str(exc)) from exc
+        rows = ProcurementService.reorder_form_rows(po)
+        # Keep posted values on validation error
+        posted_rows = kwargs.get("posted_rows")
+        if posted_rows is not None:
+            rows = posted_rows
+        total = Decimal("0")
+        for r in rows:
+            price = r.get("unit_price")
+            qty = r.get("qty") or Decimal("0")
+            if price is not None and str(price).strip() != "":
+                try:
+                    total += Decimal(str(qty)) * Decimal(str(price))
+                except (InvalidOperation, TypeError, ValueError):
+                    pass
+        ctx.update(
+            {
+                "po": po,
+                "rows": rows,
+                "currency": "AZN",
+                "line_total": total.quantize(Decimal("0.01")),
+                "submit_token": uuid.uuid4().hex,
+                "title_default": f"Təkrar alış — {po.code}",
+                "skus": SKU.objects.order_by("code")[:500],
+            }
+        )
+        return ctx
+
+    def _parse_posted_lines(self, request) -> list[dict]:
+        lines = []
+        for i in range(40):
+            prefix = f"line_{i}_"
+            if f"{prefix}description" not in request.POST and f"{prefix}qty" not in request.POST:
+                # allow sparse indices when rows removed client-side
+                if not any(k.startswith(prefix) for k in request.POST):
+                    continue
+            desc = (request.POST.get(f"{prefix}description") or "").strip()
+            sku_id = request.POST.get(f"{prefix}sku_id") or None
+            qty = request.POST.get(f"{prefix}qty") or ""
+            unit = request.POST.get(f"{prefix}unit") or "pcs"
+            price_raw = request.POST.get(f"{prefix}unit_price")
+            if not desc and not sku_id and not str(qty).strip():
+                continue
+            row = {
+                "description": desc,
+                "sku_id": sku_id,
+                "qty": qty or "0",
+                "unit": unit,
+                "source_po_line_id": request.POST.get(f"{prefix}source_po_line_id") or None,
+            }
+            if price_raw is not None and str(price_raw).strip() != "":
+                row["unit_price"] = str(price_raw).replace(",", ".")
+            else:
+                row["unit_price"] = None
+            lines.append(row)
+        return lines
+
+    def post(self, request, *args, **kwargs):
+        if not _can_edit(request.user):
+            raise PermissionDenied(_("Təkrar alış icazəniz yoxdur."))
+        po = self.get_po()
+        token = (request.POST.get("submit_token") or "").strip()
+        session_key = f"proc_po_reorder_{po.code}"
+        if token and request.session.get(session_key) == token:
+            last = request.session.get(f"{session_key}_pr")
+            if last:
+                messages.info(request, _("Bu forma artıq göndərilib."))
+                return redirect("erp:procurement_pr_detail", code=last)
+        lines = self._parse_posted_lines(request)
+        try:
+            pr = ProcurementService.reorder_from_po(
+                po,
+                actor=request.user,
+                lines=lines,
+                title=request.POST.get("title") or "",
+                notes=request.POST.get("notes") or "",
+            )
+        except DomainError as exc:
+            messages.error(request, str(exc))
+            posted_rows = []
+            for ln in lines:
+                posted_rows.append(
+                    {
+                        "source_po_line_id": ln.get("source_po_line_id"),
+                        "sku_id": ln.get("sku_id"),
+                        "sku_code": "",
+                        "description": ln.get("description") or "",
+                        "qty": ln.get("qty") or "",
+                        "unit": ln.get("unit") or "pcs",
+                        "unit_price": ln.get("unit_price"),
+                        "last_unit_price": ln.get("unit_price"),
+                        "price_known": ln.get("unit_price") is not None,
+                        "issues": [],
+                        "needs_fix": False,
+                    }
+                )
+            return self.render_to_response(
+                self.get_context_data(posted_rows=posted_rows)
+            )
+        if token:
+            request.session[session_key] = token
+            request.session[f"{session_key}_pr"] = pr.code
+            request.session.modified = True
+        messages.success(
+            request,
+            _("Təkrar alış yaradıldı: %(code)s (mənbə %(src)s)")
+            % {"code": pr.code, "src": po.code},
+        )
+        return redirect("erp:procurement_pr_detail", code=pr.code)
 
 
 class ProcurementSupplierListView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView):
@@ -827,9 +976,24 @@ class ProcurementRFQDetailView(PermissionRequiredMixin, StaffRequiredMixin, Temp
                     parts = str(pair).split(":")
                     if len(parts) != 2:
                         continue
-                    selections.append(
-                        {"pr_line_id": int(parts[0]), "quote_line_id": int(parts[1])}
-                    )
+                    pr_line_id, quote_line_id = int(parts[0]), int(parts[1])
+                    qty_raw = (
+                        request.POST.get(f"award_qty_{pr_line_id}_{quote_line_id}")
+                        or request.POST.get(f"award_qty_{pr_line_id}")
+                        or ""
+                    ).strip()
+                    reason_cell = (
+                        request.POST.get(f"award_reason_{pr_line_id}_{quote_line_id}")
+                        or ""
+                    ).strip()
+                    sel = {
+                        "pr_line_id": pr_line_id,
+                        "quote_line_id": quote_line_id,
+                        "reason": reason_cell,
+                    }
+                    if qty_raw:
+                        sel["qty"] = qty_raw
+                    selections.append(sel)
                 awards = ProcurementService.award_pr_lines(
                     rfq.pr,
                     selections,
@@ -839,6 +1003,31 @@ class ProcurementRFQDetailView(PermissionRequiredMixin, StaffRequiredMixin, Temp
                 messages.success(
                     request, _("Mükafatlandı: %(n)s sətir") % {"n": len(awards)}
                 )
+            elif action == "release_award":
+                require_permission(
+                    request.user, "procurement.edit", message=_("Mükafat icazəniz yoxdur.")
+                )
+                from django.db import transaction as db_transaction
+
+                from apps.procurement.models import PRLineAward
+
+                award_id = int(request.POST.get("award_id") or 0)
+                with db_transaction.atomic():
+                    award = (
+                        PRLineAward.objects.select_for_update()
+                        .filter(
+                            pk=award_id,
+                            pr_id=rfq.pr_id,
+                            is_active=True,
+                            po_line__isnull=True,
+                        )
+                        .first()
+                    )
+                    if award is None:
+                        raise DomainError(_("Buraxılacaq aktiv mükafat tapılmadı."))
+                    award.is_active = False
+                    award.save(update_fields=["is_active"])
+                messages.success(request, _("Mükafat buraxıldı (tarixçə saxlanıldı)."))
             elif action == "create_pos_from_awards":
                 require_permission(
                     request.user, "procurement.edit", message=_("PO yaratmaq icazəniz yoxdur.")

@@ -52,10 +52,7 @@ class Command(BaseCommand):
             self.stdout.write(f"connected cursor={cursor} new=0")
         self.stdout.flush()
 
-    def handle(self, *args, **options):
-        interval = options["interval"] or int(os.environ.get("AXTRAX_POLL_INTERVAL", "15"))
-        lookback = int(os.environ.get("AXTRAX_POLL_LOOKBACK_HOURS", "48"))
-        people_every = int(os.environ.get("AXTRAX_PEOPLE_SYNC_INTERVAL", "300"))
+    def _run_loop(self, *, once: bool, interval: int, lookback: int, people_every: int, skip_people: bool):
         last_people = 0.0
 
         self.stdout.write(
@@ -65,7 +62,7 @@ class Command(BaseCommand):
         self.stdout.flush()
 
         # Always attempt connection immediately on process start.
-        if not options["skip_people_bootstrap"] and people_every > 0:
+        if not skip_people and people_every > 0:
             self.stdout.write("AxTrax bootstrap: people/companies/cards sync…")
             self.stdout.flush()
             if self._sync_people():
@@ -77,7 +74,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"AxTrax poll error: {exc}"))
             self.stdout.flush()
 
-        if options["once"]:
+        if once:
             return
 
         while True:
@@ -97,3 +94,45 @@ class Command(BaseCommand):
             if (now - last_people) >= due_in:
                 last_people = now
                 self._sync_people()
+
+    def handle(self, *args, **options):
+        interval = options["interval"] or int(os.environ.get("AXTRAX_POLL_INTERVAL", "15"))
+        lookback = int(os.environ.get("AXTRAX_POLL_LOOKBACK_HOURS", "48"))
+        people_every = int(os.environ.get("AXTRAX_PEOPLE_SYNC_INTERVAL", "300"))
+        once = bool(options["once"])
+        skip_people = bool(options["skip_people_bootstrap"])
+        # Production: unexpected exit → restart loop so RO əlaqə daim saxlanılır.
+        restart = (not once) and (os.environ.get("AXTRAX_POLL_RESTART", "1").strip() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        })
+        try:
+            restart_delay = max(3, int(os.environ.get("AXTRAX_POLL_RESTART_DELAY", "5")))
+        except (TypeError, ValueError):
+            restart_delay = 5
+
+        while True:
+            try:
+                self._run_loop(
+                    once=once,
+                    interval=interval,
+                    lookback=lookback,
+                    people_every=people_every,
+                    skip_people=skip_people,
+                )
+                if once or not restart:
+                    return
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"AxTrax poller loop ended unexpectedly — restart in {restart_delay}s"
+                    )
+                )
+                self.stdout.flush()
+            except Exception as exc:  # noqa: BLE001
+                if once or not restart:
+                    raise
+                self.stdout.write(self.style.ERROR(f"AxTrax poller crashed: {exc}"))
+                self.stdout.flush()
+            time.sleep(restart_delay)

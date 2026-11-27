@@ -81,11 +81,16 @@ def can_mutate_ticket(user, ticket) -> bool:
     return can_view_ticket(user, ticket)
 
 
-def can_access_ticket_attachment(user, ticket, *, company_ids=None) -> bool:
-    """Staff: department view. Resident: ticket company in membership/session scope."""
+def can_access_ticket_attachment(user, ticket, *, company_ids=None, attachment=None) -> bool:
+    """Staff: department view. Resident: company scope AND attachment explicitly portal-visible.
+
+    A shared ticket / company link never publishes an internal staff file.
+    """
     if not user or not getattr(user, "is_authenticated", False) or ticket is None:
         return False
     if getattr(user, "role", None) == Role.RESIDENT_USER:
+        if attachment is not None and not getattr(attachment, "visible_to_resident", False):
+            return False
         from apps.accounts.object_scope import company_accessible
 
         return company_accessible(user, ticket.company_id, company_ids=company_ids)

@@ -327,8 +327,19 @@ def build_hr_dashboard(user) -> dict:
     ]
     guests_inside = GuestVisit.objects.filter(scheduled_for=today, status=VisitStatus.INSIDE).count()
 
+    from apps.residents.attendance import late_employees_for_day
+
+    _late_rows, late_count, _sched_note, _roster = late_employees_for_day(
+        day=today, roster="active"
+    )
     board["kpis"] = [
         _kpi(_("Daxili işçilər"), internal_count, url=reverse("erp:internal_staff_access")),
+        _kpi(
+            _("Bu gün gecikənlər"),
+            late_count,
+            url=reverse("erp:internal_staff_access")
+            + f"?date={today.isoformat()}&late=1",
+        ),
         _kpi(
             _("CP içəridə"),
             len(cp_inside),
@@ -362,6 +373,12 @@ def build_hr_dashboard(user) -> dict:
     board["notifications"] = _user_notifications(user)
     actions = [
         _link(_("CP işçilər"), "erp:internal_staff_access", icon="id-card"),
+        {
+            "label": _("Bu gün gecikənlər"),
+            "url": reverse("erp:internal_staff_access")
+            + f"?date={today.isoformat()}&late=1",
+            "icon": "clock",
+        },
         _link(_("İçəridə (ümumi)"), "erp:people_inside", icon="users"),
     ]
     board["quick_actions"] = [a for a in actions if a]

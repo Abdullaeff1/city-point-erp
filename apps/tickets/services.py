@@ -616,12 +616,21 @@ def set_enrichment_notes(ticket, *, actor, notes):
     return ticket
 
 
-def attach_ticket_file(ticket, *, actor, upload):
+def attach_ticket_file(ticket, *, actor, upload, visible_to_resident: bool = False):
+    """Staff upload — defaults to internal (not portal-visible). Portal uses ``visible_to_resident=True``."""
     if not can_mutate_ticket(actor, ticket):
         raise DomainError(_("Fayl əlavə etmək icazəsi yoxdur."))
     if not upload:
         raise DomainError(_("Fayl seçilməyib."))
-    return TicketAttachment.objects.create(ticket=ticket, file=upload)
+    from apps.documents.ticket_bridge import register_ticket_attachment
+
+    attachment, _document = register_ticket_attachment(
+        ticket=ticket,
+        upload=upload,
+        actor=actor,
+        visible_to_resident=visible_to_resident,
+    )
+    return attachment
 
 
 def delete_ticket(ticket, *, actor, company_ids=None):
@@ -632,9 +641,21 @@ def delete_ticket(ticket, *, actor, company_ids=None):
         raise DomainError(_("Ticket silmək icazəsi yoxdur."))
     code = ticket.code
     with transaction.atomic():
-        for attachment in ticket.attachments.all():
+        from apps.documents.services import DocumentService
+
+        for attachment in ticket.attachments.select_related("document").all():
             if attachment.file:
                 attachment.file.delete(save=False)
+            if attachment.document_id:
+                try:
+                    DocumentService.delete_document(attachment.document, actor=actor)
+                except Exception:  # noqa: BLE001
+                    pass
+        for doc in ticket.documents.all():
+            try:
+                DocumentService.delete_document(doc, actor=actor)
+            except Exception:  # noqa: BLE001
+                pass
         ticket.delete()
     return code
 

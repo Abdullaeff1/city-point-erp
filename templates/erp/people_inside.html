@@ -7,6 +7,11 @@
  ({% blocktranslate with emp=employee_rows|length guests=guest_rows|length companies=inside_company_count|default:0 %}{{ emp }} əməkdaş · {{ guests }} qonaq · {{ companies }} şirkət{% endblocktranslate %})
 {% endblock %}
 {% block content %}
+{% if axtrax_refresh and axtrax_refresh.message %}
+<p class="cp-card p-card-sm mb-3"{% if axtrax_refresh.error %} style="border-color:var(--cp-danger,#b91c1c);"{% endif %}>
+  {% translate "AxTrax" %}: {{ axtrax_refresh.message }}
+</p>
+{% endif %}
 <p class="mb-3" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
   <a class="cp-btn" id="people-inside-export" href="{% url 'erp:people_inside_export' %}">{% translate "Excel yüklə" %}</a>
   <span class="cp-meta">{% translate "Şirkət adına görə qruplaşdırılıb" %}</span>

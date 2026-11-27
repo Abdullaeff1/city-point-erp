@@ -246,7 +246,10 @@ class PeopleInsideView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView
     permission_denied_message = "Binada olanlara baxış icazəniz yoxdur."
 
     def get_context_data(self, **kwargs):
+        from apps.integrations.axtrax_on_demand import maybe_refresh_axtrax_from_view
+
         ctx = super().get_context_data(**kwargs)
+        axtrax_refresh = maybe_refresh_axtrax_from_view()
         employees, guest_rows, today = people_inside_snapshot()
         ctx.update(
             {
@@ -255,6 +258,7 @@ class PeopleInsideView(PermissionRequiredMixin, StaffRequiredMixin, TemplateView
                 "guest_rows": guest_rows,
                 "inside_total": len(employees) + len(guest_rows),
                 "inside_company_count": people_inside_company_count(employees, guest_rows),
+                "axtrax_refresh": axtrax_refresh,
             }
         )
         return ctx
@@ -1903,8 +1907,11 @@ class ResidentEmployeeAccessDetailView(RoleRequiredMixin, TemplateView):
             if not employee.is_active:
                 messages.info(request, _("Əməkdaş artıq deaktivdir."))
             else:
-                deactivate_resident_employee(employee, actor=request.user, clear_card=True)
-                messages.success(request, _("Əməkdaş deaktiv edildi (kart təmizləndi)."))
+                deactivate_resident_employee(employee, actor=request.user, clear_card=False)
+                messages.success(
+                    request,
+                    _("Əməkdaş deaktiv edildi. Kart nömrəsi arxivdə saxlanıldı."),
+                )
         return redirect(
             "erp:resident_employee_access",
             slug=employee.company.slug,
@@ -1941,16 +1948,43 @@ class InternalStaffAccessView(PermissionRequiredMixin, RoleRequiredMixin, Templa
     def get_context_data(self, **kwargs):
         from django.core.paginator import Paginator
 
+        from apps.integrations.axtrax_on_demand import maybe_refresh_axtrax_from_view
+        from apps.residents.attendance import (
+            DEFAULT_SCHEDULE_NOTE,
+            late_employees_for_day,
+        )
+
         ctx = super().get_context_data(**kwargs)
+        axtrax_refresh = maybe_refresh_axtrax_from_view()
         company = self.get_company()
         today = timezone.localdate()
         selected_date = parse_date(self.request.GET.get("date"), today)
         q = (self.request.GET.get("q") or "").strip()
+        late_only = (self.request.GET.get("late") or "").strip() in {"1", "true", "yes"}
         base = company.employees.all().order_by("full_name")
         if q:
             base = base.filter(Q(full_name__icontains=q) | Q(card_number__icontains=q))
         employees, roster = employee_roster_qs(base, self.request.GET.get("roster"))
-        rows, inside, left, present = build_employee_access_rows(employees, selected_date)
+        # Late card uses the same day + roster (without search) so the count is stable.
+        late_rows_all, late_count, schedule_note, _ = late_employees_for_day(
+            day=selected_date,
+            roster=roster,
+            q="",
+        )
+        if late_only:
+            late_filtered, late_count_filtered, _, _ = late_employees_for_day(
+                day=selected_date, roster=roster, q=q
+            )
+            # Card count stays unfiltered by q; list follows search when late=1.
+            rows = late_filtered
+            inside = left = present = 0
+            for r in late_rows_all:
+                att = r["attendance"]
+                if att.has_punch:
+                    present += 1
+        else:
+            rows, inside, left, present = build_employee_access_rows(employees, selected_date)
+            late_count_filtered = late_count
         page = Paginator(rows, self.page_size).get_page(self.request.GET.get("page") or "1")
         export_preset, export_from, export_to = access_range_bounds(
             self.request, default_preset="month"
@@ -1979,6 +2013,11 @@ class InternalStaffAccessView(PermissionRequiredMixin, RoleRequiredMixin, Templa
                     self.request.user, "residents.export_access"
                 ),
                 "total_employees": len(rows),
+                "late_only": late_only,
+                "late_count": late_count,
+                "late_count_filtered": late_count_filtered,
+                "schedule_note": schedule_note or DEFAULT_SCHEDULE_NOTE,
+                "axtrax_refresh": axtrax_refresh,
             }
         )
         return ctx
@@ -2027,17 +2066,234 @@ class InternalStaffAccessDetailView(PermissionRequiredMixin, RoleRequiredMixin, 
         )
 
     def get_context_data(self, **kwargs):
+        from datetime import timedelta
+        from urllib.parse import urlencode
+
+        from django.urls import reverse
+
+        from apps.integrations.axtrax_on_demand import maybe_refresh_axtrax_from_view
+        from apps.residents.access import employee_day_flaps
+        from apps.residents.attendance import (
+            DEFAULT_SCHEDULE_NOTE,
+            employee_period_report,
+            resolve_attendance_period,
+        )
+        from apps.residents.models import AccessEventType
+
         ctx = super().get_context_data(**kwargs)
+        axtrax_refresh = maybe_refresh_axtrax_from_view()
         employee = self.get_employee()
-        period = employee_access_period_context(employee, self.request, default_preset="today")
+        today = timezone.localdate()
+        bounds = resolve_attendance_period(self.request, default_preset="today")
+        preset = bounds["preset"]
+        date_from = bounds["date_from"]
+        date_to = bounds["date_to"]
+        late_only = bounds["late_only"]
+        period_error = bounds["error"]
+
+        attendance_report = employee_period_report(
+            employee=employee,
+            date_from=date_from,
+            date_to=date_to,
+            late_only=late_only,
+        )
+        flaps = []
+        in_count = out_count = 0
+        if bounds["single_day"]:
+            flaps = employee_day_flaps(employee, date_from)
+            in_count = sum(1 for e in flaps if e.event_type == AccessEventType.IN)
+            out_count = len(flaps) - in_count
+
+        prev_week = date_from - timedelta(days=7)
+        next_week = date_from + timedelta(days=7)
+
+        attendance_export_url = reverse(
+            "erp:internal_staff_attendance_export", kwargs={"pk": employee.pk}
+        )
+        employee_export_url = reverse(
+            "erp:internal_staff_employee_export", kwargs={"pk": employee.pk}
+        )
+        whatsapp_preview_url = reverse(
+            "erp:internal_staff_whatsapp_preview", kwargs={"pk": employee.pk}
+        )
+
+        # Back to late/access list — restore date, late filter, search, page, roster.
+        return_late = (self.request.GET.get("return_late") or "").strip() in {
+            "1",
+            "true",
+            "yes",
+        }
+        return_roster = (self.request.GET.get("return_roster") or "active").strip() or "active"
+        return_q = (self.request.GET.get("return_q") or "").strip()
+        return_page = (self.request.GET.get("return_page") or "").strip()
+        return_date = (self.request.GET.get("return_date") or date_from.isoformat()).strip()
+        back_params = {"roster": return_roster, "date": return_date}
+        if return_late:
+            back_params["late"] = "1"
+        if return_q:
+            back_params["q"] = return_q
+        if return_page and return_page != "1":
+            back_params["page"] = return_page
+        back_to_list_url = (
+            reverse("erp:internal_staff_access") + "?" + urlencode(back_params)
+        )
+
+        export_qs = {
+            "range": preset,
+            "content": "late" if late_only else "all",
+        }
+        if preset == "today":
+            export_qs["date"] = date_from.isoformat()
+        elif preset == "week":
+            export_qs["week_start"] = date_from.isoformat()
+        elif preset == "month":
+            export_qs["year"] = str(date_from.year)
+            export_qs["month"] = str(date_from.month)
+        elif preset == "year":
+            export_qs["year"] = str(date_from.year)
+        elif preset == "custom":
+            export_qs["from"] = date_from.isoformat()
+            export_qs["to"] = date_to.isoformat()
+
+        # Drill-down from period table → daily flaps; back restores prior period.
+        period_back_url = ""
+        from_range = (self.request.GET.get("from_range") or "").strip()
+        if bounds["single_day"] and from_range in {"week", "month", "year", "custom"}:
+            back = {"range": from_range, "content": "late" if late_only else "all"}
+            if return_late:
+                back["return_late"] = "1"
+            for key in ("return_roster", "return_date", "return_q", "return_page"):
+                val = (self.request.GET.get(key) or "").strip()
+                if val:
+                    back[key] = val
+            if from_range == "week":
+                back["week_start"] = (
+                    self.request.GET.get("from_week_start") or date_from.isoformat()
+                )
+            elif from_range == "month":
+                back["year"] = self.request.GET.get("from_year") or str(date_from.year)
+                back["month"] = self.request.GET.get("from_month") or str(date_from.month)
+            elif from_range == "year":
+                back["year"] = self.request.GET.get("from_year") or str(date_from.year)
+            elif from_range == "custom":
+                back["from"] = self.request.GET.get("from_from") or date_from.isoformat()
+                back["to"] = self.request.GET.get("from_to") or date_from.isoformat()
+            period_back_url = "?" + urlencode(back)
+
         ctx.update(
             {
                 "employee": employee,
-                **period,
-                "today": timezone.localdate(),
+                "preset": preset,
+                "date_from": date_from,
+                "date_to": date_to,
+                "single_day": bounds["single_day"],
+                "late_only": late_only,
+                "period_error": period_error,
+                "flaps": flaps,
+                "in_count": in_count,
+                "out_count": out_count,
+                "today": today,
                 "can_export_access": user_has_permission(
                     self.request.user, "residents.export_access"
                 ),
+                "attendance_report": attendance_report,
+                "schedule_note": attendance_report.get("schedule_note")
+                or DEFAULT_SCHEDULE_NOTE,
+                "prev_week_start": prev_week,
+                "next_week_start": next_week,
+                "axtrax_refresh": axtrax_refresh,
+                "attendance_export_url": attendance_export_url,
+                "employee_export_url": employee_export_url,
+                "whatsapp_preview_url": whatsapp_preview_url,
+                "back_to_list_url": back_to_list_url,
+                "return_late": return_late,
+                "export_query": urlencode(export_qs),
+                "department": "—",
+                "period_back_url": period_back_url,
+            }
+        )
+        return ctx
+
+
+class InternalStaffAttendanceExportView(PermissionRequiredMixin, RoleRequiredMixin, View):
+    """Rəhbərlik: bir işçi üçün gecikmə/binada-olma Excel (ekran ilə eyni hesab)."""
+
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+    permission_required = "hr.view"
+    permission_denied_message = "HR / daxili işçilərə baxış icazəniz yoxdur."
+
+    def get(self, request, pk):
+        from apps.residents.attendance import (
+            attendance_xlsx_bytes,
+            attendance_xlsx_filename,
+            resolve_attendance_period,
+        )
+
+        employee = get_object_or_404(
+            ResidentEmployee, pk=pk, company__slug="city-point"
+        )
+        bounds = resolve_attendance_period(request, default_preset="week")
+        from apps.residents.attendance import employee_period_report
+
+        report = employee_period_report(
+            employee=employee,
+            date_from=bounds["date_from"],
+            date_to=bounds["date_to"],
+            late_only=bounds["late_only"],
+        )
+        data = attendance_xlsx_bytes(
+            employee=employee,
+            date_from=bounds["date_from"],
+            date_to=bounds["date_to"],
+            late_only=bounds["late_only"],
+            report=report,
+        )
+        filename = attendance_xlsx_filename(
+            employee=employee,
+            date_from=bounds["date_from"],
+            date_to=bounds["date_to"],
+            late_only=bounds["late_only"],
+        )
+        response = HttpResponse(
+            data,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return response
+
+
+class InternalStaffWhatsAppPreviewView(PermissionRequiredMixin, RoleRequiredMixin, TemplateView):
+    """Həftəlik şəxsi xülasə önizləməsi — canlı WhatsApp göndərişi yoxdur."""
+
+    template_name = "erp/internal_staff_whatsapp_preview.html"
+    allowed_roles = (Role.ADMIN, Role.MANAGEMENT)
+    permission_required = "hr.view"
+    permission_denied_message = "HR / daxili işçilərə baxış icazəniz yoxdur."
+
+    def get_context_data(self, **kwargs):
+        from datetime import datetime as dt
+
+        from apps.residents.attendance import whatsapp_week_summary_text, week_bounds
+
+        ctx = super().get_context_data(**kwargs)
+        employee = get_object_or_404(
+            ResidentEmployee, pk=self.kwargs["pk"], company__slug="city-point"
+        )
+        raw = (self.request.GET.get("week_start") or "").strip()
+        anchor = timezone.localdate()
+        if raw:
+            try:
+                anchor = dt.strptime(raw, "%Y-%m-%d").date()
+            except ValueError:
+                pass
+        start, _end = week_bounds(anchor)
+        payload = whatsapp_week_summary_text(employee=employee, week_start=start)
+        ctx.update(
+            {
+                "employee": employee,
+                "wa": payload,
+                "week_start": payload["week_start"],
+                "week_end": payload["week_end"],
             }
         )
         return ctx
@@ -2081,22 +2337,105 @@ class AuditLogView(StaffRequiredMixin, TemplateView):
 
 
 class DocumentsView(PermissionRequiredMixin, StaffRequiredMixin, ListView):
+    """Private document archive — global browse is Management/Admin only (Decision 08).
+
+    Department staff still POST ``submit_approval`` from their module flows but never get the
+    global archive list.
+    """
+
     template_name = "erp/documents.html"
-    queryset = Document.objects.select_related("company", "space", "document_type")
     context_object_name = "documents"
     permission_required = "document.view"
     permission_denied_message = "Sənədlərə baxış icazəniz yoxdur."
+    paginate_by = 50
+
+    def _filters(self):
+        from apps.documents.archive import parse_archive_filters
+
+        if not hasattr(self, "_archive_filters"):
+            self._archive_filters = parse_archive_filters(self.request.GET)
+        return self._archive_filters
+
+    def get(self, request, *args, **kwargs):
+        from apps.documents.archive import can_browse_archive
+
+        if not can_browse_archive(request.user):
+            raise PermissionDenied(_("Sənəd arxivinə baxış yalnız Management/Admin üçündür."))
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        from apps.documents.archive import archive_queryset_for
+
+        return archive_queryset_for(self.request.user, self._filters())
 
     def get_context_data(self, **kwargs):
+        from urllib.parse import urlencode
+
+        from django.contrib.auth import get_user_model
+
+        from apps.documents.archive import (
+            FILTER_KEYS,
+            MODULE_SOURCES,
+            VISIBILITY_CHOICES,
+            module_source,
+            module_source_label,
+        )
+        from apps.documents.models import DocumentType
         from apps.documents.services import DocumentService
+        from apps.parties.models import Party
+        from apps.property.models import Space
         from apps.rbac.services import user_has_permission
 
         ctx = super().get_context_data(**kwargs)
         docs = list(ctx["documents"])
         for doc in docs:
             doc.approval_info = DocumentService.approval_summary_for_document(doc)
+            doc.module_source = module_source(doc)
+            doc.module_source_label = module_source_label(doc.module_source)
+            origin = ""
+            if doc.ticket_id and getattr(doc.ticket, "code", None):
+                origin = doc.ticket.code
+            elif doc.offer_id:
+                origin = f"Təklif #{doc.offer_id}"
+            elif doc.invoice_id and getattr(doc.invoice, "code", None):
+                origin = doc.invoice.code
+            elif doc.work_order_id and getattr(doc.work_order, "code", None):
+                origin = doc.work_order.code
+            elif doc.purchase_request_id and getattr(doc.purchase_request, "code", None):
+                origin = doc.purchase_request.code
+            elif doc.purchase_order_id and getattr(doc.purchase_order, "code", None):
+                origin = doc.purchase_order.code
+            elif doc.registry_number:
+                origin = doc.registry_number
+            doc.origin_ref = origin
+            doc.uploader_label = (
+                getattr(doc.created_by, "display_name", None)
+                or getattr(doc.created_by, "username", None)
+                or "—"
+            )
         ctx["documents"] = docs
         ctx["can_submit_approval"] = user_has_permission(self.request.user, "document.edit")
+
+        filters = self._filters()
+        raw = {k: (self.request.GET.get(k) or "").strip() for k in FILTER_KEYS}
+        ctx["filters"] = raw
+        ctx["filter_qs"] = urlencode({k: v for k, v in raw.items() if v})
+        ctx["authorized_count"] = ctx["paginator"].count if ctx.get("paginator") else len(docs)
+        ctx["has_filters"] = any(
+            bool(filters.get(k)) for k in FILTER_KEYS
+        )
+        User = get_user_model()
+        ctx["filter_types"] = DocumentType.objects.order_by("name")
+        ctx["filter_sources"] = MODULE_SOURCES
+        ctx["filter_visibility"] = VISIBILITY_CHOICES
+        ctx["filter_companies"] = ResidentCompany.objects.order_by("name")[:300]
+        ctx["filter_suppliers"] = (
+            Party.objects.filter(documents__isnull=False).distinct().order_by("legal_name")[:300]
+        )
+        ctx["filter_spaces"] = Space.objects.filter(documents__isnull=False).distinct().order_by("code")[:300]
+        ctx["filter_uploaders"] = (
+            User.objects.filter(created_documents__isnull=False).distinct().order_by("username")[:200]
+        )
         return ctx
 
     def post(self, request, *args, **kwargs):
@@ -2123,7 +2462,10 @@ class DocumentsView(PermissionRequiredMixin, StaffRequiredMixin, ListView):
                 messages.error(request, "; ".join(exc.messages))
             else:
                 messages.error(request, str(exc))
-        return redirect("erp:documents")
+        from apps.documents.archive import can_browse_archive
+
+        # Department users have no global archive list to return to.
+        return redirect("erp:documents" if can_browse_archive(request.user) else "erp:dashboard")
 
 
 class DocumentDownloadView(PermissionRequiredMixin, StaffRequiredMixin, View):

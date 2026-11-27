@@ -33,6 +33,7 @@ from apps.erp.correspondence_views import CorrespondenceDetailView, Corresponden
 from apps.erp.procurement_views import (
     ProcurementListView,
     ProcurementPODetailView,
+    ProcurementPOReorderView,
     ProcurementPRCreateView,
     ProcurementPRDetailView,
     ProcurementPendingApprovalsView,
@@ -270,6 +271,16 @@ urlpatterns = [
         views.InternalStaffAccessExportView.as_view(),
         name="internal_staff_employee_export",
     ),
+    path(
+        "internal-staff/access/<int:pk>/attendance.xlsx",
+        views.InternalStaffAttendanceExportView.as_view(),
+        name="internal_staff_attendance_export",
+    ),
+    path(
+        "internal-staff/access/<int:pk>/whatsapp-preview/",
+        views.InternalStaffWhatsAppPreviewView.as_view(),
+        name="internal_staff_whatsapp_preview",
+    ),
     path("leases/", views.LeaseListView.as_view(), name="leases"),
     path("leases/<str:code>/", views.LeaseDetailView.as_view(), name="lease_detail"),
     path("crm/leads/", crm_views.CrmLeadListView.as_view(), name="crm_leads"),
@@ -367,6 +378,11 @@ urlpatterns = [
         "procurement/pos/<str:code>/",
         ProcurementPODetailView.as_view(),
         name="procurement_po_detail",
+    ),
+    path(
+        "procurement/pos/<str:code>/reorder/",
+        ProcurementPOReorderView.as_view(),
+        name="procurement_po_reorder",
     ),
     path(
         "procurement/suppliers/",

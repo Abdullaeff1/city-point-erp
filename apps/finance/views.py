@@ -6,6 +6,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from django.utils.translation import gettext as _
@@ -31,6 +32,15 @@ from apps.billing.models import (
     SupplierInvoiceStatus,
     SupplierPayment,
 )
+from apps.billing.evidence_models import EvidenceStatus, InvoicePaymentEvidence
+from apps.billing.evidence_services import (
+    OPEN_EVIDENCE_STATUSES,
+    link_evidence_to_payment,
+    official_documents_for,
+    set_evidence_status,
+    share_invoice_document,
+    upload_official_invoice_document,
+)
 from apps.billing.policy import in_invoice_window
 from apps.billing.services import (
     apply_penalty_charge,
@@ -40,9 +50,11 @@ from apps.billing.services import (
     invoice_balance,
     invoice_vat_summary,
     mark_overdue_invoices,
+    record_incoming_payment_verified,
     record_payment,
     void_invoice,
 )
+from apps.documents.models import Document, DocumentVersion
 from apps.finance.ap_services import (
     WF_SUPPLIER_PAYMENT,
     SupplierInvoiceService,
@@ -220,13 +232,42 @@ class InvoiceDetailView(FinancePortalMixin, TemplateView):
         ctx["can_mutate"] = can_mutate_finance(self.request.user)
         ctx["can_approve"] = can_approve_payment(self.request.user)
         ctx["pending_payment"] = pending
+        official_docs = []
+        for doc in official_documents_for(inv).select_related("portal_shared_version"):
+            doc.version_rows = list(doc.versions.order_by("-created_at", "-id"))
+            official_docs.append(doc)
+        ctx["official_documents"] = official_docs
+        ctx["payment_evidence"] = inv.payment_evidence.select_related(
+            "document", "payment", "uploaded_by"
+        )
+        ctx["open_evidence_count"] = inv.payment_evidence.filter(
+            status__in=OPEN_EVIDENCE_STATUSES
+        ).count()
         return ctx
 
     def post(self, request, *args, **kwargs):
         inv = self.get_invoice()
         action = request.POST.get("action")
         try:
-            if action == "confirm":
+            if action == "upload_official":
+                upload = request.FILES.get("file")
+                if not upload:
+                    raise DomainError(_("Fayl seçin."))
+                upload_official_invoice_document(
+                    inv, upload, request.user, share=request.POST.get("share") == "1"
+                )
+                messages.success(request, _("Rəsmi faktura sənədi yükləndi."))
+            elif action == "share_version":
+                doc = get_object_or_404(Document, pk=request.POST.get("document_id"), invoice=inv)
+                version = get_object_or_404(
+                    DocumentVersion, pk=request.POST.get("version_id"), document=doc
+                )
+                share_invoice_document(doc, version, request.user)
+                messages.success(
+                    request,
+                    _("Versiya %(v)s rezidentə paylaşıldı.") % {"v": version.version_label},
+                )
+            elif action == "confirm":
                 if not can_mutate_finance(request.user):
                     raise DomainError(_("İcazə yoxdur."))
                 confirm_invoice(inv, actor=request.user)
@@ -312,8 +353,11 @@ class InvoiceDetailView(FinancePortalMixin, TemplateView):
                     description=request.POST.get("penalty_desc") or "",
                 )
                 messages.success(request, _("Cərimə charge yaradıldı."))
-        except (DomainError, InvalidOperation, ValueError) as exc:
-            messages.error(request, str(exc))
+        except (DomainError, InvalidOperation, ValueError, ValidationError) as exc:
+            messages.error(
+                request,
+                "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc),
+            )
         return redirect("finance:invoice_detail", code=inv.code)
 
 
@@ -374,6 +418,119 @@ class PaymentsView(FinancePortalMixin, TemplateView):
         except (DomainError, InvalidOperation, ValueError) as exc:
             messages.error(request, str(exc))
         return redirect("finance:payments")
+
+
+class PaymentEvidenceQueueView(FinancePortalMixin, TemplateView):
+    """«Yoxlama gözləyən ödəniş sənədləri» — resident evidence awaiting Finance review.
+
+    Evidence is only a claim. Finance records verified cash (or links an existing Payment);
+    uploading never moves the invoice balance.
+    """
+
+    template_name = "finance/payment_evidence.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        status = (self.request.GET.get("status") or "").strip()
+        qs = InvoicePaymentEvidence.objects.select_related(
+            "invoice", "invoice__party", "company", "document", "payment", "uploaded_by"
+        )
+        valid = {code for code, _label in EvidenceStatus.choices}
+        if status in valid:
+            qs = qs.filter(status=status)
+        elif status != "all":
+            qs = qs.filter(status__in=OPEN_EVIDENCE_STATUSES)
+            status = ""
+        rows = []
+        for ev in qs.order_by("created_at", "id")[:200]:
+            ev.balance = invoice_balance(ev.invoice)
+            ev.invoice_payments = list(ev.invoice.payments.all())
+            rows.append(ev)
+        ctx.update(
+            {
+                "evidence_rows": rows,
+                "status_filter": status,
+                "statuses": EvidenceStatus.choices,
+                "can_mutate": can_mutate_finance(self.request.user),
+            }
+        )
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        action = request.POST.get("action")
+        evidence = get_object_or_404(InvoicePaymentEvidence, pk=request.POST.get("evidence_id"))
+        try:
+            if action == "link_payment":
+                payment = get_object_or_404(
+                    Payment, pk=request.POST.get("payment_id"), invoice_id=evidence.invoice_id
+                )
+                link_evidence_to_payment(evidence, payment, request.user)
+                messages.success(request, _("Sübut mövcud ödənişə bağlandı."))
+            elif action == "record_payment":
+                payment = record_incoming_payment_verified(
+                    invoice=evidence.invoice,
+                    amount=Decimal(request.POST.get("amount") or "0"),
+                    actor=request.user,
+                    method=request.POST.get("method") or "bank",
+                    reference=request.POST.get("reference") or "",
+                    evidence=evidence,
+                )
+                messages.success(
+                    request,
+                    _("Ödəniş təsdiqləndi və qeydə alındı: %(amount)s") % {"amount": payment.amount},
+                )
+            elif action == "clarify":
+                set_evidence_status(
+                    evidence,
+                    EvidenceStatus.NEEDS_CLARIFICATION,
+                    request.user,
+                    note=request.POST.get("note") or "",
+                )
+                messages.info(request, _("Dəqiqləşdirmə tələb olundu."))
+            elif action == "cancel":
+                set_evidence_status(
+                    evidence,
+                    EvidenceStatus.CANCELLED,
+                    request.user,
+                    note=request.POST.get("note") or "",
+                )
+                messages.info(request, _("Sübut ləğv edildi."))
+            else:
+                messages.error(request, _("Naməlum əməliyyat."))
+        except (DomainError, InvalidOperation, ValueError, ValidationError) as exc:
+            messages.error(
+                request,
+                "; ".join(exc.messages) if isinstance(exc, ValidationError) else str(exc),
+            )
+        return redirect("finance:payment_evidence")
+
+
+class FinanceDocumentDownloadView(FinancePortalMixin, View):
+    """ACL-gated download for Finance (accountants have no ERP shell access)."""
+
+    def get(self, request, pk):
+        from django.core.exceptions import PermissionDenied
+        from django.http import FileResponse, Http404
+
+        from apps.documents.access import user_can_download_document
+
+        # Finance shell serves only invoice-bound documents (official invoice / payment evidence).
+        document = get_object_or_404(Document, pk=pk, invoice__isnull=False)
+        if not user_can_download_document(request.user, document):
+            raise PermissionDenied(_("Bu sənədin məxfilik səviyyəsinə görə endirmə icazəniz yoxdur."))
+        file_field = document.file
+        version_id = request.GET.get("version")
+        if version_id:
+            version = get_object_or_404(DocumentVersion, pk=version_id, document=document)
+            file_field = version.file or document.file
+        if not file_field:
+            raise Http404()
+        try:
+            handle = file_field.open("rb")
+        except Exception as exc:  # noqa: BLE001
+            raise Http404() from exc
+        filename = (getattr(file_field, "name", "") or "document.bin").rsplit("/", 1)[-1]
+        return FileResponse(handle, as_attachment=False, filename=filename)
 
 
 class AgingView(FinancePortalMixin, TemplateView):

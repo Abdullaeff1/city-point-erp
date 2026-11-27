@@ -153,7 +153,11 @@ from apps.billing.supplier_models import (  # noqa: E402
     SupplierPayment,
 )
 
+from apps.billing.evidence_models import EvidenceStatus, InvoicePaymentEvidence  # noqa: E402
+
 __all__ = [
+    "EvidenceStatus",
+    "InvoicePaymentEvidence",
     "ChargeSource",
     "InvoiceStatus",
     "Charge",

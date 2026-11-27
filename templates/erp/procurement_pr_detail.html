@@ -1,4 +1,4 @@
-﻿{% extends "erp/base.html" %}
+{% extends "erp/base.html" %}
 {% load i18n %}
 {% block page_title %}{{ pr.code }}{% endblock %}
 {% block heading %}{{ pr.code }}{% endblock %}
@@ -12,6 +12,7 @@
     {{ pr.get_status_display }} · {{ pr.get_source_display }}
     · {% translate "Sorğu edən" %}: {{ pr.requested_by.get_username|default:"—" }}
     {% if pr.work_order_id %}· WO: <a href="{% url 'erp:work_order_detail' pr.work_order.code %}">{{ pr.work_order.code }}</a>{% endif %}
+    {% if pr.source_po_id %}· {% translate "Əvvəlki sifariş" %}: <a href="{% url 'erp:procurement_po_detail' pr.source_po.code %}">{{ pr.source_po.code }}</a>{% endif %}
   </p>
   {% if pr.notes %}<p class="cp-body-text">{{ pr.notes }}</p>{% endif %}
   {% if pending_commitments %}

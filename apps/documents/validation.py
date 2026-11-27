@@ -9,6 +9,8 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
 ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".docx"}
+# Ticket screens historically accepted short text notes; keep that surface working.
+TICKET_ALLOWED_EXTENSIONS = ALLOWED_EXTENSIONS | {".txt", ".webp", ".gif"}
 MAX_DOCUMENT_BYTES = 20 * 1024 * 1024
 
 
@@ -19,16 +21,20 @@ def _ext(name: str) -> str:
     return "." + name.rsplit(".", 1)[-1]
 
 
-def validate_document_file(uploaded) -> None:
+def validate_document_file(uploaded, *, allowed_extensions=None, content_check: bool = True) -> None:
     if not uploaded:
         raise ValidationError(_("Fayl tələb olunur."))
     name = getattr(uploaded, "name", "") or ""
     ext = _ext(name)
-    if ext not in ALLOWED_EXTENSIONS:
+    allowed = allowed_extensions or ALLOWED_EXTENSIONS
+    if ext not in allowed:
         raise ValidationError(_("İcazəli formatlar: PDF, PNG, JPG, DOCX."))
     size = getattr(uploaded, "size", 0) or 0
     if size > MAX_DOCUMENT_BYTES:
         raise ValidationError(_("Fayl ölçüsü 20 MB-dan böyük ola bilməz."))
+
+    if not content_check:
+        return
 
     pos = uploaded.tell() if hasattr(uploaded, "tell") else None
     head = uploaded.read(16) if hasattr(uploaded, "read") else b""
@@ -44,6 +50,9 @@ def validate_document_file(uploaded) -> None:
             uploaded.seek(pos)
         except Exception:
             uploaded.seek(0)
+
+    if ext in {".txt", ".webp", ".gif"}:
+        return
 
     if ext == ".pdf":
         if not content.startswith(b"%PDF"):

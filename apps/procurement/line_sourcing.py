@@ -41,23 +41,24 @@ from apps.procurement.services import (
 )
 
 
-def quote_line_amounts(line: RFQQuoteLine) -> dict[str, Decimal | None]:
-    """Return net / vat / gross for a quoted line; unanswered → None amounts."""
-    if line.response_status != QuoteLineResponseStatus.QUOTED:
-        return {"net": None, "vat": None, "gross": None, "tax_basis": "unanswered"}
-    qty = Decimal(str(line.qty or 0))
-    unit = _quantize_money(Decimal(str(line.unit_price or 0)))
-    raw = _quantize_money(qty * unit)
-    rate = line.vat_rate
-    if rate is None:
+def _money_for_qty(
+    *,
+    qty: Decimal,
+    unit_price: Decimal,
+    vat_rate,
+    price_includes_vat: bool,
+) -> dict[str, Decimal | None]:
+    unit = _quantize_money(Decimal(str(unit_price or 0)))
+    raw = _quantize_money(_quantize_qty(qty) * unit)
+    if vat_rate is None:
         return {
-            "net": raw if not line.price_includes_vat else None,
+            "net": raw if not price_includes_vat else None,
             "vat": None,
-            "gross": raw if line.price_includes_vat else None,
+            "gross": raw if price_includes_vat else None,
             "tax_basis": "unknown",
         }
-    rate = Decimal(str(rate))
-    if line.price_includes_vat:
+    rate = Decimal(str(vat_rate))
+    if price_includes_vat:
         gross = raw
         net = _quantize_money(gross / (Decimal("1") + rate))
         vat = _quantize_money(gross - net)
@@ -66,6 +67,28 @@ def quote_line_amounts(line: RFQQuoteLine) -> dict[str, Decimal | None]:
         vat = _quantize_money(net * rate)
         gross = _quantize_money(net + vat)
     return {"net": net, "vat": vat, "gross": gross, "tax_basis": "explicit_rate"}
+
+
+def quote_line_amounts(line: RFQQuoteLine) -> dict[str, Decimal | None]:
+    """Return net / vat / gross for a quoted line; unanswered → None amounts."""
+    if line.response_status != QuoteLineResponseStatus.QUOTED:
+        return {"net": None, "vat": None, "gross": None, "tax_basis": "unanswered"}
+    return _money_for_qty(
+        qty=Decimal(str(line.qty or 0)),
+        unit_price=Decimal(str(line.unit_price or 0)),
+        vat_rate=line.vat_rate,
+        price_includes_vat=bool(line.price_includes_vat),
+    )
+
+
+def award_amounts(award: PRLineAward) -> dict[str, Decimal | None]:
+    """Net/VAT/gross for an award portion (not the full quote line)."""
+    return _money_for_qty(
+        qty=Decimal(str(award.qty or 0)),
+        unit_price=Decimal(str(award.unit_price or 0)),
+        vat_rate=award.vat_rate,
+        price_includes_vat=bool(award.price_includes_vat),
+    )
 
 
 def _build_request_text(rfq: RFQ, supplier, lines: list[tuple[PRLine, Decimal]]) -> str:
@@ -399,9 +422,15 @@ class LineSourcingService:
                     )
                     continue
                 amounts = quote_line_amounts(qline)
+                quoted_qty = Decimal(str(qline.qty or 0))
+                already = ProcurementService.quote_line_awarded_qty(qline)
+                offer_left = quoted_qty - already
+                if offer_left < 0:
+                    offer_left = Decimal("0")
+                max_portion = min(remaining, offer_left)
                 eligible = (
                     qline.response_status == QuoteLineResponseStatus.QUOTED
-                    and Decimal(str(qline.qty)) >= remaining
+                    and max_portion > 0
                     and remaining > 0
                     and (qline.unit or "") == (pr_line.unit or "")
                     and (qline.currency or "").upper() == _SUPPORTED_CURRENCY
@@ -415,7 +444,7 @@ class LineSourcingService:
                     gross=amounts["gross"],
                     tax_basis=amounts["tax_basis"],
                     award_eligible=eligible,
-                    quoted_qty=Decimal(str(qline.qty)),
+                    quoted_qty=quoted_qty,
                     remaining_qty=remaining,
                 )
                 row.cells[sid] = cell
@@ -452,10 +481,15 @@ class LineSourcingService:
             raise DomainError("Ən azı bir sətir seçilməlidir.")
 
         awards: list[PRLineAward] = []
+        # Track portions reserved in this transaction before they hit the DB sum.
+        batch_free: dict[int, Decimal] = {}
+        batch_offer: dict[int, Decimal] = {}
         for sel in selections:
             pr_line_id = int(sel["pr_line_id"])
             quote_line_id = int(sel["quote_line_id"])
             pr_line = PRLine.objects.select_for_update().get(pk=pr_line_id, pr=locked)
+            # Lock quote line row only (no outer join) then reload relations.
+            RFQQuoteLine.objects.select_for_update().only("id").get(pk=quote_line_id)
             quote_line = RFQQuoteLine.objects.select_related(
                 "quote", "quote__supplier_party", "pr_line"
             ).get(pk=quote_line_id)
@@ -463,22 +497,33 @@ class LineSourcingService:
                 raise DomainError("Təklif sətri PR sətrinə aid deyil.")
             if quote_line.response_status != QuoteLineResponseStatus.QUOTED:
                 raise DomainError("Cavabsız sətir mükafatlandırıla bilməz.")
-            remaining = ProcurementService.pr_line_remaining_qty(pr_line)
-            if remaining <= 0:
-                raise DomainError("PR sətrində qalan miqdar yoxdur.")
-            # Whole-line only — no split across suppliers
+            if pr_line.pk not in batch_free:
+                batch_free[pr_line.pk] = ProcurementService.pr_line_free_to_allocate_qty(
+                    pr_line
+                )
+            free = batch_free[pr_line.pk]
+            if free <= 0:
+                raise DomainError("PR sətrində sərbəst (ayrıla bilən) miqdar yoxdur.")
             if "qty" in sel and sel["qty"] is not None and str(sel["qty"]).strip() != "":
-                requested = _quantize_qty(sel["qty"])
-                if requested != remaining:
-                    raise DomainError(
-                        "Bir PR sətrinin podratçılar arasında bölünməsi "
-                        "City Point təsdiqini gözləyir — yalnız tam qalan miqdar mükafatlandırıla bilər."
-                    )
-            quoted_qty = Decimal(str(quote_line.qty))
-            if quoted_qty < remaining:
+                take = _quantize_qty(sel["qty"])
+            else:
+                take = free
+            if take <= 0:
+                raise DomainError("Mükafat miqdarı müsbət olmalıdır.")
+            if take > free:
                 raise DomainError(
-                    "Qismən miqdar təklifi bütöv sətri qazana bilməz "
-                    f"(təklif {format(quoted_qty, 'f')}, qalan {format(remaining, 'f')})."
+                    f"Sərbəst miqdardan artıq mükafat "
+                    f"(sərbəst {format(free, 'f')}, tələb {format(take, 'f')})."
+                )
+            quoted_qty = Decimal(str(quote_line.qty or 0))
+            if quote_line.pk not in batch_offer:
+                already = ProcurementService.quote_line_awarded_qty(quote_line)
+                batch_offer[quote_line.pk] = quoted_qty - already
+            offer_left = batch_offer[quote_line.pk]
+            if take > offer_left:
+                raise DomainError(
+                    "Təklif olunan miqdardan artıq seçilə bilməz "
+                    f"(qalan təklif {format(offer_left, 'f')}, seçim {format(take, 'f')})."
                 )
             if (quote_line.unit or "") != (pr_line.unit or ""):
                 raise DomainError("Vahid uyğun gəlmir.")
@@ -489,14 +534,29 @@ class LineSourcingService:
                 raise DomainError(
                     "Vergi bazası naməlumdur — Finance qaydası / Management öhdəliyi tələb olunur."
                 )
+            supplier = quote_line.quote.supplier_party
+            existing = (
+                PRLineAward.objects.select_for_update()
+                .filter(
+                    pr_line=pr_line,
+                    supplier_party=supplier,
+                    is_active=True,
+                    po_line__isnull=True,
+                )
+                .first()
+            )
+            if existing is not None:
+                raise DomainError(
+                    "Bu podratçı üçün bu sətirdə artıq aktiv mükafat var — "
+                    "əvvəlcə buraxın və ya PO-ya çevirin."
+                )
 
-            PRLineAward.objects.filter(pr_line=pr_line, is_active=True).update(is_active=False)
             award = PRLineAward.objects.create(
                 pr=locked,
                 pr_line=pr_line,
                 quote_line=quote_line,
-                supplier_party=quote_line.quote.supplier_party,
-                qty=remaining,
+                supplier_party=supplier,
+                qty=take,
                 unit_price=quote_line.unit_price,
                 currency=quote_line.currency,
                 vat_rate=quote_line.vat_rate,
@@ -505,6 +565,8 @@ class LineSourcingService:
                 actor=actor,
                 is_active=True,
             )
+            batch_free[pr_line.pk] = free - take
+            batch_offer[quote_line.pk] = offer_left - take
             awards.append(award)
         return awards
 
@@ -537,7 +599,7 @@ class LineSourcingService:
             return AmountAssessment(None, "", "empty_request", "no_awards")
         total = Decimal("0")
         for a in awards:
-            amounts = quote_line_amounts(a.quote_line)
+            amounts = award_amounts(a)
             if amounts["tax_basis"] == "unknown" or amounts["gross"] is None:
                 return AmountAssessment(
                     None, "", "amount_unknown", "award_tax_basis_unknown"
@@ -546,7 +608,6 @@ class LineSourcingService:
                 return AmountAssessment(
                     None, a.currency, "currency_unsupported", "award_currency"
                 )
-            # Authorization uses gross when VAT known; net if Finance later changes basis
             total += amounts["gross"]
         return AmountAssessment(
             _quantize_money(total),
@@ -763,15 +824,26 @@ class LineSourcingService:
             raise DomainError(
                 "Təsdiqlənmiş təklif şərtləri dəyişib — yeni Management təsdiqi tələb olunur."
             )
-        # Re-check remaining qty under lock
+        # Consume awards atomically: reserved unissued qty becomes ordered PO qty.
         for a in awards:
-            rem = ProcurementService.pr_line_remaining_qty(a.pr_line)
-            if rem < a.qty:
+            locked_award = PRLineAward.objects.select_for_update().get(pk=a.pk)
+            if not locked_award.is_active or locked_award.po_line_id:
+                raise DomainError("Mükafat artıq PO sətrinə bağlanıb və ya buraxılıb.")
+            pr_line = PRLine.objects.select_for_update().get(pk=locked_award.pr_line_id)
+            ordered = ProcurementService.pr_line_ordered_qty(pr_line)
+            other_unissued = (
+                ProcurementService.pr_line_awarded_unissued_qty(pr_line)
+                - Decimal(str(locked_award.qty))
+            )
+            if other_unissued < 0:
+                other_unissued = Decimal("0")
+            if ordered + other_unissued + Decimal(str(locked_award.qty)) > Decimal(
+                str(pr_line.qty or 0)
+            ):
                 raise DomainError(
-                    f"Sətir {a.pr_line_id} üçün kifayət qədər qalan miqdar yoxdur."
+                    f"Sətir {pr_line.pk} üçün kifayət qədər qalan miqdar yoxdur."
                 )
-            if a.po_line_id:
-                raise DomainError("Mükafat artıq PO sətrinə bağlanıb.")
+            a.pk = locked_award.pk  # ensure freshest for later link
 
         from apps.procurement.services import _next_code
 
@@ -783,17 +855,19 @@ class LineSourcingService:
             ordered_at=timezone.localdate(),
         )
         for a in awards:
+            locked_award = PRLineAward.objects.select_for_update().get(pk=a.pk)
             po_line = POLine.objects.create(
                 po=po,
-                description=a.pr_line.description,
-                sku=a.pr_line.sku,
-                qty=a.qty,
-                unit_price=a.unit_price,
-                pr_line=a.pr_line,
-                quote_line=a.quote_line,
+                description=locked_award.pr_line.description,
+                sku=locked_award.pr_line.sku,
+                qty=locked_award.qty,
+                unit_price=locked_award.unit_price,
+                pr_line=locked_award.pr_line,
+                quote_line=locked_award.quote_line,
             )
+            locked_award.po_line = po_line
+            locked_award.save(update_fields=["po_line"])
             a.po_line = po_line
-            a.save(update_fields=["po_line"])
 
         if pr.status == PRStatus.APPROVED:
             pr.status = PRStatus.ORDERED
